@@ -1,0 +1,28 @@
+# ===========================================
+# FRONTEND ENVIRONMENT VARIABLES
+# ===========================================
+# Copy this file to the project root as .env
+
+# Supabase Configuration
+# Get these values from Dashboard > Settings > API
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# ===========================================
+# EDGE FUNCTIONS SECRETS
+# Configure these values in Supabase Dashboard > Edge Functions > Secrets
+# ===========================================
+
+# Resend API Key - https://resend.com/api-keys
+# RESEND_API_KEY=re_xxxxxxxxxxxxx
+
+# Stripe - https://dashboard.stripe.com/apikeys
+# STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxxx
+# STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxx
+
+# Google Places API - https://console.cloud.google.com/apis/credentials
+# GOOGLE_PLACES_API_KEY=AIzaxxxxxxxxxxxxx
+
+# Site URL (for email links)
+# SITE_URL=https://anfrage24.ch
+

@@ -1,0 +1,38 @@
+{
+  "name": "detect_service_type",
+  "description": "Detect which service the customer needs based on their initial request",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "service_type": {
+        "type": "string",
+        "enum": [
+          "umzug",
+          "reinigung",
+          "raeumung",
+          "entsorgung",
+          "klaviertransport",
+          "moebellift",
+          "lagerung"
+        ],
+        "description": "The main service type the customer is asking about"
+      },
+      "sub_type": {
+        "type": "string",
+        "description": "Optional sub-type if detected (e.g., umzug_privat, umzug_firma, endreinigung, etc.)"
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 100,
+        "description": "Confidence score (0-100) in the service type detection"
+      },
+      "keywords_detected": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Keywords that led to this detection"
+      }
+    },
+    "required": ["service_type", "confidence"]
+  }
+}

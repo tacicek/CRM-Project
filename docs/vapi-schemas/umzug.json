@@ -1,0 +1,284 @@
+{
+  "name": "collect_umzug_data",
+  "description": "Collect all data for a moving (Umzug) request in Switzerland",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "service_type": {
+        "type": "string",
+        "enum": ["umzug_privat", "umzug_firma"],
+        "description": "Private or company move"
+      },
+      
+      "from_address": {
+        "type": "object",
+        "description": "Current address (Auszugsadresse) - PRIMARY for pricing",
+        "properties": {
+          "plz": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{3}$",
+            "description": "Swiss PLZ (4 digits, 1000-9999)"
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "description": "City name (Ort)"
+          },
+          "street": {
+            "type": "string",
+            "description": "Street name (Strasse)"
+          },
+          "house_number": {
+            "type": "string",
+            "description": "House number (Hausnummer)"
+          },
+          "floor": {
+            "type": "string",
+            "enum": ["basement", "ground_floor", "floor_1", "floor_2", "floor_3", "floor_4", "floor_5_plus"],
+            "description": "Floor level (Stockwerk)"
+          },
+          "has_lift": {
+            "type": "boolean",
+            "description": "Is there a usable lift?"
+          },
+          "lift_type": {
+            "type": "string",
+            "enum": ["small_elevator", "large_elevator", "cargo_elevator"],
+            "description": "Type of lift if available"
+          },
+          "parking_distance_m": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Distance from entrance to parking in meters"
+          }
+        },
+        "required": ["plz", "city"]
+      },
+      
+      "to_address": {
+        "type": "object",
+        "description": "New address (Einzugsadresse)",
+        "properties": {
+          "plz": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{3}$"
+          },
+          "city": { "type": "string" },
+          "street": { "type": "string" },
+          "house_number": { "type": "string" },
+          "floor": {
+            "type": "string",
+            "enum": ["basement", "ground_floor", "floor_1", "floor_2", "floor_3", "floor_4", "floor_5_plus"]
+          },
+          "has_lift": { "type": "boolean" },
+          "lift_type": {
+            "type": "string",
+            "enum": ["small_elevator", "large_elevator", "cargo_elevator"]
+          },
+          "parking_distance_m": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["plz", "city"]
+      },
+      
+      "property_details": {
+        "type": "object",
+        "description": "Details about the current property (source of items)",
+        "properties": {
+          "property_type": {
+            "type": "string",
+            "enum": ["haus", "wohnung", "wg_zimmer", "lager", "buero"],
+            "description": "Type of property"
+          },
+          "rooms": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 20,
+            "description": "Number of rooms (e.g., 2.5, 3.5, 4.5)"
+          },
+          "living_space_m2": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 1000,
+            "description": "Living space in square meters"
+          },
+          "has_cellar": {
+            "type": "boolean",
+            "description": "Is there a cellar to be moved?"
+          },
+          "has_attic": {
+            "type": "boolean",
+            "description": "Is there an attic (Estrich) to be moved?"
+          },
+          "has_garage": {
+            "type": "boolean",
+            "description": "Is there a garage to be cleared?"
+          }
+        },
+        "required": ["rooms"]
+      },
+      
+      "moving_date": {
+        "type": "object",
+        "properties": {
+          "preferred_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Preferred moving date (YYYY-MM-DD)"
+          },
+          "flexibility": {
+            "type": "string",
+            "enum": ["fixed", "flex_3_days", "flex_1_week", "flex_2_weeks"],
+            "description": "Date flexibility"
+          },
+          "preferred_time": {
+            "type": "string",
+            "enum": ["morning", "afternoon", "flexible"],
+            "description": "Preferred time of day"
+          }
+        },
+        "required": ["preferred_date"]
+      },
+      
+      "additional_services": {
+        "type": "object",
+        "description": "Additional services needed",
+        "properties": {
+          "packing_service": {
+            "type": "boolean",
+            "description": "Need packing service?"
+          },
+          "packing_scope": {
+            "type": "string",
+            "enum": ["everything", "fragile_only"],
+            "description": "What to pack?"
+          },
+          "unpacking_service": {
+            "type": "boolean",
+            "description": "Need unpacking service?"
+          },
+          "furniture_assembly": {
+            "type": "boolean",
+            "description": "Need furniture assembly/disassembly?"
+          },
+          "disposal": {
+            "type": "boolean",
+            "description": "Need disposal of old items?"
+          },
+          "disposal_volume_m3": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Estimated disposal volume in m³"
+          },
+          "end_cleaning": {
+            "type": "boolean",
+            "description": "Need end-of-tenancy cleaning?"
+          },
+          "interim_storage": {
+            "type": "boolean",
+            "description": "Need temporary storage?"
+          },
+          "storage_weeks": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of weeks for storage"
+          },
+          "furniture_lift": {
+            "type": "boolean",
+            "description": "Need furniture lift (Moebellift)?"
+          },
+          "furniture_lift_location": {
+            "type": "string",
+            "enum": ["pickup", "delivery", "both"],
+            "description": "Where is furniture lift needed?"
+          }
+        }
+      },
+      
+      "special_items": {
+        "type": "object",
+        "description": "Special or heavy items",
+        "properties": {
+          "piano": {
+            "type": "boolean",
+            "description": "Is there a piano to move?"
+          },
+          "piano_type": {
+            "type": "string",
+            "enum": ["upright", "grand"],
+            "description": "Type of piano"
+          },
+          "safe": {
+            "type": "boolean",
+            "description": "Is there a safe to move?"
+          },
+          "aquarium": {
+            "type": "boolean",
+            "description": "Is there an aquarium to move?"
+          },
+          "pool_table": {
+            "type": "boolean",
+            "description": "Is there a pool table?"
+          }
+        }
+      },
+      
+      "customer": {
+        "type": "object",
+        "description": "Customer contact information",
+        "properties": {
+          "salutation": {
+            "type": "string",
+            "enum": ["herr", "frau", "divers"],
+            "description": "Salutation"
+          },
+          "first_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "First name (Vorname)"
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Last name (Nachname)"
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9][0-9]{7,14}$",
+            "description": "Phone number (+41...)"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email address"
+          }
+        },
+        "required": ["first_name", "phone", "email"]
+      },
+      
+      "notes": {
+        "type": "string",
+        "description": "Additional notes or special requirements"
+      },
+      
+      "conversation_metadata": {
+        "type": "object",
+        "properties": {
+          "duration_seconds": {
+            "type": "integer",
+            "description": "Conversation duration in seconds"
+          },
+          "confidence_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "AI confidence in the collected data"
+          },
+          "summary_confirmed": {
+            "type": "boolean",
+            "description": "Did customer confirm the summary?"
+          }
+        }
+      }
+    },
+    "required": ["service_type", "from_address", "to_address", "property_details", "customer"]
+  }
+}

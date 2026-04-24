@@ -1,0 +1,207 @@
+{
+  "name": "collect_entsorgung_data",
+  "description": "Collect all data for a waste disposal (Entsorgung) request in Switzerland",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "disposal_type": {
+        "type": "string",
+        "enum": [
+          "sperrmuell",
+          "elektronik",
+          "bauschutt",
+          "gruenabfall",
+          "haushalt",
+          "gewerbe",
+          "sondermuell",
+          "mischmuell"
+        ],
+        "description": "Type of waste: bulky waste, electronics, construction debris, green waste, household, commercial, hazardous, or mixed"
+      },
+      
+      "quantity": {
+        "type": "object",
+        "description": "Amount of waste",
+        "properties": {
+          "volume_m3": {
+            "type": "number",
+            "minimum": 0.1,
+            "maximum": 100,
+            "description": "Volume in cubic meters"
+          },
+          "weight_kg": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Estimated weight in kg"
+          },
+          "item_count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of items"
+          },
+          "container_size": {
+            "type": "string",
+            "enum": ["klein", "mittel", "gross", "container_7m3", "container_10m3", "container_20m3"],
+            "description": "If container is needed, which size"
+          }
+        }
+      },
+      
+      "items": {
+        "type": "object",
+        "description": "What items to dispose",
+        "properties": {
+          "bulky_waste": {
+            "type": "object",
+            "description": "Sperrmuell items",
+            "properties": {
+              "furniture": { "type": "boolean" },
+              "mattresses": { "type": "boolean" },
+              "carpets": { "type": "boolean" },
+              "wood": { "type": "boolean" }
+            }
+          },
+          "electronics": {
+            "type": "object",
+            "properties": {
+              "appliances": { "type": "boolean" },
+              "computers": { "type": "boolean" },
+              "tvs": { "type": "boolean" },
+              "refrigerators": { "type": "boolean" },
+              "washing_machines": { "type": "boolean" }
+            }
+          },
+          "construction": {
+            "type": "object",
+            "properties": {
+              "concrete": { "type": "boolean" },
+              "bricks": { "type": "boolean" },
+              "tiles": { "type": "boolean" },
+              "drywall": { "type": "boolean" }
+            }
+          },
+          "green_waste": {
+            "type": "object",
+            "properties": {
+              "garden_waste": { "type": "boolean" },
+              "tree_trimmings": { "type": "boolean" },
+              "leaves": { "type": "boolean" }
+            }
+          },
+          "hazardous": {
+            "type": "object",
+            "description": "Sondermuell - requires special handling",
+            "properties": {
+              "paints_lacquers": { "type": "boolean" },
+              "chemicals": { "type": "boolean" },
+              "batteries": { "type": "boolean" },
+              "light_bulbs": { "type": "boolean" },
+              "asbestos": { "type": "boolean" }
+            }
+          },
+          "other_description": {
+            "type": "string",
+            "description": "Description of other items"
+          }
+        }
+      },
+      
+      "address": {
+        "type": "object",
+        "properties": {
+          "plz": { "type": "string", "pattern": "^[1-9][0-9]{3}$" },
+          "city": { "type": "string", "minLength": 1 },
+          "street": { "type": "string" },
+          "house_number": { "type": "string" }
+        },
+        "required": ["plz", "city"]
+      },
+      
+      "access": {
+        "type": "object",
+        "properties": {
+          "floor": {
+            "type": "string",
+            "enum": ["basement", "ground_floor", "floor_1", "floor_2", "floor_3", "floor_4", "floor_5_plus"]
+          },
+          "has_lift": { "type": "boolean" },
+          "lift_usable": { "type": "boolean", "description": "Can lift be used for waste removal?" },
+          "parking_available": { "type": "boolean" },
+          "parking_distance_m": { "type": "integer", "minimum": 0 },
+          "truck_access": { "type": "boolean", "description": "Can a truck access the property?" },
+          "container_space": { "type": "boolean", "description": "Is there space for a container?" },
+          "special_notes": { "type": "string" }
+        }
+      },
+      
+      "additional_services": {
+        "type": "object",
+        "properties": {
+          "disassembly": { "type": "boolean", "description": "Need furniture disassembly?" },
+          "packaging": { "type": "boolean" },
+          "transport_from_apartment": { "type": "boolean", "description": "Carry items from apartment?" },
+          "container_delivery": { "type": "boolean" },
+          "container_pickup": { "type": "boolean" },
+          "sweep_clean": { "type": "boolean", "description": "Leave area sweep-clean (besenrein)?" },
+          "disposal_certificate": { "type": "boolean", "description": "Need official disposal certificate?" }
+        }
+      },
+      
+      "schedule": {
+        "type": "object",
+        "properties": {
+          "preferred_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "flexibility": {
+            "type": "string",
+            "enum": ["fixed", "flexible", "very_flexible"]
+          },
+          "urgency": {
+            "type": "string",
+            "enum": ["normal", "urgent", "immediate"]
+          },
+          "time_window": {
+            "type": "string",
+            "enum": ["morning", "afternoon", "all_day"]
+          }
+        }
+      },
+      
+      "customer": {
+        "type": "object",
+        "properties": {
+          "salutation": {
+            "type": "string",
+            "enum": ["herr", "frau", "firma"]
+          },
+          "first_name": { "type": "string", "minLength": 1 },
+          "last_name": { "type": "string" },
+          "company": { "type": "string" },
+          "phone": { "type": "string", "pattern": "^\\+[1-9][0-9]{7,14}$" },
+          "email": { "type": "string", "format": "email" },
+          "preferred_contact_time": {
+            "type": "string",
+            "enum": ["morning", "afternoon", "evening", "anytime"]
+          }
+        },
+        "required": ["first_name", "phone", "email"]
+      },
+      
+      "notes": { "type": "string" },
+      
+      "requires_special_handling": {
+        "type": "boolean",
+        "description": "True for hazardous, electronics, or construction waste"
+      },
+      
+      "confidence_score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      }
+    },
+    "required": ["disposal_type", "quantity", "address", "customer"]
+  }
+}

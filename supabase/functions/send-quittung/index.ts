@@ -1,0 +1,321 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { Resend } from "https://esm.sh/resend@2.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { logEmail } from "../_shared/logEmail.ts";
+import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface SendQuittungRequest {
+  quittungId: string;
+  /** Pre-generated PDF as base64 (from frontend @react-pdf/renderer) */
+  quittungPdfBase64?: string;
+}
+
+interface QuittungRow {
+  id: string;
+  quittung_nr: string;
+  datum: string;
+  customer_name: string;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_address: string | null;
+  customer_destination: string | null;
+  gesamttotal: number;
+  mwst_satz: number;
+  mwst_betrag: number;
+  rabatt: number;
+  zwischensumme: number;
+  status: string;
+  betrag_noch_offen: boolean;
+  positionen: Array<{
+    beschreibung: string;
+    satz: string;
+    betrag: number;
+    checked: boolean;
+    is_custom: boolean;
+  }>;
+  companies: {
+    company_name: string;
+    email: string;
+    notification_email: string | null;
+    logo_url: string | null;
+    primary_color: string | null;
+    phone: string | null;
+    street: string | null;
+    plz: string | null;
+    city: string | null;
+    mwst_number: string | null;
+    iban: string | null;
+    bank_name: string | null;
+    resend_enabled: boolean | null;
+    resend_api_key: string | null;
+    resend_from_email: string | null;
+    resend_from_name: string | null;
+  };
+}
+
+function fmtChf(amount: number): string {
+  return "CHF " + amount.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(isoDate: string): string {
+  const d = new Date(isoDate);
+  return d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function buildCustomerEmail(q: QuittungRow, brand: string): string {
+  const checkedItems = q.positionen.filter(p => p.checked && p.betrag > 0);
+
+  const rows = checkedItems.map(p => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #e4e4e7;font-size:13px;">${p.beschreibung}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e4e4e7;font-size:13px;color:#71717a;">${p.satz || ""}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e4e4e7;font-size:13px;text-align:right;">${fmtChf(p.betrag)}</td>
+    </tr>`).join("");
+
+  const inner = `
+    <!-- Header -->
+    <div style="background:${brand};padding:24px 20px 20px;">
+      <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.75);font-family:${EMAIL_FONT_STACK}">
+        Quittung
+      </p>
+      <h1 style="margin:0;font-size:22px;font-weight:700;color:#fff;font-family:${EMAIL_FONT_STACK}">
+        ${q.companies.company_name}
+      </h1>
+      <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.85);font-family:${EMAIL_FONT_STACK}">
+        ${q.quittung_nr} · ${fmtDate(q.datum)}
+      </p>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:24px 20px;background:#fafafa;">
+      <p style="margin:0 0 16px;font-size:15px;color:#18181b;font-family:${EMAIL_FONT_STACK}">
+        Guten Tag ${q.customer_name},
+      </p>
+      <p style="margin:0 0 20px;font-size:14px;color:#3f3f46;font-family:${EMAIL_FONT_STACK}">
+        Vielen Dank für Ihren Auftrag. Anbei finden Sie Ihre Quittung im Anhang.
+      </p>
+
+      <!-- Service table -->
+      <table width="100%" cellspacing="0" cellpadding="0" border="0"
+        style="border-collapse:collapse;border:1px solid #e4e4e7;border-radius:8px;overflow:hidden;background:#fff;margin-bottom:16px;">
+        <thead>
+          <tr style="background:${brand};">
+            <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-weight:600;font-family:${EMAIL_FONT_STACK}">Beschreibung</th>
+            <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-weight:600;font-family:${EMAIL_FONT_STACK}">Satz</th>
+            <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-weight:600;font-family:${EMAIL_FONT_STACK}">Betrag</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+
+      <!-- Totals -->
+      <table width="100%" cellspacing="0" cellpadding="0" border="0"
+        style="max-width:280px;margin-left:auto;border-collapse:collapse;margin-bottom:16px;">
+        <tr>
+          <td style="padding:5px 0;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">Zwischensumme:</td>
+          <td style="padding:5px 0;font-size:13px;text-align:right;font-family:${EMAIL_FONT_STACK}">${fmtChf(q.zwischensumme)}</td>
+        </tr>
+        ${q.rabatt > 0 ? `
+        <tr>
+          <td style="padding:5px 0;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">Rabatt:</td>
+          <td style="padding:5px 0;font-size:13px;text-align:right;font-family:${EMAIL_FONT_STACK}">-${fmtChf(q.rabatt)}</td>
+        </tr>` : ""}
+        <tr>
+          <td style="padding:5px 0;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">MwSt. (${q.mwst_satz}%):</td>
+          <td style="padding:5px 0;font-size:13px;text-align:right;font-family:${EMAIL_FONT_STACK}">${fmtChf(q.mwst_betrag)}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 12px;font-size:16px;font-weight:700;background:${brand}22;border-radius:4px 0 0 4px;color:${brand};font-family:${EMAIL_FONT_STACK}">Gesamttotal:</td>
+          <td style="padding:10px 12px;font-size:16px;font-weight:700;background:${brand}22;border-radius:0 4px 4px 0;text-align:right;color:${brand};font-family:${EMAIL_FONT_STACK}">${fmtChf(q.gesamttotal)}</td>
+        </tr>
+      </table>
+
+      ${q.betrag_noch_offen ? `
+      <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
+        <p style="margin:0;font-size:13px;font-weight:600;color:#92400E;font-family:${EMAIL_FONT_STACK}">
+          ⚠️ Betrag noch offen – Bitte begleichen Sie den ausstehenden Betrag.
+        </p>
+      </div>` : ""}
+
+      <p style="margin:16px 0 4px;font-size:13px;color:#3f3f46;font-family:${EMAIL_FONT_STACK}">
+        Mit freundlichen Grüssen,<br>
+        <strong>${q.companies.company_name}</strong>
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:14px 20px;background:#f4f4f5;border-top:1px solid #e4e4e7;text-align:center;">
+      <p style="margin:0;font-size:11px;color:#a1a1aa;font-family:${EMAIL_FONT_STACK}">
+        ${[
+          q.companies.iban ? "IBAN: " + q.companies.iban : "",
+          q.companies.bank_name || "",
+          q.companies.mwst_number ? "MwSt-Nr.: " + q.companies.mwst_number : "",
+          q.companies.phone || "",
+        ].filter(Boolean).join("  ·  ")}
+      </p>
+    </div>
+  `;
+
+  return wrapEmailDocument(inner);
+}
+
+function buildFirmaEmail(q: QuittungRow, brand: string): string {
+  const inner = `
+    <div style="background:${brand};padding:20px;">
+      <h2 style="margin:0;color:#fff;font-family:${EMAIL_FONT_STACK}">Quittung unterschrieben</h2>
+    </div>
+    <div style="padding:20px;background:#fafafa;">
+      <p style="margin:0 0 12px;font-size:14px;font-family:${EMAIL_FONT_STACK}">
+        Die Quittung <strong>${q.quittung_nr}</strong> wurde unterzeichnet.
+      </p>
+      <table cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background:#fff;border:1px solid #e4e4e7;border-radius:6px;overflow:hidden;width:100%;">
+        <tr><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK};width:140px;">Kunde:</td><td style="padding:8px 12px;font-size:13px;font-family:${EMAIL_FONT_STACK}">${q.customer_name}</td></tr>
+        <tr style="background:#f9f9f9;"><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">Datum:</td><td style="padding:8px 12px;font-size:13px;font-family:${EMAIL_FONT_STACK}">${fmtDate(q.datum)}</td></tr>
+        <tr><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">Gesamttotal:</td><td style="padding:8px 12px;font-size:14px;font-weight:700;color:${brand};font-family:${EMAIL_FONT_STACK}">${fmtChf(q.gesamttotal)}</td></tr>
+      </table>
+      <p style="margin:16px 0 0;font-size:12px;color:#71717a;font-family:${EMAIL_FONT_STACK}">PDF im Anhang.</p>
+    </div>
+  `;
+  return wrapEmailDocument(inner);
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const body: SendQuittungRequest = await req.json();
+    const { quittungId, quittungPdfBase64 } = body;
+
+    if (!quittungId) {
+      return new Response(JSON.stringify({ error: "quittungId fehlt" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Fetch quittung with company
+    const { data: quittung, error: qErr } = await supabase
+      .from("quittungen")
+      .select(`
+        id, quittung_nr, datum, customer_name, customer_email,
+        customer_phone, customer_address, customer_destination,
+        gesamttotal, mwst_satz, mwst_betrag, rabatt, zwischensumme,
+        status, betrag_noch_offen, positionen,
+        companies (
+          company_name, email, notification_email, logo_url, primary_color,
+          phone, street, plz, city, mwst_number, iban, bank_name,
+          resend_enabled, resend_api_key, resend_from_email, resend_from_name
+        )
+      `)
+      .eq("id", quittungId)
+      .single();
+
+    if (qErr || !quittung) {
+      return new Response(JSON.stringify({ error: "Quittung nicht gefunden" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const q = quittung as unknown as QuittungRow;
+    const company = q.companies;
+    if (!company) throw new Error("Firma nicht gefunden");
+
+    const brand = company.primary_color || "#10B981";
+
+    // Determine Resend API key (company-level or global)
+    const resendApiKey = company.resend_enabled && company.resend_api_key
+      ? company.resend_api_key
+      : Deno.env.get("RESEND_API_KEY")!;
+    const fromEmail = company.resend_enabled && company.resend_from_email
+      ? company.resend_from_email
+      : "quittung@offerio.ch";
+    const fromName = company.resend_from_name || company.company_name;
+
+    const resend = new Resend(resendApiKey);
+
+    const attachments: Array<{ filename: string; content: string }> = [];
+    if (quittungPdfBase64) {
+      attachments.push({
+        filename: `Quittung-${q.quittung_nr}.pdf`,
+        content: quittungPdfBase64,
+      });
+    }
+
+    const results: string[] = [];
+
+    // 1. Customer email
+    if (q.customer_email) {
+      const { data: emailData, error: emailErr } = await resend.emails.send({
+        from: `${fromName} <${fromEmail}>`,
+        to: [q.customer_email],
+        subject: `Ihre Quittung von ${company.company_name} – ${q.quittung_nr}`,
+        html: buildCustomerEmail(q, brand),
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
+
+      await logEmail(supabase, {
+        type: "quittung_customer",
+        recipient_email: q.customer_email,
+        subject: `Quittung ${q.quittung_nr}`,
+        status: emailErr ? "error" : "sent",
+        error_message: emailErr?.message || null,
+        metadata: { quittung_id: quittungId, resend_id: emailData?.id },
+      });
+
+      if (!emailErr) results.push("customer");
+    }
+
+    // 2. Firma internal copy
+    const firmaEmail = company.notification_email || company.email;
+    if (firmaEmail) {
+      const { data: firmaData, error: firmaErr } = await resend.emails.send({
+        from: `Offerio Quittungen <quittung@offerio.ch>`,
+        to: [firmaEmail],
+        subject: `Quittung ${q.quittung_nr} – unterschrieben`,
+        html: buildFirmaEmail(q, brand),
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
+
+      await logEmail(supabase, {
+        type: "quittung_firma",
+        recipient_email: firmaEmail,
+        subject: `Quittung ${q.quittung_nr} – unterschrieben`,
+        status: firmaErr ? "error" : "sent",
+        error_message: firmaErr?.message || null,
+        metadata: { quittung_id: quittungId, resend_id: firmaData?.id },
+      });
+
+      if (!firmaErr) results.push("firma");
+    }
+
+    // Update status to sent
+    await supabase
+      .from("quittungen")
+      .update({ status: "sent" })
+      .eq("id", quittungId);
+
+    return new Response(
+      JSON.stringify({ success: true, sent_to: results }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (err) {
+    console.error("send-quittung error:", err);
+    return new Response(
+      JSON.stringify({ error: (err as Error).message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+});

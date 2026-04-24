@@ -1,0 +1,2 @@
+export { MalerarbeitWizard } from './MalerarbeitWizard';
+

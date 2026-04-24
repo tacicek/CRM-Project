@@ -1,0 +1,287 @@
+{
+  "name": "collect_raeumung_data",
+  "description": "Collect all data for a clearance (Räumung) request in Switzerland. Note: Some types are sensitive (death, hoarder, forced eviction)",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "clearance_type": {
+        "type": "string",
+        "enum": [
+          "household_dissolution",
+          "apartment_clearance",
+          "house_clearance",
+          "decluttering",
+          "death_clearance",
+          "estate_clearance",
+          "hoarder_clearance",
+          "forced_eviction",
+          "cellar_clearance",
+          "attic_clearance",
+          "garage_clearance",
+          "office_clearance",
+          "company_dissolution",
+          "storage_clearance"
+        ],
+        "description": "Type of clearance service"
+      },
+      
+      "is_sensitive": {
+        "type": "boolean",
+        "description": "True for death_clearance, estate_clearance, hoarder_clearance, forced_eviction"
+      },
+      
+      "property": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["apartment", "house", "multi_family", "townhouse", "office_building", "warehouse", "cellar_only", "attic_only", "garage_only"]
+          },
+          "rooms": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 20
+          },
+          "area_m2": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 2000
+          },
+          "fill_level_percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "How full is the property (0-100%)"
+          }
+        },
+        "required": ["type", "area_m2"]
+      },
+      
+      "address": {
+        "type": "object",
+        "properties": {
+          "plz": { "type": "string", "pattern": "^[1-9][0-9]{3}$" },
+          "city": { "type": "string", "minLength": 1 },
+          "street": { "type": "string" },
+          "house_number": { "type": "string" },
+          "canton": { "type": "string", "maxLength": 2 }
+        },
+        "required": ["plz", "city"]
+      },
+      
+      "access": {
+        "type": "object",
+        "properties": {
+          "floor": {
+            "type": "string",
+            "enum": ["basement", "ground_floor", "floor_1", "floor_2", "floor_3", "floor_4", "floor_5_plus"]
+          },
+          "has_lift": { "type": "boolean" },
+          "lift_type": {
+            "type": "string",
+            "enum": ["klein", "gross", "warenlift"]
+          },
+          "parking_distance_m": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "obstacles": {
+            "type": "object",
+            "properties": {
+              "narrow_staircase": { "type": "boolean" },
+              "narrow_hallway": { "type": "boolean" },
+              "difficult_access": { "type": "boolean" },
+              "no_parking_zone": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      
+      "scope": {
+        "type": "object",
+        "properties": {
+          "clearance_scope": {
+            "type": "string",
+            "enum": ["complete", "partial"],
+            "description": "Complete or partial clearance"
+          },
+          "areas_to_clear": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "For partial: which areas (living room, bedroom, kitchen, etc.)"
+          },
+          "estimated_volume_m3": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Estimated volume to dispose"
+          },
+          "boxes_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Estimated number of boxes"
+          }
+        }
+      },
+      
+      "inventory": {
+        "type": "object",
+        "description": "Overview of items to remove",
+        "properties": {
+          "furniture": {
+            "type": "object",
+            "properties": {
+              "sofas": { "type": "integer", "minimum": 0 },
+              "beds": { "type": "integer", "minimum": 0 },
+              "wardrobes": { "type": "integer", "minimum": 0 },
+              "tables": { "type": "integer", "minimum": 0 },
+              "shelves": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "electronics": {
+            "type": "object",
+            "properties": {
+              "refrigerators": { "type": "integer", "minimum": 0 },
+              "washing_machines": { "type": "integer", "minimum": 0 },
+              "tvs": { "type": "integer", "minimum": 0 },
+              "computers": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "hazardous": {
+            "type": "object",
+            "properties": {
+              "paints": { "type": "integer", "minimum": 0 },
+              "chemicals": { "type": "integer", "minimum": 0 },
+              "batteries": { "type": "integer", "minimum": 0 },
+              "medications": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "heavy_items": {
+            "type": "object",
+            "properties": {
+              "piano": { "type": "integer", "minimum": 0 },
+              "safe": { "type": "integer", "minimum": 0 },
+              "aquarium": { "type": "integer", "minimum": 0 },
+              "pool_table": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      },
+      
+      "condition": {
+        "type": "object",
+        "description": "Condition assessment (especially for hoarder/death clearance)",
+        "properties": {
+          "general": {
+            "type": "string",
+            "enum": ["normal", "dirty", "very_dirty", "extreme"]
+          },
+          "issues": {
+            "type": "object",
+            "properties": {
+              "garbage_piles": { "type": "boolean" },
+              "vermin": { "type": "boolean" },
+              "mold": { "type": "boolean" },
+              "odor": { "type": "boolean" },
+              "health_hazard": { "type": "boolean" },
+              "animal_waste": { "type": "boolean" },
+              "structural_damage": { "type": "boolean" }
+            }
+          },
+          "protective_gear_needed": {
+            "type": "string",
+            "enum": ["yes", "no", "unsure"]
+          }
+        }
+      },
+      
+      "additional_services": {
+        "type": "object",
+        "properties": {
+          "disassembly": { "type": "boolean" },
+          "disposal": { "type": "boolean", "default": true },
+          "recycling": { "type": "boolean" },
+          "end_cleaning": {
+            "type": "object",
+            "properties": {
+              "needed": { "type": "boolean" },
+              "type": {
+                "type": "string",
+                "enum": ["besenrein", "abgabegarantie"]
+              }
+            }
+          },
+          "renovation": { "type": "boolean" },
+          "value_credit": { "type": "boolean", "description": "Credit for valuable items" },
+          "document_securing": { "type": "boolean" },
+          "interim_storage": {
+            "type": "object",
+            "properties": {
+              "needed": { "type": "boolean" },
+              "weeks": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "valuables_securing": { "type": "boolean" },
+          "inventory_list": { "type": "boolean" },
+          "authority_coordination": { "type": "boolean" },
+          "mandatory_storage": { "type": "boolean" },
+          "clearance_protocol": { "type": "boolean" }
+        }
+      },
+      
+      "urgency": {
+        "type": "string",
+        "enum": ["normal", "urgent", "very_urgent", "emergency"],
+        "description": "How urgent is the clearance"
+      },
+      
+      "preferred_date": {
+        "type": "string",
+        "format": "date"
+      },
+      
+      "flexibility": {
+        "type": "string",
+        "enum": ["fixed", "flex_3_days", "flex_1_week", "fully_flexible"]
+      },
+      
+      "viewing_requested": {
+        "type": "boolean",
+        "description": "Customer wants on-site viewing before quote"
+      },
+      
+      "requester": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["owner", "tenant", "property_manager", "heir", "landlord", "authority", "other"]
+          },
+          "salutation": {
+            "type": "string",
+            "enum": ["herr", "frau", "divers"]
+          },
+          "first_name": { "type": "string", "minLength": 1 },
+          "last_name": { "type": "string" },
+          "company": { "type": "string" },
+          "phone": { "type": "string", "pattern": "^\\+[1-9][0-9]{7,14}$" },
+          "email": { "type": "string", "format": "email" }
+        },
+        "required": ["role", "first_name", "phone", "email"]
+      },
+      
+      "court_order": {
+        "type": "boolean",
+        "description": "For forced eviction: is there a court order?"
+      },
+      
+      "notes": { "type": "string" },
+      
+      "confidence_score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      }
+    },
+    "required": ["clearance_type", "property", "address", "requester"]
+  }
+}

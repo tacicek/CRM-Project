@@ -1,0 +1,122 @@
+# Offerio.ch — LLMs.txt
+# https://offerio.ch
+# Last updated: 2026-03-10
+
+> Offerio ist der führende Schweizer Marktplatz für Umzugs-, Reinigungs- und Dienstleistungsofferten. Privatpersonen stellen kostenlos Anfragen und erhalten innerhalb von 24 Stunden bis zu 5 Offerten von verifizierten Schweizer Anbietern.
+
+## Über Offerio
+
+Offerio.ch ist eine Schweizer Online-Plattform, die Privatpersonen mit verifizierten Umzugs-, Reinigungs- und Dienstleistungsunternehmen verbindet. Der Service ist für Endkunden 100% kostenlos und unverbindlich.
+
+### Kernfunktionen
+- Kostenlose Offertanfrage für Umzug, Reinigung, Räumung, Klaviertransport, Möbellift, Lagerung, Entsorgung, Malerarbeiten und Renovationen
+- Bis zu 5 Offerten von geprüften Partnerfirmen innerhalb von 24 Stunden
+- Vergleich von Preisen, Leistungen und Bewertungen
+- Keine versteckten Kosten für Endkunden
+
+### Zahlen & Fakten
+- 500+ verifizierte Partnerfirmen in der ganzen Schweiz
+- 5'000+ vermittelte Aufträge
+- 4.8/5 durchschnittliche Bewertung (2'847 Bewertungen)
+- 97% Weiterempfehlungsrate
+
+## Dienstleistungen
+
+### Umzug
+Privatumzug, Firmenumzug, internationaler Umzug, Seniorenumzug. Inklusive Verpackung, Transport und Montage auf Wunsch.
+- 1-2 Zimmer: ab CHF 490.-
+- 3-4 Zimmer: ab CHF 890.-
+- 5+ Zimmer / Haus: ab CHF 1'490.-
+- Firmenumzug: auf Anfrage
+URL: https://offerio.ch/anfrage/umzug
+
+### Reinigung
+Endreinigung / Umzugsreinigung, Grundreinigung, Fensterreinigung, Teppichreinigung. Mit Abnahmegarantie.
+- 1-2 Zimmer: CHF 450 - 650
+- 3-4 Zimmer: CHF 650 - 950
+- 5+ Zimmer: CHF 950 - 1'400
+- Grundreinigung: ab CHF 35.-/h
+URL: https://offerio.ch/anfrage/reinigung
+
+### Räumung & Entrümpelung
+Haushaltsauflösung, Entrümpelung, Nachlassräumung, Kellerräumung. Inkl. fachgerechter Entsorgung und Recycling.
+- 2-Zimmer Wohnung: CHF 800 - 2'000
+- 4-Zimmer Wohnung: CHF 1'500 - 3'000
+- Einfamilienhaus: CHF 2'500 - 5'000
+- Kellerräumung: CHF 500 - 1'000
+URL: https://offerio.ch/anfrage/raeumung
+
+### Klaviertransport
+Sicherer Transport von Klavieren und Flügeln durch spezialisierte Fachfirmen. Mit Versicherung und professionellem Equipment.
+URL: https://offerio.ch/anfrage/klaviertransport
+
+### Möbellift
+Möbellift mieten für einfachen Umzug in höhere Stockwerke. Inkl. Bedienpersonal.
+URL: https://offerio.ch/anfrage/moebellift
+
+### Lagerung
+Sichere und trockene Lagerräume für Möbel und Kartons. Flexibel mietbar.
+URL: https://offerio.ch/anfrage/lagerung
+
+### Entsorgung
+Professionelle Entsorgung von Möbeln, Elektrogeräten und Sperrgut.
+URL: https://offerio.ch/anfrage/entsorgung
+
+### Malerarbeiten
+Professionelle Malerarbeiten für Wohnungen und Häuser.
+URL: https://offerio.ch/anfrage/malerarbeit
+
+### Renovation
+Renovationsarbeiten aller Art.
+URL: https://offerio.ch/anfrage/renovation
+
+## So funktioniert Offerio
+
+1. **Anfrage stellen** — Einfaches Online-Formular ausfüllen (2-3 Minuten)
+2. **Offerten erhalten** — Innerhalb von 24h bis zu 5 Offerten von geprüften Anbietern
+3. **Vergleichen & entscheiden** — Preise, Leistungen und Bewertungen vergleichen
+4. **Auftrag erteilen** — Bestes Angebot wählen, ohne versteckte Kosten
+
+## Für Unternehmen / Partner
+
+Umzugs- und Reinigungsfirmen können sich als Partner registrieren und qualifizierte Kundenanfragen erhalten.
+- Keine Grundgebühren
+- Faire Token-Preise (ab CHF 8.- pro Lead)
+- Eigenes Firmenprofil und Dashboard
+- Offerte-Generator
+URL: https://offerio.ch/partner-werden
+
+## Regionale Abdeckung
+
+Offerio ist in der ganzen Schweiz aktiv:
+- **Zürich & Umgebung**: Zürich, Winterthur, Uster, Dübendorf, Dietikon
+- **Bern & Mittelland**: Bern, Thun, Biel, Köniz, Langenthal
+- **Basel & Nordwestschweiz**: Basel, Allschwil, Riehen, Liestal, Aarau
+- **Zentralschweiz**: Luzern, Zug, Schwyz, Emmen, Kriens
+- **Ostschweiz**: St. Gallen, Frauenfeld, Schaffhausen, Chur, Wil
+
+## Wichtige Seiten
+
+- Homepage: https://offerio.ch
+- Offerte anfragen: https://offerio.ch/anfrage
+- So funktioniert es: https://offerio.ch/so-funktioniert-es
+- Für Firmen: https://offerio.ch/fuer-firmen
+- Preise: https://offerio.ch/preise
+- Partner werden: https://offerio.ch/partner-werden
+- Blog: https://offerio.ch/blog
+- Impressum: https://offerio.ch/impressum
+- Datenschutz: https://offerio.ch/datenschutz
+- AGB: https://offerio.ch/agb
+
+## Kontakt
+
+- Website: https://offerio.ch
+- E-Mail: info@offerio.ch / support@offerio.ch
+- Standort: Schweiz
+
+## Technische Hinweise
+
+Diese Website ist eine Single Page Application (SPA) mit React. Inhalte werden client-side gerendert. Für Crawler und LLMs, die kein JavaScript ausführen, enthält diese llms.txt Datei eine Zusammenfassung aller relevanten Informationen.
+
+Sitemap: https://offerio.ch/sitemap.xml
+Robots.txt: https://offerio.ch/robots.txt

@@ -1,0 +1,237 @@
+{
+  "name": "collect_klaviertransport_data",
+  "description": "Collect all data for a piano transport request in Switzerland. Pianos require specialized handling.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "service_type": {
+        "type": "string",
+        "enum": ["transport", "storage", "disposal", "internal_move"],
+        "description": "Transport A→B, store, dispose, or move within building"
+      },
+      
+      "instrument": {
+        "type": "object",
+        "description": "Piano/instrument details",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "digitalpiano",
+              "spinett",
+              "pianino_small",
+              "pianino_medium",
+              "pianino_large",
+              "stutzfluegel",
+              "salonfluegel",
+              "halbkonzertfluegel",
+              "konzertfluegel",
+              "cembalo",
+              "orgel",
+              "other"
+            ],
+            "description": "Type of piano or instrument"
+          },
+          "brand": {
+            "type": "string",
+            "description": "Brand (Steinway, Yamaha, Kawai, Boesendorfer, etc.)"
+          },
+          "model": { "type": "string" },
+          "age": {
+            "type": "string",
+            "enum": ["new", "recent", "used", "vintage", "antique", "unknown"],
+            "description": "Age category of the instrument"
+          },
+          "estimated_value": {
+            "type": "string",
+            "enum": ["under_5k", "5k_15k", "15k_30k", "30k_50k", "50k_100k", "over_100k", "unknown"],
+            "description": "Estimated value in CHF"
+          },
+          "special_notes": {
+            "type": "string",
+            "description": "Any special notes about the instrument"
+          }
+        },
+        "required": ["type"]
+      },
+      
+      "pickup_location": {
+        "type": "object",
+        "description": "Where to pick up the piano",
+        "properties": {
+          "plz": { "type": "string", "pattern": "^[1-9][0-9]{3}$" },
+          "city": { "type": "string", "minLength": 1 },
+          "street": { "type": "string" },
+          "house_number": { "type": "string" },
+          "floor": {
+            "type": "string",
+            "enum": ["basement", "ground_floor", "floor_1", "floor_2", "floor_3", "floor_4", "floor_5_plus"]
+          },
+          "has_lift": { "type": "boolean" },
+          "lift_fits_piano": {
+            "type": "string",
+            "enum": ["fits_easily", "fits_tight", "does_not_fit", "unsure"],
+            "description": "Will piano fit in the lift?"
+          },
+          "lift_dimensions": {
+            "type": "object",
+            "properties": {
+              "width_cm": { "type": "integer" },
+              "depth_cm": { "type": "integer" },
+              "height_cm": { "type": "integer" },
+              "capacity_kg": { "type": "integer" }
+            }
+          },
+          "staircase_type": {
+            "type": "string",
+            "enum": ["wide", "normal", "narrow", "spiral"],
+            "description": "Type of staircase"
+          },
+          "obstacles": {
+            "type": "object",
+            "properties": {
+              "narrow_doors": { "type": "boolean" },
+              "steps_outside": { "type": "boolean" },
+              "difficult_parking": { "type": "boolean" },
+              "listed_building": { "type": "boolean" },
+              "restricted_access": { "type": "boolean" }
+            }
+          }
+        },
+        "required": ["plz", "city", "floor"]
+      },
+      
+      "delivery_location": {
+        "type": "object",
+        "description": "Where to deliver the piano (not needed for disposal/storage)",
+        "properties": {
+          "plz": { "type": "string", "pattern": "^[1-9][0-9]{3}$" },
+          "city": { "type": "string" },
+          "street": { "type": "string" },
+          "house_number": { "type": "string" },
+          "floor": {
+            "type": "string",
+            "enum": ["basement", "ground_floor", "floor_1", "floor_2", "floor_3", "floor_4", "floor_5_plus"]
+          },
+          "has_lift": { "type": "boolean" },
+          "lift_fits_piano": {
+            "type": "string",
+            "enum": ["fits_easily", "fits_tight", "does_not_fit", "unsure"]
+          },
+          "staircase_type": {
+            "type": "string",
+            "enum": ["wide", "normal", "narrow", "spiral"]
+          }
+        }
+      },
+      
+      "special_equipment": {
+        "type": "object",
+        "properties": {
+          "equipment_needed": {
+            "type": "string",
+            "enum": ["none", "furniture_lift", "crane", "platform", "assessment"],
+            "description": "Special equipment that may be needed"
+          },
+          "disassembly_needed": {
+            "type": "string",
+            "enum": ["no", "legs_only", "full", "unsure"],
+            "description": "Does the piano need disassembly?"
+          }
+        }
+      },
+      
+      "additional_services": {
+        "type": "object",
+        "properties": {
+          "tuning": {
+            "type": "object",
+            "properties": {
+              "needed": { "type": "boolean" },
+              "timing": {
+                "type": "string",
+                "enum": ["immediately", "after_2_3_weeks", "later"]
+              }
+            }
+          },
+          "special_packaging": { "type": "boolean" },
+          "storage": {
+            "type": "object",
+            "properties": {
+              "needed": { "type": "boolean" },
+              "duration": {
+                "type": "string",
+                "enum": ["1_2_weeks", "1_month", "2_3_months", "3_6_months", "over_6_months"]
+              }
+            }
+          },
+          "insurance": {
+            "type": "object",
+            "properties": {
+              "needed": { "type": "boolean" },
+              "value_chf": { "type": "number", "minimum": 0 }
+            }
+          },
+          "dispose_old_piano": { "type": "boolean" }
+        }
+      },
+      
+      "schedule": {
+        "type": "object",
+        "properties": {
+          "preferred_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "flexibility": {
+            "type": "string",
+            "enum": ["fixed", "flex_3_days", "flex_1_week", "fully_flexible"]
+          },
+          "time_slot": {
+            "type": "string",
+            "enum": ["morning", "afternoon", "flexible"]
+          }
+        },
+        "required": ["preferred_date"]
+      },
+      
+      "customer": {
+        "type": "object",
+        "properties": {
+          "salutation": {
+            "type": "string",
+            "enum": ["herr", "frau", "divers"]
+          },
+          "first_name": { "type": "string", "minLength": 1 },
+          "last_name": { "type": "string" },
+          "phone": { "type": "string", "pattern": "^\\+[1-9][0-9]{7,14}$" },
+          "email": { "type": "string", "format": "email" }
+        },
+        "required": ["first_name", "phone", "email"]
+      },
+      
+      "onsite_contact": {
+        "type": "object",
+        "description": "If different from customer",
+        "properties": {
+          "name": { "type": "string" },
+          "phone": { "type": "string" }
+        }
+      },
+      
+      "notes": { "type": "string" },
+      
+      "furniture_lift_recommended": {
+        "type": "boolean",
+        "description": "True if high floor without suitable lift"
+      },
+      
+      "confidence_score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      }
+    },
+    "required": ["service_type", "instrument", "pickup_location", "customer"]
+  }
+}

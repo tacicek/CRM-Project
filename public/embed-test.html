@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offerio Embed Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #ff6600;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #666;
+            margin-top: 40px;
+        }
+
+        .embed-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            margin: 10px 0;
+        }
+
+        .code-block code {
+            color: #f8f8f2;
+        }
+
+        .method-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .method-1 {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .method-2 {
+            background: #2196F3;
+            color: white;
+        }
+
+        .method-3 {
+            background: #9C27B0;
+            color: white;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 0 6px 6px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🧪 Offerio Embed Test</h1>
+
+    <div class="info-box">
+        <strong>ℹ️ Info:</strong> Diese Seite testet verschiedene Methoden zur Einbettung des Offerio-Formulars.
+    </div>
+
+    <!-- Method 1: Direct iframe -->
+    <h2><span class="method-badge method-1">Methode 1</span> Direkter iFrame</h2>
+    <p>Die einfachste Methode - fügen Sie einfach einen iFrame ein:</p>
+
+    <div class="code-block">
+        <code>&lt;iframe src="https://offerio.ch/embed/default" 
+        width="100%" height="800" 
+        frameborder="0" 
+        style="border: none;"&gt;&lt;/iframe&gt;</code>
+    </div>
+
+    <div class="embed-container">
+        <iframe src="/embed/default" width="100%" height="600" frameborder="0" style="border: none;">
+        </iframe>
+    </div>
+
+    <!-- Method 2: JavaScript Widget -->
+    <h2><span class="method-badge method-2">Methode 2</span> JavaScript Widget</h2>
+    <p>Mit dem JavaScript-Widget und automatischer Höhenanpassung:</p>
+
+    <div class="code-block">
+        <code>&lt;script src="https://offerio.ch/embed.js"&gt;&lt;/script&gt;
+&lt;div id="my-form"&gt;&lt;/div&gt;
+&lt;script&gt;
+  Offerio.embed('my-form', {
+    formSlug: 'default',
+    lang: 'de',
+    height: 'auto'
+  });
+&lt;/script&gt;</code>
+    </div>
+
+    <div class="embed-container">
+        <div id="widget-form"></div>
+    </div>
+
+    <!-- Method 3: Data Attributes -->
+    <h2><span class="method-badge method-3">Methode 3</span> Data Attributes (Auto-Init)</h2>
+    <p>Automatische Initialisierung mit data-Attributen:</p>
+
+    <div class="code-block">
+        <code>&lt;script src="https://offerio.ch/embed.js"&gt;&lt;/script&gt;
+&lt;div data-offerio-embed="default" 
+     data-lang="de" 
+     data-height="auto"&gt;&lt;/div&gt;</code>
+    </div>
+
+    <div class="embed-container">
+        <div data-offerio-embed="default" data-lang="de" data-height="auto">
+        </div>
+    </div>
+
+    <!-- Load embed script -->
+    <script src="/embed.js"></script>
+
+    <!-- Initialize Method 2 widget -->
+    <script>
+        // Wait for DOM and script to load
+        if (window.Offerio) {
+            Offerio.embed('widget-form', {
+                formSlug: 'default',
+                lang: 'de',
+                height: 'auto',
+                onLoad: function () {
+                    console.log('Form loaded!');
+                },
+                onSubmit: function (data) {
+                    console.log('Form submitted:', data);
+                }
+            });
+        }
+    </script>
+
+    <h2>📋 Verfügbare Parameter</h2>
+    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+        <thead style="background: #f0f0f0;">
+            <tr>
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Parameter</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Typ</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Beschreibung</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;"><code>formSlug</code></td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">string</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">Formular-Slug aus dem Admin-Bereich</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;"><code>category</code></td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">string</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">Vorausgewählte Kategorie (umzug, reinigung,
+                    etc.)</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;"><code>lang</code></td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">string</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">Sprache: de, en, fr, it</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;"><code>color</code></td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">string</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">Primärfarbe als Hex (ohne #)</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;"><code>hideHeader</code></td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">boolean</td>
+                <td style="padding: 12px; border-bottom: 1px solid #eee;">Header ausblenden</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px;"><code>height</code></td>
+                <td style="padding: 12px;">string</td>
+                <td style="padding: 12px;">'auto' oder feste Höhe wie '600px'</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="info-box" style="margin-top: 40px;">
+        <strong>🔒 Sicherheitshinweis:</strong> Die Einbettung ist auf Domains mit .ch, .com, .de und .at sowie
+        localhost beschränkt.
+    </div>
+</body>
+
+</html>

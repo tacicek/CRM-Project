@@ -1,0 +1,229 @@
+{
+  "name": "collect_reinigung_data",
+  "description": "Collect all data for a cleaning (Reinigung) request in Switzerland",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "service_type": {
+        "type": "string",
+        "enum": ["uebergabereinigung", "unterhaltsreinigung", "grundreinigung"],
+        "description": "Type of cleaning service: handover cleaning, regular cleaning, or deep cleaning"
+      },
+      
+      "property": {
+        "type": "object",
+        "description": "Property details",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["haus", "wohnung", "wg_zimmer", "lager", "buero"],
+            "description": "Type of property"
+          },
+          "rooms": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10,
+            "description": "Number of rooms (e.g., 2.5, 3.5)"
+          },
+          "living_space_m2": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 500,
+            "description": "Living space in m²"
+          }
+        },
+        "required": ["type", "rooms", "living_space_m2"]
+      },
+      
+      "address": {
+        "type": "object",
+        "properties": {
+          "plz": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{3}$"
+          },
+          "city": { "type": "string", "minLength": 1 },
+          "street": { "type": "string" },
+          "house_number": { "type": "string" }
+        },
+        "required": ["plz", "city"]
+      },
+      
+      "additional_rooms": {
+        "type": "object",
+        "description": "Additional areas to clean",
+        "properties": {
+          "cellar": { "type": "boolean" },
+          "attic": { "type": "boolean" },
+          "garage": { "type": "boolean" },
+          "wintergarten": { "type": "boolean" },
+          "balcony": {
+            "type": "object",
+            "properties": {
+              "included": { "type": "boolean" },
+              "size_m2": { "type": "number", "minimum": 0 },
+              "pressure_wash": { "type": "boolean" },
+              "glass_railing": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      
+      "special_conditions": {
+        "type": "object",
+        "description": "Special conditions that affect cleaning",
+        "properties": {
+          "built_in_wardrobes": {
+            "type": "boolean",
+            "description": "Has built-in wardrobes (Einbauschränke)"
+          },
+          "heavy_kitchen_dirt": {
+            "type": "boolean",
+            "description": "Heavy grease/dirt in kitchen"
+          },
+          "washer_dryer_tower": {
+            "type": "boolean",
+            "description": "Has washer/dryer tower (Waschturm)"
+          },
+          "pet_household": {
+            "type": "boolean",
+            "description": "Pets were kept (extra cleaning needed)"
+          },
+          "furnished": {
+            "type": "boolean",
+            "description": "Still has furniture (affects accessibility)"
+          }
+        }
+      },
+      
+      "bathroom": {
+        "type": "object",
+        "properties": {
+          "showers_bathtubs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "Number of showers/bathtubs"
+          },
+          "toilets": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "sinks": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "hardened_limescale": {
+            "type": "boolean",
+            "description": "Heavy limescale deposits"
+          }
+        }
+      },
+      
+      "windows": {
+        "type": "object",
+        "properties": {
+          "regular_windows": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50,
+            "description": "Number of regular windows"
+          },
+          "window_walls": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "Large window walls/fronts"
+          },
+          "french_doors": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "Balcony/French doors"
+          },
+          "mold_removal": {
+            "type": "boolean",
+            "description": "Mold on window frames?"
+          },
+          "skylights": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Dachfenster"
+          }
+        }
+      },
+      
+      "blinds": {
+        "type": "object",
+        "description": "Blinds and shutters to clean",
+        "properties": {
+          "lamella_blinds": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Lamellenstoren"
+          },
+          "roller_shutters": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Rollläden"
+          },
+          "window_shutters": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Fensterläden"
+          }
+        }
+      },
+      
+      "additional_services": {
+        "type": "object",
+        "properties": {
+          "pressure_washing": { "type": "boolean" },
+          "chimney_cleaning": { "type": "boolean" },
+          "carpet_cleaning": {
+            "type": "object",
+            "properties": {
+              "needed": { "type": "boolean" },
+              "room_count": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "grout_cleaning": { "type": "boolean" }
+        }
+      },
+      
+      "preferred_date": {
+        "type": "string",
+        "format": "date",
+        "description": "Preferred cleaning date"
+      },
+      
+      "flexibility": {
+        "type": "string",
+        "enum": ["fixed", "flex_1_week", "flex_2_weeks"],
+        "description": "Date flexibility"
+      },
+      
+      "customer": {
+        "type": "object",
+        "properties": {
+          "first_name": { "type": "string", "minLength": 1 },
+          "last_name": { "type": "string" },
+          "phone": { "type": "string", "pattern": "^\\+[1-9][0-9]{7,14}$" },
+          "email": { "type": "string", "format": "email" }
+        },
+        "required": ["first_name", "phone", "email"]
+      },
+      
+      "notes": { "type": "string" },
+      
+      "confidence_score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      }
+    },
+    "required": ["service_type", "property", "address", "bathroom", "customer"]
+  }
+}

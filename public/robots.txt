@@ -1,0 +1,20 @@
+# dash.offerio.ch — Dashboard & Inquiry Forms
+# Public content (blog, landing pages) lives at offerio.ch
+# Only the homepage is allowed to be indexed here to avoid duplicate content.
+
+User-agent: *
+Allow: /$
+Disallow: /
+
+# Googlebot
+User-agent: Googlebot
+Allow: /$
+Disallow: /
+
+# Bingbot
+User-agent: Bingbot
+Allow: /$
+Disallow: /
+
+# Sitemap (homepage only)
+Sitemap: https://dash.offerio.ch/sitemap.xml

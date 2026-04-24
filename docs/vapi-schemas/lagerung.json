@@ -1,0 +1,169 @@
+{
+  "name": "collect_lagerung_data",
+  "description": "Collect all data for a storage (Lagerung) request in Switzerland",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "storage_type": {
+        "type": "string",
+        "enum": ["temporary", "long_term", "climate_controlled"],
+        "description": "Type of storage: temporary, long-term, or climate-controlled"
+      },
+      
+      "duration": {
+        "type": "string",
+        "enum": ["short_term", "1_3_months", "3_6_months", "6_12_months", "long_term"],
+        "description": "Expected storage duration"
+      },
+      
+      "items_to_store": {
+        "type": "object",
+        "description": "What will be stored",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "category": {
+                  "type": "string",
+                  "enum": ["furniture", "boxes", "electronics", "appliances", "documents", "art", "instruments", "vehicles", "other"]
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "quantity": { "type": "integer", "minimum": 1 },
+                      "fragile": { "type": "boolean" },
+                      "special_handling": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "estimated_volume_m3": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 200,
+            "description": "Estimated total volume in cubic meters"
+          },
+          "volume_category": {
+            "type": "string",
+            "enum": ["small", "medium", "large", "very_large"],
+            "description": "small=1-5m³, medium=5-15m³, large=15-30m³, very_large=30+m³"
+          }
+        }
+      },
+      
+      "pickup_address": {
+        "type": "object",
+        "description": "Where to pick up items for storage",
+        "properties": {
+          "plz": { "type": "string", "pattern": "^[1-9][0-9]{3}$" },
+          "city": { "type": "string", "minLength": 1 },
+          "street": { "type": "string" },
+          "house_number": { "type": "string" },
+          "floor": {
+            "type": "string",
+            "enum": ["basement", "ground_floor", "floor_1", "floor_2", "floor_3", "floor_4", "floor_5_plus"]
+          },
+          "has_lift": { "type": "boolean" },
+          "parking_available": { "type": "boolean" }
+        },
+        "required": ["plz", "city"]
+      },
+      
+      "requirements": {
+        "type": "object",
+        "description": "Storage requirements",
+        "properties": {
+          "climate_controlled": {
+            "type": "boolean",
+            "description": "Need temperature/humidity controlled storage?"
+          },
+          "security_level": {
+            "type": "string",
+            "enum": ["standard", "high", "maximum"],
+            "description": "Required security level"
+          },
+          "access_frequency": {
+            "type": "string",
+            "enum": ["none", "monthly", "weekly", "daily"],
+            "description": "How often customer needs access"
+          },
+          "insurance_needed": {
+            "type": "boolean",
+            "description": "Need storage insurance?"
+          },
+          "pickup_service": {
+            "type": "boolean",
+            "description": "Company should pick up items?"
+          },
+          "packing_service": {
+            "type": "boolean",
+            "description": "Need packing before storage?"
+          }
+        }
+      },
+      
+      "schedule": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "description": "When storage should start"
+          },
+          "flexibility": {
+            "type": "string",
+            "enum": ["exact", "flex_1_week", "flex_2_weeks", "flex_1_month"]
+          },
+          "end_date_known": {
+            "type": "boolean",
+            "description": "Is end date already known?"
+          },
+          "expected_end_date": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": ["start_date"]
+      },
+      
+      "customer": {
+        "type": "object",
+        "properties": {
+          "salutation": {
+            "type": "string",
+            "enum": ["herr", "frau", "firma", "divers"]
+          },
+          "first_name": { "type": "string", "minLength": 1 },
+          "last_name": { "type": "string" },
+          "company": { "type": "string" },
+          "phone": { "type": "string", "pattern": "^\\+[1-9][0-9]{7,14}$" },
+          "email": { "type": "string", "format": "email" },
+          "preferred_contact_time": {
+            "type": "string",
+            "enum": ["morning", "afternoon", "evening", "anytime"]
+          }
+        },
+        "required": ["first_name", "phone", "email"]
+      },
+      
+      "notes": {
+        "type": "string",
+        "description": "Additional notes or special requirements"
+      },
+      
+      "confidence_score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      }
+    },
+    "required": ["storage_type", "duration", "items_to_store", "customer"]
+  }
+}

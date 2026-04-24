@@ -1,0 +1,243 @@
+{
+  "name": "collect_moebellift_data",
+  "description": "Collect all data for a furniture lift (Moebellift) rental request in Switzerland",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "service_type": {
+        "type": "string",
+        "enum": ["with_operator", "self_service", "pickup"],
+        "description": "Lift with operator, self-service, or customer pickup"
+      },
+      
+      "purpose": {
+        "type": "string",
+        "enum": ["umzug", "einzelstueck", "baumaterial", "handwerker", "entsorgung", "sonstiges"],
+        "description": "Purpose of the lift: moving, single item, construction material, tradesman, disposal, other"
+      },
+      
+      "direction": {
+        "type": "string",
+        "enum": ["up", "down", "both"],
+        "description": "Transport direction: up, down, or both ways"
+      },
+      
+      "location": {
+        "type": "object",
+        "description": "Where the lift will be used",
+        "properties": {
+          "plz": { "type": "string", "pattern": "^[1-9][0-9]{3}$" },
+          "city": { "type": "string", "minLength": 1 },
+          "street": { "type": "string" },
+          "house_number": { "type": "string" },
+          "floor": {
+            "type": "string",
+            "enum": ["floor_1", "floor_2", "floor_3", "floor_4", "floor_5", "floor_6", "floor_7_plus", "roof"],
+            "description": "Target floor level"
+          },
+          "estimated_height_m": {
+            "type": "number",
+            "minimum": 3,
+            "maximum": 40,
+            "description": "Estimated height to reach in meters"
+          },
+          "access_point": {
+            "type": "string",
+            "enum": ["window", "balcony", "roof_window", "terrace"],
+            "description": "Where items will enter/exit"
+          },
+          "opening_dimensions": {
+            "type": "object",
+            "properties": {
+              "width_cm": { "type": "integer", "minimum": 50 },
+              "height_cm": { "type": "integer", "minimum": 50 }
+            }
+          }
+        },
+        "required": ["plz", "city", "floor", "access_point"]
+      },
+      
+      "site_conditions": {
+        "type": "object",
+        "description": "Conditions at the site",
+        "properties": {
+          "ground_space": {
+            "type": "string",
+            "enum": ["sufficient", "limited", "very_limited", "unsure"],
+            "description": "Space available for lift setup"
+          },
+          "obstacles": {
+            "type": "object",
+            "properties": {
+              "trees": { "type": "boolean" },
+              "power_lines": { "type": "boolean" },
+              "awning": { "type": "boolean" },
+              "parked_vehicles": { "type": "boolean" },
+              "construction_site": { "type": "boolean" },
+              "narrow_access": { "type": "boolean" },
+              "slope": { "type": "boolean" },
+              "none": { "type": "boolean" }
+            }
+          },
+          "parking": {
+            "type": "string",
+            "enum": ["parking_available", "no_parking_zone", "street_side", "unsure"]
+          },
+          "power": {
+            "type": "string",
+            "enum": ["power_available", "no_power", "unsure"]
+          }
+        }
+      },
+      
+      "transport_items": {
+        "type": "object",
+        "description": "What will be transported (depends on purpose)",
+        "properties": {
+          "for_moving": {
+            "type": "object",
+            "properties": {
+              "apartment_size": {
+                "type": "string",
+                "enum": ["1_room", "2_room", "3_room", "4_room", "5_room", "6_plus_room", "house"]
+              },
+              "load_size": {
+                "type": "string",
+                "enum": ["small", "medium", "large", "very_large"]
+              }
+            }
+          },
+          "for_single_item": {
+            "type": "object",
+            "properties": {
+              "item_type": {
+                "type": "string",
+                "enum": [
+                  "sofa", "wardrobe", "bed", "piano", "grand_piano",
+                  "appliance", "fridge", "whirlpool", "safe",
+                  "fitness", "pool_table", "aquarium", "other"
+                ]
+              },
+              "weight_category": {
+                "type": "string",
+                "enum": ["light", "medium", "heavy", "very_heavy"]
+              },
+              "dimensions": {
+                "type": "object",
+                "properties": {
+                  "length_cm": { "type": "integer" },
+                  "width_cm": { "type": "integer" },
+                  "height_cm": { "type": "integer" }
+                }
+              },
+              "description": { "type": "string" }
+            }
+          },
+          "for_construction": {
+            "type": "object",
+            "properties": {
+              "material_type": {
+                "type": "string",
+                "enum": [
+                  "windows_doors", "drywall", "insulation", "wood_panels",
+                  "bricks", "roof_tiles", "solar_panels", "sanitary", "other"
+                ]
+              },
+              "quantity": { "type": "number" },
+              "unit": { "type": "string" }
+            }
+          },
+          "other_description": { "type": "string" }
+        }
+      },
+      
+      "schedule": {
+        "type": "object",
+        "properties": {
+          "preferred_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "time_slot": {
+            "type": "string",
+            "enum": ["early", "morning", "afternoon", "flexible"]
+          },
+          "duration": {
+            "type": "string",
+            "enum": ["short", "half_day", "full_day", "multi_day"],
+            "description": "short=1-2h, half_day=4h, full_day=8h"
+          },
+          "flexibility": {
+            "type": "string",
+            "enum": ["fixed", "flex_2_days", "flex_1_week", "fully_flexible"]
+          }
+        },
+        "required": ["preferred_date", "duration"]
+      },
+      
+      "additional_services": {
+        "type": "object",
+        "properties": {
+          "no_parking_permit": {
+            "type": "boolean",
+            "description": "Need no-parking zone (Halteverbotszone)?"
+          },
+          "helpers": {
+            "type": "object",
+            "properties": {
+              "needed": { "type": "boolean" },
+              "count": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "packing": { "type": "boolean" },
+          "disposal": { "type": "boolean" },
+          "storage": { "type": "boolean" }
+        }
+      },
+      
+      "customer": {
+        "type": "object",
+        "properties": {
+          "salutation": {
+            "type": "string",
+            "enum": ["herr", "frau", "firma", "divers"]
+          },
+          "first_name": { "type": "string", "minLength": 1 },
+          "last_name": { "type": "string" },
+          "company": { "type": "string" },
+          "phone": { "type": "string", "pattern": "^\\+[1-9][0-9]{7,14}$" },
+          "email": { "type": "string", "format": "email" },
+          "contact_preference": {
+            "type": "string",
+            "enum": ["phone", "email", "whatsapp", "any"]
+          }
+        },
+        "required": ["first_name", "phone", "email"]
+      },
+      
+      "onsite_contact": {
+        "type": "object",
+        "description": "Contact person on site if different",
+        "properties": {
+          "name": { "type": "string" },
+          "phone": { "type": "string" }
+        }
+      },
+      
+      "notes": { "type": "string" },
+      
+      "recommended_lift_type": {
+        "type": "string",
+        "enum": ["anhaengerlift", "selbstfahrer", "stecklift", "portabel"],
+        "description": "AI recommendation based on conditions"
+      },
+      
+      "confidence_score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      }
+    },
+    "required": ["service_type", "purpose", "location", "schedule", "customer"]
+  }
+}

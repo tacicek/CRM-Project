@@ -1,0 +1,1 @@
+const O={UG:-1,EG:0,HP:0,"1. OG":1,"2. OG":2,"3. OG":3,"4. OG":4,"5. OG":5,"6. OG":6,"6.+ OG":6,"7. OG":7,"8. OG":8,"9. OG":9,"10. OG":10,"11–15. OG":11,"15.+ OG":15};function n(G){return G==null?null:O[G]??null}export{n as f};
