@@ -372,12 +372,13 @@ const PaginationBar = ({ total, page, pageSize, pageSizeOptions, onPageChange, o
 
 // =============================================================================
 const FirmaAnfragen = () => {
-  const { companyId, company } = useCachedCompany("id, token_balance, crm_enabled, subscription_type, subscription_expires_at");
+  // CRM-FORK: removed token_balance, crm_enabled, subscription fields — standalone CRM always has full access
+  const { companyId, company } = useCachedCompany("id, manual_import_enabled");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
-  const [tokenBalance, setTokenBalance] = useState(0);
-  const [hasCrmAccess, setHasCrmAccess] = useState<boolean>(false);
+  const tokenBalance = Infinity; // CRM-FORK: no token gate
+  const hasCrmAccess = true; // CRM-FORK: always enabled
   const [distributions, setDistributions] = useState<LeadDistribution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<LeadDistribution | null>(null);
@@ -428,17 +429,7 @@ const FirmaAnfragen = () => {
     setNewPage(1); setAcceptedPage(1); setWithOfferPage(1); setArchivePage(1);
   }, [pageSize]);
 
-  useEffect(() => {
-    if (company) {
-      setTokenBalance(Number(company.token_balance) || 0);
-      const type = company.subscription_type ?? "";
-      const crmActive =
-        company.crm_enabled === true &&
-        (type === "crm" || type === "trial" || type === "enterprise") &&
-        (!company.subscription_expires_at || new Date(company.subscription_expires_at) > new Date());
-      setHasCrmAccess(crmActive);
-    }
-  }, [company]);
+  // CRM-FORK: removed token/CRM access state sync — always full access
 
   const isMountedRef = useRef(true);
   const fetchData = useCallback(async () => {
@@ -564,17 +555,7 @@ const FirmaAnfragen = () => {
   const handleAcceptLead = async (distribution: LeadDistribution) => {
     if (!companyId || !distribution.lead) return;
 
-    const cost = Number(distribution.token_cost || distribution.lead.token_cost || 10);
-
-    if (tokenBalance < cost) {
-      toast({
-        title: "Nicht genügend Tokens",
-        description: `Sie benötigen ${cost} Tokens, haben aber nur ${tokenBalance}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
+    // CRM-FORK: token gate removed — leads are accepted directly
     setIsAccepting(true);
 
     try {
@@ -1594,63 +1575,39 @@ const FirmaAnfragen = () => {
                     PDF
                   </Button>
                   
-                  {/* CRM: Offerte erstellen */}
-                  {hasCrmAccess ? (
-                    <Button
-                      size="sm"
-                      className={`h-9 ${distribution.existing_offer 
-                        ? '' 
-                        : 'bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600'
-                      }`}
-                      variant={distribution.existing_offer ? "outline" : "default"}
-                      onClick={() => {
-                        if (distribution.existing_offer) {
-                          navigate(`/firma/offerte-bearbeiten/${distribution.existing_offer.id}`);
-                        } else {
-                          navigate(`/firma/offerten/neu?lead=${distribution.lead_id}&distribution=${distribution.id}`);
-                        }
-                      }}
-                    >
-                      <ClipboardList className="w-4 h-4 mr-1.5" />
-                      {distribution.existing_offer ? 'Bearbeiten' : 'Offerte erstellen'}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-9"
-                      onClick={() => navigate("/firma/crm-upgrade")}
-                    >
-                      <ClipboardList className="w-4 h-4 mr-1.5" />
-                      Offerte (CRM)
-                    </Button>
-                  )}
+                  {/* Offerte erstellen */}
+                  <Button
+                    size="sm"
+                    className={`h-9 ${distribution.existing_offer 
+                      ? '' 
+                      : 'bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600'
+                    }`}
+                    variant={distribution.existing_offer ? "outline" : "default"}
+                    onClick={() => {
+                      if (distribution.existing_offer) {
+                        navigate(`/firma/offerte-bearbeiten/${distribution.existing_offer.id}`);
+                      } else {
+                        navigate(`/firma/offerten/neu?lead=${distribution.lead_id}&distribution=${distribution.id}`);
+                      }
+                    }}
+                  >
+                    <ClipboardList className="w-4 h-4 mr-1.5" />
+                    {distribution.existing_offer ? 'Bearbeiten' : 'Offerte erstellen'}
+                  </Button>
                   
                   {/* Virtuelle Besichtigung */}
-                  {hasCrmAccess ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9"
-                      onClick={() => {
-                        setSelectedLead(distribution);
-                        setIsVirtualBesichtigungOpen(true);
-                      }}
-                    >
-                      <Camera className="w-4 h-4 mr-1.5" />
-                      V. Besichtigung
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-9"
-                      onClick={() => navigate("/firma/crm-upgrade")}
-                    >
-                      <Camera className="w-4 h-4 mr-1.5" />
-                      V. Besichtigung
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={() => {
+                      setSelectedLead(distribution);
+                      setIsVirtualBesichtigungOpen(true);
+                    }}
+                  >
+                    <Camera className="w-4 h-4 mr-1.5" />
+                    V. Besichtigung
+                  </Button>
 
                   {/* CRM: Termin */}
                   {hasCrmAccess && distribution.existing_offer && (
@@ -2871,12 +2828,6 @@ const FirmaAnfragen = () => {
 
                 {selectedLead.status === "sent" && (
                   <DialogFooter className="flex-col sm:flex-row gap-2">
-                    <div className="flex items-center gap-2 sm:mr-auto">
-                      <Coins className="w-5 h-5 text-amber-600" />
-                      <span className="font-bold text-lg">
-                        {Number(selectedLead.token_cost || selectedLead.lead.token_cost || 10)} Tokens
-                      </span>
-                    </div>
                     <div className="flex gap-2">
                       {!(selectedLead.expires_at && new Date(selectedLead.expires_at) < new Date()) && (
                         <Button variant="outline" onClick={() => handleRejectLead(selectedLead)}>
@@ -2893,7 +2844,7 @@ const FirmaAnfragen = () => {
                         <Button
                           className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
                           onClick={() => handleAcceptLead(selectedLead)}
-                          disabled={isAccepting || tokenBalance < Number(selectedLead.token_cost || selectedLead.lead.token_cost || 10)}
+                          disabled={isAccepting}
                         >
                           {isAccepting ? (
                             <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -2927,31 +2878,21 @@ const FirmaAnfragen = () => {
                       Virtuelle Besichtigung
                     </Button>
                     
-                    {/* CRM Feature: Create Offer */}
-                    {hasCrmAccess ? (
-                      <Button
-                        className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600"
-                        onClick={() => {
-                          setIsDetailOpen(false);
-                          if (selectedLead.existing_offer) {
-                            navigate(`/firma/offerte-bearbeiten/${selectedLead.existing_offer.id}`);
-                          } else {
-                            navigate(`/firma/offerten/neu?lead=${selectedLead.lead_id}&distribution=${selectedLead.id}`);
-                          }
-                        }}
-                      >
-                        <ClipboardList className="w-4 h-4 mr-1" />
-                        {selectedLead.existing_offer ? 'Offerte bearbeiten' : 'Offerte erstellen'}
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        onClick={() => navigate("/firma/crm-upgrade")}
-                      >
-                        <ClipboardList className="w-4 h-4 mr-1" />
-                        Offerte erstellen (CRM)
-                      </Button>
-                    )}
+                    {/* Create Offer */}
+                    <Button
+                      className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600"
+                      onClick={() => {
+                        setIsDetailOpen(false);
+                        if (selectedLead.existing_offer) {
+                          navigate(`/firma/offerte-bearbeiten/${selectedLead.existing_offer.id}`);
+                        } else {
+                          navigate(`/firma/offerten/neu?lead=${selectedLead.lead_id}&distribution=${selectedLead.id}`);
+                        }
+                      }}
+                    >
+                      <ClipboardList className="w-4 h-4 mr-1" />
+                      {selectedLead.existing_offer ? 'Offerte bearbeiten' : 'Offerte erstellen'}
+                    </Button>
                   </DialogFooter>
                 )}
               </>

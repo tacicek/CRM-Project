@@ -1,1 +1,0 @@
-function s(n){const t=n.split(/\r?\n/)[0]?.trim()??"";if(!t)return null;const r=(t.split(",")[0]?.trim()??t).match(/^(.+?)\s+(\d+[a-zA-Z\-/]*)$/);if(r)return{street:r[1].trim(),nr:r[2].trim()};const e=t.match(/^(.+?),\s*(\d+[a-zA-Z\-/]*)$/);return e?{street:e[1].trim(),nr:e[2].trim()}:null}export{s};

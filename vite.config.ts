@@ -32,6 +32,7 @@ export default defineConfig(({ mode }) => {
       : undefined);
 
   const resolvedSupabaseKey =
+    env.VITE_SUPABASE_ANON_KEY ||
     env.VITE_SUPABASE_PUBLISHABLE_KEY ||
     env.SUPABASE_PUBLISHABLE_KEY ||
     undefined;
@@ -158,7 +159,10 @@ export default defineConfig(({ mode }) => {
         ? { "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(resolvedSupabaseUrl) }
         : {}),
       ...(resolvedSupabaseKey
-        ? { "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(resolvedSupabaseKey) }
+        ? {
+            "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(resolvedSupabaseKey),
+            "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(resolvedSupabaseKey),
+          }
         : {}),
     },
   };

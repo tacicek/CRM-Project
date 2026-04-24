@@ -102,10 +102,10 @@ const FirmaDashboard = () => {
       if (!user) return;
 
       try {
-        const company = await fetchSingleCompanyForUser<{ id: string; token_balance: number }>({
+        const company = await fetchSingleCompanyForUser<{ id: string }>({
           userId: user.id,
           userEmail: user.email,
-          select: "id, token_balance",
+          select: "id",
         });
 
         if (!company) return;
@@ -270,20 +270,13 @@ const FirmaDashboard = () => {
           setBoxStats(boxStatsResult.data[0] as BoxStats);
         }
 
-        const tokenBalance = Number(company.token_balance) || 0;
-
         setStats({
-          tokenBalance,
+          tokenBalance: 0, // CRM-FORK: no token balance in standalone CRM
           pendingLeads: pendingCount || 0,
           openOffers: openOffersCount || 0,
           jobsThisMonth: jobsThisMonthCount || 0,
           besichtigungCount: pendingBesichtigungen.length,
         });
-
-        // Show token banner if balance is low
-        if (tokenBalance < LOW_TOKEN_THRESHOLD) {
-          setShowTokenBanner(true);
-        }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -356,18 +349,8 @@ const FirmaDashboard = () => {
     }
   };
 
-  // Stats card configurations
+  // Stats card configurations — CRM-FORK: removed Token-Guthaben card
   const statsConfig = [
-    {
-      title: "Token-Guthaben",
-      value: stats.tokenBalance,
-      icon: Coins,
-      gradient: "from-amber-500 to-orange-500",
-      bgGradient: "from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30",
-      iconBg: "bg-gradient-to-br from-amber-400 to-orange-500",
-      textColor: "text-amber-600 dark:text-amber-400",
-      link: "/firma/tokens",
-    },
     {
       title: "Neue Anfragen",
       value: stats.pendingLeads,
@@ -418,25 +401,7 @@ const FirmaDashboard = () => {
       </Helmet>
       <FirmaLayout>
         <div className="space-y-6 md:space-y-8">
-          {/* Low Token Banner */}
-          {showTokenBanner && (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-              <Coins className="w-5 h-5 shrink-0 text-amber-500" />
-              <p className="text-sm text-amber-800 dark:text-amber-300 flex-1">
-                Ihr Token-Guthaben ist niedrig ({stats.tokenBalance} Tokens).{" "}
-                <Link to="/firma/tokens" className="font-semibold underline underline-offset-2 hover:no-underline">
-                  Jetzt aufladen
-                </Link>
-              </p>
-              <button
-                onClick={() => setShowTokenBanner(false)}
-                className="text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 transition-colors shrink-0"
-                aria-label="Schliessen"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          {/* CRM-FORK: removed Low Token Banner */}
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
