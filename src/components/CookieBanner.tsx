@@ -14,8 +14,8 @@ interface ConsentCategories {
   preferences: boolean;
 }
 
-const CONSENT_COOKIE_NAME = "offerio_cookie_consent";
-const VISITOR_ID_COOKIE_NAME = "offerio_visitor_id";
+const CONSENT_COOKIE_NAME = "crm_cookie_consent";
+const VISITOR_ID_COOKIE_NAME = "crm_visitor_id";
 
 function generateVisitorId(): string {
   return `v_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;

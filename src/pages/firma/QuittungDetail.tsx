@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -334,11 +333,9 @@ export default function QuittungDetail() {
 
   if (isLoading) {
     return (
-      <FirmaLayout>
         <div className="flex items-center justify-center min-h-64">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
         </div>
-      </FirmaLayout>
     );
   }
 
@@ -350,7 +347,6 @@ export default function QuittungDetail() {
   return (
     <>
       <Helmet><title>{isNew ? "Neue Quittung" : `Quittung ${quittungNr}`} | Firma</title></Helmet>
-      <FirmaLayout>
         <div className="space-y-5 max-w-3xl mx-auto">
           {/* Toolbar */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -785,7 +781,6 @@ export default function QuittungDetail() {
             )}
           </div>
         </div>
-      </FirmaLayout>
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { logEmail } from "../_shared/logEmail.ts";
 
@@ -67,6 +68,7 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     // Get company details including Resend settings
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     let company = null;
     if (request.companyId) {
       const { data, error } = await supabase
@@ -83,23 +85,28 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Determine which Resend API key and from address to use
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     let resendApiKey = Deno.env.get("RESEND_API_KEY");
-    let fromAddress = "Offerio <noreply@offerio.ch>";
+    let fromAddress = getDefaultFrom();
     let isCompanyEmail = false;
 
     // Use company's own Resend settings if configured
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     if (company?.resend_enabled && company?.resend_api_key && company?.resend_from_email) {
       resendApiKey = company.resend_api_key;
       const fromName = company.resend_from_name || company.company_name;
       fromAddress = `${fromName} <${company.resend_from_email}>`;
       isCompanyEmail = true;
       logStep("Using company's own Resend API", { fromAddress });
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     } else {
-      logStep("Using default Offerio Resend API");
+      logStep("Using default Resend API");
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     }
     
     if (!resendApiKey) {
       logStep("No Resend API key configured, skipping email");
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
       return new Response(
         JSON.stringify({ success: true, message: "Email notification skipped - API key not configured" }),
         {
@@ -110,6 +117,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const resend = new Resend(resendApiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     const isAccepted = request.responseType === "accepted";
     const isQuestion = request.responseType === "question";
@@ -204,12 +212,12 @@ const handler = async (req: Request): Promise<Response> => {
               
               <p style="margin-bottom: 0; margin-top: 30px; color: #64748b; font-size: 14px;">
                 Mit freundlichen Grüssen<br>
-                <strong>${isCompanyEmail ? request.companyName : "Ihr Offerio Team"}</strong>
+                <strong>${isCompanyEmail ? request.companyName : "Ihr ${getAppName()} Team"}</strong>
               </p>
             </div>
             
             <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-              <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : " von Offerio"} gesendet.</p>
+              <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : " von ${getAppName()}"} gesendet.</p>
             </div>
           </body>
         </html>
@@ -286,12 +294,12 @@ const handler = async (req: Request): Promise<Response> => {
               
               <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
                 Mit freundlichen Grüssen<br>
-                <strong>${isCompanyEmail ? request.companyName : "Ihr Offerio Team"}</strong>
+                <strong>${isCompanyEmail ? request.companyName : "Ihr ${getAppName()} Team"}</strong>
               </p>
             </div>
             
             <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-              <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : " von Offerio"} gesendet.</p>
+              <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : " von ${getAppName()}"} gesendet.</p>
             </div>
           </body>
         </html>

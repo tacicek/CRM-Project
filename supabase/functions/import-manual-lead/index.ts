@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -68,10 +69,10 @@ serve(async (req) => {
 
     logStep("Starting import", { company_id, service_type: lead_data?.service_type });
 
-    // Check company has manual import enabled AND belongs to the authenticated user
+    // Check company has manual import enabled AND user is a member
     const { data: company, error: companyError } = await supabase
       .from("companies")
-      .select("id, manual_import_enabled, user_id, crm_enabled, subscription_type, subscription_expires_at")
+      .select("id, crm_enabled")
       .eq("id", company_id)
       .single();
 
@@ -83,40 +84,32 @@ serve(async (req) => {
       );
     }
 
-    // SECURITY: Verify the authenticated user owns this company
-    if (company.user_id !== authenticatedUser.id) {
-      logStep("Unauthorized: user does not own company", { userId: authenticatedUser.id, companyOwner: company.user_id });
+    // SECURITY: Verify the authenticated user is a member of this company
+    const isMember = await verifyCompanyMembership(supabase, authenticatedUser.id, company_id);
+    if (!isMember) {
+      logStep("Unauthorized: user is not a member of company", { userId: authenticatedUser.id, companyId: company_id });
       return new Response(
         JSON.stringify({ success: false, error: "You do not have access to this company" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Check access: either manual_import_enabled flag OR active CRM subscription
-    const hasCrmActive = (() => {
-      if (!company.crm_enabled) return false;
-      const type = company.subscription_type ?? "";
-      if (!["crm", "trial", "enterprise"].includes(type)) return false;
-      if (company.subscription_expires_at) {
-        if (new Date(company.subscription_expires_at) < new Date()) return false;
-      }
-      return true;
-    })();
-
-    if (!company.manual_import_enabled && !hasCrmActive) {
-      logStep("Manual import not enabled", { company_id, manual_import_enabled: company.manual_import_enabled, hasCrmActive });
+    // Check access: crm_enabled flag
+    if (!company.crm_enabled) {
+      logStep("CRM not enabled", { company_id });
       return new Response(
-        JSON.stringify({ success: false, error: "Manual import not enabled" }),
+        JSON.stringify({ success: false, error: "CRM-Zugang nicht aktiviert" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    logStep("Access granted", { via: company.manual_import_enabled ? "manual_import_enabled" : "crm_subscription" });
+    logStep("Access granted", { company_id });
 
     // Build lead insert object with all possible fields
     // Base fields for all service types
     const resolvedPlz = lead_data.from_plz || lead_data.plz || lead_data.zip || lead_data.pickup_plz || "";
     const leadInsert: Record<string, unknown> = {
+      company_id: company_id,
       customer_first_name: lead_data.customer_first_name || "Unbekannt",
       customer_last_name: lead_data.customer_last_name || "Unbekannt",
       customer_email: lead_data.customer_email || "",
@@ -129,9 +122,8 @@ serve(async (req) => {
       source: "import",
       from_plz: String(resolvedPlz).trim(),
       from_city: lead_data.from_city || lead_data.address_city || lead_data.pickup_city || "Unbekannt",
-      // Store complete lead data for detailed view
-      form_version: 1, // 1 = manual import, 2 = wizard form
-      detailed_form_data: lead_data, // Store ALL data as JSON for flexible display
+      form_version: 1,
+      detailed_form_data: lead_data,
     };
 
     // Add service-specific fields based on service type
@@ -253,75 +245,10 @@ serve(async (req) => {
       );
     }
 
-    logStep("Lead created", { lead_id: lead.id });
-
-    // Track the imported lead (non-critical - log but don't fail)
-    const { error: trackError } = await supabase
-      .from("manual_imported_leads")
-      .insert({
-        company_id: company_id,
-        lead_id: lead.id,
-        raw_import_text: raw_text,
-        ai_confidence_score: confidence_score,
-        imported_by: user_id,
-      });
-    if (trackError) {
-      logStep("manual_imported_leads insert failed (non-critical)", { error: trackError });
-    }
-
-    // Create a lead_distribution record so it appears in Anfragen
-    const { data: distribution, error: distError } = await supabase
-      .from("lead_distributions")
-      .insert({
-        lead_id: lead.id,
-        company_id: company_id,
-        status: "accepted", // Auto-accepted since it's their own import
-        sent_at: new Date().toISOString(),
-        responded_at: new Date().toISOString(),
-        token_cost: 0, // No cost for imported leads
-        token_charged: false,
-      })
-      .select()
-      .single();
-
-    if (distError) {
-      logStep("Distribution insert error - rolling back lead", { error: distError, lead_id: lead.id });
-      await supabase.from("leads").delete().eq("id", lead.id);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Anfrage konnte nicht zugeordnet werden. Bitte versuchen Sie es erneut.",
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    logStep("Distribution created", { distribution_id: distribution?.id });
-
-    // FIX: Update import count correctly - fetch current count and increment
-    const { data: subscription } = await supabase
-      .from("manual_import_subscriptions")
-      .select("id, total_imports_count")
-      .eq("company_id", company_id)
-      .eq("status", "active")
-      .single();
-
-    if (subscription) {
-      await supabase
-        .from("manual_import_subscriptions")
-        .update({ 
-          total_imports_count: (subscription.total_imports_count || 0) + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", subscription.id);
-      
-      logStep("Import count updated", { subscription_id: subscription.id });
-    }
-
-    logStep("Import complete", { lead_id: lead.id, distribution_id: distribution?.id });
+    logStep("Import complete", { lead_id: lead.id });
 
     return new Response(
-      JSON.stringify({ success: true, lead_id: lead.id, distribution_id: distribution?.id }),
+      JSON.stringify({ success: true, lead_id: lead.id }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 

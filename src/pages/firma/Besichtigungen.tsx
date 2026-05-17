@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { getCachedCompany } from "@/hooks/useCachedCompany";
 import { Button } from "@/components/ui/button";
@@ -518,11 +517,9 @@ const FirmaBesichtigungen = () => {
         <Helmet>
           <title>Besichtigungen | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="flex items-center justify-center h-64">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -532,7 +529,6 @@ const FirmaBesichtigungen = () => {
       <Helmet>
         <title>Besichtigungen | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-6">
           {/* Modern Header */}
           <Card className="border-0 shadow-lg overflow-hidden">
@@ -1699,7 +1695,6 @@ const FirmaBesichtigungen = () => {
             companyId={companyId}
           />
         )}
-      </FirmaLayout>
     </>
   );
 };

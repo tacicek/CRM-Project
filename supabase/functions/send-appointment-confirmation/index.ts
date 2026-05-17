@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { logEmail } from "../_shared/logEmail.ts";
 import { wrapEmailDocument, EMAIL_HEADER_BAND, EMAIL_BODY_PADDING } from "../_shared/emailLayout.ts";
@@ -67,7 +68,7 @@ function buildEmailHtml(
     .filter(Boolean)
     .join(" ") || "Kunde";
   const typeLabel = APPOINTMENT_TYPE_LABELS[apt.appointment_type] || apt.title;
-  const senderName = isCompanyEmail ? company.company_name : "Ihr Offerio Team";
+  const senderName = isCompanyEmail ? company.company_name : "Ihr ${getAppName()} Team";
 
   const locationParts = [apt.location_address, [apt.location_plz, apt.location_city].filter(Boolean).join(" ")]
     .filter(Boolean);
@@ -143,7 +144,7 @@ function buildEmailHtml(
       </p>
     </div>
     <div style="padding:16px;text-align:center;color:#a1a1aa;font-size:12px;">
-      Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${company.company_name}` : " von Offerio"} gesendet.
+      Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${company.company_name}` : " von ${getAppName()}"} gesendet.
     </div>`;
 
   return wrapEmailDocument(inner);
@@ -202,6 +203,7 @@ serve(async (req) => {
     }
 
     // Fetch company (with Resend settings)
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const { data: company, error: companyErr } = await supabase
       .from("companies")
       .select("id, company_name, email, phone, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
@@ -217,9 +219,12 @@ serve(async (req) => {
     }
 
     // Determine Resend key & from address
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const globalResendApiKey = Deno.env.get("RESEND_API_KEY");
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     let resendApiKey = globalResendApiKey;
-    let fromAddress = "Offerio <noreply@offerio.ch>";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
+    let fromAddress = getDefaultFrom();
     let isCompanyEmail = false;
 
     if (company.resend_enabled && company.resend_api_key && company.resend_from_email) {
@@ -228,10 +233,12 @@ serve(async (req) => {
       fromAddress = `${fromName} <${company.resend_from_email}>`;
       isCompanyEmail = true;
       logStep("Using company Resend API", { fromAddress });
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     }
 
     if (!resendApiKey) {
       logStep("No Resend API key — skipping email");
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
       return new Response(JSON.stringify({ success: true, skipped: true, reason: "no_api_key" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -246,6 +253,7 @@ serve(async (req) => {
     // Send (company key first, fallback to global key if available)
     const sendWith = async (apiKey: string, from: string) => {
       const resend = new Resend(apiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
       return await resend.emails.send({
         from,
         to: [apt.customer_email],
@@ -259,13 +267,16 @@ serve(async (req) => {
     logStep("Send result", { emailData: JSON.stringify(emailData), emailErr: JSON.stringify(emailErr) });
 
     if (emailErr && isCompanyEmail && globalResendApiKey && globalResendApiKey !== resendApiKey) {
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
       logStep("Company email failed, retrying with global Resend key", {
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
         companyId: company.id,
         firstError: emailErr,
       });
       isCompanyEmail = false;
-      fromAddress = "Offerio <noreply@offerio.ch>";
+      fromAddress = getDefaultFrom();
       ({ data: emailData, error: emailErr } = await sendWith(globalResendApiKey, fromAddress));
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
       logStep("Global key retry result", { emailData: JSON.stringify(emailData), emailErr: JSON.stringify(emailErr) });
     }
 

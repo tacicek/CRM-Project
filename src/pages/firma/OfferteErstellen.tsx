@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -1234,11 +1233,9 @@ const FirmaOfferteErstellen = () => {
         <Helmet>
           <title>Offerte erstellen | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-secondary" />
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -1249,7 +1246,6 @@ const FirmaOfferteErstellen = () => {
         <Helmet>
           <title>Offerte erstellen | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">Kein Lead ausgewählt</h3>
@@ -1260,7 +1256,6 @@ const FirmaOfferteErstellen = () => {
               Zu den Anfragen
             </Button>
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -1270,7 +1265,6 @@ const FirmaOfferteErstellen = () => {
       <Helmet>
         <title>Offerte erstellen | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-4 sm:space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
@@ -2441,7 +2435,6 @@ const FirmaOfferteErstellen = () => {
           onKeepOriginal={handleSpellCheckKeepOriginal}
           onDismiss={handleSpellCheckDismiss}
         />
-      </FirmaLayout>
     </>
   );
 };

@@ -1,0 +1,79 @@
+---
+alwaysApply: true
+---
+# Model Seçim Rehberi
+Bir task başlamadan önce aşağıdaki kriterlere göre model öner.
+Kullanıcı "@model-routing bu task için hangi model?" diye sorduğunda
+tek satırda cevap ver: **[MODEL ADI]** — [1 cümle gerekçe]
+
+---
+
+## 🟢 Composer 2 Fast → Anında / mekanik
+- Dosya rename, basit metin değişikliği
+- Tek satır düzeltme, yorum ekleme
+- Bilinen kalıp, sıfır düşünme gerektiren iş
+
+## 🟣 GPT-5.5 Medium → Günlük rutin UI
+- Component yazımı, CSS/HTML düzenlemeleri
+- Basit bug fix, refactoring, küçük feature
+- Bricks / CF7 / Elementor şablonları
+- Landing page, statik sayfa geliştirme
+- UI metin, Helmet, meta düzenlemeleri
+
+## 🔵 Sonnet 4.6 Medium → Akıllı orta seviye
+- Supabase RLS, Edge Function, RPC yazımı
+- API entegrasyonu, veri modeli tasarımı
+- Schema markup (LocalBusiness, FAQ, Service)
+- SEO içerik mantığı, metadata optimizasyonu
+- TypeScript tip sistemi, interface tasarımı
+- JWT doğrulama, auth logic
+
+## 🟡 Kimi K2.6 → Çok dosyalı frontend refactor
+- 5–15 dosyayı etkileyen frontend değişiklikleri
+- React hook refactoring, context/state yeniden yapılandırma
+- Cache key ve layout düzeyinde değişiklikler
+- Fiyat/performans en iyi seçenek — MiMo yerine tercih et
+
+## 🟠 DeepSeek V4-Pro → Büyük codebase / akış analizi
+- 15+ dosya, monorepo genelinde değişiklik
+- Çapraz akış analizi (örn. lead dağıtım mantığı)
+- 1M token context gerektiren büyük tarama
+- Kimi'nin yetersiz kaldığı derin mimari analiz
+
+## 🔴 Opus 4.7 Extra High → Sadece kritik kararlar
+Haftada max 2–3 kez kullan. Uzun prompt yazma, kısa ve odaklı sor.
+- Güvenlik / mimari kararları
+- 2+ saattir çözülemeyen production bug'ı
+- Stripe + RLS güvenlik audit
+- Kritik production deploy öncesi code review
+
+## ⚪ MiMo V2-Pro → Deney statüsü
+- Cursor'da reasoning hatası verebilir (`reasoning_content` sorunu)
+- Kullanmadan önce `mimo-v2-pro-nonthinking` dene
+- Stabil olana kadar Kimi veya DeepSeek tercih et
+
+## ⚫ MiniMax M2.7 → Deney statüsü
+- Gerçek dünya testinde API hataları gözlemlendi
+- Production'da henüz güvenilir değil
+- Sadece izole test/deney için kullan
+
+---
+
+## Hızlı karar kuralı
+
+| Durum | Model |
+|-------|-------|
+| "Tek satır / rename / metin" | 🟢 Composer 2 Fast |
+| "Bunu nasıl yapacağımı biliyorum, sadece yaz" | 🟣 GPT-5.5 |
+| "Mantığını düşünmem lazım" | 🔵 Sonnet 4.6 |
+| "5–15 dosya, frontend refactor" | 🟡 Kimi K2.6 |
+| "15+ dosya veya 1M context lazım" | 🟠 DeepSeek V4-Pro |
+| "2 saattir çözemedim / prod kritik" | 🔴 Opus 4.7 |
+
+---
+
+## Notlar
+- MiMo ve MiniMax **deney/test** statüsünde — prod görevlerinde Kimi veya DeepSeek tercih et.
+- Kimi K2.6, eski MiMo rolünü devraldı: çok dosyalı frontend işlerde en iyi fiyat/perf.
+- DeepSeek V4-Pro, 1M context ile büyük codebase taramalarında Kimi'yi geçiyor.
+- Bu dosya `crm-roadmap.md` ile çelişirse, görev türüne göre **bu dosya** genel kural, roadmap ise proje özeli olarak uygulanır.

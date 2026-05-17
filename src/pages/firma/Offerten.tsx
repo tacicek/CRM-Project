@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { AuftragModal } from "@/components/firma/AuftragModal";
 import { Button } from "@/components/ui/button";
 import {
@@ -159,6 +158,7 @@ const PaginationBar = ({ total, page, pageSize, onPageChange, onPageSizeChange }
   if (totalPages > 1) addPage(totalPages);
 
   return (
+    <>
     <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
       <div className="flex items-center gap-3 text-sm text-slate-500">
         <span>{from}–{to} von {total}</span>
@@ -205,6 +205,7 @@ const PaginationBar = ({ total, page, pageSize, onPageChange, onPageSizeChange }
         </div>
       )}
     </div>
+    </>
   );
 };
 
@@ -665,7 +666,6 @@ const FirmaOfferten = () => {
       <Helmet>
         <title>Offerten | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-6">
           {/* Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 px-4 py-3 md:px-6 md:py-4 text-white">
@@ -1059,7 +1059,6 @@ const FirmaOfferten = () => {
             </div>
           </div>
         </div>
-      </FirmaLayout>
 
       {/* Auftrag Modal */}
       <AuftragModal

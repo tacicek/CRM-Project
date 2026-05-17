@@ -4,6 +4,7 @@
  */
 
 import { getDashboardAppBaseUrl } from "./dashboardAppUrl.ts";
+import { getAppName, getSiteUrl } from "./envConfig.ts";
 import {
   EMAIL_BODY_PADDING,
   EMAIL_CARD_OUTER,
@@ -191,7 +192,7 @@ export function buildCompanyLeadNotificationEmail(params: CompanyLeadEmailParams
     </div>
   </div>
   <div style="text-align:center;padding:14px 0 0;font-size:12px;color:#71717a;">
-    <p style="margin:0;">© ${year} Offerio – Automatische Lead-Benachrichtigung</p>
+    <p style="margin:0;">© ${year} ${getAppName()}</p>
   </div>`;
 
   return wrapEmailDocument(inner);
@@ -355,7 +356,7 @@ export function buildCustomerConfirmationEmail(params: CustomerConfirmationEmail
     <div style="${EMAIL_BODY_PADDING}">
       <p style="font-size:16px;margin-top:0;">Guten Tag ${customerFirstName} ${customerLastName},</p>
       <p>
-        Vielen Dank für Ihre Anfrage bei <strong>Offerio</strong>! Ihre <strong>${serviceLabel}</strong>-Anfrage ${locationInfo} wurde an <strong>${matchedCompanies}</strong> passende Unternehmen in Ihrer Nähe weitergeleitet.
+        Vielen Dank für Ihre Anfrage! Ihre <strong>${serviceLabel}</strong>-Anfrage ${locationInfo} wurde an <strong>${matchedCompanies}</strong> passende Unternehmen in Ihrer Nähe weitergeleitet.
       </p>
       <div style="background:#ffffff;padding:16px;border-radius:6px;border:1px solid #d4d4d8;margin:16px 0;">
         <h3 style="margin-top:0;color:#18181b;font-size:15px;">Zusammenfassung Ihrer Anfrage</h3>
@@ -377,15 +378,13 @@ export function buildCustomerConfirmationEmail(params: CustomerConfirmationEmail
       </p>
       <p style="margin-bottom:0;">
         Freundliche Grüsse,<br>
-        <strong>Ihr Offerio Team</strong>
+        <strong>Ihr ${getAppName()} Team</strong>
       </p>
     </div>
   </div>
   <div style="text-align:center;padding:14px 0 0;font-size:12px;color:#71717a;">
-    <p style="margin:0;">© ${year} Offerio</p>
-    <p style="margin:6px 0 0 0;">
-      <a href="https://offerio.ch" style="color:#3f3f46;text-decoration:underline;">offerio.ch</a>
-    </p>
+    <p style="margin:0;">© ${year} ${getAppName()}</p>
+    ${getSiteUrl() ? `<p style="margin:6px 0 0 0;"><a href="${getSiteUrl()}" style="color:#3f3f46;text-decoration:underline;">${getSiteUrl()}</a></p>` : ""}
   </div>`;
 
   return wrapEmailDocument(inner);
@@ -476,14 +475,14 @@ export function buildAdminDistributionSummaryEmail(params: AdminSummaryEmailPara
       </div>
 
       <p style="text-align:center;margin-top:18px;">
-        <a href="https://dash.offerio.ch/admin/leads" style="display:inline-block;background:#2d2d2d;color:#ffffff;padding:12px 22px;text-decoration:none;border-radius:8px;font-weight:600;">
+        <a href="${getDashboardAppBaseUrl()}/admin/leads" style="display:inline-block;background:#2d2d2d;color:#ffffff;padding:12px 22px;text-decoration:none;border-radius:8px;font-weight:600;">
           Im Admin-Panel ansehen
         </a>
       </p>
     </div>
   </div>
   <div style="text-align:center;padding:14px 0 0;font-size:12px;color:#71717a;">
-    © ${year} Offerio – Admin-Benachrichtigung
+    © ${year} ${getAppName()}
   </div>`;
 
   return wrapEmailDocument(inner);

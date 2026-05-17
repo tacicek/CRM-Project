@@ -244,6 +244,7 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
   }
 
   return (
+    <>
     <div className="space-y-4">
       {/* Input Controls */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -413,6 +414,7 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
         )} (inkl. MwSt.)
       </div>
     </div>
+    </>
   );
 });
 
@@ -624,7 +626,6 @@ export default function FirmaPreisgestaltung() {
       <Helmet>
         <title>Preisgestaltung | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1533,7 +1534,6 @@ export default function FirmaPreisgestaltung() {
             </TabsContent>
           </Tabs>
         </div>
-      </FirmaLayout>
       
       {/* Reset Confirmation Dialog */}
       <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>

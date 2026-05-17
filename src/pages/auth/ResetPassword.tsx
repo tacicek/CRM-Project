@@ -6,10 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Lock, Loader2, Eye, EyeOff, CheckCircle } from "lucide-react";
-import { z } from "zod";
-
-const passwordSchema = z.string().min(8, "Passwort muss mindestens 8 Zeichen haben");
+import { Building2, Lock, Loader2, Eye, EyeOff, CheckCircle } from "lucide-react";
+import { validateResetPasswordForm } from "@/lib/authUtils";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -36,17 +34,7 @@ const ResetPassword = () => {
   }, [session, isLoading, navigate, toast]);
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    const passwordResult = passwordSchema.safeParse(password);
-    if (!passwordResult.success) {
-      newErrors.password = passwordResult.error.errors[0].message;
-    }
-
-    if (password !== confirmPassword) {
-      newErrors.confirmPassword = "Passwörter stimmen nicht überein";
-    }
-
+    const newErrors = validateResetPasswordForm(password, confirmPassword);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -96,19 +84,18 @@ const ResetPassword = () => {
   return (
     <>
       <Helmet>
-        <title>Neues Passwort setzen | Offerio</title>
+        <title>Neues Passwort setzen | CRM</title>
         <meta name="robots" content="noindex, nofollow" />
       </Helmet>
 
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/5 px-4">
         <div className="w-full max-w-md">
-          {/* Logo */}
-          <div className="flex items-center justify-center mb-8">
-            <img 
-              src="/offerio-logo.png" 
-              alt="Offerio" 
-              className="h-14"
-            />
+          {/* Branding */}
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center mx-auto mb-4 shadow-md">
+              <Building2 className="w-7 h-7 text-white" />
+            </div>
+            <p className="text-sm text-muted-foreground">CRM Dashboard</p>
           </div>
 
           {/* Card */}

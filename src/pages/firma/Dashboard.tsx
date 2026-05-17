@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -399,7 +398,6 @@ const FirmaDashboard = () => {
       <Helmet>
         <title>Dashboard | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-6 md:space-y-8">
           {/* CRM-FORK: removed Low Token Banner */}
 
@@ -764,7 +762,6 @@ const FirmaDashboard = () => {
           onSuccess={handleBesichtigungSuccess}
         />
 
-      </FirmaLayout>
     </>
   );
 };

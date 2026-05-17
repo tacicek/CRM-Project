@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import {
   EMAIL_BODY_PADDING,
@@ -134,6 +135,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const resend = new Resend(resendApiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const rawBody = await req.json();
     
     // CRITICAL FIX: Rate limit check BEFORE validation to prevent CPU abuse
@@ -211,7 +213,7 @@ const handler = async (req: Request): Promise<Response> => {
           <div style="${EMAIL_BODY_PADDING}">
             <p style="font-size:16px;margin-top:0;">Guten Tag ${data.customerFirstName} ${data.customerLastName},</p>
             <p>
-              Vielen Dank für Ihre Anfrage bei Offerio. Wir haben Ihre Anfrage für <strong>${serviceLabel}</strong> ${locationInfo} erhalten.
+              Vielen Dank für Ihre Anfrage bei ${getAppName()}. Wir haben Ihre Anfrage für <strong>${serviceLabel}</strong> ${locationInfo} erhalten.
             </p>
             <div style="background:#ffffff;padding:16px;border-radius:6px;border:1px solid #d4d4d8;margin:16px 0;">
               <h3 style="margin-top:0;color:#18181b;font-size:15px;">Was passiert als Nächstes?</h3>
@@ -223,15 +225,15 @@ const handler = async (req: Request): Promise<Response> => {
               </ul>
             </div>
             <p style="color:#52525b;font-size:14px;">Bei Fragen helfen wir gerne weiter.</p>
-            <p style="margin-bottom:0;">Freundliche Grüsse,<br><strong>Ihr Offerio Team</strong></p>
+            <p style="margin-bottom:0;">Freundliche Grüsse,<br><strong>Ihr ${getAppName()} Team</strong></p>
           </div>
         </div>
         <div style="text-align:center;padding:14px 0 0;font-size:12px;color:#71717a;">
-          <p style="margin:0;">© ${new Date().getFullYear()} Offerio</p>
+          <p style="margin:0;">© ${new Date().getFullYear()} ${getAppName()}</p>
         </div>`;
 
       emailResponse = await resend.emails.send({
-        from: "Offerio <noreply@offerio.ch>",
+        from: getDefaultFrom(),
         to: [data.customerEmail],
         subject: `Ihre Anfrage für ${serviceLabel} wurde erfolgreich gesendet`,
         html: wrapEmailDocument(inner),

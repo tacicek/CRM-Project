@@ -2,9 +2,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
+import { CompanyProvider } from "@/hooks/useCompanyContext";
 import { ThemeProvider } from "next-themes";
 import { lazy, Suspense, useLayoutEffect } from "react";
 
@@ -41,7 +42,6 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 // Firma (CRM) pages
 const firmaImports = {
   Dashboard: () => import("./pages/firma/Dashboard"),
-  Anfragen: () => import("./pages/firma/Anfragen"),
   Einstellungen: () => import("./pages/firma/Einstellungen"),
   Offerten: () => import("./pages/firma/Offerten"),
   OfferteErstellen: () => import("./pages/firma/OfferteErstellen"),
@@ -54,16 +54,15 @@ const firmaImports = {
   Auftraege: () => import("./pages/firma/Auftraege"),
   Team: () => import("./pages/firma/Team"),
   ManualImport: () => import("./pages/firma/ManualImport"),
+  Anfragen: () => import("./pages/firma/Anfragen"),
   Besichtigungen: () => import("./pages/firma/Besichtigungen"),
   Datenarchiv: () => import("./pages/firma/Datenarchiv"),
-  // CRM-FORK: removed CrmUpgrade, Tokens (portal/marketplace pages)
   Preisgestaltung: () => import("./pages/firma/Preisgestaltung"),
   Quittungen: () => import("./pages/firma/Quittungen"),
   QuittungDetail: () => import("./pages/firma/QuittungDetail"),
 };
 
 const FirmaDashboard = lazy(firmaImports.Dashboard);
-const FirmaAnfragen = lazy(firmaImports.Anfragen);
 const FirmaEinstellungen = lazy(firmaImports.Einstellungen);
 const FirmaOfferten = lazy(firmaImports.Offerten);
 const FirmaOfferteErstellen = lazy(firmaImports.OfferteErstellen);
@@ -76,11 +75,23 @@ const FirmaUmzugsboxen = lazy(firmaImports.Umzugsboxen);
 const FirmaAuftraege = lazy(firmaImports.Auftraege);
 const FirmaTeam = lazy(firmaImports.Team);
 const FirmaManualImport = lazy(firmaImports.ManualImport);
+const FirmaAnfragen = lazy(firmaImports.Anfragen);
 const FirmaBesichtigungen = lazy(firmaImports.Besichtigungen);
 const FirmaDatenarchiv = lazy(firmaImports.Datenarchiv);
 const FirmaPreisgestaltung = lazy(firmaImports.Preisgestaltung);
 const FirmaQuittungen = lazy(firmaImports.Quittungen);
 const FirmaQuittungDetail = lazy(firmaImports.QuittungDetail);
+
+// Layout wrapper
+const FirmaLayout = lazy(() => import("./components/firma/FirmaLayout"));
+
+const FirmaRouteWrapper = () => (
+  <CompanyProvider>
+    <FirmaLayout>
+      <Outlet />
+    </FirmaLayout>
+  </CompanyProvider>
+);
 
 export { firmaImports };
 
@@ -115,7 +126,7 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/auth/reset-password" element={<ResetPassword />} />
 
-                {/* Public shareable views (offer link, appointment actions, virtual tour) */}
+                {/* Public shareable views */}
                 <Route path="/offerte/:token" element={<PublicOfferView />} />
                 <Route path="/termin/:appointmentId/absagen" element={<AppointmentCancel />} />
                 <Route path="/termin/:appointmentId/verschieben" element={<AppointmentReschedule />} />
@@ -123,30 +134,31 @@ const App = () => (
                 <Route path="/besichtigung/:leadId/antwort" element={<BesichtigungProposalResponse />} />
                 <Route path="/besichtigung/:token" element={<VirtualBesichtigung />} />
 
-                {/* Firma (CRM) Routes */}
-                <Route path="/firma" element={<ErrorBoundary><FirmaDashboard /></ErrorBoundary>} />
-                <Route path="/firma/anfragen" element={<ErrorBoundary><FirmaAnfragen /></ErrorBoundary>} />
-                <Route path="/firma/einstellungen" element={<ErrorBoundary><FirmaEinstellungen /></ErrorBoundary>} />
-                <Route path="/firma/offerten" element={<ErrorBoundary><FirmaOfferten /></ErrorBoundary>} />
-                <Route path="/firma/offerten/neu" element={<ErrorBoundary><FirmaOfferteErstellen /></ErrorBoundary>} />
-                <Route path="/firma/offerten/:id" element={<ErrorBoundary><FirmaOfferteDetail /></ErrorBoundary>} />
-                <Route path="/firma/offerte-bearbeiten/:offerId" element={<ErrorBoundary><FirmaOfferteBearbeiten /></ErrorBoundary>} />
-                <Route path="/firma/quittungen" element={<ErrorBoundary><FirmaQuittungen /></ErrorBoundary>} />
-                <Route path="/firma/quittungen/neu" element={<ErrorBoundary><FirmaQuittungDetail /></ErrorBoundary>} />
-                <Route path="/firma/quittungen/:id" element={<ErrorBoundary><FirmaQuittungDetail /></ErrorBoundary>} />
-                <Route path="/firma/quittungen/:id/bearbeiten" element={<ErrorBoundary><FirmaQuittungDetail /></ErrorBoundary>} />
-                <Route path="/firma/kalender" element={<ErrorBoundary><FirmaKalender /></ErrorBoundary>} />
-                <Route path="/firma/auftraege" element={<ErrorBoundary><FirmaAuftraege /></ErrorBoundary>} />
-                <Route path="/firma/besichtigungen" element={<ErrorBoundary><FirmaBesichtigungen /></ErrorBoundary>} />
-                <Route path="/firma/umzugsboxen" element={<ErrorBoundary><FirmaUmzugsboxen /></ErrorBoundary>} />
-                <Route path="/firma/team" element={<ErrorBoundary><FirmaTeam /></ErrorBoundary>} />
-                <Route path="/firma/checkliste" element={<ErrorBoundary><FirmaCheckliste /></ErrorBoundary>} />
-                <Route path="/firma/leistungskatalog" element={<ErrorBoundary><FirmaLeistungskatalog /></ErrorBoundary>} />
-                <Route path="/firma/preisgestaltung" element={<ErrorBoundary><FirmaPreisgestaltung /></ErrorBoundary>} />
-                <Route path="/firma/manual-import" element={<ErrorBoundary><FirmaManualImport /></ErrorBoundary>} />
-                <Route path="/firma/datenarchiv" element={<ErrorBoundary><FirmaDatenarchiv /></ErrorBoundary>} />
+                {/* Firma (CRM) Routes — CompanyProvider + FirmaLayout wrapper */}
+                <Route element={<ErrorBoundary><FirmaRouteWrapper /></ErrorBoundary>}>
+                  <Route path="/firma" element={<FirmaDashboard />} />
+                  <Route path="/firma/einstellungen" element={<FirmaEinstellungen />} />
+                  <Route path="/firma/offerten" element={<FirmaOfferten />} />
+                  <Route path="/firma/offerten/neu" element={<FirmaOfferteErstellen />} />
+                  <Route path="/firma/offerten/:id" element={<FirmaOfferteDetail />} />
+                  <Route path="/firma/offerte-bearbeiten/:offerId" element={<FirmaOfferteBearbeiten />} />
+                  <Route path="/firma/quittungen" element={<FirmaQuittungen />} />
+                  <Route path="/firma/quittungen/neu" element={<FirmaQuittungDetail />} />
+                  <Route path="/firma/quittungen/:id" element={<FirmaQuittungDetail />} />
+                  <Route path="/firma/quittungen/:id/bearbeiten" element={<FirmaQuittungDetail />} />
+                  <Route path="/firma/kalender" element={<FirmaKalender />} />
+                  <Route path="/firma/auftraege" element={<FirmaAuftraege />} />
+                  <Route path="/firma/besichtigungen" element={<FirmaBesichtigungen />} />
+                  <Route path="/firma/umzugsboxen" element={<FirmaUmzugsboxen />} />
+                  <Route path="/firma/team" element={<FirmaTeam />} />
+                  <Route path="/firma/checkliste" element={<FirmaCheckliste />} />
+                  <Route path="/firma/leistungskatalog" element={<FirmaLeistungskatalog />} />
+                  <Route path="/firma/preisgestaltung" element={<FirmaPreisgestaltung />} />
+                  <Route path="/firma/manual-import" element={<FirmaManualImport />} />
+                  <Route path="/firma/anfragen" element={<FirmaAnfragen />} />
+                  <Route path="/firma/datenarchiv" element={<FirmaDatenarchiv />} />
+                </Route>
 
-                {/* CRM-FORK: removed /admin/*, /anfrage/*, public marketing pages, token pages */}
                 {/* Catch-all 404 */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

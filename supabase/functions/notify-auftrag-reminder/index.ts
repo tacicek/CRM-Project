@@ -7,6 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +49,7 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const resend = resendApiKey ? new Resend(resendApiKey) : null;
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     if (!resend) {
       return new Response(
@@ -117,7 +119,7 @@ serve(async (req) => {
 
         // Send email to team leader
         const emailResult = await resend.emails.send({
-          from: `${auftrag.company_name} <info@offerio.ch>`,
+          from: `${auftrag.company_name} <${getAdminEmail()}>`,
           to: auftrag.team_leader_email,
           subject: `📋 Auftrag ${auftrag.auftrag_nummer} - ${formattedDate}`,
           html: generateEmailHtml(auftrag, teamMembersList, formattedDate),
@@ -146,7 +148,7 @@ serve(async (req) => {
         if (auftrag.company_email && auftrag.company_email !== auftrag.team_leader_email) {
           try {
             await resend.emails.send({
-              from: `Offerio System <info@offerio.ch>`,
+              from: `${getAppName()} System <${getAdminEmail()}>`,
               to: auftrag.company_email,
               subject: `📋 Auftrag ${auftrag.auftrag_nummer} - Team benachrichtigt`,
               html: `
@@ -172,8 +174,8 @@ serve(async (req) => {
     if (results.reminders_sent > 0) {
       try {
         await resend.emails.send({
-          from: "Offerio System <info@offerio.ch>",
-          to: "info@offerio.ch",
+          from: getDefaultFrom(),
+          to: getAdminEmail(),
           subject: `📊 Auftrag-Erinnerungen: ${results.reminders_sent} gesendet`,
           html: `
             <h2>Auftrag-Erinnerungen Zusammenfassung</h2>
@@ -421,7 +423,7 @@ function generateAuftragPdfHtml(
   ` : ""}
 
   <div class="footer">
-    <p>Erstellt am ${new Date().toLocaleDateString("de-CH")} via Offerio.ch</p>
+    <p>Erstellt am ${new Date().toLocaleDateString("de-CH")} via ${getAppName()}.ch</p>
   </div>
 </body>
 </html>

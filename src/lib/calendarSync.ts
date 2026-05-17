@@ -153,7 +153,7 @@ export function generateIcsContent(event: CalendarEvent): string {
       .replace(/\n/g, "\\n");
   };
 
-  const uid = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}@offerio.ch`;
+  const uid = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}@crm.local`;
   const dtstamp = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 
   const lines: string[] = [

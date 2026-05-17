@@ -3,7 +3,7 @@ import { Buffer } from "buffer/";
 import App from "./App.tsx";
 import "./index.css";
 
-const CHUNK_RELOAD_FLAG = "offerio_chunk_reload_once";
+const CHUNK_RELOAD_FLAG = "crm_chunk_reload_once";
 
 const isChunkLoadError = (value: unknown): boolean => {
   if (!value) return false;

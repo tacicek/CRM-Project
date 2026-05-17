@@ -1,3 +1,4 @@
+import { getDefaultFrom, getAdminEmail, getDashAppUrl, getSiteUrl, getAppName } from "../_shared/envConfig.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -6,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const BASE_URL = "https://offerio.ch";
+const BASE_URL = getSiteUrl() || "${Deno.env.get("SITE_URL") || ""}";
 
 interface SitemapUrl {
   loc: string;

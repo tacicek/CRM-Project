@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,7 +69,7 @@ serve(async (req) => {
     }
     userId = user.id;
 
-    // Verify company exists
+    // Verify company exists and user is a member
     const { data: company, error: companyError } = await supabase
       .from("companies")
       .select("id, company_name")
@@ -78,6 +80,15 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Company not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // SECURITY: Verify the authenticated user is a member of this company
+    const isMember = await verifyCompanyMembership(supabase, userId, company_id);
+    if (!isMember) {
+      return new Response(
+        JSON.stringify({ error: "Keine Berechtigung für diese Firma" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -112,7 +123,7 @@ serve(async (req) => {
     // Build URL from caller origin when available (useful for localhost testing)
     // Fallback to configured public app URL for production calls.
     const origin = typeof app_origin === "string" ? app_origin.trim() : "";
-    const baseUrl = origin || Deno.env.get("PUBLIC_APP_URL") || "https://offerio.ch";
+    const baseUrl = origin || Deno.env.get("PUBLIC_APP_URL") || getDashAppUrl();
     const url = `${baseUrl}/besichtigung/${session.token}`;
 
     return new Response(

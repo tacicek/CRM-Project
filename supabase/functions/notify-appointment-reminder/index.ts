@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,7 +46,7 @@ interface Company {
 
 // Generate ICS calendar file content
 function generateIcsContent(appointment: Appointment, company: Company): string {
-  const uid = `${appointment.id}@offerio.ch`;
+  const uid = `${appointment.id}@crm.internal`;
   const now = new Date();
   const dtstamp = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   
@@ -71,7 +72,7 @@ function generateIcsContent(appointment: Appointment, company: Company): string 
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Offerio//Termin//DE",
+    "PRODID:-//CRM//Termin//DE",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
@@ -219,6 +220,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const resend = new Resend(resendApiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
@@ -297,8 +299,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     let remindersSent = 0;
 
-    const baseUrl = Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "") || "https://offerio.ch";
-    const siteUrl = "https://offerio.ch";
+    const baseUrl = Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "") || getDashAppUrl();
+    const siteUrl = getSiteUrl();
 
     // Process today's appointments (2-hour and 1-hour reminders)
     for (const appointment of appointments as Appointment[]) {
@@ -342,7 +344,7 @@ const handler = async (req: Request): Promise<Response> => {
 
           try {
             await resend.emails.send({
-              from: "Offerio <termine@offerio.ch>",
+              from: getCalendarFrom(),
               to: [appointment.customer_email],
               subject: `⏰ Letzte Erinnerung: ${appointment.title} in ${timeUntilText}`,
               html: generateOneHourReminderEmail(appointment, company as Company, timeUntilText, appointmentTypeLabel, cancelUrl, rescheduleUrl),
@@ -409,7 +411,7 @@ const handler = async (req: Request): Promise<Response> => {
         // Send reminder to firma
         try {
           await resend.emails.send({
-            from: "Offerio <termine@offerio.ch>",
+            from: getCalendarFrom(),
             to: [recipientEmail],
             subject: `⏰ Erinnerung: ${appointment.title} in ${timeUntilText}`,
             html: generateFirmaReminderEmail(appointment, company as Company, timeUntilText, appointmentTypeLabel),
@@ -447,7 +449,7 @@ const handler = async (req: Request): Promise<Response> => {
         if (appointment.customer_email && !appointment.reminder_sent_customer) {
           try {
             await resend.emails.send({
-              from: "Offerio <termine@offerio.ch>",
+              from: getCalendarFrom(),
               to: [appointment.customer_email],
               subject: `⏰ Termin-Erinnerung: ${appointment.title} in ${timeUntilText}`,
               html: generateCustomerReminderEmail(appointment, company as Company, timeUntilText, appointmentTypeLabel),
@@ -562,7 +564,7 @@ const handler = async (req: Request): Promise<Response> => {
       if (!existingFirmaReminder) {
         try {
           await resend.emails.send({
-            from: "Offerio <termine@offerio.ch>",
+            from: getCalendarFrom(),
             to: [recipientEmail],
             subject: `📅 Morgen: Besichtigung "${appointment.title}"`,
             html: generateDayBeforeReminderEmail(appointment, company as Company, "firma"),
@@ -603,7 +605,7 @@ const handler = async (req: Request): Promise<Response> => {
       if (appointment.customer_email && !existingCustomerReminder) {
         try {
           await resend.emails.send({
-            from: "Offerio <termine@offerio.ch>",
+            from: getCalendarFrom(),
             to: [appointment.customer_email],
             subject: `📅 Erinnerung: Ihre Besichtigung ist morgen`,
             html: generateDayBeforeReminderEmail(appointment, company as Company, "customer"),
@@ -782,7 +784,7 @@ function generateDayBeforeReminderEmail(
           </div>
           
           <div class="footer">
-            <p>Diese Erinnerung wurde automatisch von Offerio versendet.</p>
+            <p>Diese Erinnerung wurde automatisch versendet.</p>
           </div>
         </div>
       </div>
@@ -866,7 +868,7 @@ function generateOneHourReminderEmail(
           </div>
           
           <div class="footer">
-            <p>Diese Erinnerung wurde automatisch von Offerio versendet.</p>
+            <p>Diese Erinnerung wurde automatisch versendet.</p>
           </div>
         </div>
       </div>
@@ -942,7 +944,7 @@ function generateFirmaReminderEmail(
           </div>
           
           <div class="footer">
-            <p>Diese Erinnerung wurde automatisch von Offerio versendet.</p>
+            <p>Diese Erinnerung wurde automatisch versendet.</p>
           </div>
         </div>
       </div>
@@ -1012,7 +1014,7 @@ function generateCustomerReminderEmail(
           
           <div class="footer">
             <p>Bei Fragen wenden Sie sich bitte direkt an die Firma.</p>
-            <p style="margin-top: 20px; font-size: 12px;">Diese Erinnerung wurde automatisch von Offerio versendet.</p>
+            <p style="margin-top: 20px; font-size: 12px;">Diese Erinnerung wurde automatisch versendet.</p>
           </div>
         </div>
       </div>

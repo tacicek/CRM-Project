@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -156,9 +157,12 @@ serve(async (req: Request) => {
     }
 
     // Initialize Resend if API key exists
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     let resend: Resend | null = null;
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     if (resendApiKey) {
       resend = new Resend(resendApiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     }
 
     let emailsSent = 0;
@@ -246,7 +250,7 @@ serve(async (req: Request) => {
             ` : ""}
             
             <p style="text-align: center; margin: 30px 0 20px;">
-              <a href="https://dash.offerio.ch/firma/umzugsboxen" 
+              <a href=`${getDashAppUrl()}/firma/umzugsboxen` 
                  style="display: inline-block; background: ${primaryColor}; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
                 Zur Boxen-Übersicht
               </a>
@@ -254,12 +258,12 @@ serve(async (req: Request) => {
             
             <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
               Mit freundlichen Grüssen<br>
-              <strong>Ihr Offerio Team</strong>
+              <strong>Ihr ${getAppName()} Team</strong>
             </p>
           </div>
           
           <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-            <p>Diese E-Mail wurde automatisch von Offerio gesendet.</p>
+            <p>Diese E-Mail wurde automatisch von ${getAppName()} gesendet.</p>
           </div>
         </body>
         </html>
@@ -269,7 +273,7 @@ serve(async (req: Request) => {
       if (resend && company.email) {
         try {
           await resend.emails.send({
-            from: "Offerio <noreply@offerio.ch>",
+            from: getDefaultFrom(),
             to: [company.email],
             subject: `📦 Umzugsbox Erinnerung: ${overdue.length > 0 ? `${overdue.length} überfällig!` : `${dueToday.length + dueSoon.length} bald fällig`}`,
             html: emailHtml,
@@ -333,7 +337,7 @@ serve(async (req: Request) => {
 
             try {
               await resend.emails.send({
-                from: `${company.company_name} <noreply@offerio.ch>`,
+                from: `${company.company_name} <${getSenderEmail()}>`,
                 to: [teamMember.email],
                 subject: `📦 Box-Abholung: ${rental.customer_first_name} ${rental.customer_last_name}`,
                 html: memberEmailHtml,

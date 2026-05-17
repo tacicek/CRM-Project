@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { format, differenceInDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -425,7 +424,7 @@ export default function Umzugsboxen() {
   };
 
   return (
-    <FirmaLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -917,7 +916,7 @@ export default function Umzugsboxen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </FirmaLayout>
+    </>
   );
 }
 

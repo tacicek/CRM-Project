@@ -1365,6 +1365,38 @@ export type Database = {
           },
         ]
       }
+      company_members: {
+        Row: {
+          id: string
+          company_id: string
+          user_id: string
+          role: "owner" | "admin" | "member"
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          user_id: string
+          role?: "owner" | "admin" | "member"
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          user_id?: string
+          role?: "owner" | "admin" | "member"
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_services: {
         Row: {
           company_id: string

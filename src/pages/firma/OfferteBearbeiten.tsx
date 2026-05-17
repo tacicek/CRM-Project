@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -594,24 +593,20 @@ const FirmaOfferteBearbeiten = () => {
 
   if (isLoading) {
     return (
-      <FirmaLayout>
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      </FirmaLayout>
     );
   }
 
   if (!offer) {
     return (
-      <FirmaLayout>
         <div className="text-center py-12">
           <p className="text-muted-foreground">Offerte nicht gefunden</p>
           <Button className="mt-4" onClick={() => navigate("/firma/offerten")}>
             Zurück zu Offerten
           </Button>
         </div>
-      </FirmaLayout>
     );
   }
 
@@ -620,7 +615,6 @@ const FirmaOfferteBearbeiten = () => {
       <Helmet>
         <title>Offerte bearbeiten | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-4 sm:space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
@@ -1266,7 +1260,6 @@ const FirmaOfferteBearbeiten = () => {
           onKeepOriginal={handleSpellCheckKeepOriginal}
           onDismiss={handleSpellCheckDismiss}
         />
-      </FirmaLayout>
     </>
   );
 };

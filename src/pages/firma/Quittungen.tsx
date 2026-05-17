@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,7 +36,7 @@ export default function FirmaQuittungen() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { company } = useCachedCompany(
-    "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, crm_enabled, subscription_type, subscription_expires_at"
+    "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, crm_enabled"
   );
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
@@ -152,7 +151,6 @@ export default function FirmaQuittungen() {
   return (
     <>
       <Helmet><title>Quittungen | Firma</title></Helmet>
-      <FirmaLayout>
         <div className="space-y-5">
           {/* Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 px-4 py-3 md:px-6 md:py-4 text-white">
@@ -355,7 +353,6 @@ export default function FirmaQuittungen() {
             </div>
           </div>
         </div>
-      </FirmaLayout>
     </>
   );
 }

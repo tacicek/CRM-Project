@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -576,11 +575,9 @@ const FirmaCheckliste = () => {
         <Helmet>
           <title>Checkliste | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-secondary" />
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -591,11 +588,9 @@ const FirmaCheckliste = () => {
         <Helmet>
           <title>Checkliste | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="text-center py-12 text-muted-foreground">
             Firma nicht gefunden
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -605,7 +600,6 @@ const FirmaCheckliste = () => {
       <Helmet>
         <title>Checkliste | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-6">
           {/* Modern Header */}
           <Card className="border-0 shadow-lg overflow-hidden">
@@ -1209,7 +1203,6 @@ const FirmaCheckliste = () => {
             </div>
           </DialogContent>
         </Dialog>
-      </FirmaLayout>
     </>
   );
 };

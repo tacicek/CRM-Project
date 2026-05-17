@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
+import { getDefaultFrom, getDashAppUrl, getAppName } from "../_shared/envConfig.ts";
+import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 // jsPDF and QRCode removed - ALL PDFs are now generated on the frontend
 // using @react-pdf/renderer and passed to this edge function as base64.
 // This keeps the edge function lightweight and ensures identical PDFs.
@@ -238,12 +240,12 @@ const handler = async (req: Request): Promise<Response> => {
       force_resend: forceResendFromBody,
     });
 
-    // Get offer with company and lead info — user_id included for ownership check
+    // Get offer with company and lead info
     const { data: offer, error: offerError } = await supabase
       .from("offers")
       .select(`
         *,
-        company:companies(id, company_name, email, phone, street, house_number, plz, city, website, logo_url, mwst_number, iban, primary_color, signature_url, default_payment_terms, default_terms_and_conditions, resend_enabled, resend_api_key, resend_from_email, resend_from_name, user_id),
+        company:companies(id, company_name, email, phone, street, house_number, plz, city, website, logo_url, mwst_number, iban, primary_color, signature_url, default_payment_terms, default_terms_and_conditions, resend_enabled, resend_api_key, resend_from_email, resend_from_name),
         lead:leads(
           service_type,
           from_street,
@@ -273,14 +275,17 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // SECURITY: Ownership check using already-joined company data (no extra DB round-trip)
-    const companyUserId = (offer.company as unknown as { user_id?: string } | null)?.user_id;
-    if (companyUserId && companyUserId !== user.id) {
-      logStep("Unauthorized access attempt", { userId: user.id, companyOwnerId: companyUserId });
-      return new Response(
-        JSON.stringify({ error: "Sie haben keine Berechtigung für diese Offerte" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // SECURITY: Check if the authenticated user is a member of the offer's company
+    const offerCompanyId = (offer.company as unknown as { id?: string } | null)?.id;
+    if (offerCompanyId) {
+      const isMember = await verifyCompanyMembership(supabase, user.id, offerCompanyId);
+      if (!isMember) {
+        logStep("Unauthorized access attempt — not a company member", { userId: user.id, companyId: offerCompanyId });
+        return new Response(
+          JSON.stringify({ error: "Sie haben keine Berechtigung für diese Offerte" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // BUG-4: Çift gönderim koruması — offer zaten "sent" ise tekrar gönderme
@@ -518,7 +523,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Generate offer view URL
-    const offerViewUrl = `https://dash.offerio.ch/offerte/${offer.access_token}`;
+    const offerViewUrl = `${getDashAppUrl()}/offerte/${offer.access_token}`;
 
     // Build items HTML (mobile-safe stacked layout)
     const fmtCHF = (n: number) => 'CHF ' + n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -824,8 +829,8 @@ const handler = async (req: Request): Promise<Response> => {
     // Determine which Resend API to use - company's own or system default
     const companyInfo = offer.company as CompanyInfo | null;
     let resendApiKey = systemResendApiKey;
-    let fromAddress = "Offerio <noreply@offerio.ch>";
-    let fromEmail = "noreply@offerio.ch";
+    let fromAddress = getDefaultFrom();
+    let fromEmail = fromAddress.match(/<(.+)>/)?.[1] ?? fromAddress;
     let isCompanyEmail = false;
 
     if (companyInfo?.resend_enabled && companyInfo?.resend_api_key && companyInfo?.resend_from_email) {

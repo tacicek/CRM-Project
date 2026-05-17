@@ -6,11 +6,7 @@
  *                    Pass the incoming Request so the origin can be reflected when allowed.
  */
 
-const ALLOWED_ORIGINS = [
-  "https://offerio.ch",
-  "https://www.offerio.ch",
-  "https://dash.offerio.ch",
-];
+import { getAllowedOrigins, getDashAppUrl } from "./envConfig.ts";
 
 /** Open CORS — use only for public, read-only or unauthenticated endpoints */
 export const corsHeaders = {
@@ -25,9 +21,10 @@ export const corsHeaders = {
  */
 export function getCorsHeaders(req?: Request): Record<string, string> {
   const origin = req?.headers.get("origin") ?? "";
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin)
+  const allowed = getAllowedOrigins();
+  const allowedOrigin = allowed.includes(origin)
     ? origin
-    : "https://dash.offerio.ch";
+    : (getDashAppUrl() || "*");
 
   return {
     "Access-Control-Allow-Origin": allowedOrigin,

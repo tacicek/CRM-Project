@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +44,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const resend = new Resend(resendApiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: RescheduleRequest = await req.json();
@@ -76,7 +78,7 @@ const handler = async (req: Request): Promise<Response> => {
     const formatTime = (timeStr: string) => timeStr.substring(0, 5);
 
     // Generate action URLs
-    const siteUrl = "https://offerio.ch";
+    const siteUrl = getSiteUrl();
     const responseToken = crypto.randomUUID();
     const confirmUrl = `${siteUrl}/termin/${appointmentId}/antwort?action=confirm&date=${proposedDate}&time=${proposedTime}&token=${responseToken}`;
     const rejectUrl = `${siteUrl}/termin/${appointmentId}/antwort?action=reject&date=${proposedDate}&time=${proposedTime}&token=${responseToken}`;
@@ -156,7 +158,7 @@ const handler = async (req: Request): Promise<Response> => {
             
             <div class="footer">
               <p style="color: #6b7280;">
-                Diese E-Mail wurde automatisch von Offerio gesendet.
+                Diese E-Mail wurde automatisch gesendet.
               </p>
             </div>
           </div>
@@ -166,7 +168,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     await resend.emails.send({
-      from: "Offerio <termine@offerio.ch>",
+      from: getCalendarFrom(),
       to: [companyEmail],
       subject: `📅 Terminverschiebung angefragt: ${appointmentTitle}`,
       html: companyEmailHtml,
@@ -228,7 +230,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     await resend.emails.send({
-      from: "Offerio <termine@offerio.ch>",
+      from: getCalendarFrom(),
       to: [customerEmail],
       subject: `✅ Terminvorschlag gesendet: ${appointmentTitle}`,
       html: customerEmailHtml,

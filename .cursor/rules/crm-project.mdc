@@ -1,0 +1,39 @@
+---
+description: CRM project overview, architecture and what NOT to do
+alwaysApply: true
+---
+
+# CRM Project
+
+Standalone CRM, forked from Offerio — built for a single client.
+
+## Stack
+- Frontend: Vite + React SPA (TypeScript strict)
+- Styling: Tailwind CSS + shadcn/ui
+- Backend: Supabase self-hosted (PostgreSQL + Auth + Storage)
+- Deployment: Coolify / Hetzner VPS
+
+## Architecture
+- **Single tenant** — one client, one database
+- Supabase via SSH tunnel → localhost:5433
+- No SSR, no Next.js, no custom backend
+- All DB calls via `supabase.from()`
+
+## Folder Structure
+```
+src/
+  components/   # Reusable UI components (PascalCase)
+  pages/        # Page-level components
+  hooks/        # Custom React hooks
+  lib/          # Supabase client, helpers (camelCase)
+  types/        # TypeScript type definitions
+  utils/        # Pure utility functions
+```
+
+## NEVER do this
+- NO Stripe or payment logic
+- NO multi-tenant logic
+- NO `console.log` in production — use proper error handling
+- NO hardcoded credentials or API keys
+- NO barrel exports (`index.ts` re-exports)
+- NO `any` types

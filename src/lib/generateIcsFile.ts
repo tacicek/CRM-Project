@@ -21,7 +21,7 @@ function formatIcsDate(date: string, time: string): string {
 }
 
 function generateUid(): string {
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}@offerio.ch`;
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}@crm.local`;
 }
 
 function escapeIcsText(text: string): string {

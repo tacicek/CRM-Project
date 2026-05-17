@@ -726,6 +726,7 @@ const handler = async (req: Request): Promise<Response> => {
 
           try {
             // Send via Resend
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
             const emailResponse = await fetch("https://api.resend.com/emails", {
               method: "POST",
               headers: {
@@ -733,7 +734,7 @@ const handler = async (req: Request): Promise<Response> => {
                 Authorization: `Bearer ${resendApiKey}`,
               },
               body: JSON.stringify({
-                from: `${company.company_name} <noreply@offerio.ch>`,
+                from: `${company.company_name} <${getSenderEmail()}>`,
                 to: [member.email],
                 subject: subject,
                 html: htmlContent,
@@ -743,6 +744,7 @@ const handler = async (req: Request): Promise<Response> => {
             if (!emailResponse.ok) {
               const errorText = await emailResponse.text();
               throw new Error(`Resend error: ${errorText}`);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
             }
 
             // Log the reminder

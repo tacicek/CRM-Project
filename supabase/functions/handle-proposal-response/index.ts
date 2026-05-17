@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { getDefaultFrom, getAppName } from "../_shared/envConfig.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -201,7 +202,7 @@ serve(async (req: Request) => {
       const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
       
       await resend.emails.send({
-        from: "Offerio <noreply@offerio.ch>",
+        from: getDefaultFrom(),
         to: [companyEmail],
         subject: `✅ Besichtigungstermin bestätigt - ${customerName}`,
         html: `
@@ -238,7 +239,7 @@ serve(async (req: Request) => {
               <p style="font-size: 14px; color: #666;">Der Termin wurde automatisch in Ihren Kalender eingetragen.</p>
             </div>
             <div style="padding: 20px; background: #f8fafc; text-align: center;">
-              <p style="font-size: 12px; color: #666; margin: 0;">Diese E-Mail wurde automatisch von Offerio versendet.</p>
+              <p style="font-size: 12px; color: #666; margin: 0;">Diese E-Mail wurde automatisch versendet.</p>
             </div>
           </div>
           </body>
@@ -248,7 +249,7 @@ serve(async (req: Request) => {
 
       // Send confirmation email to customer
       await resend.emails.send({
-        from: "Offerio <noreply@offerio.ch>",
+        from: getDefaultFrom(),
         to: [customerEmail],
         subject: `Ihr Besichtigungstermin bei ${companyName}`,
         html: `
@@ -279,7 +280,7 @@ serve(async (req: Request) => {
               <p style="font-size: 14px; color: #666;">Wir freuen uns auf Ihren Besuch!</p>
             </div>
             <div style="padding: 20px; background: #f8fafc; text-align: center;">
-              <p style="font-size: 12px; color: #666; margin: 0;">Diese E-Mail wurde automatisch von Offerio versendet.</p>
+              <p style="font-size: 12px; color: #666; margin: 0;">Diese E-Mail wurde automatisch versendet.</p>
             </div>
           </div>
           </body>
@@ -329,7 +330,7 @@ serve(async (req: Request) => {
       const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
       
       await resend.emails.send({
-        from: "Offerio <noreply@offerio.ch>",
+        from: getDefaultFrom(),
         to: [companyEmail],
         subject: `❌ Terminvorschläge abgelehnt - ${customerName}`,
         html: `
@@ -358,7 +359,7 @@ serve(async (req: Request) => {
               <p style="font-size: 14px; color: #666;">Sie können dem Kunden alternative Termine vorschlagen oder direkt Kontakt aufnehmen.</p>
             </div>
             <div style="padding: 20px; background: #f8fafc; text-align: center;">
-              <p style="font-size: 12px; color: #666; margin: 0;">Diese E-Mail wurde automatisch von Offerio versendet.</p>
+              <p style="font-size: 12px; color: #666; margin: 0;">Diese E-Mail wurde automatisch versendet.</p>
             </div>
           </div>
           </body>

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
@@ -351,11 +350,9 @@ const TeamPage = () => {
         <Helmet>
           <title>Team | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="flex items-center justify-center h-64">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -365,7 +362,6 @@ const TeamPage = () => {
       <Helmet>
         <title>Team | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-6">
           {/* Modern Header */}
           <Card className="border-0 shadow-lg overflow-hidden">
@@ -1039,7 +1035,6 @@ const TeamPage = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </FirmaLayout>
     </>
   );
 };

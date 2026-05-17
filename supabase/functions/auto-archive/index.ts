@@ -306,10 +306,11 @@ Deno.serve(async (req) => {
           </ul>
           <p><strong>Total:</strong> ${totalArchived} Datensätze archiviert, ${totalDeleted} gelöscht</p>
           <hr>
-          <p><small>Diese E-Mail wurde automatisch von offerio.ch gesendet.</small></p>
+          <p><small>Diese E-Mail wurde automatisch automatisch gesendet.</small></p>
         `;
 
         // Use Resend or another email service
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
         // For now, just log
         console.log(`📧 Would send notification to: ${settings.notify_email}`);
       } catch (emailError) {

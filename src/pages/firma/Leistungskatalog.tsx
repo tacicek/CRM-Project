@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
@@ -617,18 +616,16 @@ export default function FirmaLeistungskatalog() {
 
   if (loading) {
     return (
-      <FirmaLayout>
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-secondary" />
         </div>
-      </FirmaLayout>
     );
   }
 
   return (
-    <FirmaLayout>
+    <>
       <Helmet>
-        <title>Leistungskatalog | Offerio</title>
+        <title>Leistungskatalog | CRM</title>
       </Helmet>
 
       <div className="space-y-6">
@@ -1542,6 +1539,6 @@ export default function FirmaLeistungskatalog() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </FirmaLayout>
+    </>
   );
 }

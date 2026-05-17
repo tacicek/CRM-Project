@@ -4,7 +4,6 @@
 // =============================================================================
 
 import { useState, useEffect, useCallback } from "react";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -396,17 +395,14 @@ export default function FirmaDatenarchiv() {
 
   if (isLoading) {
     return (
-      <FirmaLayout>
         <div className="flex items-center justify-center h-96">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      </FirmaLayout>
     );
   }
 
   if (!companyId && !isLoading) {
     return (
-      <FirmaLayout>
         <div className="flex flex-col items-center justify-center h-96 text-center">
           <Archive className="w-12 h-12 text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">Keine Firma verknüpft</h2>
@@ -414,12 +410,10 @@ export default function FirmaDatenarchiv() {
             Um das Datenarchiv zu nutzen, muss Ihr Konto mit einer Firma verknüpft sein.
           </p>
         </div>
-      </FirmaLayout>
     );
   }
 
   return (
-    <FirmaLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -816,7 +810,6 @@ export default function FirmaDatenarchiv() {
           </CardContent>
         </Card>
       </div>
-    </FirmaLayout>
   );
 }
 

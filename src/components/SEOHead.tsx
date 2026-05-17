@@ -56,7 +56,7 @@ export default function SEOHead({
   // Compute final values
   const finalTitle = title
     ? `${title}${seoGlobal?.default_title_suffix || ""}`
-    : `Offerio.ch${seoGlobal?.default_title_suffix || ""}`;
+    : `CRM${seoGlobal?.default_title_suffix || ""}`;
 
   const finalDescription = description || seoGlobal?.default_description || "";
   const finalKeywords = keywords?.join(", ") || seoGlobal?.default_keywords?.join(", ") || "";
@@ -132,7 +132,7 @@ export default function SEOHead({
       )}
 
       {/* Additional Meta */}
-      <meta name="author" content="Offerio.ch" />
+      <meta name="author" content="CRM" />
       <meta name="geo.region" content="CH" />
       <meta name="geo.placename" content="Switzerland" />
       <meta name="language" content="de" />

@@ -1,0 +1,11 @@
+---
+alwaysApply: true
+---
+
+# CRM yol haritası
+
+- İlerleme ve sıra: **`docs/CRM_IMPLEMENTATION_ROADMAP.md`** dosyasıdır.
+- Kullanıcı sırayla ilerliyorsa:
+  1. O dosyadaki **`CURRENT_STEP`** ve ilk `[ ]` işaretli satırı kullan.
+  2. Mesajda açıkça yaz: hangi adımın yapıldığı ve **hangi modelin seçilmesi gerektiği** (tablodaki «Önerilen model»).
+  3. İş bitince kullanıcıya markdown’daki checkbox’ı `[x]` yapmasını veya senin güncellemen gerektiğini söyle.

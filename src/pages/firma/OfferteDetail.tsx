@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { AuftragModal } from "@/components/firma/AuftragModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -747,11 +746,9 @@ const FirmaOfferteDetail = () => {
         <Helmet>
           <title>Offerte | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-secondary" />
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -762,13 +759,11 @@ const FirmaOfferteDetail = () => {
         <Helmet>
           <title>Offerte nicht gefunden | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">Offerte nicht gefunden</h3>
             <Button onClick={() => navigate("/firma/offerten")}>Zurück zu Offerten</Button>
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -778,7 +773,6 @@ const FirmaOfferteDetail = () => {
       <Helmet>
         <title>{offer.title} | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-4 sm:space-y-6">
           {/* Mobile Header */}
           <div className="flex flex-col gap-3 sm:hidden">
@@ -1639,7 +1633,6 @@ const FirmaOfferteDetail = () => {
             navigate("/firma/auftraege");
           }}
         />
-      </FirmaLayout>
     </>
   );
 };

@@ -41,6 +41,8 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "::",
       port: 8080,
+      // Increase limit for large dev cookies (431 fix)
+      hmr: true,
       headers: {
         // Dev-only: allow same-origin framing for the embed test page
         "Content-Security-Policy": "frame-ancestors 'self' localhost",

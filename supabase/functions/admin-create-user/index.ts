@@ -65,7 +65,7 @@ serve(async (req: Request) => {
     
     logStep("User authenticated", { userId: requestingUser.id, email: requestingUser.email });
 
-    const { email, password, firstName, lastName, companyName, sendEmail = true, role }: CreateUserRequest = await req.json();
+    const { email, password, firstName, lastName, companyName, sendEmail = false, role }: CreateUserRequest = await req.json();
     
     // Check permissions based on what is being created
     // Creating admin/moderator users requires super admin

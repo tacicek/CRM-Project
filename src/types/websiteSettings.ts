@@ -163,18 +163,18 @@ export interface WebsiteSettingsFormData {
 
 // Default values
 export const DEFAULT_SEO_GLOBAL: SEOGlobalSettings = {
-  default_title_suffix: " | Offerio.ch - Offerten vergleichen",
-  default_description: "Vergleichen Sie kostenlos Offerten von geprüften Schweizer Partnerfirmen.",
-  default_keywords: ["Offerten vergleichen", "Schweiz"],
+  default_title_suffix: " | CRM",
+  default_description: "CRM System",
+  default_keywords: ["CRM", "Schweiz"],
   robots_txt: "User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /firma/",
-  canonical_base_url: "https://offerio.ch",
+  canonical_base_url: "",
   enable_structured_data: true,
   structured_data_org: {
     "@type": "Organization",
-    name: "Offerio.ch",
-    description: "Schweizer Offerte-Vergleichsportal",
-    url: "https://offerio.ch",
-    logo: "https://offerio.ch/logo.png",
+    name: "CRM",
+    description: "CRM System",
+    url: "",
+    logo: "",
     contactPoint: {
       "@type": "ContactPoint",
       telephone: "",

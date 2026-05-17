@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { createValidateLeadQualityPrompt } from "../_shared/prompts.ts";
 import {
@@ -9,14 +10,14 @@ import {
   type LeadValidationInput,
 } from "../_shared/leadQualityValidator.ts";
 // Confirmation URL — the React app (incl. /lead-bestaetigen/:token route) is
-// only served from the dashboard host (e.g. https://dash.offerio.ch).
+// only served from the dashboard host (e.g. https://${Deno.env.get("DASH_APP_URL") || ""}).
 // The marketing site (offerio.ch) is a separate static frontend without this route.
 function getConfirmationBaseUrl(): string {
   const raw =
     Deno.env.get("DASH_APP_URL")?.trim() ||
     Deno.env.get("FIRMA_APP_URL")?.trim() ||
     Deno.env.get("SITE_URL")?.trim() ||
-    "https://dash.offerio.ch";
+    getDashAppUrl();
   return raw.replace(/\/+$/, "");
 }
 import {
@@ -140,6 +141,7 @@ async function sendDoubleOptInEmail(
   serviceType: string | null,
 ): Promise<boolean> {
   const resend = new Resend(resendApiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
   const confirmUrl = `${getConfirmationBaseUrl()}/lead-bestaetigen/${token}`;
   const greeting = firstName ? `Guten Tag ${firstName}` : "Guten Tag";
 
@@ -174,12 +176,12 @@ async function sendDoubleOptInEmail(
       </div>
     </div>
     <div style="text-align:center;padding:14px 0 0;font-size:12px;color:#71717a;">
-      <p style="margin:0;">© ${new Date().getFullYear()} Offerio</p>
+      <p style="margin:0;">© ${new Date().getFullYear()} ${getAppName()}</p>
     </div>`;
 
   try {
     await resend.emails.send({
-      from: "Offerio <noreply@offerio.ch>",
+      from: getDefaultFrom(),
       to: [to],
       subject: "Bitte bestätigen Sie Ihre Anfrage",
       html: wrapEmailDocument(inner),
@@ -187,6 +189,7 @@ async function sendDoubleOptInEmail(
     return true;
   } catch (e) {
     logStep("Resend send error", { error: (e as Error).message });
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     return false;
   }
 }

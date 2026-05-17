@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +9,7 @@ const corsHeaders = {
 };
 
 interface ResendEmailRequest {
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
   emailLogId: string;
 }
 
@@ -30,8 +32,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const resend = new Resend(resendApiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     const { emailLogId }: ResendEmailRequest = await req.json();
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     logStep("Processing resend request", { emailLogId });
 
     // Fetch the original email log
@@ -90,7 +94,7 @@ serve(async (req) => {
         
         <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
           <p style="margin: 0;">Diese E-Mail wurde automatisch generiert.</p>
-          <p style="margin: 5px 0 0 0;">© ${new Date().getFullYear()} Offerio</p>
+          <p style="margin: 5px 0 0 0;">© ${new Date().getFullYear()} ${getAppName()}</p>
         </div>
       </body>
       </html>
@@ -98,7 +102,7 @@ serve(async (req) => {
 
     // Send the email
     const emailResponse = await resend.emails.send({
-      from: "Offerio <noreply@offerio.ch>",
+      from: getDefaultFrom(),
       to: [emailLog.recipient_email],
       subject: `[Erneut gesendet] ${subject}`,
       html: emailHtml,

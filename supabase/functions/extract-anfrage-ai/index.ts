@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createExtractLeadPrompt } from "../_shared/prompts.ts";
+import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -176,6 +177,27 @@ serve(async (req) => {
   }
 
   try {
+    // SECURITY: Require authenticated user
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authorization required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { raw_text, company_id } = await req.json();
     
     logStep("Starting extraction", { textLength: raw_text?.length, company_id });
@@ -217,13 +239,9 @@ serve(async (req) => {
     }
 
     // Check company has manual import enabled
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     const { data: company, error: companyError } = await supabase
       .from("companies")
-      .select("id, company_name, manual_import_enabled, crm_enabled, subscription_type, subscription_expires_at")
+      .select("id, company_name, crm_enabled")
       .eq("id", company_id)
       .single();
 
@@ -235,26 +253,28 @@ serve(async (req) => {
       );
     }
 
-    // Check access: either manual_import_enabled flag OR active CRM subscription
-    const hasCrmActive = (() => {
-      if (!company.crm_enabled) return false;
-      const type = company.subscription_type ?? "";
-      if (!["crm", "trial", "enterprise"].includes(type)) return false;
-      if (company.subscription_expires_at) {
-        if (new Date(company.subscription_expires_at) < new Date()) return false;
+    // SECURITY: Verify the authenticated user is a member of this company
+    if (company_id) {
+      const isMember = await verifyCompanyMembership(supabase, user.id, company_id);
+      if (!isMember) {
+        logStep("Unauthorized: user is not a member of company", { userId: user.id, company_id });
+        return new Response(
+          JSON.stringify({ error: "Keine Berechtigung für diese Firma" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-      return true;
-    })();
+    }
 
-    if (!company.manual_import_enabled && !hasCrmActive) {
-      logStep("Manual import not enabled for company", { company_id, manual_import_enabled: company.manual_import_enabled, hasCrmActive });
+    // Check access: crm_enabled flag
+    if (!company.crm_enabled) {
+      logStep("CRM not enabled for company", { company_id });
       return new Response(
-        JSON.stringify({ error: "Manuelle Import-Funktion ist nicht aktiviert" }),
+        JSON.stringify({ error: "CRM-Zugang nicht aktiviert" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    logStep("Access granted", { via: company.manual_import_enabled ? "manual_import_enabled" : "crm_subscription" });
+    logStep("Access granted", { company_id });
 
     // Call Claude API
     const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -280,7 +300,7 @@ serve(async (req) => {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-        model: "claude-3-haiku-20240307", // Cheapest model - good for structured extraction
+        model: "claude-haiku-4-5", // Latest Haiku - cheapest current model
         max_tokens: 4096,
         messages: [{
           role: "user",

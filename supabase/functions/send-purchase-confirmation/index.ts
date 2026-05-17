@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
@@ -42,6 +43,7 @@ serve(async (req) => {
     }
 
     const resend = new Resend(resendApiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const rawBody = await req.json();
     
     // Validiere Input mit Zod
@@ -72,7 +74,7 @@ serve(async (req) => {
     logStep("Sending purchase confirmation", { email, tokenAmount, newBalance });
 
     const emailResponse = await resend.emails.send({
-      from: "Offerio <noreply@offerio.ch>",
+      from: getDefaultFrom(),
       to: [email],
       subject: `Kaufbestätigung: ${tokenAmount} Tokens gutgeschrieben`,
       html: `
@@ -118,7 +120,7 @@ serve(async (req) => {
             <p>Sie können Ihre Tokens jetzt nutzen, um auf neue Anfragen zuzugreifen.</p>
             
             <div style="text-align: center; margin-top: 30px;">
-              <a href="https://dash.offerio.ch/firma/anfragen" 
+              <a href=`${getDashAppUrl()}/firma/anfragen` 
                  style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
                 Zu meinen Anfragen
               </a>
@@ -127,7 +129,7 @@ serve(async (req) => {
           
           <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
             <p>Diese E-Mail wurde automatisch gesendet. Bitte antworten Sie nicht auf diese Nachricht.</p>
-            <p>© ${new Date().getFullYear()} Offerio. Alle Rechte vorbehalten.</p>
+            <p>© ${new Date().getFullYear()} ${getAppName()}. Alle Rechte vorbehalten.</p>
           </div>
         </body>
         </html>

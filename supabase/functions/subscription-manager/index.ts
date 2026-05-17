@@ -6,6 +6,7 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getDefaultFrom, getAdminEmail, getDashAppUrl, getSiteUrl, getAppName } from "../_shared/envConfig.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 
@@ -129,7 +130,7 @@ serve(async (req) => {
 
           // Send email
           const emailResult = await resend.emails.send({
-            from: "Offerio <info@offerio.ch>",
+            from: getDefaultFrom(),
             to: emailTo,
             subject,
             html,
@@ -188,9 +189,9 @@ serve(async (req) => {
         for (const company of deactivatedCompanies as DeactivatedCompany[]) {
           try {
             await resend.emails.send({
-              from: "Offerio <info@offerio.ch>",
+              from: getDefaultFrom(),
               to: company.email,
-              subject: "⚠️ Ihr Offerio CRM-Abo ist abgelaufen",
+              subject: "⚠️ Ihr ${getAppName()} CRM-Abo ist abgelaufen",
               html: getDeactivationEmailHtml(company),
             });
 
@@ -215,8 +216,8 @@ serve(async (req) => {
       if (resend) {
         try {
           await resend.emails.send({
-            from: "Offerio System <info@offerio.ch>",
-            to: "info@offerio.ch",
+            from: getDefaultFrom(),
+            to: getAdminEmail(),
             subject: `📊 CRM-Abo Manager: ${results.reminders_sent} Erinnerungen, ${results.subscriptions_deactivated} deaktiviert`,
             html: getAdminSummaryHtml(results, companiesNeedingReminders || [], deactivatedCompanies || []),
           });
@@ -243,19 +244,19 @@ serve(async (req) => {
 function getEmailSubject(reminderType: string, daysUntilExpiry: number): string {
   switch (reminderType) {
     case "expiry_30_days":
-      return "📅 Ihr Offerio CRM-Abo läuft in 30 Tagen ab";
+      return "📅 Ihr ${getAppName()} CRM-Abo läuft in 30 Tagen ab";
     case "expiry_14_days":
-      return "📅 Ihr Offerio CRM-Abo läuft in 14 Tagen ab";
+      return "📅 Ihr ${getAppName()} CRM-Abo läuft in 14 Tagen ab";
     case "expiry_7_days":
-      return "⏰ Ihr Offerio CRM-Abo läuft in 7 Tagen ab";
+      return "⏰ Ihr ${getAppName()} CRM-Abo läuft in 7 Tagen ab";
     case "expiry_3_days":
-      return "⚠️ Ihr Offerio CRM-Abo läuft in 3 Tagen ab";
+      return "⚠️ Ihr ${getAppName()} CRM-Abo läuft in 3 Tagen ab";
     case "expiry_1_day":
-      return "🚨 Ihr Offerio CRM-Abo läuft MORGEN ab!";
+      return "🚨 Ihr ${getAppName()} CRM-Abo läuft MORGEN ab!";
     case "expired":
-      return "❌ Ihr Offerio CRM-Abo ist HEUTE abgelaufen";
+      return "❌ Ihr ${getAppName()} CRM-Abo ist HEUTE abgelaufen";
     default:
-      return `Ihr Offerio CRM-Abo läuft in ${daysUntilExpiry} Tagen ab`;
+      return `Ihr ${getAppName()} CRM-Abo läuft in ${daysUntilExpiry} Tagen ab`;
   }
 }
 
@@ -279,7 +280,7 @@ function getEmailHtml(company: CompanyReminder): string {
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background-color: #f3f4f6;">
   <div style="width:100%;max-width:100%;box-sizing:border-box;margin:0;padding:16px 14px;background-color:#e4e4e8;">
     <div style="background: linear-gradient(135deg, ${urgencyColor} 0%, ${urgencyColor}dd 100%); padding: 30px; border-radius: 16px 16px 0 0; text-align: center;">
-      <img src="https://offerio.ch/logo.png" alt="Offerio" style="height: 40px; margin-bottom: 20px;">
+      <img src="" alt="" style="height: 40px; margin-bottom: 20px;">
       <h1 style="color: white; margin: 0; font-size: 24px;">CRM-Abo Erinnerung</h1>
     </div>
     
@@ -315,7 +316,7 @@ function getEmailHtml(company: CompanyReminder): string {
       </ul>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="mailto:info@offerio.ch?subject=CRM-Abo%20Verlängerung%20-%20${encodeURIComponent(company.company_name)}" 
+        <a href="mailto:${getAdminEmail()}?subject=CRM-Abo%20Verlängerung%20-%20${encodeURIComponent(company.company_name)}" 
            style="display: inline-block; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
           Jetzt verlängern
         </a>
@@ -323,7 +324,7 @@ function getEmailHtml(company: CompanyReminder): string {
       
       <p style="color: #6b7280; font-size: 14px; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px;">
         Bei Fragen kontaktieren Sie uns gerne:<br>
-        📧 info@offerio.ch | 📞 +41 79 336 34 02
+        📧 ${getAdminEmail()}
       </p>
     </div>
   </div>
@@ -343,7 +344,7 @@ function getDeactivationEmailHtml(company: DeactivatedCompany): string {
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background-color: #f3f4f6;">
   <div style="width:100%;max-width:100%;box-sizing:border-box;margin:0;padding:16px 14px;background-color:#e4e4e8;">
     <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 30px; border-radius: 16px 16px 0 0; text-align: center;">
-      <img src="https://offerio.ch/logo.png" alt="Offerio" style="height: 40px; margin-bottom: 20px;">
+      <img src="" alt="" style="height: 40px; margin-bottom: 20px;">
       <h1 style="color: white; margin: 0; font-size: 24px;">CRM-Abo deaktiviert</h1>
     </div>
     
@@ -363,7 +364,7 @@ function getDeactivationEmailHtml(company: DeactivatedCompany): string {
       </p>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="mailto:info@offerio.ch?subject=CRM-Abo%20Reaktivierung%20-%20${encodeURIComponent(company.company_name)}" 
+        <a href="mailto:${getAdminEmail()}?subject=CRM-Abo%20Reaktivierung%20-%20${encodeURIComponent(company.company_name)}" 
            style="display: inline-block; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
           Jetzt reaktivieren
         </a>
@@ -371,7 +372,7 @@ function getDeactivationEmailHtml(company: DeactivatedCompany): string {
       
       <p style="color: #6b7280; font-size: 14px; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px;">
         Bei Fragen kontaktieren Sie uns gerne:<br>
-        📧 info@offerio.ch | 📞 +41 79 336 34 02
+        📧 ${getAdminEmail()}
       </p>
     </div>
   </div>

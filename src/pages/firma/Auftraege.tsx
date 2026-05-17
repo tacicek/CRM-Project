@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -487,7 +486,6 @@ const FirmaAuftraege = () => {
       <Helmet>
         <title>Aufträge | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -846,7 +844,6 @@ const FirmaAuftraege = () => {
           auftragId={extrasAuftragId || ''}
           onSaved={fetchData}
         />
-      </FirmaLayout>
     </>
   );
 };

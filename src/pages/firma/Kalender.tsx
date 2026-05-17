@@ -9,7 +9,6 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/integrations/supabase/client";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -597,7 +596,6 @@ const KalenderPage = () => {
       <Helmet>
         <title>Kalender | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-4">
           {/* Compact Header */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-violet-600 px-4 py-3 md:px-6 md:py-4 text-white">
@@ -1148,7 +1146,6 @@ const KalenderPage = () => {
             }}
           />
         </div>
-      </FirmaLayout>
     </>
   );
 };
@@ -1190,6 +1187,7 @@ const AppointmentDetailCard = ({
   };
 
   return (
+    <>
     <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 min-w-0">
       {/* Header with gradient */}
       <div className={`relative overflow-hidden p-4 bg-gradient-to-r ${typeInfo.gradient} text-white`}>
@@ -1378,6 +1376,7 @@ const AppointmentDetailCard = ({
         </div>
       </div>
     </div>
+    </>
   );
 };
 

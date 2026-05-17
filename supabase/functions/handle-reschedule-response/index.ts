@@ -173,7 +173,7 @@ const handler = async (req: Request): Promise<Response> => {
               
               <div class="footer">
                 <p style="color: #6b7280;">
-                  Diese E-Mail wurde automatisch von Offerio gesendet.
+                  Diese E-Mail wurde automatisch von ${getAppName()} gesendet.
                 </p>
               </div>
             </div>
@@ -183,7 +183,7 @@ const handler = async (req: Request): Promise<Response> => {
       `;
 
       await resend.emails.send({
-        from: "Offerio <termine@offerio.ch>",
+        from: getCalendarFrom(),
         to: [customerEmail],
         subject: `✅ Termin bestätigt: ${appointmentTitle}`,
         html: confirmEmailHtml,
@@ -247,7 +247,7 @@ const handler = async (req: Request): Promise<Response> => {
               
               <div class="footer">
                 <p style="color: #6b7280;">
-                  Diese E-Mail wurde automatisch von Offerio gesendet.
+                  Diese E-Mail wurde automatisch von ${getAppName()} gesendet.
                 </p>
               </div>
             </div>
@@ -257,7 +257,7 @@ const handler = async (req: Request): Promise<Response> => {
       `;
 
       await resend.emails.send({
-        from: "Offerio <termine@offerio.ch>",
+        from: getCalendarFrom(),
         to: [customerEmail],
         subject: `📅 Terminvorschlag nicht möglich: ${appointmentTitle}`,
         html: rejectEmailHtml,

@@ -1,0 +1,33 @@
+---
+description: TypeScript, React and Supabase coding conventions for this CRM
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Coding Conventions
+
+## TypeScript / React
+- Arrow functions for all components and handlers
+- TypeScript strict — no `any`, use Zod for form validation
+- `const` over `let` wherever possible
+- Async functions always use try/catch with proper error handling
+- Component files: `PascalCase.tsx`
+- Utility files: `camelCase.ts`
+
+## Supabase
+- Always RLS on all tables
+- Never expose service role key in frontend
+- Use typed responses: `supabase.from<MyType>('table')`
+- Auth via Supabase Auth only — no custom auth
+
+## Styling
+- Tailwind CSS only — no inline styles, no CSS modules
+- Mobile-first responsive design
+- Use `cn()` utility for conditional classes
+
+## Environment Variables
+```
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
+Never commit `.env` to git.

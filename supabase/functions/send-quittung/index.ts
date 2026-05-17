@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
@@ -236,15 +237,17 @@ serve(async (req) => {
     const brand = company.primary_color || "#10B981";
 
     // Determine Resend API key (company-level or global)
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const resendApiKey = company.resend_enabled && company.resend_api_key
       ? company.resend_api_key
       : Deno.env.get("RESEND_API_KEY")!;
     const fromEmail = company.resend_enabled && company.resend_from_email
       ? company.resend_from_email
-      : "quittung@offerio.ch";
+      : getSenderEmail();
     const fromName = company.resend_from_name || company.company_name;
 
     const resend = new Resend(resendApiKey);
+import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     const attachments: Array<{ filename: string; content: string }> = [];
     if (quittungPdfBase64) {
@@ -282,7 +285,7 @@ serve(async (req) => {
     const firmaEmail = company.notification_email || company.email;
     if (firmaEmail) {
       const { data: firmaData, error: firmaErr } = await resend.emails.send({
-        from: `Offerio Quittungen <quittung@offerio.ch>`,
+        from: getDefaultFrom(),
         to: [firmaEmail],
         subject: `Quittung ${q.quittung_nr} – unterschrieben`,
         html: buildFirmaEmail(q, brand),

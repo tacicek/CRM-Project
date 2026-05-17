@@ -1,194 +1,275 @@
-# Offerio - Lead Management Platform
+# CRM — Standalone Company Dashboard
 
-Lead yönetim platformu - Umzug, Reinigung, Entsorgung ve diğer hizmetler için otomatik lead dağıtım sistemi.
+Single-tenant CRM for managing leads, offers, jobs, and customer communication.
+Built with Vite + React + Supabase (no portal, no marketplace, no Stripe).
 
-**URL**: https://offerio.ch
+---
 
-## 🚀 Teknoloji Stack
+## Tech Stack
 
-- **Frontend**: React 18 + TypeScript + Vite
-- **UI Framework**: shadcn/ui + Tailwind CSS
-- **Backend**: Supabase (PostgreSQL + Edge Functions)
-- **Authentication**: Supabase Auth
-- **Email**: Resend API
-- **Security**: Google reCAPTCHA v3
-- **Deployment**: Vercel / Netlify
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + TypeScript + Vite 7 |
+| UI | shadcn/ui + Tailwind CSS + Radix UI |
+| State | TanStack React Query |
+| Forms | react-hook-form + zod |
+| Backend | Supabase (PostgreSQL + Auth + Storage + Edge Functions) |
+| Email | Resend (via Edge Functions) |
+| PDF | @react-pdf/renderer + jsPDF |
+| Tests | Vitest |
 
-## 📋 Gereksinimler
+---
 
-- Node.js 18+ ve npm
-- Supabase hesabı ve projesi
-- Google reCAPTCHA v3 keys (opsiyonel)
+## Requirements
 
-## 🛠️ Kurulum
+- Node.js 18+
+- A Supabase project ([supabase.com](https://supabase.com))
+- (Optional) Resend account for email delivery
 
-### 1. Repository'yi klonla
+---
+
+## Local Setup
+
+### 1. Clone the repository
 
 ```bash
 git clone <YOUR_GIT_URL>
-cd leadflow-swiss-connect
+cd CRM-Project
 ```
 
-### 2. Dependencies yükle
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Environment Variables ayarla
+### 3. Configure environment variables
 
-`.env` dosyası oluştur ve şu değişkenleri ekle:
-
-```env
-# Supabase
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
-
-# reCAPTCHA (Opsiyonel - spam koruması için)
-VITE_RECAPTCHA_SITE_KEY=your-recaptcha-site-key
-```
-
-### 4. Supabase Secrets ayarla
-
-Edge Functions için gerekli secrets'ları ekle:
+Copy `.env.example` to `.env.local` and fill in your values:
 
 ```bash
-npx supabase secrets set RESEND_API_KEY=your-resend-api-key
-npx supabase secrets set RECAPTCHA_SECRET_KEY=your-recaptcha-secret-key
+cp .env.example .env.local
 ```
 
-### 5. Database migrations uygula
+```env
+# Required — from Supabase Dashboard → Project Settings → API
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+
+# App identity
+VITE_APP_URL=http://localhost:8080
+VITE_APP_NAME=CRM
+
+# Email (optional — set as Supabase secret, not a frontend env var)
+# VITE_RESEND_API_KEY=re_...
+```
+
+> `.env` and `.env.local` are in `.gitignore` and are never committed.
+
+### 4. Apply database migrations
 
 ```bash
 npx supabase db push
 ```
 
-### 6. Edge Functions deploy et
+See `supabase-schema-needed.md` for a full description of every table and RLS policy.
 
-```bash
-# Tüm edge functions'ları deploy et
-npx supabase functions deploy match-lead --no-verify-jwt
-npx supabase functions deploy accept-lead --no-verify-jwt
-npx supabase functions deploy verify-recaptcha --no-verify-jwt
-# ... diğer functions
-```
-
-### 7. Development server'ı başlat
+### 5. Start the dev server
 
 ```bash
 npm run dev
 ```
 
-Uygulama `http://localhost:5173` adresinde çalışacak.
+The app runs at **http://localhost:8080**.
 
-## 📁 Proje Yapısı
+---
+
+## NPM Scripts
+
+| Script | Description |
+|---|---|
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Production build (sitemap → Vite → prerender) |
+| `npm run type-check` | TypeScript check (no emit) |
+| `npm run lint` | ESLint |
+| `npm test` | Run unit tests (Vitest) |
+| `npm run test:watch` | Watch mode |
+| `npm run test:coverage` | Coverage report |
+
+---
+
+## Project Structure
 
 ```
-leadflow-swiss-connect/
-├── src/
-│   ├── components/          # React bileşenleri
-│   │   ├── umzug/           # Umzug wizard
-│   │   ├── reinigung/       # Reinigung wizard
-│   │   ├── admin/           # Admin panel bileşenleri
-│   │   └── firma/           # Company dashboard bileşenleri
-│   ├── hooks/               # Custom React hooks
-│   │   └── useRecaptcha.ts  # reCAPTCHA hook
-│   ├── lib/                 # Utility fonksiyonlar
-│   │   ├── generateAuftragPdf.ts
-│   │   ├── generateOfferPdf.ts
-│   │   ├── generateBoxRentalPdf.ts
-│   │   └── recaptchaVerify.ts
-│   ├── pages/               # Sayfa bileşenleri
-│   ├── integrations/        # Supabase client ve types
-│   └── types/               # TypeScript type tanımları
-├── supabase/
-│   ├── functions/           # Edge Functions
-│   │   ├── match-lead/      # Lead eşleştirme
-│   │   ├── accept-lead/     # Lead kabul etme
-│   │   └── verify-recaptcha/# reCAPTCHA doğrulama
-│   └── migrations/          # Database migrations
-└── public/                  # Static dosyalar
+src/
+├── App.tsx                    # Route definitions
+├── config/
+│   └── modules.ts             # Feature flags (show/hide sidebar items)
+├── hooks/
+│   └── useAuth.tsx            # AuthProvider + useAuth hook
+├── lib/
+│   ├── authUtils.ts           # Pure auth utility functions (fully tested)
+│   ├── adminPermissions.ts    # Role/permission system (fully tested)
+│   ├── crmAccess.ts           # CRM access check (no-op in standalone mode)
+│   └── ...                    # Other utilities
+├── pages/
+│   ├── Auth.tsx               # Login + forgot-password page
+│   ├── auth/
+│   │   └── ResetPassword.tsx  # Password reset page
+│   ├── firma/                 # CRM pages (dashboard, leads, offers, …)
+│   └── public/                # Shareable views (offer link, appointment)
+├── components/
+│   └── firma/
+│       ├── FirmaLayout.tsx    # Sidebar + header shell for all CRM pages
+│       └── ...
+└── integrations/
+    └── supabase/
+        ├── client.ts          # Supabase client (reads VITE_SUPABASE_* from env)
+        └── types.ts           # Generated Database types
 ```
 
-## 🔐 Özellikler
+---
 
-### Lead Yönetimi
-- ✅ Çok adımlı form wizard'ları (Umzug, Reinigung, Entsorgung, vb.)
-- ✅ Otomatik lead dağıtımı (PLZ bazlı eşleştirme)
-- ✅ Token sistemi (lead satın alma)
-- ✅ Lead verification sistemi
-- ✅ PDF oluşturma (Offerte, Auftrag, Umzugsboxen)
+## Auth Module
 
-### Güvenlik
-- ✅ Google reCAPTCHA v3 entegrasyonu
-- ✅ Row Level Security (RLS) policies
-- ✅ Edge Functions ile backend doğrulama
+### Architecture
 
-### Admin Panel
-- ✅ Lead verification ve yönetimi
-- ✅ Company ve user yönetimi
-- ✅ Token paket yönetimi
-- ✅ Email log görüntüleme
+```
+AuthProvider (src/hooks/useAuth.tsx)
+  └── wraps the entire app
+  └── exposes: user, session, isLoading, isAdmin, adminRole
+  └── actions: signIn, signOut, resetPassword, updatePassword
 
-### Company Dashboard
-- ✅ Gelen lead'leri görüntüleme
-- ✅ Lead kabul/reddetme
-- ✅ Offer oluşturma ve gönderme
-- ✅ Auftrag yönetimi
-- ✅ Umzugsboxen yönetimi
+Auth page (src/pages/Auth.tsx)
+  └── login form
+  └── forgot-password form
+  └── post-login: looks up company → redirects to /firma
 
-## 🧪 Development
+ResetPassword page (src/pages/auth/ResetPassword.tsx)
+  └── new-password form (requires active Supabase session)
+  └── on success → redirects to /firma
+```
 
-### Build
+### Pure utility functions (`src/lib/authUtils.ts`)
+
+All business logic that can be tested without React or Supabase is extracted here:
+
+| Function | Description |
+|---|---|
+| `resolveAdminRole(roles)` | Maps a raw string array from `user_roles` to `{ isAdmin, adminRole }` |
+| `getResetPasswordUrl(appUrl, origin?)` | Builds the Supabase `redirectTo` URL for password reset |
+| `validateAuthForm(email, password, mode)` | Validates the login / forgot-password form fields |
+| `validateResetPasswordForm(password, confirmPassword)` | Validates the new-password form |
+| `emailSchema` | Zod schema — re-exported for reuse |
+| `loginPasswordSchema` | Zod schema (min 6 chars) |
+| `resetPasswordSchema` | Zod schema (min 8 chars) |
+
+### Role hierarchy
+
+```
+super_admin  (level 100) — full access
+admin        (level  50) — full access except user management
+moderator    (level  10) — leads, verification, blog
+(no role)               — regular company user → /firma dashboard
+```
+
+### Login redirect flow
+
+```
+User logs in
+  ↓
+Auth.tsx: fetchSingleCompanyForUser
+  ├── company not found     → "Keine Firma verknüpft" screen
+  ├── is_verified = false   → "Verifizierung ausstehend" screen
+  └── is_verified = true    → navigate("/firma")
+```
+
+---
+
+## Feature Flags
+
+Edit `src/config/modules.ts` to show or hide sidebar navigation items:
+
+```ts
+export const MODULES = {
+  leads: true,
+  offers: true,
+  contacts: true,
+  reports: true,
+  calendar: true,
+  // ...
+  integrations: false, // hidden — not yet implemented
+};
+```
+
+Setting a flag to `false` hides only the sidebar link. The route itself still exists.
+
+---
+
+## Testing
+
+Tests live in `src/lib/__tests__/` and use **Vitest**.
+Only pure (non-React, non-Supabase) functions are unit tested.
 
 ```bash
-npm run build
+npm test                # run all tests
+npm run test:watch      # watch mode
+npm run test:coverage   # html coverage report in ./coverage/
 ```
 
-### Lint
+### Test coverage
 
-```bash
-npm run lint
-```
+| File | Tests |
+|---|---|
+| `src/lib/authUtils.ts` | `resolveAdminRole`, `getResetPasswordUrl`, `validateAuthForm`, `validateResetPasswordForm` |
+| `src/lib/adminPermissions.ts` | `hasPermission`, `getPermissionsForRole`, `isAdminRole`, `getRoleLevel`, `canModifyRole`, `getAssignableRoles`, `getAccessibleMenuItems` |
 
-### Type Check
+---
 
-```bash
-npm run type-check
-```
+## Deployment
 
-## 📦 Deployment
+### Vercel / Netlify (recommended)
 
-### Vercel
-
-1. Vercel'e projeyi bağla
-2. Environment variables ekle (`.env` dosyasındaki tüm `VITE_*` değişkenleri)
+1. Connect the repository
+2. Add environment variables matching `.env.example`
 3. Build command: `npm run build`
 4. Output directory: `dist`
-5. Deploy!
+
+### Docker
+
+```bash
+docker compose build --build-arg VITE_SUPABASE_URL=... --build-arg VITE_SUPABASE_ANON_KEY=...
+docker compose up
+```
 
 ### Supabase Edge Functions
 
-Edge function değişikliklerinden sonra:
+Deploy individual functions after changes:
 
 ```bash
-npx supabase functions deploy <function-name> --no-verify-jwt
+npx supabase functions deploy accept-lead
+npx supabase functions deploy send-offer
+npx supabase functions deploy send-quittung
+# etc.
 ```
 
-## 🔧 Önemli Notlar
+Set secrets for email delivery:
 
-- **Database Migrations**: Migration değişikliklerinden sonra mutlaka `npx supabase db push` çalıştır
-- **Edge Functions**: Function değişikliklerinden sonra mutlaka deploy et
-- **Environment Variables**: Production'da hosting platformuna (Vercel/Netlify) env variables ekle
-- **reCAPTCHA**: Eğer reCAPTCHA key'leri yoksa sistem normal çalışır (fail-open)
+```bash
+npx supabase secrets set RESEND_API_KEY=re_...
+```
 
-## 📚 Dokümantasyon
+---
 
-- [Supabase Docs](https://supabase.com/docs)
-- [React Docs](https://react.dev)
-- [Vite Docs](https://vitejs.dev)
-- [shadcn/ui Docs](https://ui.shadcn.com)
+## Schema Reference
 
-## 📝 License
+See [`supabase-schema-needed.md`](./supabase-schema-needed.md) for:
+- All 22 tables with columns and RLS patterns
+- Storage bucket definitions
+- Edge Functions still in use
 
-Proprietary - All rights reserved
+---
+
+## License
+
+Proprietary — All rights reserved

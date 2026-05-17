@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -238,11 +237,8 @@ interface ExtractedData {
 interface Company {
   id: string;
   company_name: string;
-  manual_import_enabled: boolean;
   manual_import_monthly_fee: number;
   crm_enabled?: boolean;
-  subscription_type?: string | null;
-  subscription_expires_at?: string | null;
 }
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
@@ -312,7 +308,7 @@ const FirmaManualImport = () => {
         const companyData = await fetchSingleCompanyForUser<Company>({
           userId: user.id,
           userEmail: user.email,
-          select: "id, company_name, manual_import_enabled, manual_import_monthly_fee, crm_enabled, subscription_type, subscription_expires_at",
+          select: "id, company_name, manual_import_monthly_fee, crm_enabled",
         });
 
         if (isMountedRef.current && companyData) {
@@ -1867,96 +1863,14 @@ const FirmaManualImport = () => {
 
   if (isLoading) {
     return (
-      <FirmaLayout>
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
-      </FirmaLayout>
-    );
-  }
-
-  // CRM aboneliği aktif olan firmalar otomatik erişim kazanır
-  const hasCrmActive = (() => {
-    if (!company?.crm_enabled) return false;
-    const type = company.subscription_type ?? "";
-    if (!["crm", "trial", "enterprise"].includes(type)) return false;
-    if (company.subscription_expires_at) {
-      if (new Date(company.subscription_expires_at) < new Date()) return false;
-    }
-    return true;
-  })();
-
-  // Show upgrade prompt if not enabled (manual flag OR active CRM)
-  if (!company?.manual_import_enabled && !hasCrmActive) {
-    return (
-      <FirmaLayout>
-        <Helmet>
-          <title>Manuelle Anfrage Import | Premium</title>
-        </Helmet>
-
-        <div className="max-w-2xl mx-auto">
-          <Card className="border-2 border-dashed border-amber-300 bg-amber-50/50 dark:bg-amber-900/10">
-            <CardContent className="pt-8 pb-8">
-              <div className="text-center space-y-6">
-                <div className="inline-flex p-4 rounded-full bg-amber-100 dark:bg-amber-900/30">
-                  <Crown className="w-12 h-12 text-amber-600" />
-                </div>
-
-                <div>
-                  <h1 className="text-2xl font-bold mb-2">Premium-Funktion</h1>
-                  <p className="text-muted-foreground max-w-md mx-auto">
-                    Mit der manuellen Import-Funktion können Sie eigene Anfragen 
-                    aus Ihrer Website oder E-Mail direkt ins System importieren.
-                  </p>
-                </div>
-
-                <div className="bg-white dark:bg-card p-6 rounded-xl shadow-sm max-w-sm mx-auto">
-                  <h3 className="font-semibold mb-4">Vorteile:</h3>
-                  <ul className="text-left space-y-3 text-sm">
-                    <li className="flex items-start gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                      <span>AI-gestützte Datenextraktion</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                      <span>Automatische Strukturierung der Anfrage</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <FileText className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                      <span>Nutzen Sie unsere Offerte-Erstellung</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Package className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
-                      <span>Zentrale Verwaltung aller Anfragen</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="border-2 border-amber-400 rounded-xl p-6 bg-white dark:bg-card max-w-xs mx-auto">
-                  <p className="text-4xl font-bold text-amber-600">{company?.manual_import_monthly_fee || 20}</p>
-                  <p className="text-sm text-muted-foreground">Tokens pro Monat</p>
-                </div>
-
-                <Alert className="max-w-md mx-auto">
-                  <Lock className="w-4 h-4" />
-                  <AlertDescription>
-                    Bitte kontaktieren Sie den Administrator, um diese Funktion zu aktivieren.
-                  </AlertDescription>
-                </Alert>
-
-                <Button onClick={() => window.location.href = "mailto:info@offerio.ch?subject=Premium-Funktion: Manuelle Import"}>
-                  Admin kontaktieren
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </FirmaLayout>
     );
   }
 
   return (
-    <FirmaLayout>
+    <>
       <Helmet>
         <title>Manuelle Anfrage Import | {company.company_name}</title>
       </Helmet>
@@ -2251,8 +2165,7 @@ Steinway Flügel, ca. 350kg`}
                     ) : (
                       <>
                         <Check className="w-4 h-4 mr-2" />
-                        Speichern & Offerte Erstellen
-                        <ArrowRight className="w-4 h-4 ml-2" />
+                        Anfrage speichern
                       </>
                     )}
                   </Button>
@@ -2281,7 +2194,7 @@ Steinway Flügel, ca. 350kg`}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </FirmaLayout>
+    </>
   );
 };
 

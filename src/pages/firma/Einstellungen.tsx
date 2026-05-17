@@ -1,5 +1,4 @@
 import { Helmet } from "react-helmet-async";
-import FirmaLayout from "@/components/firma/FirmaLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,8 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, Building2, MapPin, Bell, X, Plus, FileText, MessageSquare, Eye, EyeOff, CheckCircle, Mail, Shield, Users, Globe, Zap, Check, Info } from "lucide-react";
+import { Loader2, Save, Building2, Bell, FileText, MessageSquare, Eye, EyeOff, CheckCircle, Mail, Check } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
@@ -18,8 +16,6 @@ import { LogoUpload } from "@/components/firma/LogoUpload";
 import { SignatureUpload } from "@/components/firma/SignatureUpload";
 import { AgbSectionEditor } from "@/components/firma/AgbSectionEditor";
 import { ReminderSettings } from "@/components/firma/ReminderSettings";
-import { KantonPlzSelector } from "@/components/firma/KantonPlzSelector";
-
 interface Company {
   id: string;
   company_name: string;
@@ -53,26 +49,8 @@ interface Company {
   lead_sharing_preference: 'only_1' | 'only_3' | 'only_5' | 'both' | null;
 }
 
-interface CompanyService {
-  id: string;
-  service_type: string;
-  is_active: boolean | null;
-}
 
-interface PlzCoverage {
-  id: string;
-  plz: string;
-  radius_km: number | null;
-  is_active: boolean | null;
-  city_name?: string;
-}
 
-interface ServiceCatalog {
-  id: string;
-  service_type: string;
-  name_de: string;
-  category: string | null;
-}
 
 
 const PROFILE_DRAFT_KEY = "einstellungen_profile_draft";
@@ -90,9 +68,6 @@ const FirmaEinstellungen = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [company, setCompany] = useState<Company | null>(null);
-  const [services, setServices] = useState<CompanyService[]>([]);
-  const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalog[]>([]);
-  const [plzCoverage, setPlzCoverage] = useState<PlzCoverage[]>([]);
   const [selectedTemplateService, setSelectedTemplateService] = useState<string>("umzug");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -101,8 +76,6 @@ const FirmaEinstellungen = () => {
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [showTwilioToken, setShowTwilioToken] = useState(false);
   const [showResendKey, setShowResendKey] = useState(false);
-  const [newPlz, setNewPlz] = useState("");
-  const [newRadius, setNewRadius] = useState(20);
 
   // Draft tracking: user's unsaved profile changes persist across navigation
   const [isDirty, setIsDirty] = useState(false);
@@ -129,37 +102,9 @@ const FirmaEinstellungen = () => {
 
   // For AGB template selector only — keys must match the service_type values
   // stored on leads (e.g. "malerarbeit" singular, NOT "malerarbeiten").
-  const availableServices = [
-    { type: "umzug", label: "Umzug" },
-    { type: "reinigung", label: "Reinigung" },
-    { type: "raeumung", label: "Räumung" },
-    { type: "renovation", label: "Renovation" },
-    { type: "entsorgung", label: "Entsorgung" },
-    { type: "malerarbeit", label: "Malerarbeit" },
-    { type: "klaviertransport", label: "Klaviertransport" },
-    { type: "transport", label: "Transport" },
-    { type: "lagerung", label: "Lagerung" },
-    { type: "moebellift", label: "Möbellift" },
-  ];
 
   // Category labels for service catalog
-  const categoryLabels: Record<string, string> = {
-    umzug: "Umzug",
-    reinigung: "Reinigung",
-    raeumung: "Räumung",
-    transport: "Transport",
-    lagerung: "Lagerung",
-    entsorgung: "Entsorgung",
-    sonstige: "Sonstige",
-  };
 
-  // Group services by category
-  const groupedServices = serviceCatalog.reduce((acc, service) => {
-    const category = service.category || "sonstige";
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(service);
-    return acc;
-  }, {} as Record<string, ServiceCatalog[]>);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -187,48 +132,6 @@ const FirmaEinstellungen = () => {
           }
         } else {
           setCompany(companyData);
-        }
-
-        // Get service catalog (all available services)
-        const { data: catalogData } = await supabase
-          .from("service_catalog")
-          .select("id, service_type, name_de, category")
-          .eq("is_active", true)
-          .order("sort_order");
-
-        setServiceCatalog(catalogData || []);
-
-        // Get company's selected services
-        const { data: servicesData } = await supabase
-          .from("company_services")
-          .select("*")
-          .eq("company_id", companyData.id);
-
-        setServices(servicesData || []);
-
-        // Get PLZ coverage with city names
-        const { data: plzData } = await supabase
-          .from("company_plz_coverage")
-          .select("*")
-          .eq("company_id", companyData.id)
-          .order("plz", { ascending: true });
-
-        // Fetch city names for each PLZ
-        if (plzData && plzData.length > 0) {
-          const plzList = plzData.map(p => p.plz);
-          const { data: swissPlzData } = await supabase
-            .from("swiss_plz")
-            .select("plz, city")
-            .in("plz", plzList);
-
-          const plzCityMap = new Map(swissPlzData?.map(p => [p.plz, p.city]) || []);
-          const enrichedPlzData = plzData.map(p => ({
-            ...p,
-            city_name: plzCityMap.get(p.plz) || undefined
-          }));
-          setPlzCoverage(enrichedPlzData);
-        } else {
-          setPlzCoverage([]);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -409,170 +312,15 @@ const FirmaEinstellungen = () => {
     }
   };
 
-  const toggleService = async (serviceType: string) => {
-    if (!company) return;
-
-    const existingService = services.find((s) => s.service_type === serviceType);
-    const newIsActive = existingService ? !existingService.is_active : true;
-
-    try {
-      // Use upsert to handle both insert and update cases
-      const { data, error } = await supabase
-        .from("company_services")
-        .upsert({
-          company_id: company.id,
-          service_type: serviceType,
-          is_active: newIsActive,
-        }, {
-          onConflict: 'company_id,service_type',
-          ignoreDuplicates: false
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setServices((prev) => {
-        const exists = prev.some((s) => s.service_type === serviceType);
-        if (exists) {
-          return prev.map((s) =>
-            s.service_type === serviceType ? { ...s, is_active: newIsActive, id: data.id } : s
-          );
-        }
-        return [...prev, data];
-      });
-
-      toast({
-        title: "Aktualisiert",
-        description: "Service-Einstellungen wurden gespeichert.",
-      });
-    } catch (error) {
-      console.error("Error toggling service:", error);
-      toast({
-        title: "Fehler",
-        description: "Die Änderung konnte nicht gespeichert werden.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const addPlzCoverage = async () => {
-    if (!company || !newPlz || newPlz.length !== 4) {
-      toast({
-        title: "Ungültige PLZ",
-        description: "Bitte geben Sie eine gültige 4-stellige PLZ ein.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check if PLZ already exists
-    if (plzCoverage.some(p => p.plz === newPlz)) {
-      toast({
-        title: "PLZ existiert bereits",
-        description: `PLZ ${newPlz} ist bereits in Ihrer Abdeckung.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate PLZ exists in Swiss PLZ database
-    const { data: swissPlz } = await supabase
-      .from("swiss_plz")
-      .select("city")
-      .eq("plz", newPlz)
-      .limit(1)
-      .single();
-
-    if (!swissPlz) {
-      toast({
-        title: "PLZ nicht gefunden",
-        description: `PLZ ${newPlz} existiert nicht in der Schweiz.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("company_plz_coverage")
-        .insert({
-          company_id: company.id,
-          plz: newPlz,
-          radius_km: newRadius,
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setPlzCoverage([...plzCoverage, { ...data, city_name: swissPlz.city }]);
-      setNewPlz("");
-      toast({
-        title: "Hinzugefügt",
-        description: `PLZ ${newPlz} (${swissPlz.city}) wurde hinzugefügt.`,
-      });
-    } catch (error) {
-      console.error("Error adding PLZ:", error);
-      toast({
-        title: "Fehler",
-        description: "Die PLZ konnte nicht hinzugefügt werden.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const removePlzCoverage = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from("company_plz_coverage")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setPlzCoverage(plzCoverage.filter((p) => p.id !== id));
-      toast({
-        title: "Entfernt",
-        description: "PLZ wurde entfernt.",
-      });
-    } catch (error) {
-      console.error("Error removing PLZ:", error);
-      toast({
-        title: "Fehler",
-        description: "Die PLZ konnte nicht entfernt werden.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const refreshPlzCoverage = async () => {
-    if (!company) return;
-    
-    const { data: plzData } = await supabase
-      .from("company_plz_coverage")
-      .select("*")
-      .eq("company_id", company.id)
-      .order("plz", { ascending: true });
-
-    if (plzData && plzData.length > 0) {
-      const plzList = plzData.map(p => p.plz);
-      const { data: swissPlzData } = await supabase
-        .from("swiss_plz")
-        .select("plz, city")
-        .in("plz", plzList);
-
-      const plzCityMap = new Map(swissPlzData?.map(p => [p.plz, p.city]) || []);
-      const enrichedPlzData = plzData.map(p => ({
-        ...p,
-        city_name: plzCityMap.get(p.plz) || undefined
-      }));
-      setPlzCoverage(enrichedPlzData);
-    } else {
-      setPlzCoverage([]);
-    }
-  };
+  const availableServices = [
+    { type: "umzug", label: "Umzug" },
+    { type: "reinigung", label: "Reinigung" },
+    { type: "raeumung", label: "Räumung" },
+    { type: "transport", label: "Transport" },
+    { type: "lagerung", label: "Lagerung" },
+    { type: "entsorgung", label: "Entsorgung" },
+    { type: "sonstige", label: "Sonstige" },
+  ];
 
   if (isLoading) {
     return (
@@ -580,11 +328,9 @@ const FirmaEinstellungen = () => {
         <Helmet>
           <title>Einstellungen | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-secondary" />
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -595,11 +341,9 @@ const FirmaEinstellungen = () => {
         <Helmet>
           <title>Einstellungen | Firma</title>
         </Helmet>
-        <FirmaLayout>
           <div className="text-center py-12 text-muted-foreground">
             Firma nicht gefunden
           </div>
-        </FirmaLayout>
       </>
     );
   }
@@ -609,7 +353,6 @@ const FirmaEinstellungen = () => {
       <Helmet>
         <title>Einstellungen | Firma</title>
       </Helmet>
-      <FirmaLayout>
         <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-bold">Einstellungen</h2>
@@ -619,8 +362,6 @@ const FirmaEinstellungen = () => {
           <Tabs defaultValue="profile" className="w-full">
             <TabsList className="mb-4 flex-wrap h-auto gap-1">
               <TabsTrigger value="profile">Profil</TabsTrigger>
-              <TabsTrigger value="services">Services</TabsTrigger>
-              <TabsTrigger value="coverage">Abdeckung</TabsTrigger>
               <TabsTrigger value="notifications">Benachrichtigungen</TabsTrigger>
               <TabsTrigger value="email">E-Mail (Resend)</TabsTrigger>
               <TabsTrigger value="sms">SMS (Twilio)</TabsTrigger>
@@ -845,351 +586,7 @@ const FirmaEinstellungen = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="services">
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Angebotene Services</CardTitle>
-                    <CardDescription>
-                      Wählen Sie die Services die Sie anbieten. Nur aktivierte Services werden bei Lead-Matching berücksichtigt.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {serviceCatalog.length > 0 ? (
-                      <div className="space-y-6">
-                        {Object.entries(groupedServices).map(([category, categoryServices]) => {
-                          const allActive = categoryServices.every(s => 
-                            services.some(cs => cs.service_type === s.service_type && cs.is_active)
-                          );
-                          const _someActive = categoryServices.some(s => 
-                            services.some(cs => cs.service_type === s.service_type && cs.is_active)
-                          );
-                          
-                          return (
-                            <div key={category} className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                                  {categoryLabels[category] || category}
-                                </Label>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-xs h-6"
-                                  onClick={() => {
-                                    // Toggle all services in this category
-                                    categoryServices.forEach(s => {
-                                      const isActive = services.some(cs => cs.service_type === s.service_type && cs.is_active);
-                                      if (allActive && isActive) {
-                                        // Deactivate all
-                                        toggleService(s.service_type);
-                                      } else if (!allActive && !isActive) {
-                                        // Activate all
-                                        toggleService(s.service_type);
-                                      }
-                                    });
-                                  }}
-                                >
-                                  {allActive ? "Alle abwählen" : "Alle auswählen"}
-                                </Button>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {categoryServices.map((service) => {
-                                  const isActive = services.some(
-                                    (s) => s.service_type === service.service_type && s.is_active
-                                  );
 
-                                  return (
-                                    <div
-                                      key={service.id}
-                                      className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all hover:bg-accent/5 ${
-                                        isActive 
-                                          ? "border-primary bg-primary/5" 
-                                          : "border-border bg-card"
-                                      }`}
-                                      onClick={() => toggleService(service.service_type)}
-                                    >
-                                      <Switch
-                                        checked={isActive}
-                                        onCheckedChange={() => toggleService(service.service_type)}
-                                      />
-                                      <Label className="text-sm cursor-pointer flex-1">
-                                        {service.name_de}
-                                      </Label>
-                                      {isActive && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          Aktiv
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p>Service-Katalog wird geladen...</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Lead Sharing Preference */}
-                <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500" />
-                  <div className="p-5 md:p-6">
-                    {/* Header */}
-                    <div className="flex items-center gap-3 mb-5">
-                      <div className="w-9 h-9 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
-                        <Zap className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Lead-Verteilung</h3>
-                        <p className="text-[11px] text-slate-500">Wählen Sie welche Art von Anfragen Sie erhalten möchten</p>
-                      </div>
-                    </div>
-
-                    {/* Options — 4 tiers matching pricing multipliers: 1x, 1.3x, 1.15x, 1.0x */}
-                    <div className="grid gap-3">
-                      {([
-                        {
-                          value: 'only_1' as const,
-                          label: 'Nur Exklusiv-Anfragen',
-                          sublabel: '1 Firma',
-                          desc: 'Keine Konkurrenz — garantierter Kundenkontakt, höchste Kosten.',
-                          icon: Shield,
-                          color: { border: 'border-violet-500', bg: 'bg-violet-50 dark:bg-violet-950/30', iconBg: 'bg-violet-500', iconBgOff: 'bg-slate-100 dark:bg-slate-800', text: 'text-violet-700 dark:text-violet-300', badge: 'bg-violet-100 text-violet-700 border-violet-200', check: 'bg-violet-500', hover: 'hover:border-violet-300 dark:hover:border-violet-700' },
-                          tag: null,
-                        },
-                        {
-                          value: 'only_3' as const,
-                          label: 'Premium-Anfragen',
-                          sublabel: 'bis 3 Firmen',
-                          desc: 'Exklusiv + Premium — max. 3 Mitbewerber, höherer Preis pro Lead.',
-                          icon: Users,
-                          color: { border: 'border-amber-500', bg: 'bg-amber-50 dark:bg-amber-950/30', iconBg: 'bg-amber-500', iconBgOff: 'bg-slate-100 dark:bg-slate-800', text: 'text-amber-700 dark:text-amber-300', badge: 'bg-amber-100 text-amber-700 border-amber-200', check: 'bg-amber-500', hover: 'hover:border-amber-300 dark:hover:border-amber-700' },
-                          tag: null,
-                        },
-                        {
-                          value: 'only_4' as const,
-                          label: 'Standard+ Anfragen',
-                          sublabel: 'bis 4 Firmen',
-                          desc: 'Exklusiv, Premium + Standard-4 — gute Balance aus Reichweite und Preis.',
-                          icon: Globe,
-                          color: { border: 'border-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/30', iconBg: 'bg-blue-500', iconBgOff: 'bg-slate-100 dark:bg-slate-800', text: 'text-blue-700 dark:text-blue-300', badge: 'bg-blue-100 text-blue-700 border-blue-200', check: 'bg-blue-500', hover: 'hover:border-blue-300 dark:hover:border-blue-700' },
-                          tag: null,
-                        },
-                        {
-                          value: 'both' as const,
-                          label: 'Alle Anfragen',
-                          sublabel: 'bis 5 Firmen',
-                          desc: 'Alle Lead-Typen — maximale Reichweite, günstigster Token-Preis.',
-                          icon: Zap,
-                          color: { border: 'border-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/30', iconBg: 'bg-emerald-500', iconBgOff: 'bg-slate-100 dark:bg-slate-800', text: 'text-emerald-700 dark:text-emerald-300', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', check: 'bg-emerald-500', hover: 'hover:border-emerald-300 dark:hover:border-emerald-700' },
-                          tag: 'Empfohlen',
-                        },
-                      ] as const).map((opt) => {
-                        const IconComp = opt.icon;
-                        const isSelected = opt.value === 'both'
-                          ? (company?.lead_sharing_preference === 'both' || company?.lead_sharing_preference === 'only_5' || !company?.lead_sharing_preference)
-                          : company?.lead_sharing_preference === opt.value;
-                        return (
-                          <label key={opt.value} className={`relative flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-                            isSelected
-                              ? `${opt.color.border} ${opt.color.bg} shadow-sm`
-                              : `border-slate-200 dark:border-slate-700 ${opt.color.hover} hover:bg-slate-50 dark:hover:bg-slate-800/50`
-                          }`}>
-                            <input type="radio" name="lead_sharing" value={opt.value} checked={isSelected}
-                              onChange={async () => {
-                                if (!company) return;
-                                const { error } = await supabase.from('companies').update({ lead_sharing_preference: opt.value }).eq('id', company.id);
-                                if (!error) { setCompany({ ...company, lead_sharing_preference: opt.value }); toast({ title: "Gespeichert", description: "Lead-Präferenz aktualisiert" }); }
-                              }}
-                              className="sr-only"
-                            />
-                            <div className={`mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors ${isSelected ? opt.color.iconBg : opt.color.iconBgOff}`}>
-                              <IconComp className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-500'}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                                <p className={`text-sm font-semibold ${isSelected ? opt.color.text : 'text-slate-900 dark:text-white'}`}>
-                                  {opt.label}
-                                </p>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold border ${opt.color.badge}`}>
-                                  {opt.sublabel}
-                                </span>
-                                {opt.tag && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-emerald-500 text-white">
-                                    {opt.tag}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">{opt.desc}</p>
-                            </div>
-                            {isSelected && (
-                              <div className={`shrink-0 w-5 h-5 rounded-full ${opt.color.check} flex items-center justify-center`}>
-                                <Check className="w-3 h-3 text-white" />
-                              </div>
-                            )}
-                          </label>
-                        );
-                      })}
-                    </div>
-
-                    {/* Hinweis */}
-                    <div className="mt-4 flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                      <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                        Je weniger Firmen konkurrieren, desto höher der Token-Preis pro Lead — aber desto grösser Ihre Gewinnchance.
-                        Bei <strong className="text-slate-600 dark:text-slate-300">Exklusiv</strong> kein Wettbewerb,
-                        bei <strong className="text-slate-600 dark:text-slate-300">Alle</strong> günstigster Preis mit max. 5 Mitbewerbern.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="coverage">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="w-5 h-5" />
-                    Regionale Abdeckung
-                  </CardTitle>
-                  <CardDescription>
-                    Definieren Sie Ihre Einsatzgebiete. Sie erhalten nur Anfragen aus diesen Regionen.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Info Box */}
-                  <div className="bg-muted/50 border rounded-lg p-4">
-                    <h4 className="font-medium mb-2 flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-primary" />
-                      So funktioniert die Lead-Verteilung
-                    </h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                      <li>Geben Sie PLZ-Codes ein, in denen Sie tätig sind</li>
-                      <li>Der Radius erweitert Ihre Abdeckung auf umliegende Gebiete</li>
-                      <li>Sie erhalten nur Anfragen von Kunden aus Ihren definierten Gebieten</li>
-                      <li>Aktivieren Sie Ihre Services im "Services"-Tab um Leads zu erhalten</li>
-                    </ul>
-                  </div>
-
-                  {/* Add PLZ Form */}
-                  <div className="border rounded-lg p-4 bg-card">
-                    <Label className="mb-2 block font-medium">Neues Gebiet hinzufügen</Label>
-                    <div className="flex gap-2 flex-wrap">
-                      <div className="flex-1 min-w-[120px]">
-                        <Label className="text-xs text-muted-foreground mb-1 block">PLZ</Label>
-                        <Input
-                          placeholder="z.B. 8001"
-                          value={newPlz}
-                          onChange={(e) => setNewPlz(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                          maxLength={4}
-                        />
-                      </div>
-                      <div className="w-32">
-                        <Label className="text-xs text-muted-foreground mb-1 block">Radius (km)</Label>
-                        <Input
-                          type="number"
-                          placeholder="20"
-                          value={newRadius}
-                          onChange={(e) => setNewRadius(parseInt(e.target.value) || 0)}
-                          min={0}
-                          max={100}
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <Button onClick={addPlzCoverage}>
-                          <Plus className="w-4 h-4 mr-1" />
-                          Hinzufügen
-                        </Button>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Radius 0 = nur exakte PLZ | Radius 20 = alle PLZ im Umkreis von 20km
-                    </p>
-                  </div>
-
-                  {/* Kanton-based PLZ Selection */}
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-background px-2 text-muted-foreground">
-                        oder PLZ nach Kanton auswählen
-                      </span>
-                    </div>
-                  </div>
-
-                  {company && (
-                    <KantonPlzSelector
-                      companyId={company.id}
-                      existingCoverages={plzCoverage}
-                      onCoverageChange={refreshPlzCoverage}
-                    />
-                  )}
-
-                  {/* Current Coverage */}
-                  <div>
-                    <Label className="mb-3 block font-medium">
-                      Aktuelle Abdeckung ({plzCoverage.length} {plzCoverage.length === 1 ? 'Gebiet' : 'Gebiete'})
-                    </Label>
-                    {plzCoverage.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {plzCoverage.map((coverage) => (
-                          <div
-                            key={coverage.id}
-                            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                          >
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-4 h-4 text-primary" />
-                              <div>
-                                <div className="font-medium">
-                                  {coverage.plz}
-                                  {coverage.city_name && (
-                                    <span className="font-normal text-muted-foreground ml-1">
-                                      {coverage.city_name}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {coverage.radius_km && coverage.radius_km > 0 
-                                    ? `+${coverage.radius_km} km Radius` 
-                                    : 'Nur exakte PLZ'}
-                                </div>
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removePlzCoverage(coverage.id)}
-                              className="text-muted-foreground hover:text-destructive"
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 border rounded-lg bg-muted/30">
-                        <MapPin className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                        <p className="text-muted-foreground">
-                          Noch keine PLZ-Abdeckung definiert
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Fügen Sie PLZ-Codes hinzu, um Leads zu erhalten
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
 
             <TabsContent value="notifications">
               <Card>
@@ -1367,7 +764,7 @@ const FirmaEinstellungen = () => {
 
                   {!company.resend_enabled && (
                     <div className="p-3 bg-muted/50 border rounded-lg text-muted-foreground text-sm">
-                      Wenn deaktiviert, werden Offerten über die System-E-Mail-Adresse (noreply@offerio.ch) gesendet.
+                      Wenn deaktiviert, werden Offerten über die konfigurierte System-E-Mail-Adresse gesendet.
                     </div>
                   )}
 
@@ -1554,7 +951,6 @@ const FirmaEinstellungen = () => {
             </TabsContent>
           </Tabs>
         </div>
-      </FirmaLayout>
     </>
   );
 };
