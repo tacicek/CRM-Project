@@ -206,7 +206,7 @@ export default function FirmaAnfragen() {
   return (
     <>
       <Helmet>
-        <title>Posteingang · CRM</title>
+        <title>Anfragen · CRM</title>
       </Helmet>
 
       <div className="space-y-5">
@@ -215,7 +215,7 @@ export default function FirmaAnfragen() {
           <span className="text-4xl leading-none">📥</span>
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Posteingang</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Anfragen</h1>
               <span className="text-[13px] text-folk-ink3">
                 <span className="font-mono">{leads.length}</span> Anfrage{leads.length !== 1 ? "n" : ""} · {presentGroups.length} Gruppe{presentGroups.length !== 1 ? "n" : ""}
               </span>

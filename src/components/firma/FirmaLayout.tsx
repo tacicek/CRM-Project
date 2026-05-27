@@ -376,7 +376,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   // Folk-style menu: emoji + label, organized in sections
   const quickLinksRaw: MenuItem[] = useMemo(() => [
     { title: "Übersicht", url: "/firma", emoji: "🏠", moduleKey: "reports" },
-    { title: "Posteingang", url: "/firma/anfragen", emoji: "📥", moduleKey: "manualImport" },
+    { title: "Anfragen", url: "/firma/anfragen", emoji: "📥", moduleKey: "manualImport" },
     { title: "Kalender", url: "/firma/kalender", emoji: "📅", moduleKey: "calendar" },
   ], []);
 
