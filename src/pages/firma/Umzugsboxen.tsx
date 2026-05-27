@@ -431,41 +431,41 @@ export default function Umzugsboxen() {
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Umzugsboxen</h1>
-              <span className="text-[13px] text-folk-ink3">
-                <span className="font-mono">{stats?.total_active || 0}</span> aktiv · <span className="font-mono">{stats?.overdue || 0}</span> überfällig · <span className="font-mono">{stats?.total_boxes_out || 0}</span> Boxen im Umlauf
+              <span className="text-[13px] text-folk-ink3 whitespace-nowrap">
+                <span className="font-mono">{stats?.total_active || 0}</span> aktiv · <span className="font-mono">{stats?.overdue || 0}</span> überfällig · <span className="font-mono">{stats?.total_boxes_out || 0}</span> im Umlauf
               </span>
             </div>
             <p className="mt-1 text-[13px] text-folk-ink2">
               Mietboxen verwalten und Abholungen planen.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex shrink-0 gap-2">
             <Button
               variant="outline"
               onClick={fetchData}
               className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Aktualisieren
+              <span className="hidden sm:inline">Aktualisieren</span>
             </Button>
             <Button
               onClick={handleNew}
               className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
             >
               <Plus className="h-3.5 w-3.5" />
-              Neue Vermietung
+              <span className="hidden sm:inline">Neue Vermietung</span>
             </Button>
           </div>
         </div>
 
         {/* KPI grid */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
           {[
-            { emoji: '📦', label: 'Aktive Vermietungen', value: stats?.total_active || 0,       highlight: false },
-            { emoji: '⚠️', label: 'Überfällig',          value: stats?.overdue || 0,            highlight: (stats?.overdue || 0) > 0 },
-            { emoji: '🚛', label: 'Heute abholen',       value: stats?.pickup_today || 0,       highlight: false },
-            { emoji: '📅', label: 'Diese Woche',         value: stats?.pickup_this_week || 0,   highlight: false },
-            { emoji: '🚚', label: 'Boxen im Umlauf',     value: stats?.total_boxes_out || 0,    highlight: false },
+            { emoji: '📦', label: 'Aktiv',          value: stats?.total_active || 0,       highlight: false },
+            { emoji: '⚠️', label: 'Überfällig',    value: stats?.overdue || 0,            highlight: (stats?.overdue || 0) > 0 },
+            { emoji: '🚛', label: 'Heute abholen', value: stats?.pickup_today || 0,       highlight: false },
+            { emoji: '📅', label: 'Diese Woche',   value: stats?.pickup_this_week || 0,   highlight: false },
+            { emoji: '🚚', label: 'Im Umlauf',     value: stats?.total_boxes_out || 0,    highlight: false },
           ].map((tile) => (
             <div
               key={tile.label}
@@ -499,9 +499,9 @@ export default function Umzugsboxen() {
                 {urgentRentals.slice(0, 5).map((rental) => (
                   <div
                     key={rental.id}
-                    className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200"
+                    className="flex flex-col gap-3 p-3 bg-white rounded-lg border border-red-200 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-start gap-3">
                       <div>
                         <p className="font-medium">
                           {rental.customer_first_name} {rental.customer_last_name}
@@ -509,10 +509,10 @@ export default function Umzugsboxen() {
                         <p className="text-sm text-muted-foreground">
                           {getTotalBoxQuantity(rental)} Boxen • {rental.delivery_city}
                         </p>
+                        <div className="mt-1">{getUrgencyIndicator(rental)}</div>
                       </div>
-                      {getUrgencyIndicator(rental)}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {rental.customer_phone && (
                         <Button variant="ghost" size="icon" asChild>
                           <a href={`tel:${rental.customer_phone}`}>
@@ -590,14 +590,15 @@ export default function Umzugsboxen() {
             {/* Table */}
             <Card>
               <CardContent className="p-0">
-                <Table>
+                <div className="overflow-x-auto">
+                <Table className="min-w-[720px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Kunde</TableHead>
                       <TableHead>Boxen</TableHead>
                       <TableHead>Ort</TableHead>
                       <TableHead>Lieferdatum</TableHead>
-                      <TableHead>Rückgabe fällig</TableHead>
+                      <TableHead className="whitespace-nowrap">Rückgabe fällig</TableHead>
                       <TableHead>Zuständig</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="w-12"></TableHead>
@@ -715,6 +716,7 @@ export default function Umzugsboxen() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -737,10 +739,10 @@ export default function Umzugsboxen() {
                     {dueThisWeek.map((rental) => (
                       <div
                         key={rental.id}
-                        className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
+                        className="flex flex-col gap-3 p-4 bg-muted/50 rounded-lg sm:flex-row sm:items-center sm:justify-between"
                       >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 shrink-0 bg-orange-100 rounded-lg flex items-center justify-center">
                             <Package className="w-5 h-5 text-orange-600" />
                           </div>
                           <div>
@@ -752,9 +754,9 @@ export default function Umzugsboxen() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
                           {rental.expected_return_date && (
-                            <div className="text-right">
+                            <div className="text-left sm:text-right">
                               <p className="font-medium">
                                 {format(new Date(rental.expected_return_date), "dd.MM.yyyy", { locale: de })}
                               </p>
@@ -800,18 +802,18 @@ export default function Umzugsboxen() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
+                <div className="overflow-x-auto">
+                <Table className="min-w-[500px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Kunde</TableHead>
                       <TableHead>Boxen</TableHead>
-                      <TableHead>Geliefert</TableHead>
-                      <TableHead>Zurückgegeben</TableHead>
+                      <TableHead className="whitespace-nowrap">Geliefert</TableHead>
+                      <TableHead className="whitespace-nowrap">Zurückgegeben</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {/* FIX: Use historyRentals instead of filtering from rentals */}
                     {historyRentals.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
@@ -844,6 +846,7 @@ export default function Umzugsboxen() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
