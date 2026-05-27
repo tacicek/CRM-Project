@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
+import { getDefaultFrom, getSenderEmail, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
@@ -237,7 +237,6 @@ serve(async (req) => {
     const brand = company.primary_color || "#10B981";
 
     // Determine Resend API key (company-level or global)
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const resendApiKey = company.resend_enabled && company.resend_api_key
       ? company.resend_api_key
       : Deno.env.get("RESEND_API_KEY")!;
@@ -247,7 +246,6 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
     const fromName = company.resend_from_name || company.company_name;
 
     const resend = new Resend(resendApiKey);
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     const attachments: Array<{ filename: string; content: string }> = [];
     if (quittungPdfBase64) {
@@ -269,12 +267,13 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
         attachments: attachments.length > 0 ? attachments : undefined,
       });
 
-      await logEmail(supabase, {
-        type: "quittung_customer",
-        recipient_email: q.customer_email,
+      await logEmail({
+        emailType: "quittung_customer",
+        recipientEmail: q.customer_email,
         subject: `Quittung ${q.quittung_nr}`,
-        status: emailErr ? "error" : "sent",
-        error_message: emailErr?.message || null,
+        status: emailErr ? "failed" : "sent",
+        errorMessage: emailErr?.message,
+        companyId: company.id,
         metadata: { quittung_id: quittungId, resend_id: emailData?.id },
       });
 
@@ -285,30 +284,40 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
     const firmaEmail = company.notification_email || company.email;
     if (firmaEmail) {
       const { data: firmaData, error: firmaErr } = await resend.emails.send({
-        from: getDefaultFrom(),
+        from: `${fromName} <${fromEmail}>`,
         to: [firmaEmail],
         subject: `Quittung ${q.quittung_nr} – unterschrieben`,
         html: buildFirmaEmail(q, brand),
         attachments: attachments.length > 0 ? attachments : undefined,
       });
 
-      await logEmail(supabase, {
-        type: "quittung_firma",
-        recipient_email: firmaEmail,
+      await logEmail({
+        emailType: "quittung_firma",
+        recipientEmail: firmaEmail,
         subject: `Quittung ${q.quittung_nr} – unterschrieben`,
-        status: firmaErr ? "error" : "sent",
-        error_message: firmaErr?.message || null,
+        status: firmaErr ? "failed" : "sent",
+        errorMessage: firmaErr?.message,
+        companyId: company.id,
         metadata: { quittung_id: quittungId, resend_id: firmaData?.id },
       });
 
       if (!firmaErr) results.push("firma");
     }
 
-    // Update status to sent
-    await supabase
-      .from("quittungen")
-      .update({ status: "sent" })
-      .eq("id", quittungId);
+    // Only mark as sent if at least one email was delivered
+    if (results.length > 0) {
+      await supabase
+        .from("quittungen")
+        .update({ status: "sent" })
+        .eq("id", quittungId);
+    }
+
+    if (results.length === 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Alle E-Mails fehlgeschlagen", sent_to: [] }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     return new Response(
       JSON.stringify({ success: true, sent_to: results }),

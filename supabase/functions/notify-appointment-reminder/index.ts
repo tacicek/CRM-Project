@@ -225,7 +225,6 @@ const handler = async (req: Request): Promise<Response> => {
         : getCalendarFrom();
       return { client: new Resend(key), from };
     };
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];

@@ -106,12 +106,12 @@ serve(async (req) => {
         if (auftrag.assigned_team_members && auftrag.assigned_team_members.length > 0) {
           const { data: members } = await supabase
             .from("team_members")
-            .select("name, phone, email")
+            .select("first_name, last_name, phone, email")
             .in("id", auftrag.assigned_team_members);
 
           if (members) {
             teamMembersList = members
-              .map(m => `${m.name}${m.phone ? ` (${m.phone})` : ""}`)
+              .map(m => `${m.first_name} ${m.last_name}${m.phone ? ` (${m.phone})` : ""}`)
               .join(", ");
           }
         }

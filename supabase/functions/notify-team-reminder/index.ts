@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getSenderEmail, getAppName } from "../_shared/envConfig.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -743,7 +744,6 @@ const handler = async (req: Request): Promise<Response> => {
 
           try {
             // Send via Resend
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
             const emailResponse = await fetch("https://api.resend.com/emails", {
               method: "POST",
               headers: {
@@ -761,7 +761,6 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
             if (!emailResponse.ok) {
               const errorText = await emailResponse.text();
               throw new Error(`Resend error: ${errorText}`);
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
             }
 
             // Log the reminder

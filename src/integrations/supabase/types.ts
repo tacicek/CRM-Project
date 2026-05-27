@@ -157,6 +157,41 @@ export type Database = {
           },
         ]
       }
+      api_keys: {
+        Row: {
+          id: string
+          company_id: string
+          key_name: string
+          key_value: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          key_name: string
+          key_value: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          key_name?: string
+          key_value?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       appointments: {
         Row: {
           all_day: boolean | null
