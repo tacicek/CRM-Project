@@ -277,12 +277,24 @@ serve(async (req) => {
     logStep("Access granted", { company_id });
 
     // Call Claude API
-    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-    
+    // Priority: company's own key from DB → fallback to server env
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    const { data: apiKeyRow } = await serviceClient
+      .from("api_keys")
+      .select("key_value")
+      .eq("company_id", company_id)
+      .eq("key_name", "anthropic_api_key")
+      .maybeSingle();
+
+    const anthropicApiKey = apiKeyRow?.key_value || Deno.env.get("ANTHROPIC_API_KEY");
+
     if (!anthropicApiKey) {
       logStep("ANTHROPIC_API_KEY not configured");
       return new Response(
-        JSON.stringify({ error: "AI-Service nicht konfiguriert" }),
+        JSON.stringify({ error: "AI-Service nicht konfiguriert. Bitte API-Schlüssel in den Einstellungen hinterlegen." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

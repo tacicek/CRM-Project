@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Building2, Bell, FileText, MessageSquare, Eye, EyeOff, CheckCircle, Mail, Check } from "lucide-react";
+import { Loader2, Save, Building2, Bell, FileText, MessageSquare, Eye, EyeOff, CheckCircle, Mail, Check, Bot } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
@@ -76,6 +76,10 @@ const FirmaEinstellungen = () => {
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [showTwilioToken, setShowTwilioToken] = useState(false);
   const [showResendKey, setShowResendKey] = useState(false);
+  const [anthropicKey, setAnthropicKey] = useState("");
+  const [anthropicKeyMasked, setAnthropicKeyMasked] = useState(false);
+  const [showAnthropicKey, setShowAnthropicKey] = useState(false);
+  const [isSavingAnthropicKey, setIsSavingAnthropicKey] = useState(false);
 
   // Draft tracking: user's unsaved profile changes persist across navigation
   const [isDirty, setIsDirty] = useState(false);
@@ -119,6 +123,18 @@ const FirmaEinstellungen = () => {
         });
 
         if (!companyData) return;
+
+        // Load existing API keys
+        const { data: apiKeyRow } = await supabase
+          .from("api_keys")
+          .select("key_value")
+          .eq("company_id", companyData.id)
+          .eq("key_name", "anthropic_api_key")
+          .maybeSingle();
+        if (apiKeyRow?.key_value) {
+          setAnthropicKey(apiKeyRow.key_value);
+          setAnthropicKeyMasked(true);
+        }
 
         // Restore unsaved draft if user navigated away before saving
         const savedDraft = sessionStorage.getItem(PROFILE_DRAFT_KEY);
@@ -224,6 +240,47 @@ const FirmaEinstellungen = () => {
       });
     } finally {
       setIsSavingTwilio(false);
+    }
+  };
+
+  const handleSaveAnthropicKey = async () => {
+    if (!company) return;
+    const trimmed = anthropicKey.trim();
+    if (!trimmed) {
+      toast({ title: "Fehler", description: "Bitte einen API-Schlüssel eingeben.", variant: "destructive" });
+      return;
+    }
+    setIsSavingAnthropicKey(true);
+    try {
+      const { error } = await supabase
+        .from("api_keys")
+        .upsert(
+          { company_id: company.id, key_name: "anthropic_api_key", key_value: trimmed },
+          { onConflict: "company_id,key_name" }
+        );
+      if (error) throw error;
+      setAnthropicKeyMasked(true);
+      setShowAnthropicKey(false);
+      toast({ title: "Gespeichert", description: "Anthropic API-Schlüssel wurde gespeichert." });
+    } catch (err) {
+      console.error("Error saving Anthropic key:", err);
+      toast({ title: "Fehler", description: "API-Schlüssel konnte nicht gespeichert werden.", variant: "destructive" });
+    } finally {
+      setIsSavingAnthropicKey(false);
+    }
+  };
+
+  const handleDeleteAnthropicKey = async () => {
+    if (!company) return;
+    const { error } = await supabase
+      .from("api_keys")
+      .delete()
+      .eq("company_id", company.id)
+      .eq("key_name", "anthropic_api_key");
+    if (!error) {
+      setAnthropicKey("");
+      setAnthropicKeyMasked(false);
+      toast({ title: "Gelöscht", description: "API-Schlüssel wurde entfernt. Server-Schlüssel wird verwendet." });
     }
   };
 
@@ -373,6 +430,7 @@ const FirmaEinstellungen = () => {
               <TabsTrigger value="sms">SMS (Twilio)</TabsTrigger>
               <TabsTrigger value="reminders">Erinnerungen</TabsTrigger>
               <TabsTrigger value="offerten">AGB</TabsTrigger>
+              <TabsTrigger value="ki">KI-Integration</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile">
@@ -952,6 +1010,80 @@ const FirmaEinstellungen = () => {
                     serviceLabel={availableServices.find(s => s.type === selectedTemplateService)?.label || selectedTemplateService}
                     allServiceTypes={availableServices}
                   />
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="ki">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bot className="w-5 h-5" />
+                    KI-Integration
+                  </CardTitle>
+                  <CardDescription>
+                    API-Schlüssel für KI-Funktionen (Anfragen-Extraktion). Der hier hinterlegte Schlüssel
+                    hat Vorrang vor dem Server-Schlüssel.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="bg-muted/50 border rounded-lg p-4 space-y-1">
+                    <h4 className="font-medium text-sm">Anthropic API-Schlüssel</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Wird für die automatische Extraktion von Anfragen verwendet (<code className="text-xs bg-muted px-1 rounded">/firma/manual-import</code>).
+                      Erhalten Sie Ihren Schlüssel auf{" "}
+                      <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                        console.anthropic.com
+                      </a>.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>API-Schlüssel</Label>
+                    <div className="relative">
+                      <Input
+                        type={showAnthropicKey ? "text" : "password"}
+                        value={anthropicKeyMasked && !showAnthropicKey
+                          ? "sk-ant-••••••••••••••••••••••••••••••••"
+                          : anthropicKey}
+                        onChange={(e) => {
+                          setAnthropicKey(e.target.value);
+                          setAnthropicKeyMasked(false);
+                        }}
+                        placeholder="sk-ant-api03-..."
+                        className="pr-10 font-mono text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAnthropicKey(!showAnthropicKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showAnthropicKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {anthropicKeyMasked
+                        ? "✓ Ein API-Schlüssel ist hinterlegt."
+                        : "Kein eigener Schlüssel — es wird der Server-Schlüssel verwendet."}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSaveAnthropicKey}
+                      disabled={isSavingAnthropicKey || !anthropicKey.trim()}
+                    >
+                      {isSavingAnthropicKey ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Speichern…</>
+                      ) : (
+                        <><Save className="w-4 h-4 mr-2" />Schlüssel speichern</>
+                      )}
+                    </Button>
+                    {anthropicKeyMasked && (
+                      <Button variant="outline" onClick={handleDeleteAnthropicKey}>
+                        Schlüssel entfernen
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
