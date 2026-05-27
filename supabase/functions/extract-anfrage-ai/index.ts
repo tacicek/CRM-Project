@@ -285,7 +285,12 @@ serve(async (req) => {
       .from("api_keys")
       .select("key_name, key_value")
       .eq("company_id", company_id)
-      .in("key_name", ["ai_provider", "anthropic_api_key", "openai_api_key", "gemini_api_key"]);
+      .in("key_name", [
+        "ai_provider",
+        "anthropic_api_key", "anthropic_model",
+        "openai_api_key",    "openai_model",
+        "gemini_api_key",    "gemini_model",
+      ]);
 
     const settingsMap: Record<string, string> = {};
     for (const row of (aiSettings ?? [])) {
@@ -312,7 +317,7 @@ serve(async (req) => {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: settingsMap["openai_model"] || "gpt-4o-mini",
           max_tokens: 4096,
           messages: [{ role: "user", content: prompt }]
         })
@@ -339,7 +344,7 @@ serve(async (req) => {
       }
       logStep("Calling Gemini API");
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${settingsMap["gemini_model"] || "gemini-2.0-flash"}:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -379,7 +384,7 @@ serve(async (req) => {
           "anthropic-version": "2023-06-01"
         },
         body: JSON.stringify({
-          model: "claude-haiku-4-5",
+          model: settingsMap["anthropic_model"] || "claude-haiku-4-5",
           max_tokens: 4096,
           messages: [{ role: "user", content: prompt }]
         })

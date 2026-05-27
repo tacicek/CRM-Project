@@ -80,12 +80,15 @@ const FirmaEinstellungen = () => {
   const [anthropicKey, setAnthropicKey] = useState("");
   const [anthropicKeyMasked, setAnthropicKeyMasked] = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
+  const [anthropicModel, setAnthropicModel] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [openaiKeyMasked, setOpenaiKeyMasked] = useState(false);
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
+  const [openaiModel, setOpenaiModel] = useState("");
   const [geminiKey, setGeminiKey] = useState("");
   const [geminiKeyMasked, setGeminiKeyMasked] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [geminiModel, setGeminiModel] = useState("");
   const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
 
   // Draft tracking: user's unsaved profile changes persist across navigation
@@ -136,12 +139,20 @@ const FirmaEinstellungen = () => {
           .from("api_keys")
           .select("key_name, key_value")
           .eq("company_id", companyData.id)
-          .in("key_name", ["ai_provider", "anthropic_api_key", "openai_api_key", "gemini_api_key"]);
+          .in("key_name", [
+            "ai_provider",
+            "anthropic_api_key", "anthropic_model",
+            "openai_api_key",    "openai_model",
+            "gemini_api_key",    "gemini_model",
+          ]);
         for (const row of (aiRows ?? [])) {
-          if (row.key_name === "ai_provider") setAiProvider(row.key_value as "anthropic" | "openai" | "gemini");
+          if (row.key_name === "ai_provider")     setAiProvider(row.key_value as "anthropic" | "openai" | "gemini");
           if (row.key_name === "anthropic_api_key") { setAnthropicKey(row.key_value); setAnthropicKeyMasked(true); }
-          if (row.key_name === "openai_api_key") { setOpenaiKey(row.key_value); setOpenaiKeyMasked(true); }
-          if (row.key_name === "gemini_api_key") { setGeminiKey(row.key_value); setGeminiKeyMasked(true); }
+          if (row.key_name === "anthropic_model")   setAnthropicModel(row.key_value);
+          if (row.key_name === "openai_api_key")    { setOpenaiKey(row.key_value); setOpenaiKeyMasked(true); }
+          if (row.key_name === "openai_model")      setOpenaiModel(row.key_value);
+          if (row.key_name === "gemini_api_key")    { setGeminiKey(row.key_value); setGeminiKeyMasked(true); }
+          if (row.key_name === "gemini_model")      setGeminiModel(row.key_value);
         }
 
         // Restore unsaved draft if user navigated away before saving
@@ -270,8 +281,11 @@ const FirmaEinstellungen = () => {
     try {
       await upsertApiKey("ai_provider", aiProvider);
       if (anthropicKey.trim() && !anthropicKeyMasked) await upsertApiKey("anthropic_api_key", anthropicKey.trim());
+      if (anthropicModel.trim()) await upsertApiKey("anthropic_model", anthropicModel.trim());
       if (openaiKey.trim() && !openaiKeyMasked) await upsertApiKey("openai_api_key", openaiKey.trim());
+      if (openaiModel.trim()) await upsertApiKey("openai_model", openaiModel.trim());
       if (geminiKey.trim() && !geminiKeyMasked) await upsertApiKey("gemini_api_key", geminiKey.trim());
+      if (geminiModel.trim()) await upsertApiKey("gemini_model", geminiModel.trim());
       setAnthropicKeyMasked(!!anthropicKey.trim());
       setOpenaiKeyMasked(!!openaiKey.trim());
       setGeminiKeyMasked(!!geminiKey.trim());
@@ -1083,6 +1097,16 @@ const FirmaEinstellungen = () => {
                       <button type="button" onClick={() => { deleteApiKey("anthropic_api_key"); setAnthropicKey(""); setAnthropicKeyMasked(false); }} className="text-xs text-destructive underline">Entfernen</button>
                     )}
                   </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm">Modell <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Input
+                      value={anthropicModel}
+                      onChange={(e) => setAnthropicModel(e.target.value)}
+                      placeholder="claude-haiku-4-5"
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Leer lassen = Standard (claude-haiku-4-5). <a href="https://docs.anthropic.com/en/docs/about-claude/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">Alle Modelle</a></p>
+                  </div>
 
                   {/* OpenAI key */}
                   <div className="space-y-2">
@@ -1110,6 +1134,16 @@ const FirmaEinstellungen = () => {
                       <button type="button" onClick={() => { deleteApiKey("openai_api_key"); setOpenaiKey(""); setOpenaiKeyMasked(false); }} className="text-xs text-destructive underline">Entfernen</button>
                     )}
                   </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm">Modell <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Input
+                      value={openaiModel}
+                      onChange={(e) => setOpenaiModel(e.target.value)}
+                      placeholder="gpt-4o-mini"
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Leer lassen = Standard (gpt-4o-mini). <a href="https://platform.openai.com/docs/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">Alle Modelle</a></p>
+                  </div>
 
                   {/* Gemini key */}
                   <div className="space-y-2">
@@ -1136,6 +1170,16 @@ const FirmaEinstellungen = () => {
                     {geminiKeyMasked && (
                       <button type="button" onClick={() => { deleteApiKey("gemini_api_key"); setGeminiKey(""); setGeminiKeyMasked(false); }} className="text-xs text-destructive underline">Entfernen</button>
                     )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm">Modell <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Input
+                      value={geminiModel}
+                      onChange={(e) => setGeminiModel(e.target.value)}
+                      placeholder="gemini-2.0-flash"
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Leer lassen = Standard (gemini-2.0-flash). <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">Alle Modelle</a></p>
                   </div>
 
                   <Button onClick={handleSaveAiSettings} disabled={isSavingAiSettings}>
