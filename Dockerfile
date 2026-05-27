@@ -60,6 +60,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built application from build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
+# Tell Traefik/Coolify to route to port 80 (nginx), not the default 3000
+LABEL traefik.http.services.app.loadbalancer.server.port="80"
+
 # Traefik labels for header configuration (must be applied by Traefik).
 # NOTE: Content-Security-Policy (frame-ancestors) is intentionally handled in nginx.conf
 # on a per-route basis: /embed/* allows frame-ancestors *, all other routes use 'self'.
