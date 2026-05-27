@@ -6,20 +6,7 @@ import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useNotificationHistory } from "@/hooks/useNotificationHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { firmaImports } from "@/App";
-import { MODULES } from "@/config/modules";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar";
+import { MODULES, type ModuleKey } from "@/config/modules";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -31,33 +18,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 import {
-  LayoutDashboard,
-  Settings,
   LogOut,
   Loader2,
   ShieldAlert,
-  Inbox,
-  ClipboardList,
-  ListChecks,
   Building2,
   Volume2,
   VolumeX,
   Bell,
   BellOff,
-  CheckSquare,
-  Calendar,
-  Users,
-  Upload,
-  Eye,
-  Archive,
-  Package,
-  Calculator,
-  FileCheck,
   ChevronDown,
-  Receipt,
   Check,
+  Menu,
+  X,
+  Search,
+  MoreHorizontal,
 } from "lucide-react";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 interface FirmaLayoutProps {
   children: ReactNode;
@@ -71,60 +46,162 @@ interface Company {
 }
 
 // =============================================================================
-// Sidebar Sub-Components
+// Menu data — Folk-style nav: each item has an emoji, label, route, moduleKey
 // =============================================================================
 
-interface SidebarHeaderProps {
-  company: Company;
-}
-
-const FirmaSidebarHeader = ({ company }: SidebarHeaderProps) => {
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
-  return (
-    <div className={`${isCollapsed ? 'p-2' : 'p-4 pb-6'} relative overflow-hidden`}>
-      {!isCollapsed && (
-        <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 via-transparent to-primary/5" />
-      )}
-      <Link to="/firma" className="relative flex items-center justify-center gap-3 group">
-        <div className="relative flex-shrink-0">
-          {company.logo_url ? (
-            isCollapsed ? (
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center shadow-sm border border-secondary/20 group-hover:scale-105 transition-transform">
-                <Building2 className="w-4 h-4 text-secondary" />
-              </div>
-            ) : (
-              <div className="relative">
-                <img src={company.logo_url} alt={company.company_name} className="h-12 w-auto max-w-[160px] object-contain drop-shadow-sm" />
-              </div>
-            )
-          ) : (
-            <div className={`${isCollapsed ? 'h-9 w-9' : 'h-12 w-12'} rounded-xl bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center shadow-sm border border-secondary/20 group-hover:scale-105 transition-transform`}>
-              <Building2 className={`${isCollapsed ? 'w-4 h-4' : 'w-6 h-6'} text-secondary`} />
-            </div>
-          )}
-        </div>
-        {!isCollapsed && !company.logo_url && (
-          <div className="flex flex-col">
-            <span className="font-bold text-base truncate max-w-[140px] bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">{company.company_name}</span>
-            <span className="text-[10px] text-muted-foreground/70 font-medium uppercase tracking-wider">Dashboard</span>
-          </div>
-        )}
-      </Link>
-      <div className="absolute bottom-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-    </div>
-  );
+type MenuItem = {
+  title: string;
+  url: string;
+  emoji: string;
+  moduleKey: ModuleKey;
+  badge?: number;
 };
 
-const FirmaSidebarFooter = ({ onSignOut }: { onSignOut: () => void }) => {
-  const { state } = useSidebar();
-  if (state !== "collapsed") return null;
+type MenuGroup = { id: string; label: string; items: MenuItem[] };
+
+// =============================================================================
+// Sidebar
+// =============================================================================
+
+const FirmaSidebar = ({
+  company,
+  user,
+  groups,
+  quickLinks,
+  onSignOut,
+  onClose,
+}: {
+  company: Company;
+  user: { email?: string | null };
+  groups: MenuGroup[];
+  quickLinks: MenuItem[];
+  onSignOut: () => void;
+  onClose?: () => void;
+}) => {
+  const location = useLocation();
+  const isActive = (url: string) => location.pathname === url;
+
+  const initials = company.company_name
+    .replace(/[^a-zA-ZäöüÄÖÜ\s]/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase() || "CO";
+
+  const userEmail = user.email || "";
+  const userName = userEmail.split("@")[0] || "Benutzer";
+  const userInitials = userName.slice(0, 2).toUpperCase();
+
   return (
-    <div className="mt-auto p-2 border-t border-border/50 flex flex-col items-center gap-2">
-      <Button variant="ghost" size="icon" onClick={onSignOut} title="Abmelden" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors">
-        <LogOut className="w-4 h-4" />
-      </Button>
-    </div>
+    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-folk-line bg-folk-sidebar font-sans text-folk-ink">
+      {/* Workspace header */}
+      <div className="border-b border-folk-line px-3 pt-3 pb-2.5">
+        <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
+          {company.logo_url ? (
+            <img src={company.logo_url} alt={company.company_name} className="h-6 w-6 rounded-md object-cover" />
+          ) : (
+            <div className="grid h-6 w-6 place-items-center rounded-md bg-folk-ink text-[11px] font-bold tracking-tight text-folk-bg">
+              {initials}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold leading-tight text-folk-ink">
+              {company.company_name}
+            </div>
+            <div className="mt-px text-[11px] text-folk-ink3">Workspace</div>
+          </div>
+          <ChevronDown className="h-3.5 w-3.5 text-folk-ink3" strokeWidth={1.8} />
+          {onClose && (
+            <button onClick={onClose} className="ml-1 grid h-6 w-6 place-items-center rounded-md text-folk-ink3 hover:bg-folk-bg-warm md:hidden" aria-label="Menü schliessen">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <div className="mt-2 flex items-center gap-1.5 rounded-md border border-folk-line bg-folk-card px-2 py-1.5">
+          <Search className="h-3.5 w-3.5 text-folk-ink3" strokeWidth={1.8} />
+          <span className="flex-1 text-[12.5px] text-folk-ink4">Suche oder Befehl …</span>
+          <kbd className="rounded-[3px] bg-folk-bg px-1.5 py-px font-mono text-[10px] text-folk-ink3">⌘K</kbd>
+        </div>
+      </div>
+
+      {/* Quick links */}
+      {quickLinks.length > 0 && (
+        <div className="px-2 pt-2.5 pb-1">
+          {quickLinks.map((item) => {
+            const active = isActive(item.url);
+            return (
+              <Link
+                key={item.url}
+                to={item.url}
+                onClick={onClose}
+                className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                  active ? "bg-folk-card font-semibold text-folk-ink shadow-[0_1px_2px_rgba(24,24,26,0.03)]" : "text-folk-ink2 hover:bg-folk-bg-warm"
+                }`}
+              >
+                <span className="text-[14px] leading-none">{item.emoji}</span>
+                <span className="flex-1 truncate">{item.title}</span>
+                {item.badge ? (
+                  <span className="font-mono text-[11px] text-folk-ink3">{item.badge}</span>
+                ) : null}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Grouped nav */}
+      <div className="flex-1 overflow-y-auto px-2 pb-2">
+        {groups.map((group) => (
+          <div key={group.id} className="mt-3">
+            <div className="flex items-center justify-between px-2.5 pb-1.5 pt-0.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{group.label}</span>
+            </div>
+            {group.items.map((item) => {
+              const active = isActive(item.url);
+              return (
+                <Link
+                  key={item.url}
+                  to={item.url}
+                  onClick={onClose}
+                  className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                    active
+                      ? "border border-folk-line bg-folk-card font-semibold text-folk-ink"
+                      : "border border-transparent text-folk-ink2 hover:bg-folk-bg-warm"
+                  }`}
+                >
+                  <span className="text-[14px] leading-none">{item.emoji}</span>
+                  <span className="flex-1 truncate">{item.title}</span>
+                  {item.badge ? (
+                    <span className="font-mono text-[11px] text-folk-ink3">{item.badge}</span>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Profile footer */}
+      <div className="flex items-center gap-2 border-t border-folk-line px-2.5 py-2">
+        <div className="grid h-[26px] w-[26px] place-items-center rounded-full bg-folk-coral text-[11px] font-bold text-white">
+          {userInitials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[12.5px] font-semibold leading-tight text-folk-ink">{userName}</div>
+          <div className="truncate text-[11px] text-folk-ink3">{userEmail}</div>
+        </div>
+        <button
+          onClick={onSignOut}
+          title="Abmelden"
+          className="grid h-7 w-7 place-items-center rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </div>
+    </aside>
   );
 };
 
@@ -142,6 +219,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
 
   const company = activeCompany as Company | null;
   const [besichtigungUploadedCount, setBesichtigungUploadedCount] = useState(0);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const notifyWithHistory = useCallback((title: string, body?: string, route?: string, type?: string, id?: string, metadata?: Record<string, unknown>) => {
     notify(title, body);
@@ -295,34 +373,65 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     else setTimeout(preload, 2000);
   }, [urlToImport]);
 
-  // Menus
-  const menuGroups = [
-    { id: "kern", label: "Hauptbereich", items: [
-      { title: "Übersicht", url: "/firma", icon: LayoutDashboard, moduleKey: "reports" as const },
-      { title: "Offerten", url: "/firma/offerten", icon: ClipboardList, moduleKey: "offers" as const },
-      { title: "Quittungen", url: "/firma/quittungen", icon: Receipt, moduleKey: "receipts" as const },
-      { title: "Kalender", url: "/firma/kalender", icon: Calendar, moduleKey: "calendar" as const },
-      { title: "Aufträge", url: "/firma/auftraege", icon: FileCheck, moduleKey: "orders" as const },
-    ]},
-    { id: "betrieb", label: "Betrieb", items: [
-      { title: "Besichtigungen", url: "/firma/besichtigungen", icon: Eye, moduleKey: "inspections" as const, badge: besichtigungUploadedCount > 0 ? besichtigungUploadedCount : undefined },
-      { title: "Umzugsboxen", url: "/firma/umzugsboxen", icon: Package, moduleKey: "movingBoxes" as const },
-      { title: "Team", url: "/firma/team", icon: Users, moduleKey: "team" as const },
-      { title: "Checkliste", url: "/firma/checkliste", icon: CheckSquare, moduleKey: "checklist" as const },
-      { title: "Anfragen", url: "/firma/anfragen", icon: Inbox, moduleKey: "manualImport" as const },
-    ]},
-    { id: "verwaltung", label: "Einstellungen", items: [
-      { title: "Meine Leistungen", url: "/firma/leistungskatalog", icon: ListChecks, moduleKey: "serviceCatalog" as const },
-      { title: "Meine Preise", url: "/firma/preisgestaltung", icon: Calculator, moduleKey: "pricing" as const },
-      { title: "Archiv", url: "/firma/datenarchiv", icon: Archive, moduleKey: "archive" as const },
-      { title: "Einstellungen", url: "/firma/einstellungen", icon: Settings, moduleKey: "settings" as const },
-    ]},
-  ];
+  // Folk-style menu: emoji + label, organized in sections
+  const quickLinksRaw: MenuItem[] = useMemo(() => [
+    { title: "Übersicht", url: "/firma", emoji: "🏠", moduleKey: "reports" },
+    { title: "Posteingang", url: "/firma/anfragen", emoji: "📥", moduleKey: "manualImport" },
+    { title: "Kalender", url: "/firma/kalender", emoji: "📅", moduleKey: "calendar" },
+  ], []);
+
+  const menuGroups: MenuGroup[] = useMemo(() => [
+    {
+      id: "hauptbereich", label: "Hauptbereich", items: [
+        { title: "Offerten", url: "/firma/offerten", emoji: "📄", moduleKey: "offers" },
+        { title: "Aufträge", url: "/firma/auftraege", emoji: "✅", moduleKey: "orders" },
+        { title: "Quittungen", url: "/firma/quittungen", emoji: "🧾", moduleKey: "receipts" },
+      ],
+    },
+    {
+      id: "betrieb", label: "Betrieb", items: [
+        { title: "Besichtigungen", url: "/firma/besichtigungen", emoji: "🔎", moduleKey: "inspections", badge: besichtigungUploadedCount > 0 ? besichtigungUploadedCount : undefined },
+        { title: "Umzugsboxen", url: "/firma/umzugsboxen", emoji: "📦", moduleKey: "movingBoxes" },
+        { title: "Team", url: "/firma/team", emoji: "👥", moduleKey: "team" },
+        { title: "Checkliste", url: "/firma/checkliste", emoji: "☑️", moduleKey: "checklist" },
+      ],
+    },
+    {
+      id: "verwaltung", label: "Verwaltung", items: [
+        { title: "Meine Leistungen", url: "/firma/leistungskatalog", emoji: "🛠️", moduleKey: "serviceCatalog" },
+        { title: "Meine Preise", url: "/firma/preisgestaltung", emoji: "💰", moduleKey: "pricing" },
+        { title: "Archiv", url: "/firma/datenarchiv", emoji: "🗂️", moduleKey: "archive" },
+        { title: "Einstellungen", url: "/firma/einstellungen", emoji: "⚙️", moduleKey: "settings" },
+      ],
+    },
+  ], [besichtigungUploadedCount]);
+
+  // Apply module flag filtering
+  const quickLinks = useMemo(() => quickLinksRaw.filter(i => MODULES[i.moduleKey]), [quickLinksRaw]);
+  const filteredGroups = useMemo(() => menuGroups
+    .map(g => ({ ...g, items: g.items.filter(i => MODULES[i.moduleKey]) }))
+    .filter(g => g.items.length > 0), [menuGroups]);
+
+  // Prefetch on hover (attach via wrapping the sidebar links is complex with the new structure;
+  // simplest: prefetch on hover of all rendered links via event delegation on the <aside>).
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const root = sidebarRef.current;
+    if (!root) return;
+    const onOver = (e: Event) => {
+      const target = (e.target as HTMLElement | null)?.closest("a");
+      if (!target) return;
+      const href = target.getAttribute("href");
+      if (href) handlePrefetch(href);
+    };
+    root.addEventListener("mouseover", onOver);
+    return () => root.removeEventListener("mouseover", onOver);
+  }, [handlePrefetch]);
 
   // Loading
   if (isLoading || companyLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+    <div className="flex min-h-screen items-center justify-center bg-folk-bg">
+      <Loader2 className="h-8 w-8 animate-spin text-folk-coral" />
     </div>
   );
 
@@ -330,11 +439,11 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
 
   // No company
   if (!company) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-4 max-w-md mx-auto p-6">
-        <ShieldAlert className="w-16 h-16 text-warning mx-auto" />
+    <div className="flex min-h-screen items-center justify-center bg-folk-bg">
+      <div className="mx-auto max-w-md space-y-4 p-6 text-center">
+        <ShieldAlert className="mx-auto h-16 w-16 text-folk-coral" />
         <h1 className="text-2xl font-bold">Keine Firma gefunden</h1>
-        <p className="text-muted-foreground">Ihr Account ist nicht mit einer Firma verknüpft. Bitte kontaktieren Sie den Support.</p>
+        <p className="text-folk-ink3">Ihr Account ist nicht mit einer Firma verknüpft. Bitte kontaktieren Sie den Support.</p>
         <Button variant="hero" onClick={handleSignOut}>Abmelden</Button>
       </div>
     </div>
@@ -342,130 +451,156 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
 
   // Not verified
   if (company.is_verified === false) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-4 max-w-md mx-auto p-6">
-        <ShieldAlert className="w-16 h-16 text-warning mx-auto" />
+    <div className="flex min-h-screen items-center justify-center bg-folk-bg">
+      <div className="mx-auto max-w-md space-y-4 p-6 text-center">
+        <ShieldAlert className="mx-auto h-16 w-16 text-folk-coral" />
         <h1 className="text-2xl font-bold">Firma noch nicht verifiziert</h1>
-        <p className="text-muted-foreground">Ihr Firmenkonto ist registriert, aber noch nicht freigeschaltet. Bitte kontaktieren Sie den Support.</p>
+        <p className="text-folk-ink3">Ihr Firmenkonto ist registriert, aber noch nicht freigeschaltet. Bitte kontaktieren Sie den Support.</p>
         <Button variant="hero" onClick={handleSignOut}>Abmelden</Button>
       </div>
     </div>
   );
 
   const hasMultipleCompanies = companies.length > 1;
+  const allItems = [...quickLinks, ...menuGroups.flatMap(g => g.items)];
+  const currentItem = allItems.find(i => i.url === location.pathname);
+  const pageTitle = currentItem?.title || "Übersicht";
+  const pageEmoji = currentItem?.emoji || "🏠";
 
   return (
-    <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen flex w-full">
-        <Sidebar collapsible="icon" className="border-r border-border">
-          <FirmaSidebarHeader company={company} />
-          <SidebarContent>
-            {menuGroups.map((group, groupIndex) => (
-              <SidebarGroup key={group.id} className={`px-2 ${groupIndex === 0 ? 'py-3' : 'py-2'}`}>
-                {groupIndex > 0 && <div className="mx-3 mb-3 h-px bg-gradient-to-r from-transparent via-border to-transparent" />}
-                <SidebarGroupLabel className="px-3 mb-2 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">{group.label}</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu className="space-y-0.5">
-                    {group.items.filter(i => MODULES[i.moduleKey]).map(item => {
-                      const isActive = location.pathname === item.url;
-                      return (
-                        <SidebarMenuItem key={item.title}>
-                          <SidebarMenuButton asChild>
-                            <Link to={item.url} onMouseEnter={() => handlePrefetch(item.url)} className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${isActive ? "bg-gradient-to-r from-secondary/15 to-secondary/5 text-secondary shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"}`}>
-                              {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-secondary to-primary rounded-r-full" />}
-                              <div className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 shrink-0 ${isActive ? 'bg-secondary/20' : 'bg-muted/50 group-hover:bg-muted group-hover:scale-105'}`}>
-                                <item.icon className={`w-4 h-4 transition-colors ${isActive ? 'text-secondary' : 'text-muted-foreground group-hover:text-foreground'}`} />
-                                {'badge' in item && item.badge && <span className="hidden group-data-[collapsible=icon]:flex absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 items-center justify-center rounded-full text-[9px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm">{item.badge}</span>}
-                              </div>
-                              <span className={`flex-1 text-sm font-medium transition-colors ${isActive ? 'text-secondary' : ''}`}>{item.title}</span>
-                              {'badge' in item && item.badge && <span className="group-data-[collapsible=icon]:hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm animate-pulse">{item.badge}</span>}
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            ))}
-          </SidebarContent>
-          <FirmaSidebarFooter onSignOut={handleSignOut} />
-        </Sidebar>
-
-        <main className="flex-1 bg-muted/20 min-w-0">
-          <header className="h-14 border-b border-border bg-card flex items-center px-3 sm:px-4 gap-2 sm:gap-4">
-            <SidebarTrigger className="shrink-0" />
-            <h1 className="text-sm sm:text-lg font-semibold flex-1 min-w-0 truncate">
-              {menuGroups.flatMap(g => g.items).find(i => i.url === location.pathname)?.title || "Dashboard"}
-            </h1>
-            <ThemeToggle className="shrink-0 h-9 w-9" />
-            <NotificationDropdown notifications={notifications} unreadCount={unreadCount} onMarkAsRead={handleMarkAsRead} onMarkAllAsRead={handleMarkAllAsRead} onClearAll={handleClearAll} onNotificationClick={handleNotificationClick} />
-
-            {/* ── Company Switcher ── */}
-            {hasMultipleCompanies ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2 sm:px-3 shrink-0">
-                    <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center"><Building2 className="w-3.5 h-3.5 text-primary" /></div>
-                    <span className="hidden sm:block max-w-[100px] truncate text-sm font-medium">{company.company_name}</span>
-                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider">Firma wechseln</DropdownMenuLabel>
-                  {companies.map(c => (
-                    <DropdownMenuItem key={c.id} onClick={() => switchCompany(c.id)} className="cursor-pointer gap-2">
-                      <Building2 className="w-4 h-4 shrink-0" />
-                      <span className="flex-1 truncate">{c.company_name}</span>
-                      {c.id === company.id && <Check className="w-4 h-4 text-primary" />}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer gap-2 text-destructive focus:text-destructive focus:bg-destructive/10">
-                    <LogOut className="w-4 h-4" />Abmelden
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2 sm:px-3 shrink-0">
-                    <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center"><Building2 className="w-3.5 h-3.5 text-primary" /></div>
-                    <span className="hidden sm:block max-w-[120px] truncate text-sm font-medium">{user.email?.split("@")[0]}</span>
-                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuLabel className="flex flex-col gap-1 pb-2">
-                    <span className="text-sm font-semibold truncate">{user.email}</span>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary">
-                      <Building2 className="w-3 h-3" />
-                      {role === 'owner' ? 'Inhaber' : role === 'admin' ? 'Admin' : 'Mitarbeiter'}
-                    </span>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={toggleSound} className="cursor-pointer gap-2">
-                    {isSoundEnabled ? <Volume2 className="w-4 h-4 text-emerald-600" /> : <VolumeX className="w-4 h-4 text-muted-foreground" />}
-                    <span>{isSoundEnabled ? "Ton aktiv" : "Ton deaktiviert"}</span>
-                    <span className={`ml-auto text-xs px-1.5 py-0.5 rounded-full ${isSoundEnabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>{isSoundEnabled ? "An" : "Aus"}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={togglePushNotifications} disabled={pushPermission === "denied"} className="cursor-pointer gap-2">
-                    {isPushEnabled ? <Bell className="w-4 h-4 text-blue-600" /> : <BellOff className="w-4 h-4 text-muted-foreground" />}
-                    <span className="flex-1">{pushPermission === "denied" ? "Benachr. blockiert" : isPushEnabled ? "Push aktiv" : "Push deaktiviert"}</span>
-                    {pushPermission !== "denied" && <span className={`text-xs px-1.5 py-0.5 rounded-full ${isPushEnabled ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"}`}>{isPushEnabled ? "An" : "Aus"}</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer gap-2 text-destructive focus:text-destructive focus:bg-destructive/10">
-                    <LogOut className="w-4 h-4" />Abmelden
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </header>
-          <div className="p-3 sm:p-4 md:p-6">{children}</div>
-        </main>
+    <div className="flex min-h-screen w-full bg-folk-bg">
+      {/* Sidebar (desktop) */}
+      <div ref={sidebarRef} className="hidden md:block">
+        <FirmaSidebar
+          company={company}
+          user={user}
+          groups={filteredGroups}
+          quickLinks={quickLinks}
+          onSignOut={handleSignOut}
+        />
       </div>
-    </SidebarProvider>
+
+      {/* Sidebar drawer (mobile) */}
+      {mobileSidebarOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-folk-ink/40 md:hidden"
+            onClick={() => setMobileSidebarOpen(false)}
+            aria-hidden
+          />
+          <div className="fixed inset-y-0 left-0 z-50 md:hidden">
+            <FirmaSidebar
+              company={company}
+              user={user}
+              groups={filteredGroups}
+              quickLinks={quickLinks}
+              onSignOut={handleSignOut}
+              onClose={() => setMobileSidebarOpen(false)}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Main column */}
+      <main className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 items-center gap-2 border-b border-folk-line bg-folk-bg px-3 sm:px-7">
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-folk-ink2 hover:bg-folk-bg-warm md:hidden"
+            aria-label="Menü öffnen"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+
+          {/* Breadcrumb + title */}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="hidden truncate text-[12px] text-folk-ink3 sm:inline">
+              {company.company_name} <span className="mx-1.5 text-folk-ink4">/</span>
+            </span>
+            <span className="text-base leading-none sm:text-lg">{pageEmoji}</span>
+            <h1 className="truncate text-[15px] font-semibold tracking-tight text-folk-ink sm:text-base">
+              {pageTitle}
+            </h1>
+          </div>
+
+          <NotificationDropdown
+            notifications={notifications}
+            unreadCount={unreadCount}
+            onMarkAsRead={handleMarkAsRead}
+            onMarkAllAsRead={handleMarkAllAsRead}
+            onClearAll={handleClearAll}
+            onNotificationClick={handleNotificationClick}
+          />
+
+          {/* Company switcher / profile */}
+          {hasMultipleCompanies ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1.5 border-folk-line bg-folk-card px-2 text-folk-ink2 hover:bg-folk-bg-warm sm:px-3">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-folk-coral-bg">
+                    <Building2 className="h-3.5 w-3.5 text-folk-coral" />
+                  </div>
+                  <span className="hidden max-w-[100px] truncate text-sm font-medium sm:block">{company.company_name}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-folk-ink3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-folk-ink3">Firma wechseln</DropdownMenuLabel>
+                {companies.map(c => (
+                  <DropdownMenuItem key={c.id} onClick={() => switchCompany(c.id)} className="cursor-pointer gap-2">
+                    <Building2 className="h-4 w-4 shrink-0" />
+                    <span className="flex-1 truncate">{c.company_name}</span>
+                    {c.id === company.id && <Check className="h-4 w-4 text-folk-coral" />}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive">
+                  <LogOut className="h-4 w-4" />Abmelden
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1.5 border-folk-line bg-folk-card px-2 text-folk-ink2 hover:bg-folk-bg-warm sm:px-3">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-folk-coral-bg">
+                    <Building2 className="h-3.5 w-3.5 text-folk-coral" />
+                  </div>
+                  <span className="hidden max-w-[120px] truncate text-sm font-medium sm:block">{user.email?.split("@")[0]}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-folk-ink3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="flex flex-col gap-1 pb-2">
+                  <span className="truncate text-sm font-semibold">{user.email}</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-folk-coral">
+                    <Building2 className="h-3 w-3" />
+                    {role === 'owner' ? 'Inhaber' : role === 'admin' ? 'Admin' : 'Mitarbeiter'}
+                  </span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={toggleSound} className="cursor-pointer gap-2">
+                  {isSoundEnabled ? <Volume2 className="h-4 w-4 text-folk-mint" /> : <VolumeX className="h-4 w-4 text-folk-ink3" />}
+                  <span>{isSoundEnabled ? "Ton aktiv" : "Ton deaktiviert"}</span>
+                  <span className={`ml-auto rounded-full px-1.5 py-0.5 text-xs ${isSoundEnabled ? "bg-folk-mint-bg text-folk-mint" : "bg-folk-bg-warm text-folk-ink3"}`}>{isSoundEnabled ? "An" : "Aus"}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={togglePushNotifications} disabled={pushPermission === "denied"} className="cursor-pointer gap-2">
+                  {isPushEnabled ? <Bell className="h-4 w-4 text-folk-sky" /> : <BellOff className="h-4 w-4 text-folk-ink3" />}
+                  <span className="flex-1">{pushPermission === "denied" ? "Benachr. blockiert" : isPushEnabled ? "Push aktiv" : "Push deaktiviert"}</span>
+                  {pushPermission !== "denied" && <span className={`rounded-full px-1.5 py-0.5 text-xs ${isPushEnabled ? "bg-folk-sky-bg text-folk-sky" : "bg-folk-bg-warm text-folk-ink3"}`}>{isPushEnabled ? "An" : "Aus"}</span>}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive">
+                  <LogOut className="h-4 w-4" />Abmelden
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </header>
+
+        <div className="flex-1 p-3 sm:p-4 md:p-6">{children}</div>
+      </main>
+    </div>
   );
 };
 

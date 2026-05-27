@@ -14,19 +14,23 @@ COPY . .
 
 # Build arguments for environment variables
 ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_SUPABASE_PUBLISHABLE_KEY
 ARG VITE_SUPABASE_PROJECT_ID
 # Allow alternate names Coolify might use
 ARG SUPABASE_URL
 ARG SUPABASE_PUBLISHABLE_KEY
+ARG SUPABASE_ANON_KEY
 
 # Set environment variables for build (available to all RUN steps below).
 # Both VITE_SUPABASE_* and SUPABASE_* names are set so the prerender script
 # can find credentials regardless of how Coolify exposes them.
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
     VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
     VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID \
     SUPABASE_URL=$SUPABASE_URL \
+    SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY \
     SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
 
 # Step 1: Build the Vite bundle (sitemap + JS/CSS assets)

@@ -28,7 +28,6 @@ import {
   Server,
   MapPin,
   Home,
-  Banknote,
   Pencil,
   RefreshCw,
   MoreHorizontal,
@@ -127,9 +126,6 @@ interface OfferStats {
   acceptedValue: number;
 }
 
-// =============================================================================
-// PAGINATION BAR
-// =============================================================================
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 type PageSizeOption = typeof PAGE_SIZE_OPTIONS[number];
 
@@ -158,17 +154,16 @@ const PaginationBar = ({ total, page, pageSize, onPageChange, onPageSizeChange }
   if (totalPages > 1) addPage(totalPages);
 
   return (
-    <>
-    <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-      <div className="flex items-center gap-3 text-sm text-slate-500">
-        <span>{from}–{to} von {total}</span>
+    <div className="mt-5 flex flex-col items-center justify-between gap-3 border-t border-folk-line pt-4 sm:flex-row">
+      <div className="flex items-center gap-3 text-[12.5px] text-folk-ink3">
+        <span><span className="font-mono">{from}–{to}</span> von <span className="font-mono">{total}</span></span>
         <Select value={String(pageSize)} onValueChange={(v) => { onPageSizeChange(Number(v) as PageSizeOption); onPageChange(1); }}>
-          <SelectTrigger className="h-8 w-[100px] text-xs">
+          <SelectTrigger className="h-8 w-[110px] rounded-md border-folk-line bg-folk-card text-[12px] text-folk-ink2">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {PAGE_SIZE_OPTIONS.map((s) => (
-              <SelectItem key={s} value={String(s)} className="text-xs">{s} pro Seite</SelectItem>
+              <SelectItem key={s} value={String(s)} className="text-[12px]">{s} pro Seite</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -176,19 +171,23 @@ const PaginationBar = ({ total, page, pageSize, onPageChange, onPageSizeChange }
       {totalPages > 1 && (
         <div className="flex items-center gap-1">
           <button
-            className="h-8 w-8 flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-folk-line bg-folk-card text-folk-ink3 transition-colors hover:bg-folk-bg-warm disabled:cursor-not-allowed disabled:opacity-40"
             onClick={() => onPageChange(page - 1)}
             disabled={page === 1}
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="h-4 w-4" />
           </button>
           {pages.map((p, i) =>
             p === "..." ? (
-              <span key={`e-${i}`} className="px-1 text-slate-400 text-sm">…</span>
+              <span key={`e-${i}`} className="px-1 text-[12.5px] text-folk-ink4">…</span>
             ) : (
               <button
                 key={p}
-                className={`h-8 w-8 flex items-center justify-center rounded-md text-xs font-medium transition-colors border ${p === page ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-md border font-mono text-[12px] transition-colors ${
+                  p === page
+                    ? "border-folk-ink bg-folk-ink text-white"
+                    : "border-folk-line bg-folk-card text-folk-ink2 hover:bg-folk-bg-warm"
+                }`}
                 onClick={() => onPageChange(p as number)}
               >
                 {p}
@@ -196,20 +195,31 @@ const PaginationBar = ({ total, page, pageSize, onPageChange, onPageSizeChange }
             )
           )}
           <button
-            className="h-8 w-8 flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-folk-line bg-folk-card text-folk-ink3 transition-colors hover:bg-folk-bg-warm disabled:cursor-not-allowed disabled:opacity-40"
             onClick={() => onPageChange(page + 1)}
             disabled={page === totalPages}
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       )}
     </div>
-    </>
   );
 };
 
-// =============================================================================
+// Folk-style status meta
+const STATUS_META: Record<string, { label: string; emoji: string; color: string; bg: string }> = {
+  draft:    { label: "Entwurf",    emoji: "📝", color: "text-folk-ink3",   bg: "bg-folk-bg-warm" },
+  sent:     { label: "Gesendet",   emoji: "📤", color: "text-folk-sky",    bg: "bg-folk-sky-bg" },
+  viewed:   { label: "Angesehen",  emoji: "👀", color: "text-folk-lemon",  bg: "bg-folk-lemon-bg" },
+  accepted: { label: "Angenommen", emoji: "✅", color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
+  rejected: { label: "Abgelehnt",  emoji: "❌", color: "text-folk-coral",  bg: "bg-folk-coral-bg" },
+};
+
+function getStatusMeta(status: string) {
+  return STATUS_META[status] ?? { label: status, emoji: "📄", color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
+}
+
 const FirmaOfferten = () => {
   const { user } = useAuth();
   const { companyId } = useCachedCompany();
@@ -245,10 +255,8 @@ const FirmaOfferten = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Filter/arama değişince sayfayı sıfırla
   useEffect(() => { setCurrentPage(1); }, [activeFilter, pageSize, searchQuery, typeFilter]);
 
-  /** Build frontend-generated attachments for email resend. */
   const buildEmailAttachmentsForOffer = async (
     offerId: string
   ): Promise<{ offerPdfBase64: string | null; agbPdfBase64: string | null; checklistPdfBase64: string | null }> => {
@@ -273,7 +281,6 @@ const FirmaOfferten = () => {
         return;
       }
 
-      // Generate PDFs on frontend (same render path as download)
       const { offerPdfBase64, agbPdfBase64, checklistPdfBase64 } = await buildEmailAttachmentsForOffer(offerId);
 
       const { data, error } = await supabase.functions.invoke("send-offer", {
@@ -339,10 +346,7 @@ const FirmaOfferten = () => {
   };
 
   const handleAddToCalendar = (offer: Offer, e?: React.MouseEvent) => {
-    if (e) {
-      e.stopPropagation();
-    }
-
+    if (e) e.stopPropagation();
     if (!offer.lead_id) {
       toast({
         title: "Lead fehlt",
@@ -351,7 +355,6 @@ const FirmaOfferten = () => {
       });
       return;
     }
-
     navigate(`/firma/kalender?newAppointment=true&leadId=${offer.lead_id}`);
   };
 
@@ -425,8 +428,6 @@ const FirmaOfferten = () => {
         const sentOffers = (offersData || []).filter((o: Offer) => o.sent_at);
         if (sentOffers.length > 0) {
           const offerIds = sentOffers.map((o: Offer) => o.id);
-          // Fetch by company+type only; filter offer_id client-side to avoid
-          // JSONB .in() compatibility issues across PostgREST versions.
           const { data: emailLogsData } = await supabase
             .from("email_logs")
             .select("metadata")
@@ -486,89 +487,76 @@ const FirmaOfferten = () => {
     }).format(amount);
   };
 
-  const getStatusConfig = (status: string) => {
+  // Status icon (mapped to a Lucide icon for desktop table reusability)
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case "draft":
-        return { label: "Entwurf", icon: FileText, color: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200" };
-      case "sent":
-        return { label: "Gesendet", icon: Send, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" };
-      case "viewed":
-        return { label: "Angesehen", icon: Eye, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" };
-      case "accepted":
-        return { label: "Angenommen", icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" };
-      case "rejected":
-        return { label: "Abgelehnt", icon: XCircle, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200" };
-      default:
-        return { label: status, icon: FileText, color: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200" };
+      case "draft": return FileText;
+      case "sent": return Send;
+      case "viewed": return Eye;
+      case "accepted": return CheckCircle;
+      case "rejected": return XCircle;
+      default: return FileText;
     }
   };
 
   const renderMobileOfferCard = (offer: Offer) => {
-    const statusConfig = getStatusConfig(offer.status);
-    const StatusIcon = statusConfig.icon;
+    const status = getStatusMeta(offer.status);
     const leadInfo = leadInfoMap[offer.lead_id];
 
     return (
-      <div
+      <article
         key={offer.id}
-        className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:shadow-lg transition-all duration-300"
+        className="overflow-hidden rounded-xl border border-folk-line bg-folk-card transition-colors hover:border-folk-ink5"
       >
-        {/* Status bar */}
-        <div className={`absolute top-0 left-0 w-full h-1 ${offer.status === 'accepted' ? 'bg-gradient-to-r from-emerald-500 to-green-500' :
-            offer.status === 'rejected' ? 'bg-gradient-to-r from-rose-500 to-red-500' :
-              offer.status === 'sent' || offer.status === 'viewed' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
-                'bg-slate-300'
-          }`} />
-
         <div className="p-4">
           {/* Header */}
-          <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="mb-2 flex items-start justify-between gap-2">
             <div
-              className="flex-1 min-w-0 cursor-pointer"
+              className="min-w-0 flex-1 cursor-pointer"
               onClick={() => navigate(`/firma/offerten/${offer.id}`)}
             >
-              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                <span className="text-[10px] font-mono text-slate-400 shrink-0">
+              <div className="mb-0.5 flex flex-wrap items-center gap-1.5">
+                <span className="shrink-0 font-mono text-[10.5px] text-folk-ink4">
                   #{offer.offer_number ?? offer.id.slice(0, 6).toUpperCase()}
                 </span>
-                <p className="font-bold text-slate-900 dark:text-white text-sm leading-tight line-clamp-1 min-w-0">
+                <p className="line-clamp-1 min-w-0 text-[13.5px] font-semibold leading-tight tracking-tight text-folk-ink">
                   {offer.title}
                 </p>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-[12px] text-folk-ink3">
                 {offer.customer_first_name} {offer.customer_last_name}
               </p>
               {leadInfo && (
-                <div className="flex items-center gap-1 mt-1 text-[11px] text-slate-400">
-                  <MapPin className="w-3 h-3 shrink-0" />
+                <div className="mt-1 flex items-center gap-1 text-[11px] text-folk-ink4">
+                  <MapPin className="h-3 w-3 shrink-0" />
                   <span className="truncate">{leadInfo.from_city}{leadInfo.to_city ? ` → ${leadInfo.to_city}` : ''}</span>
                 </div>
               )}
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Mehr Optionen">
-                  <MoreHorizontal className="w-4 h-4" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-md text-folk-ink3 hover:bg-folk-bg-warm" aria-label="Mehr Optionen">
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={() => navigate(`/firma/offerten/${offer.id}`)}>
-                  <Eye className="w-4 h-4 mr-2" />
+                  <Eye className="mr-2 h-4 w-4" />
                   Anzeigen
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate(`/firma/offerte-bearbeiten/${offer.id}`)}>
-                  <Pencil className="w-4 h-4 mr-2" />
+                  <Pencil className="mr-2 h-4 w-4" />
                   Bearbeiten
                 </DropdownMenuItem>
                 {offer.status === "accepted" && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => handleAddToCalendar(offer)}>
-                      <CalendarPlus className="w-4 h-4 mr-2 text-emerald-600" />
+                      <CalendarPlus className="mr-2 h-4 w-4 text-folk-mint" />
                       Zum Kalender hinzufügen
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setAuftragOffer(offer)}>
-                      <FileCheck className="w-4 h-4 mr-2 text-blue-600" />
+                      <FileCheck className="mr-2 h-4 w-4 text-folk-sky" />
                       Auftrag erstellen
                     </DropdownMenuItem>
                   </>
@@ -579,9 +567,9 @@ const FirmaOfferten = () => {
                   disabled={isResending === offer.id}
                 >
                   {isResending === offer.id ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <RefreshCw className="w-4 h-4 mr-2" />
+                    <RefreshCw className="mr-2 h-4 w-4" />
                   )}
                   Erneut senden
                 </DropdownMenuItem>
@@ -589,31 +577,31 @@ const FirmaOfferten = () => {
             </DropdownMenu>
           </div>
 
-          {/* Badges row */}
-          <div className="flex items-center gap-1.5 flex-wrap mb-3">
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold ${statusConfig.bg} ${statusConfig.color} ${statusConfig.border} border`}>
-              <StatusIcon className="w-3 h-3" />
-              {statusConfig.label}
+          {/* Badges */}
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${status.bg} ${status.color}`}>
+              <span>{status.emoji}</span>
+              {status.label}
             </span>
             {offer.offerte_type === 'blind' && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300">
+              <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[11px] font-semibold text-folk-lemon">
                 Blind
               </span>
             )}
             {offer.price_model === 'stundenansatz' && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+              <span className="inline-flex items-center rounded-md bg-folk-sky-bg px-2 py-0.5 text-[11px] font-semibold text-folk-sky">
                 Stundenansatz
               </span>
             )}
             {offer.price_model === 'kostendach' && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+              <span className="inline-flex items-center rounded-md bg-folk-mint-bg px-2 py-0.5 text-[11px] font-semibold text-folk-mint">
                 {offer.kostendach_max !== null && offer.kostendach_max !== undefined
                   ? `Kostendach CHF ${Number(offer.kostendach_max).toLocaleString('de-CH')}`
                   : 'Kostendach'}
               </span>
             )}
             {(!offer.price_model || offer.price_model === 'pauschal') && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+              <span className="inline-flex items-center rounded-md bg-folk-bg-warm px-2 py-0.5 text-[11px] font-medium text-folk-ink3">
                 Pauschal
               </span>
             )}
@@ -621,446 +609,443 @@ const FirmaOfferten = () => {
 
           {/* Amount + Date */}
           <div
-            className="flex items-center justify-between mb-3 pb-3 border-b border-slate-100 dark:border-slate-800 cursor-pointer"
+            className="mb-3 flex cursor-pointer items-center justify-between border-b border-folk-line pb-3"
             onClick={() => navigate(`/firma/offerten/${offer.id}`)}
           >
-            <span className="text-xl font-bold text-slate-900 dark:text-white">
+            <span className="font-sans text-xl font-bold tracking-tight text-folk-ink">
               {formatCurrency(Number(offer.total))}
             </span>
-            <span className="text-xs text-slate-400">{formatDate(offer.created_at)}</span>
+            <span className="font-mono text-[11px] text-folk-ink4">{formatDate(offer.created_at)}</span>
           </div>
 
           {/* Info Row */}
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center justify-between text-[11.5px]">
             <div className="flex items-center gap-3">
               {offer.sent_at && (
                 <div className="flex items-center gap-1.5">
                   {emailLogs[offer.id]?.is_company_email ? (
-                    <Building2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <Building2 className="h-3.5 w-3.5 text-folk-mint" />
                   ) : (
-                    <Server className="w-3.5 h-3.5 text-blue-500" />
+                    <Server className="h-3.5 w-3.5 text-folk-sky" />
                   )}
-                  <span className="text-slate-500">
+                  <span className="text-folk-ink3">
                     {emailLogs[offer.id]?.is_company_email ? "Firma" : "System"}
                   </span>
                 </div>
               )}
               {offer.checklist_url && (
                 <div className="flex items-center gap-1.5">
-                  <ClipboardList className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="text-slate-500">Checkliste</span>
+                  <ClipboardList className="h-3.5 w-3.5 text-folk-mint" />
+                  <span className="text-folk-ink3">Checkliste</span>
                 </div>
               )}
             </div>
             {offer.valid_until && (
-              <span className="text-slate-400">bis {formatDate(offer.valid_until)}</span>
+              <span className="font-mono text-folk-ink4">bis {formatDate(offer.valid_until)}</span>
             )}
           </div>
         </div>
-      </div>
+      </article>
     );
   };
+
+  // KPI tiles config — Folk style: emoji + label + value, single coral highlight ring on active filter
+  const kpiTiles = [
+    { key: null,           emoji: "📄", label: "Gesamt",     value: stats.total,                       isValue: false },
+    { key: "ausstehend",   emoji: "⏳", label: "Ausstehend", value: stats.sent + stats.viewed,         isValue: false },
+    { key: "angenommen",   emoji: "✅", label: "Angenommen", value: stats.accepted,                    isValue: false },
+    { key: "angenommen_w", emoji: "💰", label: "Wert",       value: formatCurrency(stats.acceptedValue), isValue: true },
+  ];
 
   return (
     <>
       <Helmet>
-        <title>Offerten | Firma</title>
+        <title>Offerten · CRM</title>
       </Helmet>
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 px-4 py-3 md:px-6 md:py-4 text-white">
-            <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,black)]" />
-            <div className="absolute -top-12 -right-12 w-36 h-36 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="relative z-10 flex items-center gap-3">
-              <div className="w-9 h-9 shrink-0 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <FileText className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-base md:text-xl font-bold leading-tight">Offerten</h1>
-                <p className="text-white/70 text-[11px] hidden sm:block">Verwalten Sie Ihre Angebote</p>
-              </div>
-              <Button
-                onClick={() => navigate("/firma/anfragen")}
-                size="sm"
-                className="shrink-0 bg-white text-indigo-600 hover:bg-white/90 shadow-md h-8 px-3 text-xs"
-              >
-                <Plus className="w-3.5 h-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Neue Offerte</span>
-              </Button>
+
+      <div className="space-y-5">
+        {/* Folk-style page header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+          <span className="text-4xl leading-none">📄</span>
+          <div className="flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Offerten</h1>
+              <span className="text-[13px] text-folk-ink3">
+                <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.sent + stats.viewed}</span> ausstehend · Wert <span className="font-mono">{formatCurrency(stats.acceptedValue)}</span>
+              </span>
             </div>
+            <p className="mt-1 text-[13px] text-folk-ink2">
+              Alle versandten und gespeicherten Angebote — Status, Werte und Versandkanal auf einen Blick.
+            </p>
           </div>
+          <Button
+            onClick={() => navigate("/firma/anfragen")}
+            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Neue Offerte
+          </Button>
+        </div>
 
-          {/* Statistics */}
-          {!isLoading && offers.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-              {[
-                { label: "Gesamt", value: stats.total, icon: FileText, gradient: "from-slate-100 to-slate-50", iconBg: "bg-slate-200", iconColor: "text-slate-600", filterKey: null },
-                { label: "Ausstehend", value: stats.sent + stats.viewed, icon: Clock, gradient: "from-amber-50 to-orange-50", iconBg: "bg-amber-100", iconColor: "text-amber-600", filterKey: "ausstehend" },
-                { label: "Angenommen", value: stats.accepted, icon: CheckCircle, gradient: "from-emerald-50 to-green-50", iconBg: "bg-emerald-100", iconColor: "text-emerald-600", filterKey: "angenommen" },
-                { label: "Wert", value: formatCurrency(stats.acceptedValue), icon: Banknote, gradient: "from-indigo-50 to-violet-50", iconBg: "bg-indigo-100", iconColor: "text-indigo-600", isValue: true, filterKey: "angenommen" },
-              ].map((stat, i) => (
-                <div
-                  key={i}
-                  onClick={() => setActiveFilter(stat.filterKey)}
-                  className={`relative overflow-hidden rounded-xl p-3 md:p-4 bg-gradient-to-br ${stat.gradient} border border-slate-200/50 dark:border-slate-800 cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${activeFilter === stat.filterKey ? 'ring-2 ring-indigo-500 ring-offset-2' : ''
-                    }`}
+        {/* KPI grid */}
+        {!isLoading && offers.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            {kpiTiles.map((tile) => {
+              const filterKey = tile.key === "angenommen_w" ? "angenommen" : tile.key;
+              const isActive = activeFilter === filterKey;
+              return (
+                <button
+                  key={tile.label}
+                  onClick={() => setActiveFilter(filterKey)}
+                  className={`group relative overflow-hidden rounded-xl border bg-folk-card p-4 text-left transition-all md:p-5 ${
+                    isActive ? "border-folk-coral/30 ring-1 ring-folk-coral/20" : "border-folk-line"
+                  } hover:border-folk-ink5`}
                 >
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl ${stat.iconBg} flex items-center justify-center shrink-0`}>
-                      <stat.icon className={`w-4 h-4 md:w-5 md:h-5 ${stat.iconColor}`} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className={`${stat.isValue ? 'text-sm md:text-lg' : 'text-xl md:text-2xl'} font-bold text-slate-900 dark:text-white leading-tight truncate`}>
-                        {stat.value}
-                      </p>
-                      <p className="text-[10px] md:text-xs text-slate-500 truncate">{stat.label}</p>
-                    </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                    <span className="text-xl leading-none">{tile.emoji}</span>
                   </div>
-                </div>
-              ))}
+                  <div className={`mt-3 font-sans font-bold tracking-tight text-folk-ink ${tile.isValue ? "text-lg md:text-xl" : "text-3xl"}`}>
+                    {tile.value}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Offers list container */}
+        <section className="rounded-xl border border-folk-line bg-folk-card">
+          <div className="p-4 md:p-6">
+            {/* List header */}
+            <div className="mb-3 flex items-center gap-3">
+              <span className="text-2xl leading-none">📋</span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">
+                  {activeFilter === null ? "Alle Offerten" : activeFilter === "ausstehend" ? "Ausstehende" : "Angenommene"}
+                </h2>
+                <p className="text-[11.5px] text-folk-ink3">
+                  {activeFilter === null
+                    ? <><span className="font-mono">{offers.length}</span> insgesamt</>
+                    : activeFilter === "ausstehend"
+                      ? <><span className="font-mono">{offers.filter((o) => o.status === "sent" || o.status === "viewed").length}</span> ausstehend</>
+                      : <><span className="font-mono">{offers.filter((o) => o.status === "accepted").length}</span> angenommen</>}
+                </p>
+              </div>
+              {activeFilter !== null && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveFilter(null)}
+                  className="h-8 shrink-0 rounded-lg border-folk-line bg-folk-card px-2.5 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+                >
+                  <X className="mr-1 h-3 w-3" />
+                  Reset
+                </Button>
+              )}
             </div>
-          )}
 
-          {/* Offers List */}
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
-
-            <div className="p-4 md:p-6">
-              {/* List header + filters */}
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
-                    {activeFilter === null
-                      ? "Alle Offerten"
-                      : activeFilter === "ausstehend"
-                        ? "Ausstehende"
-                        : "Angenommene"}
-                  </h2>
-                  <p className="text-[11px] text-slate-500">
-                    {activeFilter === null
-                      ? `${offers.length} insgesamt`
-                      : activeFilter === "ausstehend"
-                        ? `${offers.filter((o) => o.status === "sent" || o.status === "viewed").length} ausstehend`
-                        : `${offers.filter((o) => o.status === "accepted").length} angenommen`}
-                  </p>
-                </div>
-                {activeFilter !== null && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setActiveFilter(null)}
-                    className="shrink-0 h-8 text-xs px-2"
+            {/* Search + type filter */}
+            <div className="mb-4 flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-folk-ink3" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Nr., Name oder Titel …"
+                  className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 pr-7 text-[13px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-folk-ink4 hover:text-folk-ink2"
+                    aria-label="Suche löschen"
                   >
-                    <X className="w-3 h-3 mr-1" />
-                    Reset
-                  </Button>
+                    <X className="h-3 w-3" />
+                  </button>
                 )}
               </div>
 
-              {/* Search + type filter row */}
-              <div className="flex items-center gap-2 mb-5">
-                {/* Search bar */}
-                <div className="relative flex-1 min-w-0">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Nr., Name oder Titel..."
-                    className="pl-8 pr-7 h-9 text-sm"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      aria-label="Suche löschen"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as 'all' | 'normal' | 'blind')}>
+                <SelectTrigger className="h-9 w-28 shrink-0 rounded-lg border-folk-line bg-folk-card text-[12.5px] text-folk-ink2 sm:w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Arten</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="blind">Blind</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-                {/* Type filter */}
-                <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as 'all' | 'normal' | 'blind')}>
-                  <SelectTrigger className="h-9 w-28 sm:w-36 text-xs sm:text-sm shrink-0">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle Arten</SelectItem>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="blind">Blind</SelectItem>
-                  </SelectContent>
-                </Select>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <Loader2 className="mb-3 h-7 w-7 animate-spin text-folk-coral" />
+                <p className="text-[13px] text-folk-ink3">Lade Offerten …</p>
               </div>
+            ) : offers.length > 0 ? (
+              <>
+                {(() => {
+                  const q = searchQuery.trim().toLowerCase();
+                  const statusFiltered = activeFilter === null
+                    ? offers
+                    : activeFilter === "ausstehend"
+                      ? offers.filter((o) => o.status === "sent" || o.status === "viewed")
+                      : activeFilter === "angenommen"
+                        ? offers.filter((o) => o.status === "accepted")
+                        : offers;
 
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-3" />
-                  <p className="text-sm text-slate-500">Lade Offerten...</p>
-                </div>
-              ) : offers.length > 0 ? (
-                <>
-                  {(() => {
-                    const q = searchQuery.trim().toLowerCase();
-                    const statusFiltered = activeFilter === null
-                      ? offers
-                      : activeFilter === "ausstehend"
-                        ? offers.filter((o) => o.status === "sent" || o.status === "viewed")
-                        : activeFilter === "angenommen"
-                          ? offers.filter((o) => o.status === "accepted")
-                          : offers;
+                  const typeFiltered = typeFilter === 'all'
+                    ? statusFiltered
+                    : statusFiltered.filter((o) => (o.offerte_type ?? 'normal') === typeFilter);
 
-                    const typeFiltered = typeFilter === 'all'
-                      ? statusFiltered
-                      : statusFiltered.filter((o) => (o.offerte_type ?? 'normal') === typeFilter);
+                  const filteredOffers = q
+                    ? typeFiltered.filter((o) => {
+                        const fullName = `${o.customer_first_name} ${o.customer_last_name}`.toLowerCase();
+                        const nr = o.offer_number ? String(o.offer_number) : o.id.slice(0, 8).toUpperCase().toLowerCase();
+                        return (
+                          nr.includes(q) ||
+                          fullName.includes(q) ||
+                          o.title.toLowerCase().includes(q) ||
+                          o.customer_email.toLowerCase().includes(q)
+                        );
+                      })
+                    : typeFiltered;
 
-                    const filteredOffers = q
-                      ? typeFiltered.filter((o) => {
-                          const fullName = `${o.customer_first_name} ${o.customer_last_name}`.toLowerCase();
-                          const nr = o.offer_number ? String(o.offer_number) : o.id.slice(0, 8).toUpperCase().toLowerCase();
-                          return (
-                            nr.includes(q) ||
-                            fullName.includes(q) ||
-                            o.title.toLowerCase().includes(q) ||
-                            o.customer_email.toLowerCase().includes(q)
-                          );
-                        })
-                      : typeFiltered;
+                  const pagedOffers = filteredOffers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-                    const pagedOffers = filteredOffers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
-                    if (filteredOffers.length === 0) {
-                      return (
-                        <div className="text-center py-12">
-                          <Search className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-                          <p className="text-slate-500 font-medium">Keine Offerte gefunden</p>
-                          <p className="text-slate-400 text-sm mt-1">
-                            Kein Ergebnis für „{searchQuery}"
-                          </p>
-                          <Button variant="outline" size="sm" className="mt-3" onClick={() => setSearchQuery("")}>
-                            Suche zurücksetzen
-                          </Button>
-                        </div>
-                      );
-                    }
-
+                  if (filteredOffers.length === 0) {
                     return (
-                      <>
-                        {/* Mobile view */}
-                        <div className="lg:hidden space-y-3">
-                          {pagedOffers.map(renderMobileOfferCard)}
-                        </div>
+                      <div className="py-12 text-center">
+                        <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">🔍</div>
+                        <p className="font-semibold text-folk-ink">Keine Offerte gefunden</p>
+                        <p className="mt-1 text-[12px] text-folk-ink3">
+                          Kein Ergebnis für „{searchQuery}"
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+                          onClick={() => setSearchQuery("")}
+                        >
+                          Suche zurücksetzen
+                        </Button>
+                      </div>
+                    );
+                  }
 
-                        {/* Desktop view */}
-                        <div className="hidden lg:block overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="border-slate-100 dark:border-slate-800">
-                                <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 w-20">Nr.</TableHead>
-                                <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Datum</TableHead>
-                                <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Titel</TableHead>
-                                <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Kunde</TableHead>
-                                <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Details</TableHead>
-                                <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Betrag</TableHead>
-                                <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status</TableHead>
-                                <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">E-Mail</TableHead>
-                                <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Gültig bis</TableHead>
-                                <TableHead className="text-right"></TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {pagedOffers.map((offer) => {
-                                const leadInfo = leadInfoMap[offer.lead_id];
-                                const statusConfig = getStatusConfig(offer.status);
-                                const StatusIcon = statusConfig.icon;
+                  return (
+                    <>
+                      {/* Mobile view */}
+                      <div className="space-y-3 lg:hidden">
+                        {pagedOffers.map(renderMobileOfferCard)}
+                      </div>
 
-                                return (
-                                  <TableRow
-                                    key={offer.id}
-                                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 border-slate-100 dark:border-slate-800 transition-colors"
-                                    onClick={() => navigate(`/firma/offerten/${offer.id}`)}
-                                  >
-                                    <TableCell className="text-sm font-mono font-medium text-slate-500 dark:text-slate-400">
-                                      {offer.offer_number ?? offer.id.slice(0, 6).toUpperCase()}
-                                    </TableCell>
-                                    <TableCell className="text-sm text-slate-600 dark:text-slate-400">
-                                      {formatDate(offer.created_at)}
-                                    </TableCell>
-                                    <TableCell className="font-medium max-w-[180px]">
-                                      <div>
-                                        <span className="truncate block text-slate-900 dark:text-white">{offer.title}</span>
-                                        {leadInfo && (
-                                          <span className="inline-flex items-center px-1.5 py-0.5 mt-1 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                                            {getServiceLabel(leadInfo.service_type)}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-sm text-slate-700 dark:text-slate-300">
-                                      {offer.customer_first_name} {offer.customer_last_name}
-                                    </TableCell>
-                                    <TableCell className="text-sm">
+                      {/* Desktop view — Folk table */}
+                      <div className="hidden overflow-x-auto lg:block">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-folk-line hover:bg-transparent">
+                              <TableHead className="w-20 text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Nr.</TableHead>
+                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Datum</TableHead>
+                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Titel</TableHead>
+                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Kunde</TableHead>
+                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Details</TableHead>
+                              <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Betrag</TableHead>
+                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Status</TableHead>
+                              <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">E-Mail</TableHead>
+                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Gültig bis</TableHead>
+                              <TableHead className="text-right"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {pagedOffers.map((offer) => {
+                              const leadInfo = leadInfoMap[offer.lead_id];
+                              const status = getStatusMeta(offer.status);
+                              const StatusIcon = getStatusIcon(offer.status);
+
+                              return (
+                                <TableRow
+                                  key={offer.id}
+                                  className="cursor-pointer border-folk-line-soft transition-colors hover:bg-folk-bg-warm"
+                                  onClick={() => navigate(`/firma/offerten/${offer.id}`)}
+                                >
+                                  <TableCell className="font-mono text-[12.5px] font-medium text-folk-ink3">
+                                    {offer.offer_number ?? offer.id.slice(0, 6).toUpperCase()}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-[12.5px] text-folk-ink2">
+                                    {formatDate(offer.created_at)}
+                                  </TableCell>
+                                  <TableCell className="max-w-[180px] text-[13px] font-medium">
+                                    <div>
+                                      <span className="block truncate text-folk-ink">{offer.title}</span>
                                       {leadInfo && (
-                                        <div className="space-y-0.5">
-                                          <div className="flex items-center gap-1 text-slate-500">
-                                            <MapPin className="w-3 h-3" />
-                                            <span>{leadInfo.from_city}</span>
-                                            {leadInfo.to_city && (
-                                              <>
-                                                <ArrowRight className="w-3 h-3" />
-                                                <span>{leadInfo.to_city}</span>
-                                              </>
-                                            )}
-                                          </div>
-                                          {leadInfo.from_rooms && (
-                                            <div className="flex items-center gap-1 text-slate-400 text-xs">
-                                              <Home className="w-3 h-3" />
-                                              <span>{leadInfo.from_rooms} Zi.</span>
-                                              {leadInfo.from_living_space_m2 && (
-                                                <span>• {leadInfo.from_living_space_m2} m²</span>
-                                              )}
-                                            </div>
+                                        <span className="mt-1 inline-flex items-center rounded bg-folk-bg-warm px-1.5 py-0.5 text-[10.5px] font-medium text-folk-ink3">
+                                          {getServiceLabel(leadInfo.service_type)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-[13px] text-folk-ink2">
+                                    {offer.customer_first_name} {offer.customer_last_name}
+                                  </TableCell>
+                                  <TableCell className="text-[12.5px]">
+                                    {leadInfo && (
+                                      <div className="space-y-0.5">
+                                        <div className="flex items-center gap-1 text-folk-ink3">
+                                          <MapPin className="h-3 w-3" />
+                                          <span>{leadInfo.from_city}</span>
+                                          {leadInfo.to_city && (
+                                            <>
+                                              <ArrowRight className="h-3 w-3" />
+                                              <span>{leadInfo.to_city}</span>
+                                            </>
                                           )}
                                         </div>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-right font-bold text-slate-900 dark:text-white">
-                                      {formatCurrency(Number(offer.total))}
-                                    </TableCell>
-                                    <TableCell>
-                                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold ${statusConfig.bg} ${statusConfig.color} ${statusConfig.border} border`}>
-                                        <StatusIcon className="w-3 h-3" />
-                                        {statusConfig.label}
-                                      </span>
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                      {offer.sent_at ? (
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <div className="flex justify-center">
-                                                {emailLogs[offer.id]?.is_company_email ? (
-                                                  <Building2 className="w-4 h-4 text-emerald-500" />
-                                                ) : (
-                                                  <Server className="w-4 h-4 text-blue-500" />
-                                                )}
-                                              </div>
-                                            </TooltipTrigger>
-                                            <TooltipContent className="bg-popover border z-50">
-                                              <p>
-                                                {emailLogs[offer.id]?.is_company_email
-                                                  ? `Firmen-E-Mail: ${emailLogs[offer.id]?.from_email}`
-                                                  : "System-E-Mail"}
-                                              </p>
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      ) : (
-                                        <span className="text-slate-300">-</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-sm text-slate-500">{formatDate(offer.valid_until)}</TableCell>
-                                    <TableCell className="text-right">
-                                      <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 w-8 p-0"
-                                            onClick={(e) => e.stopPropagation()}
-                                            aria-label="Mehr Optionen"
-                                          >
-                                            <MoreHorizontal className="w-4 h-4" />
-                                          </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-48">
-                                          <DropdownMenuItem
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              navigate(`/firma/offerten/${offer.id}`);
-                                            }}
-                                          >
-                                            <Eye className="w-4 h-4 mr-2" />
-                                            Anzeigen
-                                          </DropdownMenuItem>
-                                          {offer.status === "accepted" && (
-                                            <DropdownMenuItem
-                                              onClick={(e) => {
-                                                handleAddToCalendar(offer, e as unknown as React.MouseEvent);
-                                              }}
-                                            >
-                                              <CalendarPlus className="w-4 h-4 mr-2 text-emerald-600" />
-                                              Zum Kalender hinzufügen
-                                            </DropdownMenuItem>
-                                          )}
-                                          <DropdownMenuItem
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              navigate(`/firma/offerte-bearbeiten/${offer.id}`);
-                                            }}
-                                          >
-                                            <Pencil className="w-4 h-4 mr-2" />
-                                            Bearbeiten
-                                          </DropdownMenuItem>
-                                          <DropdownMenuSeparator />
-                                          <DropdownMenuItem
-                                            onClick={(e) => handleResendOffer(offer.id, e)}
-                                            disabled={isResending === offer.id}
-                                          >
-                                            {isResending === offer.id ? (
-                                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            ) : (
-                                              <RefreshCw className="w-4 h-4 mr-2" />
+                                        {leadInfo.from_rooms && (
+                                          <div className="flex items-center gap-1 text-[11px] text-folk-ink4">
+                                            <Home className="h-3 w-3" />
+                                            <span><span className="font-mono">{leadInfo.from_rooms}</span> Zi.</span>
+                                            {leadInfo.from_living_space_m2 && (
+                                              <span>· <span className="font-mono">{leadInfo.from_living_space_m2}</span> m²</span>
                                             )}
-                                            Erneut senden
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right font-sans text-[13.5px] font-bold tracking-tight text-folk-ink">
+                                    {formatCurrency(Number(offer.total))}
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${status.bg} ${status.color}`}>
+                                      <StatusIcon className="h-3 w-3" />
+                                      {status.label}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    {offer.sent_at ? (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <div className="flex justify-center">
+                                              {emailLogs[offer.id]?.is_company_email ? (
+                                                <Building2 className="h-4 w-4 text-folk-mint" />
+                                              ) : (
+                                                <Server className="h-4 w-4 text-folk-sky" />
+                                              )}
+                                            </div>
+                                          </TooltipTrigger>
+                                          <TooltipContent className="z-50 border bg-popover">
+                                            <p>
+                                              {emailLogs[offer.id]?.is_company_email
+                                                ? `Firmen-E-Mail: ${emailLogs[offer.id]?.from_email}`
+                                                : "System-E-Mail"}
+                                            </p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    ) : (
+                                      <span className="text-folk-ink5">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-[12.5px] text-folk-ink3">{formatDate(offer.valid_until)}</TableCell>
+                                  <TableCell className="text-right">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 rounded-md p-0 text-folk-ink3 hover:bg-folk-bg hover:text-folk-ink2"
+                                          onClick={(e) => e.stopPropagation()}
+                                          aria-label="Mehr Optionen"
+                                        >
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="w-48">
+                                        <DropdownMenuItem
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigate(`/firma/offerten/${offer.id}`);
+                                          }}
+                                        >
+                                          <Eye className="mr-2 h-4 w-4" />
+                                          Anzeigen
+                                        </DropdownMenuItem>
+                                        {offer.status === "accepted" && (
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              handleAddToCalendar(offer, e as unknown as React.MouseEvent);
+                                            }}
+                                          >
+                                            <CalendarPlus className="mr-2 h-4 w-4 text-folk-mint" />
+                                            Zum Kalender hinzufügen
                                           </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
+                                        )}
+                                        <DropdownMenuItem
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigate(`/firma/offerte-bearbeiten/${offer.id}`);
+                                          }}
+                                        >
+                                          <Pencil className="mr-2 h-4 w-4" />
+                                          Bearbeiten
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={(e) => handleResendOffer(offer.id, e)}
+                                          disabled={isResending === offer.id}
+                                        >
+                                          {isResending === offer.id ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <RefreshCw className="mr-2 h-4 w-4" />
+                                          )}
+                                          Erneut senden
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
 
-                        {/* Pagination */}
-                        <PaginationBar
-                          total={filteredOffers.length}
-                          page={currentPage}
-                          pageSize={pageSize}
-                          onPageChange={setCurrentPage}
-                          onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); localStorage.setItem("offerten_pageSize", String(s)); }}
-                        />
-                      </>
-                    );
-                  })()}
-                </>
-              ) : (
-                <div className="text-center py-16">
-                  <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                    <FileText className="w-10 h-10 text-indigo-500" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Keine Offerten vorhanden</h3>
-                  <p className="text-slate-500 dark:text-slate-400 mb-4">
-                    Erstellen Sie eine Offerte aus einer akzeptierten Anfrage
-                  </p>
-                  <Button
-                    onClick={() => navigate("/firma/anfragen")}
-                    className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
-                  >
-                    <ChevronRight className="w-4 h-4 mr-2" />
-                    Zu den Anfragen
-                  </Button>
-                </div>
-              )}
-            </div>
+                      <PaginationBar
+                        total={filteredOffers.length}
+                        page={currentPage}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); localStorage.setItem("offerten_pageSize", String(s)); }}
+                      />
+                    </>
+                  );
+                })()}
+              </>
+            ) : (
+              <div className="py-16 text-center">
+                <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-folk-bg-warm text-3xl">📄</div>
+                <Clock className="hidden" />
+                <h3 className="mb-2 text-[16px] font-semibold tracking-tight text-folk-ink">Keine Offerten vorhanden</h3>
+                <p className="mb-4 text-[13px] text-folk-ink3">
+                  Erstellen Sie eine Offerte aus einer akzeptierten Anfrage
+                </p>
+                <Button
+                  onClick={() => navigate("/firma/anfragen")}
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                  Zu den Anfragen
+                </Button>
+              </div>
+            )}
           </div>
-        </div>
+        </section>
+      </div>
 
-      {/* Auftrag Modal */}
       <AuftragModal
         isOpen={!!auftragOffer}
         onClose={() => setAuftragOffer(null)}

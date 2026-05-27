@@ -15,39 +15,66 @@
 
 ## 1. MCP Bağlantısı (Cursor içinden)
 
-MCP ayarları `~/.cursor/mcp.json` dosyasında tanımlı:
+MCP ayarları `~/.cursor/mcp.json` dosyasında tanımlı (iki sunucu var):
 
 ```json
-"supabase": {
-  "command": "npx",
-  "args": [
-    "-y",
-    "@modelcontextprotocol/server-postgres",
-    "postgresql://postgres:9rOpP6kv1FGkRd1Cu4nvNzkKTxO1t6sd@localhost:5433/postgres"
-  ]
+{
+  "mcpServers": {
+    "supabase-postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://postgres:9rOpP6kv1FGkRd1Cu4nvNzkKTxO1t6sd@localhost:5433/postgres"
+      ]
+    },
+    "selfhosted-supabase": {
+      "command": "/home/tuncay/.bun/bin/bun",
+      "args": [
+        "run",
+        "/home/tuncay/Documents/selfhosted-supabase-mcp/dist/index.js",
+        "--url", "http://213.199.45.205:8000",
+        "--anon-key", "<ANON_KEY>",
+        "--service-key", "<SERVICE_ROLE_KEY>",
+        "--db-url", "postgresql://postgres:<DB_PASS>@localhost:5433/postgres"
+      ]
+    }
+  }
 }
 ```
 
-> **Önemli:** MCP `localhost:5433` üzerinden bağlanıyor.
+| Sunucu | Araçlar | Gereksinim |
+|--------|---------|------------|
+| `supabase-postgres` | Ham SQL sorguları | SSH tüneli |
+| `selfhosted-supabase` | 50+ Supabase tool (schema, auth, storage, RLS...) | SSH tüneli + Supabase URL |
+
+> **Önemli:** Her iki MCP sunucusu da `localhost:5433` üzerinden bağlanıyor.
 > Bu bağlantı çalışmak için SSH tüneli **açık olmalı**.
 
 ---
 
 ## 2. SSH Tüneli (MCP çalışmadan önce açılmalı)
 
-SSH tünelini local Mac terminalinde aç:
+SSH tünelini local terminalinde aç:
 
 ```bash
 ssh -L 5433:localhost:5432 root@213.199.45.205 -N
 ```
 
-- `-L 5433:localhost:5432` → Mac'teki 5433 portunu sunucudaki 5432'ye yönlendirir
+**Not — CachyOS SSH config warning fix:**
+`/etc/ssh/ssh_config.d/20-systemd-ssh-proxy.conf` dosyası `nobody` sahibiyle geliyor, SSH bunu warning olarak gösteriyor ama SSH çalışmaya devam eder. Uyarıyı bastırmak için:
+```bash
+ssh -F /dev/null -L 5433:localhost:5432 root@213.199.45.205 -N
+```
+
+- `-L 5433:localhost:5432` → localhost:5433 portunu sunucudaki postgres:5432'ye yönlendirir
 - `-N` → sadece tünel, komut çalıştırmaz
-- Tünel açık kaldığı sürece MCP ve psql çalışır
+- `-F /dev/null` → CachyOS SSH config uyarısını atlar
 
 Tünelin çalışıp çalışmadığını test et:
 ```bash
-psql "postgresql://postgres:9rOpP6kv1FGkRd1Cu4nvNzkKTxO1t6sd@localhost:5433/postgres" -c "SELECT version();"
+ss -tlnp | grep 5433
+# Çıktıda "ssh" görünüyorsa tünel aktif
 ```
 
 ---

@@ -5,15 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +23,6 @@ import {
   Mail,
   MapPin,
   Calendar,
-  Package,
   Trash2,
   Eye,
   RefreshCw,
@@ -61,20 +52,22 @@ interface Lead {
   detailed_form_data: Record<string, unknown> | null;
 }
 
-const SERVICE_COLORS: Record<string, string> = {
-  umzug: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  reinigung: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  raeumung: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-  transport: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  lagerung: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-  entsorgung: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-};
+// Folk-style service groups — emoji + flat coral/mint/violet/lemon/sky/rose accent
+type ServiceGroup = { key: string; label: string; emoji: string; color: string; bg: string };
+const SERVICE_GROUPS: ServiceGroup[] = [
+  { key: "umzug",      label: "Umzug",      emoji: "🏠", color: "text-folk-coral",  bg: "bg-folk-coral-bg" },
+  { key: "reinigung",  label: "Reinigung",  emoji: "✨", color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
+  { key: "raeumung",   label: "Räumung",    emoji: "📦", color: "text-folk-lemon",  bg: "bg-folk-lemon-bg" },
+  { key: "transport",  label: "Transport",  emoji: "🎹", color: "text-folk-violet", bg: "bg-folk-violet-bg" },
+  { key: "lagerung",   label: "Lagerung",   emoji: "🗄️", color: "text-folk-sky",    bg: "bg-folk-sky-bg" },
+  { key: "entsorgung", label: "Entsorgung", emoji: "♻️", color: "text-folk-rose",   bg: "bg-folk-rose-bg" },
+];
 
-function getServiceColor(serviceType: string): string {
-  const key = Object.keys(SERVICE_COLORS).find((k) =>
-    serviceType?.toLowerCase().includes(k)
-  );
-  return key ? SERVICE_COLORS[key] : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+const DEFAULT_GROUP: ServiceGroup = { key: "andere", label: "Sonstige", emoji: "🏷️", color: "text-folk-ink2", bg: "bg-folk-bg-warm" };
+
+function getServiceGroup(serviceType: string): ServiceGroup {
+  const found = SERVICE_GROUPS.find((g) => serviceType?.toLowerCase().includes(g.key));
+  return found ?? DEFAULT_GROUP;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -86,9 +79,25 @@ function formatDate(dateStr: string | null): string {
   }
 }
 
+function formatRelativeDate(dateStr: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    return format(parseISO(dateStr), "dd. MMM · HH:mm", { locale: de });
+  } catch {
+    return dateStr;
+  }
+}
+
 function getCustomerName(lead: Lead): string {
   const name = `${lead.customer_first_name || ""} ${lead.customer_last_name || ""}`.trim();
   return name || "Unbekannter Kunde";
+}
+
+function getInitials(lead: Lead): string {
+  const first = lead.customer_first_name?.[0] || "";
+  const last = lead.customer_last_name?.[0] || "";
+  const combined = `${first}${last}`.toUpperCase();
+  return combined || "?";
 }
 
 export default function FirmaAnfragen() {
@@ -159,308 +168,417 @@ export default function FirmaAnfragen() {
     navigate(`/firma/offerten/neu?lead=${lead.id}`);
   };
 
-  // Collect unique service types from leads
-  const serviceTypes = Array.from(new Set(leads.map((l) => l.service_type).filter(Boolean)));
-
-  const filtered = leads.filter((lead) => {
+  // Compute counts per service group from current leads (after search but before service filter)
+  const searched = leads.filter((lead) => {
     const name = getCustomerName(lead).toLowerCase();
     const city = `${lead.from_city || ""} ${lead.to_city || ""}`.toLowerCase();
     const search = searchQuery.toLowerCase();
-    const matchesSearch = !search || name.includes(search) || city.includes(search) ||
+    if (!search) return true;
+    return (
+      name.includes(search) ||
+      city.includes(search) ||
       lead.customer_email?.toLowerCase().includes(search) ||
       lead.customer_phone?.includes(search) ||
       lead.from_plz?.includes(search) ||
-      lead.to_plz?.includes(search);
-    const matchesService = serviceFilter === "all" || lead.service_type === serviceFilter;
-    return matchesSearch && matchesService;
+      lead.to_plz?.includes(search)
+    );
   });
+
+  const filtered = searched.filter((lead) => {
+    if (serviceFilter === "all") return true;
+    return getServiceGroup(lead.service_type).key === serviceFilter;
+  });
+
+  const groupCounts: Record<string, number> = {};
+  for (const lead of searched) {
+    const k = getServiceGroup(lead.service_type).key;
+    groupCounts[k] = (groupCounts[k] || 0) + 1;
+  }
+
+  const presentGroups = SERVICE_GROUPS.filter((g) => (groupCounts[g.key] || 0) > 0);
+  const tabs = [
+    { key: "all", label: "Alle", emoji: "·", count: searched.length },
+    ...presentGroups.map((g) => ({ key: g.key, label: g.label, emoji: g.emoji, count: groupCounts[g.key] || 0 })),
+  ];
 
   if (!user) return null;
 
   return (
     <>
       <Helmet>
-        <title>Anfragen | Firma</title>
+        <title>Posteingang · CRM</title>
       </Helmet>
 
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="text-2xl font-bold">Anfragen</h2>
-            <p className="text-muted-foreground text-sm">
-              {leads.length} importierte Anfrage{leads.length !== 1 ? "n" : ""}
+      <div className="space-y-5">
+        {/* Folk-style page header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+          <span className="text-4xl leading-none">📥</span>
+          <div className="flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Posteingang</h1>
+              <span className="text-[13px] text-folk-ink3">
+                <span className="font-mono">{leads.length}</span> Anfrage{leads.length !== 1 ? "n" : ""} · {presentGroups.length} Gruppe{presentGroups.length !== 1 ? "n" : ""}
+              </span>
+            </div>
+            <p className="mt-1 text-[13px] text-folk-ink2">
+              Eingehende Anfragen aus Webformularen, Import und direkter Erfassung — bereit für die Offerte.
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={fetchLeads} disabled={isLoading}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchLeads}
+              disabled={isLoading}
+              className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+            >
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
               Aktualisieren
             </Button>
-            <Button size="sm" onClick={() => navigate("/firma/manual-import")}>
-              <Plus className="w-4 h-4 mr-2" />
+            <Button
+              onClick={() => navigate("/firma/manual-import")}
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+            >
+              <Plus className="h-3.5 w-3.5" />
               Neue Anfrage
             </Button>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        {/* Group tabs strip (Folk Kontakte style) */}
+        <div className="-mx-1 flex flex-wrap items-end gap-0 border-b border-folk-line">
+          {tabs.map((tab) => {
+            const active = serviceFilter === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setServiceFilter(tab.key)}
+                className={`-mb-px flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-[13px] transition-colors ${
+                  active
+                    ? "border-folk-ink font-semibold text-folk-ink"
+                    : "border-transparent font-medium text-folk-ink2 hover:text-folk-ink"
+                }`}
+              >
+                <span className={`leading-none ${tab.key === "all" ? "text-base text-folk-ink4 opacity-40" : "text-sm"}`}>{tab.emoji}</span>
+                <span>{tab.label}</span>
+                <span className="ml-0.5 font-mono text-[11px] text-folk-ink3">{tab.count}</span>
+              </button>
+            );
+          })}
+          <span className="px-3 py-2 text-[14px] text-folk-ink4">+</span>
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1 sm:max-w-md">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-folk-ink3" />
             <Input
-              placeholder="Suche nach Name, Ort, E-Mail..."
+              placeholder="In Anfragen suchen …"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 text-[13px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
             />
           </div>
-          <Select value={serviceFilter} onValueChange={setServiceFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Alle Dienste" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Dienste</SelectItem>
-              {serviceTypes.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {getServiceLabel(type)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {serviceFilter !== "all" && (
+            <button
+              onClick={() => setServiceFilter("all")}
+              className="inline-flex items-center gap-1.5 rounded-md border border-folk-line bg-folk-card px-2.5 py-1.5 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+            >
+              <span>{getServiceGroup(serviceFilter).emoji}</span>
+              <span>{getServiceGroup(serviceFilter).label}</span>
+              <span className="text-folk-ink4">×</span>
+            </button>
+          )}
         </div>
 
         {/* Content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+            <Loader2 className="h-7 w-7 animate-spin text-folk-coral" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-folk-line bg-folk-card py-16 text-center">
             {leads.length === 0 ? (
               <div className="space-y-3">
-                <Package className="w-12 h-12 mx-auto opacity-30" />
-                <p className="font-medium">Noch keine Anfragen importiert</p>
-                <p className="text-sm">Importieren Sie Anfragen aus Ihren E-Mails oder Webformularen.</p>
-                <Button onClick={() => navigate("/firma/manual-import")} className="mt-2">
-                  <Plus className="w-4 h-4 mr-2" />
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">📭</div>
+                <p className="text-[13.5px] font-semibold text-folk-ink">Noch keine Anfragen importiert</p>
+                <p className="px-4 text-[12px] text-folk-ink3">Importieren Sie Anfragen aus Ihren E-Mails oder Webformularen.</p>
+                <Button
+                  onClick={() => navigate("/firma/manual-import")}
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                >
+                  <Plus className="h-3.5 w-3.5" />
                   Erste Anfrage importieren
                 </Button>
               </div>
             ) : (
-              <p>Keine Anfragen entsprechen Ihrer Suche.</p>
+              <p className="text-[13px] text-folk-ink3">Keine Anfragen entsprechen Ihrer Suche.</p>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {filtered.map((lead) => (
-              <div
-                key={lead.id}
-                className="border rounded-xl bg-card shadow-sm overflow-hidden"
-              >
-                {/* Top colored bar */}
-                <div className={`h-1 w-full ${getServiceColor(lead.service_type).includes('blue') ? 'bg-blue-400' : getServiceColor(lead.service_type).includes('green') ? 'bg-green-400' : getServiceColor(lead.service_type).includes('orange') ? 'bg-orange-400' : getServiceColor(lead.service_type).includes('purple') ? 'bg-purple-400' : 'bg-gray-400'}`} />
-
-                <div className="p-4 space-y-3">
-                  {/* Header: service type + date badge */}
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <Badge className={`text-xs font-medium ${getServiceColor(lead.service_type)}`}>
-                        {getServiceLabel(lead.service_type)}
-                      </Badge>
-                      {lead.preferred_date && (
-                        <Badge variant="outline" className="text-xs gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {formatDate(lead.preferred_date)}
-                        </Badge>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(lead.created_at)}
-                    </span>
-                  </div>
-
-                  {/* Details row */}
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                    {lead.from_rooms && <span>{lead.from_rooms} Zimmer</span>}
-                    {lead.from_living_space_m2 && <span>{lead.from_living_space_m2} m²</span>}
-                    {(lead.from_city || lead.from_plz) && (
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 shrink-0" />
-                        {lead.from_plz} {lead.from_city}
-                        {lead.to_city && <> → {lead.to_plz} {lead.to_city}</>}
+          <div className="space-y-2">
+            {filtered.map((lead) => {
+              const group = getServiceGroup(lead.service_type);
+              const isNew = lead.status === "new" || lead.status === "sent" || !lead.status;
+              return (
+                <article
+                  key={lead.id}
+                  className="group overflow-hidden rounded-xl border border-folk-line bg-folk-card transition-colors hover:border-folk-ink5"
+                >
+                  <div className="space-y-3 p-4">
+                    {/* Top row: avatar + name + chips + date */}
+                    <div className="flex flex-wrap items-start gap-3">
+                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${group.bg} text-[14px] font-semibold ${group.color}`}>
+                        {getInitials(lead)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <h3 className="text-[14px] font-semibold tracking-tight text-folk-ink">{getCustomerName(lead)}</h3>
+                          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${group.bg} ${group.color}`}>
+                            <span>{group.emoji}</span>
+                            <span>{getServiceLabel(lead.service_type)}</span>
+                          </span>
+                          {lead.preferred_date && (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-folk-line bg-folk-bg-warm px-2 py-0.5 text-[11px] text-folk-ink2">
+                              <Calendar className="h-3 w-3" />
+                              <span className="font-mono">{formatDate(lead.preferred_date)}</span>
+                            </span>
+                          )}
+                          {isNew && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[11px] font-semibold text-folk-coral">
+                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-folk-coral" />
+                              Neu
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-folk-ink3">
+                          {(lead.from_city || lead.from_plz) && (
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-folk-ink4" />
+                              <span className="font-mono">{lead.from_plz}</span> {lead.from_city}
+                              {lead.to_city && (
+                                <>
+                                  <span className="mx-0.5 text-folk-ink4">→</span>
+                                  <span className="font-mono">{lead.to_plz}</span> {lead.to_city}
+                                </>
+                              )}
+                            </span>
+                          )}
+                          {lead.from_rooms && (
+                            <span>
+                              <span className="font-mono">{lead.from_rooms}</span> Zi.
+                            </span>
+                          )}
+                          {lead.from_living_space_m2 && (
+                            <span>
+                              <span className="font-mono">{lead.from_living_space_m2}</span> m²
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="whitespace-nowrap font-mono text-[11px] text-folk-ink4">
+                        {formatRelativeDate(lead.created_at)}
                       </span>
-                    )}
-                  </div>
-
-                  {/* Customer info */}
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-sm font-semibold text-primary">
-                        {(lead.customer_first_name?.[0] || lead.customer_last_name?.[0] || "?").toUpperCase()}
-                      </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{getCustomerName(lead)}</p>
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+
+                    {/* Contact line */}
+                    {(lead.customer_phone || lead.customer_email) && (
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-folk-bg-warm px-3 py-2 text-[12px] text-folk-ink2">
                         {lead.customer_phone && (
-                          <a href={`tel:${lead.customer_phone}`} className="flex items-center gap-1 hover:text-foreground">
-                            <Phone className="w-3 h-3" />{lead.customer_phone}
+                          <a
+                            href={`tel:${lead.customer_phone}`}
+                            className="flex items-center gap-1.5 font-mono text-folk-ink2 hover:text-folk-coral"
+                          >
+                            <Phone className="h-3 w-3 text-folk-ink4" />
+                            {lead.customer_phone}
                           </a>
                         )}
                         {lead.customer_email && (
-                          <a href={`mailto:${lead.customer_email}`} className="flex items-center gap-1 hover:text-foreground">
-                            <Mail className="w-3 h-3" />{lead.customer_email}
+                          <a
+                            href={`mailto:${lead.customer_email}`}
+                            className="flex items-center gap-1.5 hover:text-folk-coral"
+                          >
+                            <Mail className="h-3 w-3 text-folk-ink4" />
+                            {lead.customer_email}
                           </a>
                         )}
                       </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <Button
+                        size="sm"
+                        onClick={() => handleCreateOffer(lead)}
+                        className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[12px] font-semibold text-white hover:bg-folk-ink2"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        Offerte erstellen
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/firma/besichtigungen?lead_id=${lead.id}`)}
+                        className="h-8 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Besichtigung
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedLead(lead)}
+                        className="h-8 gap-1.5 rounded-lg px-3 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+                      >
+                        Details
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-auto h-8 rounded-lg px-2 text-folk-ink3 hover:bg-folk-coral-bg hover:text-folk-coral"
+                        onClick={() => handleDelete(lead.id)}
+                        disabled={isDeleting === lead.id}
+                        title="Löschen"
+                      >
+                        {isDeleting === lead.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
                     </div>
                   </div>
-
-                  {/* Action buttons */}
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
-                    <Button
-                      size="sm"
-                      onClick={() => handleCreateOffer(lead)}
-                      className="gap-1.5"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Offerte erstellen
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/firma/besichtigungen?lead_id=${lead.id}`)}
-                      className="gap-1.5"
-                    >
-                      <Eye className="w-4 h-4" />
-                      V. Besichtigung
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedLead(lead)}
-                      className="gap-1.5"
-                    >
-                      <Eye className="w-4 h-4" />
-                      Details
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive ml-auto"
-                      onClick={() => handleDelete(lead.id)}
-                      disabled={isDeleting === lead.id}
-                    >
-                      {isDeleting === lead.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                </article>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Detail Dialog */}
+      {/* Detail Dialog — Folk styled */}
       {selectedLead && (
         <Dialog open onOpenChange={(open) => !open && setSelectedLead(null)}>
-          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto rounded-xl border-folk-line bg-folk-card">
             <DialogHeader>
-              <DialogTitle>{getCustomerName(selectedLead)}</DialogTitle>
-              <DialogDescription>
-                {getServiceLabel(selectedLead.service_type)} · Importiert am{" "}
-                {formatDate(selectedLead.created_at)}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 text-sm">
-              {/* Contact */}
-              <div>
-                <p className="font-medium mb-2">Kontakt</p>
-                <div className="space-y-1 text-muted-foreground">
-                  {selectedLead.customer_email && (
-                    <p className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 shrink-0" />
-                      <a href={`mailto:${selectedLead.customer_email}`} className="hover:underline">
-                        {selectedLead.customer_email}
-                      </a>
-                    </p>
-                  )}
-                  {selectedLead.customer_phone && (
-                    <p className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 shrink-0" />
-                      <a href={`tel:${selectedLead.customer_phone}`} className="hover:underline">
-                        {selectedLead.customer_phone}
-                      </a>
-                    </p>
-                  )}
+              <div className="flex items-start gap-3">
+                <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-[15px] font-semibold ${getServiceGroup(selectedLead.service_type).bg} ${getServiceGroup(selectedLead.service_type).color}`}>
+                  {getInitials(selectedLead)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="text-[18px] font-bold tracking-tight text-folk-ink">
+                    {getCustomerName(selectedLead)}
+                  </DialogTitle>
+                  <DialogDescription className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-folk-ink3">
+                    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${getServiceGroup(selectedLead.service_type).bg} ${getServiceGroup(selectedLead.service_type).color}`}>
+                      <span>{getServiceGroup(selectedLead.service_type).emoji}</span>
+                      <span>{getServiceLabel(selectedLead.service_type)}</span>
+                    </span>
+                    <span className="font-mono">{formatRelativeDate(selectedLead.created_at)}</span>
+                  </DialogDescription>
                 </div>
               </div>
+            </DialogHeader>
 
-              <Separator />
+            <div className="space-y-4 text-[13px]">
+              {/* Contact */}
+              {(selectedLead.customer_email || selectedLead.customer_phone) && (
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Kontakt</p>
+                  <div className="space-y-1 text-folk-ink2">
+                    {selectedLead.customer_email && (
+                      <p className="flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 shrink-0 text-folk-ink4" />
+                        <a href={`mailto:${selectedLead.customer_email}`} className="hover:text-folk-coral">
+                          {selectedLead.customer_email}
+                        </a>
+                      </p>
+                    )}
+                    {selectedLead.customer_phone && (
+                      <p className="flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 shrink-0 text-folk-ink4" />
+                        <a href={`tel:${selectedLead.customer_phone}`} className="font-mono hover:text-folk-coral">
+                          {selectedLead.customer_phone}
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
-              {/* Locations */}
               {(selectedLead.from_city || selectedLead.to_city) && (
                 <>
+                  <Separator className="bg-folk-line-soft" />
                   <div>
-                    <p className="font-medium mb-2">Adresse</p>
-                    <div className="space-y-1 text-muted-foreground">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Adresse</p>
+                    <div className="space-y-1 text-folk-ink2">
                       {selectedLead.from_city && (
                         <p className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4 shrink-0" />
-                          Von: {selectedLead.from_plz} {selectedLead.from_city}
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-folk-ink4" />
+                          <span>Von: <span className="font-mono">{selectedLead.from_plz}</span> {selectedLead.from_city}</span>
                         </p>
                       )}
                       {selectedLead.to_city && (
                         <p className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4 shrink-0" />
-                          Nach: {selectedLead.to_plz} {selectedLead.to_city}
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-folk-ink4" />
+                          <span>Nach: <span className="font-mono">{selectedLead.to_plz}</span> {selectedLead.to_city}</span>
                         </p>
                       )}
                     </div>
                   </div>
-                  <Separator />
                 </>
               )}
 
-              {/* Date & details */}
-              <div className="space-y-1 text-muted-foreground">
+              <Separator className="bg-folk-line-soft" />
+
+              <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5">
                 {selectedLead.preferred_date && (
-                  <p className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 shrink-0" />
-                    Datum: {formatDate(selectedLead.preferred_date)}
-                  </p>
+                  <>
+                    <span className="text-folk-ink3">📅 Termin</span>
+                    <span className="font-mono text-folk-ink">{formatDate(selectedLead.preferred_date)}</span>
+                  </>
                 )}
-                {selectedLead.from_rooms && <p>Zimmer: {selectedLead.from_rooms}</p>}
-                {selectedLead.from_living_space_m2 && <p>Fläche: {selectedLead.from_living_space_m2} m²</p>}
+                {selectedLead.from_rooms !== null && (
+                  <>
+                    <span className="text-folk-ink3">🏠 Zimmer</span>
+                    <span className="font-mono text-folk-ink">{selectedLead.from_rooms}</span>
+                  </>
+                )}
+                {selectedLead.from_living_space_m2 !== null && (
+                  <>
+                    <span className="text-folk-ink3">📐 Fläche</span>
+                    <span className="font-mono text-folk-ink">{selectedLead.from_living_space_m2} m²</span>
+                  </>
+                )}
               </div>
 
               {selectedLead.description && (
                 <>
-                  <Separator />
+                  <Separator className="bg-folk-line-soft" />
                   <div>
-                    <p className="font-medium mb-1">Beschreibung</p>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{selectedLead.description}</p>
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">📝 Beschreibung</p>
+                    <p className="whitespace-pre-wrap rounded-md bg-folk-bg-warm px-3 py-2 text-folk-ink2">
+                      {selectedLead.description}
+                    </p>
                   </div>
                 </>
               )}
 
               <div className="flex gap-2 pt-2">
-                <Button className="flex-1" onClick={() => handleCreateOffer(selectedLead)}>
-                  <FileText className="w-4 h-4 mr-2" />
+                <Button
+                  className="h-9 flex-1 gap-1.5 rounded-lg bg-folk-ink text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                  onClick={() => handleCreateOffer(selectedLead)}
+                >
+                  <FileText className="h-4 w-4" />
                   Offerte erstellen
                 </Button>
                 <Button
-                  variant="destructive"
+                  variant="outline"
                   onClick={() => handleDelete(selectedLead.id)}
                   disabled={isDeleting === selectedLead.id}
+                  className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-folk-coral hover:bg-folk-coral-bg"
+                  title="Löschen"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  {isDeleting === selectedLead.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 </Button>
               </div>
             </div>

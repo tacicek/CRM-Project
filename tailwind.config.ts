@@ -15,6 +15,7 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       fontSize: {
         // Fluid typography using clamp() for better responsiveness
@@ -80,6 +81,35 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+        },
+        // Folk design tokens — used by FirmaLayout shell
+        folk: {
+          bg: "#FBFAF7",
+          "bg-warm": "#F7F5EF",
+          sidebar: "#F3F1EA",
+          "sidebar-hi": "#EBE7DC",
+          card: "#FFFFFF",
+          ink: "#18181A",
+          ink2: "#3C3C3F",
+          ink3: "#737073",
+          ink4: "#A5A3A1",
+          ink5: "#C7C5C0",
+          line: "#EBE9E2",
+          "line-soft": "#F2F0E8",
+          "line-hard": "#DAD7CD",
+          coral: "#F87557",
+          "coral-lite": "#FCE5DE",
+          "coral-bg": "#FFF1EC",
+          violet: "#6E5BD8",
+          "violet-bg": "#F2EEFD",
+          mint: "#42A678",
+          "mint-bg": "#EBF6F0",
+          lemon: "#D4A50A",
+          "lemon-bg": "#FBF4D9",
+          sky: "#3A82BA",
+          "sky-bg": "#E9F1F8",
+          rose: "#C24472",
+          "rose-bg": "#F9E9F0",
         },
       },
       borderRadius: {
