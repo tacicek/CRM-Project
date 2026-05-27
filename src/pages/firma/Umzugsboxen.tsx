@@ -443,7 +443,7 @@ export default function Umzugsboxen() {
             <Button
               variant="outline"
               onClick={fetchData}
-              className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+              className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm hover:text-folk-ink2"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Aktualisieren</span>
