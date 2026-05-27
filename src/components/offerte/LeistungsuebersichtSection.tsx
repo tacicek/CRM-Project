@@ -365,7 +365,7 @@ export function LeistungsuebersichtSection({
         <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
           <div className="py-4 sm:py-6">
             <div className="text-center mb-4 sm:mb-6">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-2 sm:mb-3 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 flex items-center justify-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-2 sm:mb-3 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
                 <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-amber-600" />
               </div>
               <h3 className="font-semibold text-sm sm:text-base mb-1">Schnellstart</h3>
@@ -535,7 +535,7 @@ export function LeistungsuebersichtSection({
         <CardContent className="space-y-4 sm:space-y-6 px-3 sm:px-6 pb-3 sm:pb-6">
           {/* Included Services */}
           <div>
-            <h4 className="font-semibold text-green-700 dark:text-green-400 mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+            <h4 className="font-semibold text-green-700 mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
               Inklusivleistungen ({selectedServices.length})
             </h4>
@@ -567,8 +567,8 @@ export function LeistungsuebersichtSection({
                       key={service.id}
                       className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-3 border rounded-lg transition-colors ${
                         isEditing 
-                          ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800" 
-                          : "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                          ? "bg-blue-50 border-blue-200" 
+                          : "bg-green-50 border-green-200"
                       }`}
                     >
                       <CheckCircle2 className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 ${isEditing ? "text-blue-600" : "text-green-600"}`} />
@@ -636,7 +636,7 @@ export function LeistungsuebersichtSection({
                       ) : (
                         <>
                           <div 
-                            className="text-right shrink-0 cursor-pointer hover:bg-white/50 dark:hover:bg-black/20 rounded px-2 py-1 transition-colors"
+                            className="text-right shrink-0 cursor-pointer hover:bg-white/50 rounded px-2 py-1 transition-colors"
                             onClick={() => startEditingService(service)}
                             title="Klicken zum Bearbeiten"
                           >
@@ -685,7 +685,7 @@ export function LeistungsuebersichtSection({
 
           {/* Excluded Services */}
           <div>
-            <h4 className="font-semibold text-red-700 dark:text-red-400 mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+            <h4 className="font-semibold text-red-700 mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
               Nicht inbegriffen ({excludedServices.filter(Boolean).length})
             </h4>
@@ -694,7 +694,7 @@ export function LeistungsuebersichtSection({
               {excludedServices.map((item, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+                  className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-red-50 border border-red-200 rounded-lg"
                 >
                   <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 shrink-0" />
                   <Input
@@ -867,7 +867,7 @@ export function LeistungsuebersichtSection({
                   key={cat.value}
                   className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     selectedCategoriesForLoad.includes(cat.value)
-                      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                      ? "bg-blue-50 border-blue-200"
                       : "hover:bg-muted/50"
                   }`}
                   onClick={() => toggleCategoryForLoad(cat.value)}

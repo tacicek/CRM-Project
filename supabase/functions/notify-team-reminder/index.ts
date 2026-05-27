@@ -43,6 +43,10 @@ interface Company {
   company_name: string;
   email: string;
   phone: string;
+  resend_enabled: boolean | null;
+  resend_api_key: string | null;
+  resend_from_email: string | null;
+  resend_from_name: string | null;
 }
 
 interface Lead {
@@ -660,6 +664,19 @@ const handler = async (req: Request): Promise<Response> => {
           continue;
         }
 
+        const activeResendKey = (company.resend_enabled && company.resend_api_key)
+          ? company.resend_api_key
+          : resendApiKey;
+
+        const activeFrom = (company.resend_enabled && company.resend_from_email)
+          ? `${company.resend_from_name || company.company_name} <${company.resend_from_email}>`
+          : `${company.company_name} <${getSenderEmail()}>`;
+
+        if (!activeResendKey) {
+          logStep("No Resend key available", { companyId: appointment.company_id });
+          continue;
+        }
+
         // Get lead details if available
         let lead: Lead | null = null;
         if (appointment.lead_id) {
@@ -731,10 +748,10 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${resendApiKey}`,
+                Authorization: `Bearer ${activeResendKey}`,
               },
               body: JSON.stringify({
-                from: `${company.company_name} <${getSenderEmail()}>`,
+                from: activeFrom,
                 to: [member.email],
                 subject: subject,
                 html: htmlContent,

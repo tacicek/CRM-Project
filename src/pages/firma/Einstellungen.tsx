@@ -645,7 +645,7 @@ const FirmaEinstellungen = () => {
 
                   <div className="flex items-center justify-between">
                     {isDirty && (
-                      <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                      <span className="text-xs text-amber-600 flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
                         Ungespeicherte Änderungen
                       </span>

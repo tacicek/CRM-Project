@@ -289,7 +289,7 @@ export const BesichtigungAIPanel = ({
   if (!session) return null;
 
   return (
-    <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50/50 to-indigo-50/50 dark:from-purple-950/20 dark:to-indigo-950/20">
+    <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50/50 to-indigo-50/50">
       <CardHeader
         className="cursor-pointer px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -321,21 +321,21 @@ export const BesichtigungAIPanel = ({
 
         {/* Collapsed summary */}
         {!isExpanded && analysis && (
-          <div className="mt-3 p-3 bg-purple-100/50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+          <div className="mt-3 p-3 bg-purple-100/50 rounded-lg border border-purple-200">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-              <span className="flex items-center gap-1 text-purple-700 dark:text-purple-300">
+              <span className="flex items-center gap-1 text-purple-700">
                 <Package className="w-3.5 h-3.5" />
                 {analysis.estimated_volume_m3} m³
               </span>
-              <span className="flex items-center gap-1 text-purple-700 dark:text-purple-300">
+              <span className="flex items-center gap-1 text-purple-700">
                 <Clock className="w-3.5 h-3.5" />
                 {analysis.estimated_time_hours} Std.
               </span>
-              <span className="flex items-center gap-1 text-purple-700 dark:text-purple-300">
+              <span className="flex items-center gap-1 text-purple-700">
                 <Users className="w-3.5 h-3.5" />
                 {analysis.recommended_workers} Arbeiter
               </span>
-              <span className="flex items-center gap-1 text-purple-700 dark:text-purple-300">
+              <span className="flex items-center gap-1 text-purple-700">
                 <Truck className="w-3.5 h-3.5" />
                 {truckLabel(analysis.recommended_truck)}
               </span>
@@ -374,22 +374,22 @@ export const BesichtigungAIPanel = ({
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="bg-white dark:bg-gray-900 rounded-lg p-2.5 text-center border">
+                <div className="bg-white rounded-lg p-2.5 text-center border">
                   <Package className="w-4 h-4 mx-auto mb-0.5 text-blue-500" />
                   <p className="text-lg font-bold">{analysis.estimated_volume_m3 ?? "–"} m³</p>
                   <p className="text-[10px] text-muted-foreground">Volumen</p>
                 </div>
-                <div className="bg-white dark:bg-gray-900 rounded-lg p-2.5 text-center border">
+                <div className="bg-white rounded-lg p-2.5 text-center border">
                   <Clock className="w-4 h-4 mx-auto mb-0.5 text-amber-500" />
                   <p className="text-lg font-bold">{analysis.estimated_time_hours ?? "–"} Std.</p>
                   <p className="text-[10px] text-muted-foreground">Dauer</p>
                 </div>
-                <div className="bg-white dark:bg-gray-900 rounded-lg p-2.5 text-center border">
+                <div className="bg-white rounded-lg p-2.5 text-center border">
                   <Users className="w-4 h-4 mx-auto mb-0.5 text-emerald-500" />
                   <p className="text-lg font-bold">{analysis.recommended_workers ?? "–"}</p>
                   <p className="text-[10px] text-muted-foreground">Arbeiter</p>
                 </div>
-                <div className="bg-white dark:bg-gray-900 rounded-lg p-2.5 text-center border">
+                <div className="bg-white rounded-lg p-2.5 text-center border">
                   <Truck className="w-4 h-4 mx-auto mb-0.5 text-purple-500" />
                   <p className="text-lg font-bold">{truckLabel(analysis.recommended_truck)}</p>
                   <p className="text-[10px] text-muted-foreground">Fahrzeug</p>
@@ -398,7 +398,7 @@ export const BesichtigungAIPanel = ({
 
               {/* Special warnings */}
               {analysis.special_items.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 p-2 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200">
+                <div className="flex flex-wrap gap-1.5 p-2 bg-amber-50 rounded-lg border border-amber-200">
                   <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                   {analysis.special_items.map((item, i) => (
                     <Badge key={i} variant="outline" className="text-xs border-amber-300 text-amber-700">
@@ -432,7 +432,7 @@ export const BesichtigungAIPanel = ({
                         <tr
                           key={idx}
                           className={`cursor-pointer transition-colors ${
-                            selectedItems.has(idx) ? "bg-purple-50/50 dark:bg-purple-950/10" : "hover:bg-muted/30"
+                            selectedItems.has(idx) ? "bg-purple-50/50" : "hover:bg-muted/30"
                           } ${item.special ? "bg-amber-50/30" : ""}`}
                           onClick={() => toggleItem(idx)}
                         >
@@ -459,7 +459,7 @@ export const BesichtigungAIPanel = ({
 
               {/* Apply Button */}
               {/* Data retention notice */}
-              <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/60 text-[11px] text-amber-600 dark:text-amber-400">
+              <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-50/80 border border-amber-200/60 text-[11px] text-amber-600">
                 <span className="shrink-0">⏰</span>
                 <span>Fotos werden <strong>3 Tage nach Offerte-Versand</strong> automatisch gelöscht.</span>
               </div>

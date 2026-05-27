@@ -53,7 +53,7 @@ export function Step1ServiceInstrument({ data, updateData, errors }: Step1Props)
         
         {/* Klaviere (Upright Pianos) */}
         <div className="mb-6">
-          <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center gap-2">
+          <h4 className="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
             <Piano className="w-4 h-4" /> Klaviere (aufrecht)
           </h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -70,7 +70,7 @@ export function Step1ServiceInstrument({ data, updateData, errors }: Step1Props)
         
         {/* Flügel (Grand Pianos) */}
         <div className="mb-6">
-          <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center gap-2">
+          <h4 className="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
             <Music className="w-4 h-4" /> Flügel
           </h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -87,7 +87,7 @@ export function Step1ServiceInstrument({ data, updateData, errors }: Step1Props)
         
         {/* Sonstige (Other) */}
         <div>
-          <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center gap-2">
+          <h4 className="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
             <Music2 className="w-4 h-4" /> Sonstige
           </h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -109,12 +109,12 @@ export function Step1ServiceInstrument({ data, updateData, errors }: Step1Props)
       
       {/* Warning for Konzertflügel */}
       {data.instrument_type === 'konzertfluegel' && (
-        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-semibold text-amber-800 dark:text-amber-200">Konzertflügel</h4>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
+              <h4 className="font-semibold text-amber-800">Konzertflügel</h4>
+              <p className="text-sm text-amber-700">
                 Konzertflügel erfordern besondere Planung und Spezialausrüstung. 
                 Wir empfehlen eine Vorbesichtigung für ein genaues Angebot.
               </p>
@@ -125,14 +125,14 @@ export function Step1ServiceInstrument({ data, updateData, errors }: Step1Props)
       
       {/* Selected Summary */}
       {data.service_type && data.instrument_type && (
-        <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+        <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
           <div className="flex items-center gap-3">
             <span className="text-2xl">{instrumentSpecs[data.instrument_type].icon}</span>
             <div>
-              <p className="font-medium text-blue-800 dark:text-blue-200">
+              <p className="font-medium text-blue-800">
                 {instrumentSpecs[data.instrument_type].label}
               </p>
-              <p className="text-sm text-blue-600 dark:text-blue-400">
+              <p className="text-sm text-blue-600">
                 {instrumentSpecs[data.instrument_type].weight_min}-{instrumentSpecs[data.instrument_type].weight_max} kg • {instrumentSpecs[data.instrument_type].dimension_key}
               </p>
             </div>

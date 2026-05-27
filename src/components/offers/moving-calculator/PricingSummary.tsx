@@ -81,7 +81,7 @@ export function PricingSummary({
       return {
         label: 'Risk',
         icon: ShieldAlert,
-        className: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-300 dark:border-red-900',
+        className: 'bg-red-50 text-red-700 border-red-200',
         hint: 'Hohe Auslastung oder lange Einsatzdauer.',
       };
     }
@@ -89,14 +89,14 @@ export function PricingSummary({
       return {
         label: 'Dikkat',
         icon: AlertTriangle,
-        className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-300 dark:border-amber-900',
+        className: 'bg-amber-50 text-amber-700 border-amber-200',
         hint: 'Plan ist machbar, aber knapp kalkuliert.',
       };
     }
     return {
       label: 'Iyi',
       icon: ShieldCheck,
-      className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300 dark:border-emerald-900',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       hint: 'Gute Reserve bei Volumen und Zeit.',
     };
   })();
@@ -208,7 +208,7 @@ export function PricingSummary({
             </Badge>
           </div>
           {capacityUsage > 90 && (
-            <div className="flex items-start gap-2 p-2 rounded bg-orange-50 dark:bg-orange-950/20 text-[10px] sm:text-xs text-orange-800 dark:text-orange-200">
+            <div className="flex items-start gap-2 p-2 rounded bg-orange-50 text-[10px] sm:text-xs text-orange-800">
               <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               <span>Hohe Auslastung - grösseres Fahrzeug empfohlen</span>
             </div>

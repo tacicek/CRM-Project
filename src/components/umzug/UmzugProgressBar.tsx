@@ -29,7 +29,7 @@ export const UmzugProgressBar = ({
       {/* Main Progress Bar */}
       <div className="relative">
         {/* Track */}
-        <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
           <div 
             className="h-full bg-gradient-to-r from-blue-500 via-green-500 to-orange-500 rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
@@ -51,12 +51,12 @@ export const UmzugProgressBar = ({
                   isCompleted && "bg-green-500 border-green-500",
                   isCurrent && cn(
                     "border-4 scale-125",
-                    group?.color === 'blue' && "border-blue-500 bg-white dark:bg-gray-900",
-                    group?.color === 'green' && "border-green-500 bg-white dark:bg-gray-900",
-                    group?.color === 'purple' && "border-purple-500 bg-white dark:bg-gray-900",
-                    group?.color === 'orange' && "border-orange-500 bg-white dark:bg-gray-900"
+                    group?.color === 'blue' && "border-blue-500 bg-white",
+                    group?.color === 'green' && "border-green-500 bg-white",
+                    group?.color === 'purple' && "border-purple-500 bg-white",
+                    group?.color === 'orange' && "border-orange-500 bg-white"
                   ),
-                  !isCompleted && !isCurrent && "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                  !isCompleted && !isCurrent && "bg-white border-gray-300"
                 )}
               >
                 {isCompleted && <Check className="w-2.5 h-2.5 text-white" />}
@@ -85,19 +85,19 @@ export const UmzugProgressBar = ({
               <div className={cn(
                 "text-xs font-medium mb-1",
                 isActive && cn(
-                  group.color === 'blue' && "text-blue-600 dark:text-blue-400",
-                  group.color === 'green' && "text-green-600 dark:text-green-400",
-                  group.color === 'purple' && "text-purple-600 dark:text-purple-400",
-                  group.color === 'orange' && "text-orange-600 dark:text-orange-400"
+                  group.color === 'blue' && "text-blue-600",
+                  group.color === 'green' && "text-green-600",
+                  group.color === 'purple' && "text-purple-600",
+                  group.color === 'orange' && "text-orange-600"
                 ),
-                isCompleted && "text-green-600 dark:text-green-400",
-                !isActive && !isCompleted && "text-gray-400 dark:text-gray-500"
+                isCompleted && "text-green-600",
+                !isActive && !isCompleted && "text-gray-400"
               )}>
                 {group.name}
               </div>
               <div className={cn(
                 "text-xs",
-                isActive ? "text-gray-600 dark:text-gray-400" : "text-gray-400 dark:text-gray-500"
+                isActive ? "text-gray-600" : "text-gray-400"
               )}>
                 {firstStep}-{lastStep}
               </div>
@@ -110,10 +110,10 @@ export const UmzugProgressBar = ({
       <div className="text-center">
         <span className={cn(
           "inline-flex items-center px-3 py-1 rounded-full text-sm font-medium",
-          currentGroup.color === 'blue' && "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300",
-          currentGroup.color === 'green' && "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300",
-          currentGroup.color === 'purple' && "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300",
-          currentGroup.color === 'orange' && "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300"
+          currentGroup.color === 'blue' && "bg-blue-100 text-blue-700",
+          currentGroup.color === 'green' && "bg-green-100 text-green-700",
+          currentGroup.color === 'purple' && "bg-purple-100 text-purple-700",
+          currentGroup.color === 'orange' && "bg-orange-100 text-orange-700"
         )}>
           Schritt {currentStep} von {totalSteps}
         </span>

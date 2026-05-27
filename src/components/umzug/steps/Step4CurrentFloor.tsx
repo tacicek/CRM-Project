@@ -15,14 +15,14 @@ export const Step4CurrentFloor = ({ data, onChange }: Step4Props) => {
     return (
       <div className="space-y-8">
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-            <Layers className="w-8 h-8 text-gray-600 dark:text-gray-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+            <Layers className="w-8 h-8 text-gray-600" />
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
             Stockwerkinformation
           </h2>
-          <div className="p-6 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 max-w-md mx-auto">
-            <div className="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400">
+          <div className="p-6 rounded-xl bg-gray-50 border border-gray-200 max-w-md mx-auto">
+            <div className="flex items-center justify-center gap-2 text-gray-600">
               {data.property_type === 'haus' ? <Home className="w-5 h-5" /> : <Package className="w-5 h-5" />}
               <p>
                 {data.property_type === 'haus' 
@@ -41,13 +41,13 @@ export const Step4CurrentFloor = ({ data, onChange }: Step4Props) => {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-          <Layers className="w-8 h-8 text-gray-600 dark:text-gray-400" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+          <Layers className="w-8 h-8 text-gray-600" />
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           Stockwerk, wo sich die Wohnung befindet
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           Das Stockwerk beeinflusst den Aufwand und die Kosten
         </p>
       </div>
@@ -60,10 +60,10 @@ export const Step4CurrentFloor = ({ data, onChange }: Step4Props) => {
 
       {/* Info based on floor */}
       {data.stockwerk && (
-        <div className="p-4 rounded-xl border bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700">
+        <div className="p-4 rounded-xl border bg-gray-50 border-gray-200">
           <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-gray-500 dark:text-gray-400 shrink-0 mt-0.5" />
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <Info className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-600">
               {data.stockwerk === 'basement' && (
                 <>
                   <strong>Untergeschoss:</strong> Der Zugang kann eingeschränkt sein. 

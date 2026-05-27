@@ -72,12 +72,12 @@ export default function VoiceRecorder({ onTranscriptReady, disabled }: VoiceReco
       )}
 
       {status === "recording" && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20">
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-red-200 bg-red-50">
           <span className="relative flex h-3 w-3">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
             <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
           </span>
-          <span className="text-sm font-medium text-red-700 dark:text-red-300">
+          <span className="text-sm font-medium text-red-700">
             Aufnahme läuft — {formatDuration(recordingDuration)}
           </span>
           <Button
@@ -94,9 +94,9 @@ export default function VoiceRecorder({ onTranscriptReady, disabled }: VoiceReco
       )}
 
       {status === "transcribing" && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50">
           <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-          <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+          <span className="text-sm font-medium text-blue-700">
             Transkribiere Aufnahme...
           </span>
         </div>
@@ -118,15 +118,15 @@ export default function VoiceRecorder({ onTranscriptReady, disabled }: VoiceReco
 
       {/* Transcript review */}
       {status === "done" && (
-        <div className="space-y-3 rounded-lg border border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10 p-4">
-          <p className="text-sm font-medium text-green-800 dark:text-green-300">
+        <div className="space-y-3 rounded-lg border border-green-200 bg-green-50/50 p-4">
+          <p className="text-sm font-medium text-green-800">
             Transkription abgeschlossen — bitte prüfen und bei Bedarf bearbeiten:
           </p>
           <Textarea
             value={editedTranscript}
             onChange={(e) => setEditedTranscript(e.target.value)}
             rows={5}
-            className="bg-white dark:bg-card text-sm"
+            className="bg-white text-sm"
             aria-label="Transkription bearbeiten"
           />
           <div className="flex gap-2">

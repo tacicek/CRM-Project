@@ -48,15 +48,7 @@ serve(async (req) => {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const resend = resendApiKey ? new Resend(resendApiKey) : null;
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
-
-    if (!resend) {
-      return new Response(
-        JSON.stringify({ success: false, error: "RESEND_API_KEY not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
+    const globalResendKey = resendApiKey;
 
     const results = {
       reminders_sent: 0,
@@ -86,6 +78,29 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
     // Get team members for each auftrag
     for (const auftrag of auftraege as AuftragReminder[]) {
       try {
+        // Fetch company Resend settings for per-company key support
+        const { data: companySettings } = await supabase
+          .from("companies")
+          .select("resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+          .eq("id", auftrag.company_id)
+          .maybeSingle();
+
+        const activeResendKey = (companySettings?.resend_enabled && companySettings?.resend_api_key)
+          ? companySettings.resend_api_key
+          : globalResendKey;
+
+        if (!activeResendKey) {
+          console.error(`No Resend key for company ${auftrag.company_id}, skipping Auftrag ${auftrag.auftrag_nummer}`);
+          results.reminders_failed++;
+          results.errors.push(`${auftrag.auftrag_nummer}: No Resend key configured`);
+          continue;
+        }
+
+        const resend = new Resend(activeResendKey);
+        const fromAddress = (companySettings?.resend_enabled && companySettings?.resend_from_email)
+          ? `${companySettings.resend_from_name || auftrag.company_name} <${companySettings.resend_from_email}>`
+          : `${auftrag.company_name} <${getAdminEmail()}>`;
+
         // Get assigned team members details
         let teamMembersList = "";
         if (auftrag.assigned_team_members && auftrag.assigned_team_members.length > 0) {
@@ -119,7 +134,7 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
 
         // Send email to team leader
         const emailResult = await resend.emails.send({
-          from: `${auftrag.company_name} <${getAdminEmail()}>`,
+          from: fromAddress,
           to: auftrag.team_leader_email,
           subject: `📋 Auftrag ${auftrag.auftrag_nummer} - ${formattedDate}`,
           html: generateEmailHtml(auftrag, teamMembersList, formattedDate),
@@ -148,7 +163,7 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
         if (auftrag.company_email && auftrag.company_email !== auftrag.team_leader_email) {
           try {
             await resend.emails.send({
-              from: `${getAppName()} System <${getAdminEmail()}>`,
+              from: fromAddress,
               to: auftrag.company_email,
               subject: `📋 Auftrag ${auftrag.auftrag_nummer} - Team benachrichtigt`,
               html: `
@@ -170,10 +185,11 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
       }
     }
 
-    // Send admin summary
-    if (results.reminders_sent > 0) {
+    // Send admin summary (uses global server key)
+    if (results.reminders_sent > 0 && globalResendKey) {
       try {
-        await resend.emails.send({
+        const adminResend = new Resend(globalResendKey);
+        await adminResend.emails.send({
           from: getDefaultFrom(),
           to: getAdminEmail(),
           subject: `📊 Auftrag-Erinnerungen: ${results.reminders_sent} gesendet`,

@@ -39,20 +39,20 @@ export const Step13MovingDetails = ({ data, onChange }: Step13Props) => {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-          <CalendarDays className="w-8 h-8 text-gray-600 dark:text-gray-400" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+          <CalendarDays className="w-8 h-8 text-gray-600" />
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           Details zu Ihrem Umzug
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           Wann soll der Umzug stattfinden?
         </p>
       </div>
 
       {/* Date Selection */}
       <div className="space-y-4">
-        <h3 className="font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="font-semibold text-gray-800">
           Umzugsdatum
         </h3>
         
@@ -68,7 +68,7 @@ export const Step13MovingDetails = ({ data, onChange }: Step13Props) => {
         </div>
         
         {selectedDate && (
-          <p className="text-center text-blue-600 dark:text-blue-400 font-medium">
+          <p className="text-center text-blue-600 font-medium">
             Gewählt: {format(selectedDate, 'EEEE, d. MMMM yyyy', { locale: de })}
           </p>
         )}
@@ -76,7 +76,7 @@ export const Step13MovingDetails = ({ data, onChange }: Step13Props) => {
 
       {/* Flexibility Selection */}
       <div className="space-y-4">
-        <h3 className="font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="font-semibold text-gray-800">
           Flexibilität
         </h3>
         
@@ -93,17 +93,17 @@ export const Step13MovingDetails = ({ data, onChange }: Step13Props) => {
                   "p-3 rounded-xl border-2 transition-all duration-200 text-left",
                   "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500",
                   isSelected
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                    : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-blue-300"
                 )}
               >
                 <span className={cn(
                   "font-medium block mb-1",
-                  isSelected ? "text-blue-700 dark:text-blue-300" : "text-gray-800 dark:text-gray-200"
+                  isSelected ? "text-blue-700" : "text-gray-800"
                 )}>
                   {option.label}
                 </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-gray-500">
                   {option.description}
                 </span>
               </button>
@@ -112,7 +112,7 @@ export const Step13MovingDetails = ({ data, onChange }: Step13Props) => {
         </div>
         
         {data.flexibilitaet && data.flexibilitaet !== 'fixed' && (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600">
             Flexibilität ermöglicht oft bessere Preise!
           </p>
         )}
@@ -121,8 +121,8 @@ export const Step13MovingDetails = ({ data, onChange }: Step13Props) => {
       {/* Start Time Selection */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Clock className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-          <h3 className="font-semibold text-gray-800 dark:text-gray-200">
+          <Clock className="w-5 h-5 text-gray-600" />
+          <h3 className="font-semibold text-gray-800">
             Gewünschte Startzeit
           </h3>
         </div>
@@ -141,7 +141,7 @@ export const Step13MovingDetails = ({ data, onChange }: Step13Props) => {
                   "hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
                   isSelected
                     ? "border-blue-500 bg-blue-500 text-white"
-                    : "border-gray-200 dark:border-gray-700 hover:border-blue-300 text-gray-700 dark:text-gray-300"
+                    : "border-gray-200 hover:border-blue-300 text-gray-700"
                 )}
               >
                 {option.label}
@@ -152,10 +152,10 @@ export const Step13MovingDetails = ({ data, onChange }: Step13Props) => {
       </div>
 
       {/* Info Note */}
-      <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+      <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
         <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-gray-500 dark:text-gray-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <Info className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-gray-600">
             <strong>Hinweis:</strong> Der genaue Zeitpunkt wird mit dem Umzugsunternehmen 
             abgestimmt. Frühere Startzeiten sind bei längeren Umzügen empfohlen.
           </p>

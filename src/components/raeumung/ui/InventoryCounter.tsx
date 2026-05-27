@@ -47,8 +47,8 @@ export const InventoryCounter = ({
       className={cn(
         "flex items-center justify-between p-3 rounded-lg border transition-all",
         value > 0
-          ? "bg-primary/5 dark:bg-primary/10 border-primary/30"
-          : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300"
+          ? "bg-primary/5 border-primary/30"
+          : "bg-white border-gray-200 hover:border-gray-300"
       )}
     >
       {/* Left side: Icon and label */}
@@ -57,12 +57,12 @@ export const InventoryCounter = ({
         <div>
           <span className={cn(
             "font-medium text-sm",
-            value > 0 ? "text-primary" : "text-gray-700 dark:text-gray-300"
+            value > 0 ? "text-primary" : "text-gray-700"
           )}>
             {label}
           </span>
           {description && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
+            <p className="text-xs text-gray-500">{description}</p>
           )}
           {showWarning && value > 0 && warningText && (
             <p className="text-xs text-gray-500 flex items-center gap-1">

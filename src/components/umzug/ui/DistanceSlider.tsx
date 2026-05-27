@@ -24,17 +24,17 @@ export const DistanceSlider = ({
   return (
     <div className={cn("space-y-4", className)}>
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="text-sm font-medium text-gray-700">
           {label}
         </span>
-        <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+        <span className="text-lg font-bold text-blue-600">
           {value === 200 ? '200+' : value} Meter
         </span>
       </div>
       
       <div className="relative py-2">
         {/* Track line */}
-        <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-700 -translate-y-1/2 rounded-full" />
+        <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-200 -translate-y-1/2 rounded-full" />
         
         {/* Progress line */}
         <div 
@@ -66,7 +66,7 @@ export const DistanceSlider = ({
                     ? cn(colorClass, "scale-125")
                     : isActive
                     ? colorClass
-                    : "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:border-blue-400"
+                    : "bg-white border-gray-300 hover:border-blue-400"
                 )}
                 aria-label={`${option} Meter`}
               />
@@ -82,8 +82,8 @@ export const DistanceSlider = ({
               className={cn(
                 "text-xs transition-colors",
                 option === value
-                  ? "text-blue-600 dark:text-blue-400 font-medium"
-                  : "text-gray-500 dark:text-gray-400",
+                  ? "text-blue-600 font-medium"
+                  : "text-gray-500",
                 // Hide some labels on mobile for better spacing
                 index % 2 !== 0 && "hidden sm:block"
               )}

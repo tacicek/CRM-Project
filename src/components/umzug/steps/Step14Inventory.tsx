@@ -119,42 +119,42 @@ export const Step14Inventory = ({ data, onChange }: Step14Props) => {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900/50 mb-4">
-          <Package className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 mb-4">
+          <Package className="w-8 h-8 text-purple-600" />
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           Inventar - Was wird transportiert?
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           Optional, aber hilfreich für eine genaue Kalkulation
         </p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-center">
-          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+        <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 text-center">
+          <p className="text-2xl font-bold text-purple-600">
             {getTotalItemCount()}
           </p>
-          <p className="text-xs text-purple-600 dark:text-purple-400">Möbelstücke</p>
+          <p className="text-xs text-purple-600">Möbelstücke</p>
         </div>
-        <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-center">
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-center">
+          <p className="text-2xl font-bold text-blue-600">
             {getKartonCount()}
           </p>
-          <p className="text-xs text-blue-600 dark:text-blue-400">Kartons</p>
+          <p className="text-xs text-blue-600">Kartons</p>
         </div>
-        <div className="p-4 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 text-center">
-          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+        <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-center">
+          <p className="text-2xl font-bold text-orange-600">
             {getTotalSpecialCount()}
           </p>
-          <p className="text-xs text-orange-600 dark:text-orange-400">Spezial</p>
+          <p className="text-xs text-orange-600">Spezial</p>
         </div>
       </div>
 
       {/* Inventory Counter */}
       <div className="space-y-4">
-        <h3 className="font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="font-semibold text-gray-800">
           Möbel & Gegenstände
         </h3>
         <InventoryCounter
@@ -168,15 +168,15 @@ export const Step14Inventory = ({ data, onChange }: Step14Props) => {
         <button
           type="button"
           onClick={() => setShowSpecialItems(!showSpecialItems)}
-          className="w-full flex items-center justify-between p-4 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors"
+          className="w-full flex items-center justify-between p-4 rounded-xl bg-orange-50 border border-orange-200 hover:bg-orange-100 transition-colors"
         >
           <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            <AlertTriangle className="w-5 h-5 text-orange-600" />
             <div className="text-left">
-              <span className="font-medium text-gray-800 dark:text-gray-200 block">
+              <span className="font-medium text-gray-800 block">
                 Schwere / Spezielle Gegenstände
               </span>
-              <span className="text-sm text-orange-600 dark:text-orange-400">
+              <span className="text-sm text-orange-600">
                 Klavier, Tresor, Aquarium, etc.
               </span>
             </div>
@@ -189,18 +189,18 @@ export const Step14Inventory = ({ data, onChange }: Step14Props) => {
         </button>
         
         {showSpecialItems && (
-          <div className="p-4 rounded-xl bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-800 space-y-4 animate-in slide-in-from-top-4 duration-300">
+          <div className="p-4 rounded-xl bg-white border border-orange-200 space-y-4 animate-in slide-in-from-top-4 duration-300">
             {specialItems.map((item) => (
               <div
                 key={item.name}
                 className="flex items-center justify-between"
               >
                 <div className="flex-1">
-                  <span className="text-gray-700 dark:text-gray-300">
+                  <span className="text-gray-700">
                     {item.name}
                   </span>
                   {item.aufpreis_chf && (
-                    <span className="ml-2 text-xs text-orange-600 dark:text-orange-400">
+                    <span className="ml-2 text-xs text-orange-600">
                       +CHF {item.aufpreis_chf}
                     </span>
                   )}
@@ -214,7 +214,7 @@ export const Step14Inventory = ({ data, onChange }: Step14Props) => {
               </div>
             ))}
             
-            <p className="text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-start gap-2">
+            <p className="text-xs text-gray-500 pt-2 border-t border-gray-200 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>Spezielle Gegenstände erfordern zusätzliche Vorbereitung und können 
               Aufpreise verursachen.</span>
@@ -225,7 +225,7 @@ export const Step14Inventory = ({ data, onChange }: Step14Props) => {
 
       {/* Skip Option */}
       <div className="text-center">
-        <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center gap-2">
+        <p className="text-sm text-gray-500 flex items-center justify-center gap-2">
           <Lightbulb className="w-4 h-4 shrink-0" />
           <span>Sie können diese Angaben auch später ergänzen oder dem Umzugsunternehmen 
           bei der Besichtigung mitteilen.</span>

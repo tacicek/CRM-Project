@@ -103,8 +103,8 @@ export const Step5Scope = ({ scope, onChange }: Step5ScopeProps) => {
                 <Check className="w-4 h-4 text-white" />
               </div>
             )}
-            <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-3">
-              <Home className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+              <Home className="w-6 h-6 text-gray-600" />
             </div>
             <span className="font-semibold text-lg">Komplette Räumung</span>
             <span className="text-sm text-gray-500 text-center mt-2">
@@ -127,8 +127,8 @@ export const Step5Scope = ({ scope, onChange }: Step5ScopeProps) => {
                 <Check className="w-4 h-4 text-white" />
               </div>
             )}
-            <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-3">
-              <Package className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+              <Package className="w-6 h-6 text-gray-600" />
             </div>
             <span className="font-semibold text-lg">Teilräumung</span>
             <span className="text-sm text-gray-500 text-center mt-2">

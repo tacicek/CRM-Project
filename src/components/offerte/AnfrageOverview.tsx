@@ -232,10 +232,10 @@ export function AnfrageOverview({ lead, compact: _compact = false }: AnfrageOver
           <CardContent className="px-4 pb-4 pt-0">
             <div className="flex flex-col sm:flex-row gap-4 items-stretch">
               {/* From Address */}
-              <div className="flex-1 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-100 dark:border-red-900">
+              <div className="flex-1 p-3 bg-red-50 rounded-lg border border-red-100">
                 <div className="flex items-center gap-2 mb-2">
                   <Home className="w-4 h-4 text-red-500" />
-                  <span className="text-xs font-medium text-red-700 dark:text-red-300">
+                  <span className="text-xs font-medium text-red-700">
                     VON (Auszugsadresse)
                   </span>
                 </div>
@@ -282,10 +282,10 @@ export function AnfrageOverview({ lead, compact: _compact = false }: AnfrageOver
               </div>
 
               {/* To Address */}
-              <div className="flex-1 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-100 dark:border-green-900">
+              <div className="flex-1 p-3 bg-green-50 rounded-lg border border-green-100">
                 <div className="flex items-center gap-2 mb-2">
                   <Building2 className="w-4 h-4 text-green-500" />
-                  <span className="text-xs font-medium text-green-700 dark:text-green-300">
+                  <span className="text-xs font-medium text-green-700">
                     NACH (Einzugsadresse)
                   </span>
                 </div>

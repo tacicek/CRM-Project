@@ -243,7 +243,7 @@ export function KlaviertransportWizard({ onComplete, maxCompanies = 3, formId }:
         <div className="w-20 h-20 rounded-full bg-green-50 border-2 border-green-200 flex items-center justify-center text-4xl mb-6">
           🎹
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight mb-3 text-gray-900 dark:text-gray-100">
+        <h2 className="text-2xl font-semibold tracking-tight mb-3 text-gray-900">
           Anfrage gesendet!
         </h2>
         <p className="text-base text-gray-500 max-w-sm leading-relaxed mb-6">
@@ -316,7 +316,7 @@ export function KlaviertransportWizard({ onComplete, maxCompanies = 3, formId }:
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Schritt 1 von {TOTAL_STEPS}</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Welches Instrument?</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Welches Instrument?</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">
             Wählen Sie das Instrument aus, das transportiert werden soll.
           </p>
@@ -344,7 +344,7 @@ export function KlaviertransportWizard({ onComplete, maxCompanies = 3, formId }:
     <div className="space-y-6">
       <div>
         <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Schritt 2 von {TOTAL_STEPS} · Abholung</p>
-        <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Abholadresse</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Abholadresse</h2>
         <p className="text-sm text-gray-500 leading-relaxed mb-6">Wo befindet sich das Instrument momentan?</p>
       </div>
 
@@ -375,7 +375,7 @@ export function KlaviertransportWizard({ onComplete, maxCompanies = 3, formId }:
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Schritt 3 von {TOTAL_STEPS} · Lieferung</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Lieferadresse</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Lieferadresse</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Wohin soll das Instrument geliefert werden?</p>
         </div>
 
@@ -418,7 +418,7 @@ export function KlaviertransportWizard({ onComplete, maxCompanies = 3, formId }:
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Schritt {stepNum} von {TOTAL_STEPS}</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Extras & Hinweise</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Extras & Hinweise</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Optionale Zusatzleistungen und besondere Anforderungen.</p>
         </div>
 
@@ -486,7 +486,7 @@ export function KlaviertransportWizard({ onComplete, maxCompanies = 3, formId }:
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Schritt {TOTAL_STEPS} von {TOTAL_STEPS}</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Termin & Kontakt</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Termin & Kontakt</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Wann soll transportiert werden und wie erreichen wir Sie?</p>
         </div>
 

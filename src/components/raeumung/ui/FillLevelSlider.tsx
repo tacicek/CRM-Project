@@ -40,16 +40,16 @@ export const FillLevelSlider = ({
     <div className="space-y-4">
       {/* Header with label and percentage */}
       <div className="flex justify-between items-center">
-        <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
+        <span className="font-medium text-gray-700">{label}</span>
         {showPercentage && (
-          <span className="font-semibold text-lg text-gray-700 dark:text-gray-300">
+          <span className="font-semibold text-lg text-gray-700">
             {value}% - {levelInfo.label}
           </span>
         )}
       </div>
 
       {/* Visual fill indicator */}
-      <div className="relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+      <div className="relative h-8 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
         <div
           className="absolute left-0 top-0 h-full transition-all duration-300 bg-primary/70"
           style={{ width: `${value}%` }}
@@ -74,13 +74,13 @@ export const FillLevelSlider = ({
 
       {/* Labels below slider */}
       {showLabels && (
-        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex justify-between text-xs text-gray-500">
           {fillLevelLabels.map((level) => (
             <span
               key={level.value}
               className={cn(
                 "transition-colors",
-                value >= level.value ? "text-gray-700 dark:text-gray-300" : "text-gray-400"
+                value >= level.value ? "text-gray-700" : "text-gray-400"
               )}
             >
               {level.label}

@@ -57,14 +57,14 @@ function DiffRow({ label, original, corrected }: DiffRowProps) {
           <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{original}</p>
         </div>
         {/* Corrected */}
-        <div className="p-3 space-y-1 bg-green-50/40 dark:bg-green-900/10">
-          <p className="text-xs font-medium text-green-700 dark:text-green-400 mb-1">Korrektur</p>
+        <div className="p-3 space-y-1 bg-green-50/40">
+          <p className="text-xs font-medium text-green-700 mb-1">Korrektur</p>
           <p className="text-sm whitespace-pre-wrap leading-relaxed">
             {tokens.map((token, i) =>
               token.changed ? (
                 <mark
                   key={i}
-                  className="bg-yellow-200 dark:bg-yellow-800/60 text-foreground rounded px-0.5"
+                  className="bg-yellow-200 text-foreground rounded px-0.5"
                 >
                   {token.text}
                 </mark>

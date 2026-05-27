@@ -736,7 +736,7 @@ export function MoebelliftWizard({ onComplete, maxCompanies = 3, formId }: Moebe
 
       {/* Footer navigation (step 4 has inline submit) */}
       {step < 4 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 px-5 py-3.5 z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-200 px-5 py-3.5 z-50">
           <div className="max-w-2xl mx-auto flex items-center justify-between">
             <button type="button"
               style={{ visibility: step > 1 ? "visible" : "hidden" }}

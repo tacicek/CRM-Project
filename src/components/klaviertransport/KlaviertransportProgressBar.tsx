@@ -32,8 +32,8 @@ export function KlaviertransportProgressBar({ currentStep, totalSteps }: Klavier
                   step < currentStep
                     ? "bg-green-500 text-white"
                     : step === currentStep
-                    ? "bg-blue-500 text-white ring-4 ring-blue-100 dark:ring-blue-900"
-                    : "bg-gray-200 dark:bg-gray-700 text-gray-500"
+                    ? "bg-blue-500 text-white ring-4 ring-blue-100"
+                    : "bg-gray-200 text-gray-500"
                 )}
               >
                 {step < currentStep ? (
@@ -48,9 +48,9 @@ export function KlaviertransportProgressBar({ currentStep, totalSteps }: Klavier
                 className={cn(
                   "absolute -bottom-6 text-xs whitespace-nowrap hidden md:block",
                   step === currentStep
-                    ? "text-blue-600 dark:text-blue-400 font-medium"
+                    ? "text-blue-600 font-medium"
                     : step < currentStep
-                    ? "text-green-600 dark:text-green-400"
+                    ? "text-green-600"
                     : "text-gray-400"
                 )}
               >
@@ -66,7 +66,7 @@ export function KlaviertransportProgressBar({ currentStep, totalSteps }: Klavier
                     "h-1 rounded-full transition-all",
                     step < currentStep
                       ? "bg-green-500"
-                      : "bg-gray-200 dark:bg-gray-700"
+                      : "bg-gray-200"
                   )}
                 />
               </div>

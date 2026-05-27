@@ -616,7 +616,7 @@ export const AppointmentModal = ({
               })}
             </div>
             {formData.appointment_type === "blocked" && (
-              <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-2 rounded border border-blue-200 dark:border-blue-800">
+              <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded border border-blue-200">
                 💡 <strong>Zeit blockieren:</strong> Diese Zeit wird im Kalender als nicht verfügbar markiert. 
                 Keine Kundeninformationen erforderlich. Nützlich für Urlaub, Pausen, Wartung, etc.
               </div>
@@ -790,7 +790,7 @@ export const AppointmentModal = ({
                   value={selectedLeadId || "manual"}
                   onValueChange={handleLeadSelect}
                 >
-                  <SelectTrigger className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+                  <SelectTrigger className="bg-blue-50/50 border-blue-200">
                     <SelectValue placeholder="Anfrage auswählen oder manuell eingeben" />
                   </SelectTrigger>
                   <SelectContent>

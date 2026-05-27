@@ -124,7 +124,7 @@ export function ExtraServicesForm({
                 flex items-center justify-between rounded-xl border-2 p-3 sm:p-4
                 cursor-pointer select-none transition-all
                 ${isActive
-                  ? 'border-emerald-500 bg-white dark:bg-card shadow-sm'
+                  ? 'border-emerald-500 bg-white shadow-sm'
                   : 'border-border bg-card hover:border-muted-foreground/30 hover:bg-muted/30'
                 }
               `}

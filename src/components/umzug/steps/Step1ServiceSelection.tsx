@@ -17,17 +17,17 @@ export const Step1ServiceSelection = ({ data, onChange, serviceType, onServiceTy
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           Erhalten Sie mit wenigen Klicks Angebote
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           in weniger als 24 Stunden
         </p>
       </div>
 
       {/* Service Type Selection: Privat vs. Firma */}
       <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Art des Umzugs</h3>
+        <h3 className="text-lg font-semibold text-gray-800">Art des Umzugs</h3>
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -35,8 +35,8 @@ export const Step1ServiceSelection = ({ data, onChange, serviceType, onServiceTy
             className={cn(
               "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all",
               serviceType === "umzug_privat"
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-md"
-                : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+                ? "border-blue-500 bg-blue-50 shadow-md"
+                : "border-gray-200 hover:border-blue-300"
             )}
           >
             <Truck className={cn("w-6 h-6", serviceType === "umzug_privat" ? "text-blue-600" : "text-gray-400")} />
@@ -49,8 +49,8 @@ export const Step1ServiceSelection = ({ data, onChange, serviceType, onServiceTy
             className={cn(
               "flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all",
               serviceType === "umzug_firma"
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-md"
-                : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+                ? "border-blue-500 bg-blue-50 shadow-md"
+                : "border-gray-200 hover:border-blue-300"
             )}
           >
             <Building2 className={cn("w-6 h-6", serviceType === "umzug_firma" ? "text-blue-600" : "text-gray-400")} />
@@ -62,10 +62,10 @@ export const Step1ServiceSelection = ({ data, onChange, serviceType, onServiceTy
 
       {/* Property Type Selection */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="text-lg font-semibold text-gray-800">
           Art der aktuellen Unterkunft
         </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-gray-600">
           Von wo ziehen Sie um?
         </p>
         
@@ -79,9 +79,9 @@ export const Step1ServiceSelection = ({ data, onChange, serviceType, onServiceTy
       {data.property_type && (
         <div className={cn(
           "p-4 rounded-xl border",
-          "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+          "bg-blue-50 border-blue-200"
         )}>
-          <p className="text-sm text-blue-700 dark:text-blue-300">
+          <p className="text-sm text-blue-700">
             {data.property_type === 'haus' && (
               <>
                 <strong>Haus:</strong> Bei einem Haus werden zusätzliche Fragen zu Garage, 

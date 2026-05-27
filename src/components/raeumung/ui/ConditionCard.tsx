@@ -58,7 +58,7 @@ export const ConditionCard = ({
   return (
     <div className="space-y-4">
       {label && (
-        <label className="block font-medium text-gray-700 dark:text-gray-300">{label}</label>
+        <label className="block font-medium text-gray-700">{label}</label>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -72,8 +72,8 @@ export const ConditionCard = ({
               className={cn(
                 "relative flex flex-col items-center p-4 rounded-xl border-2 transition-all duration-200",
                 isSelected
-                  ? "border-primary bg-primary/5 dark:bg-primary/10"
-                  : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary/50"
+                  ? "border-primary bg-primary/5"
+                  : "border-gray-200 bg-white hover:border-primary/50"
               )}
             >
               {/* Selected indicator */}
@@ -86,7 +86,7 @@ export const ConditionCard = ({
               {/* Icon */}
               <div className={cn(
                 "w-10 h-10 rounded-lg flex items-center justify-center mb-2",
-                isSelected ? "bg-primary/10 text-primary" : "bg-gray-100 dark:bg-gray-700 text-gray-500"
+                isSelected ? "bg-primary/10 text-primary" : "bg-gray-100 text-gray-500"
               )}>
                 {option.icon}
               </div>
@@ -94,13 +94,13 @@ export const ConditionCard = ({
               {/* Label */}
               <span className={cn(
                 "font-medium text-sm",
-                isSelected ? "text-primary" : "text-gray-700 dark:text-gray-300"
+                isSelected ? "text-primary" : "text-gray-700"
               )}>
                 {option.label}
               </span>
 
               {/* Description */}
-              <span className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+              <span className="text-xs text-gray-500 text-center mt-1">
                 {option.description}
               </span>
             </button>

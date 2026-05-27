@@ -16,10 +16,10 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           Grösse der aktuellen Unterkunft
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           Diese Angaben helfen uns, den Umfang Ihres Umzugs einzuschätzen
         </p>
       </div>
@@ -41,10 +41,10 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-medium text-gray-800 dark:text-gray-200">
+                <h4 className="font-medium text-gray-800">
                   Anzahl Etagen im Haus
                 </h4>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-gray-500">
                   Wie viele Stockwerke hat das Haus?
                 </p>
               </div>
@@ -62,10 +62,10 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="font-medium text-gray-800 dark:text-gray-200">
+              <h4 className="font-medium text-gray-800">
                 Wohnbereich
               </h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500">
                 Ungefähre Wohnfläche in Quadratmetern
               </p>
             </div>
@@ -79,7 +79,7 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
               max={500}
               step={5}
             />
-            <span className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+            <span className="text-lg font-semibold text-gray-700">
               m²
             </span>
           </div>
@@ -94,7 +94,7 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
                 className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                   data.wohnflaeche_m2 === size
                     ? "bg-blue-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
                 {size} m²
@@ -105,8 +105,8 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
 
         {/* Property-specific additional fields */}
         {data.property_type === 'haus' && (
-          <div className="space-y-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-            <h4 className="font-medium text-gray-800 dark:text-gray-200">
+          <div className="space-y-4 p-4 rounded-xl bg-gray-50 border border-gray-200">
+            <h4 className="font-medium text-gray-800">
               Zusätzliche Bereiche
             </h4>
             <div className="grid grid-cols-2 gap-3">
@@ -119,7 +119,7 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
                   })}
                   className="w-5 h-5 rounded border-gray-300"
                 />
-                <span className="text-gray-700 dark:text-gray-300">Garage</span>
+                <span className="text-gray-700">Garage</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -130,7 +130,7 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
                   })}
                   className="w-5 h-5 rounded border-gray-300"
                 />
-                <span className="text-gray-700 dark:text-gray-300">Garten</span>
+                <span className="text-gray-700">Garten</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -141,7 +141,7 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
                   })}
                   className="w-5 h-5 rounded border-gray-300"
                 />
-                <span className="text-gray-700 dark:text-gray-300">Keller</span>
+                <span className="text-gray-700">Keller</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -152,19 +152,19 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
                   })}
                   className="w-5 h-5 rounded border-gray-300"
                 />
-                <span className="text-gray-700 dark:text-gray-300">Estrich/Dachboden</span>
+                <span className="text-gray-700">Estrich/Dachboden</span>
               </label>
             </div>
           </div>
         )}
 
         {data.property_type === 'lager' && (
-          <div className="space-y-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-            <h4 className="font-medium text-gray-800 dark:text-gray-200">
+          <div className="space-y-4 p-4 rounded-xl bg-gray-50 border border-gray-200">
+            <h4 className="font-medium text-gray-800">
               Lagerinformationen
             </h4>
             <div className="flex items-center gap-4">
-              <span className="text-gray-700 dark:text-gray-300">Lagergrösse:</span>
+              <span className="text-gray-700">Lagergrösse:</span>
               <CounterInput
                 value={data.zusatz?.lager_groesse_m3 || 5}
                 onChange={(value) => onChange({ 
@@ -173,7 +173,7 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
                 min={1}
                 max={100}
               />
-              <span className="text-gray-600 dark:text-gray-400">m³</span>
+              <span className="text-gray-600">m³</span>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -184,18 +184,18 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
                 })}
                 className="w-5 h-5 rounded border-gray-300"
               />
-              <span className="text-gray-700 dark:text-gray-300">Regale vorhanden</span>
+              <span className="text-gray-700">Regale vorhanden</span>
             </label>
           </div>
         )}
 
         {data.property_type === 'buero' && (
-          <div className="space-y-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-            <h4 className="font-medium text-gray-800 dark:text-gray-200">
+          <div className="space-y-4 p-4 rounded-xl bg-gray-50 border border-gray-200">
+            <h4 className="font-medium text-gray-800">
               Büroinformationen
             </h4>
             <div className="flex items-center gap-4">
-              <span className="text-gray-700 dark:text-gray-300">Arbeitsplätze:</span>
+              <span className="text-gray-700">Arbeitsplätze:</span>
               <CounterInput
                 value={data.zusatz?.anzahl_arbeitsplaetze || 1}
                 onChange={(value) => onChange({ 
@@ -214,7 +214,7 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
                 })}
                 className="w-5 h-5 rounded border-gray-300"
               />
-              <span className="text-gray-700 dark:text-gray-300">Server/IT-Equipment vorhanden</span>
+              <span className="text-gray-700">Server/IT-Equipment vorhanden</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -225,7 +225,7 @@ export const Step2CurrentSize = ({ data, onChange }: Step2Props) => {
                 })}
                 className="w-5 h-5 rounded border-gray-300"
               />
-              <span className="text-gray-700 dark:text-gray-300">Wochenend-Umzug gewünscht</span>
+              <span className="text-gray-700">Wochenend-Umzug gewünscht</span>
             </label>
           </div>
         )}

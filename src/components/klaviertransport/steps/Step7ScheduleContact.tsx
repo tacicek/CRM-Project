@@ -72,9 +72,9 @@ export function Step7ScheduleContact({ data, updateData, errors }: Step7Props) {
               className="rounded-md border"
             />
             {selectedDate && (
-              <div className="flex-1 bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4">
+              <div className="flex-1 bg-blue-50 rounded-xl p-4">
                 <div className="text-sm text-gray-500 mb-1">Gewähltes Datum</div>
-                <div className="text-xl font-semibold text-blue-700 dark:text-blue-300">
+                <div className="text-xl font-semibold text-blue-700">
                   {format(selectedDate, 'EEEE, d. MMMM yyyy', { locale: de })}
                 </div>
               </div>
@@ -100,8 +100,8 @@ export function Step7ScheduleContact({ data, updateData, errors }: Step7Props) {
                 className={cn(
                   "p-3 rounded-lg border-2 text-sm transition-all",
                   data.flexibilitaet === option.value
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                    : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-blue-300"
                 )}
               >
                 {option.label}
@@ -122,8 +122,8 @@ export function Step7ScheduleContact({ data, updateData, errors }: Step7Props) {
                 className={cn(
                   "p-4 rounded-lg border-2 text-center transition-all",
                   data.uhrzeit === option.value
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                    : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-blue-300"
                 )}
               >
                 <div className="font-semibold">{option.label}</div>
@@ -153,8 +153,8 @@ export function Step7ScheduleContact({ data, updateData, errors }: Step7Props) {
                 className={cn(
                   "px-4 py-2 rounded-lg border-2 transition-all",
                   data.anrede === sal
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                    : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-blue-300"
                 )}
               >
                 {sal === 'herr' ? 'Herr' : sal === 'frau' ? 'Frau' : 'Divers'}

@@ -42,6 +42,10 @@ interface Company {
   twilio_auth_token: string | null;
   twilio_phone_number: string | null;
   sms_reminders_enabled: boolean | null;
+  resend_enabled: boolean | null;
+  resend_api_key: string | null;
+  resend_from_email: string | null;
+  resend_from_name: string | null;
 }
 
 // Generate ICS calendar file content
@@ -208,18 +212,19 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-
-    if (!resendApiKey) {
-      console.error("[notify-appointment-reminder] RESEND_API_KEY not configured");
-      return new Response(JSON.stringify({ error: "Email service not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const globalResendApiKey = Deno.env.get("RESEND_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const resend = new Resend(resendApiKey);
+    // Per-company Resend resolution: company key > global server key
+    const resolveResend = (company: Company) => {
+      const key = (company.resend_enabled && company.resend_api_key) ? company.resend_api_key : globalResendApiKey;
+      if (!key) return null;
+      const fromName = company.resend_from_name || company.company_name;
+      const from = (company.resend_enabled && company.resend_from_email)
+        ? `${fromName} <${company.resend_from_email}>`
+        : getCalendarFrom();
+      return { client: new Resend(key), from };
+    };
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     const now = new Date();
@@ -313,12 +318,18 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
       // Get company info
       const { data: company } = await supabase
         .from("companies")
-        .select("id, company_name, email, notification_email, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled")
+        .select("id, company_name, email, notification_email, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
         .eq("id", appointment.company_id)
         .maybeSingle();
 
       if (!company) {
         console.error(`[notify-appointment-reminder] Company not found for appointment ${appointment.id}`);
+        continue;
+      }
+
+      const activeResend = resolveResend(company as Company);
+      if (!activeResend) {
+        console.error(`[notify-appointment-reminder] No Resend key available for appointment ${appointment.id}`);
         continue;
       }
 
@@ -343,8 +354,8 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
           const icsBase64 = stringToBase64(icsContent);
 
           try {
-            await resend.emails.send({
-              from: getCalendarFrom(),
+            await activeResend.client.emails.send({
+              from: activeResend.from,
               to: [appointment.customer_email],
               subject: `⏰ Letzte Erinnerung: ${appointment.title} in ${timeUntilText}`,
               html: generateOneHourReminderEmail(appointment, company as Company, timeUntilText, appointmentTypeLabel, cancelUrl, rescheduleUrl),
@@ -410,8 +421,8 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
 
         // Send reminder to firma
         try {
-          await resend.emails.send({
-            from: getCalendarFrom(),
+          await activeResend.client.emails.send({
+            from: activeResend.from,
             to: [recipientEmail],
             subject: `⏰ Erinnerung: ${appointment.title} in ${timeUntilText}`,
             html: generateFirmaReminderEmail(appointment, company as Company, timeUntilText, appointmentTypeLabel),
@@ -448,8 +459,8 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
         // Send reminder to customer if email available
         if (appointment.customer_email && !appointment.reminder_sent_customer) {
           try {
-            await resend.emails.send({
-              from: getCalendarFrom(),
+            await activeResend.client.emails.send({
+              from: activeResend.from,
               to: [appointment.customer_email],
               subject: `⏰ Termin-Erinnerung: ${appointment.title} in ${timeUntilText}`,
               html: generateCustomerReminderEmail(appointment, company as Company, timeUntilText, appointmentTypeLabel),
@@ -547,12 +558,18 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
       // Get company info
       const { data: company } = await supabase
         .from("companies")
-        .select("id, company_name, email, notification_email, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled")
+        .select("id, company_name, email, notification_email, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
         .eq("id", appointment.company_id)
         .single();
 
       if (!company) {
         console.error(`[notify-appointment-reminder] Company not found for appointment ${appointment.id}`);
+        continue;
+      }
+
+      const activeResend2 = resolveResend(company as Company);
+      if (!activeResend2) {
+        console.error(`[notify-appointment-reminder] No Resend key for tomorrow besichtigung ${appointment.id}`);
         continue;
       }
 
@@ -563,8 +580,8 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
       // Send day-before reminder to firma (only if not already sent)
       if (!existingFirmaReminder) {
         try {
-          await resend.emails.send({
-            from: getCalendarFrom(),
+          await activeResend2.client.emails.send({
+            from: activeResend2.from,
             to: [recipientEmail],
             subject: `📅 Morgen: Besichtigung "${appointment.title}"`,
             html: generateDayBeforeReminderEmail(appointment, company as Company, "firma"),
@@ -604,8 +621,8 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
       // Send day-before reminder to customer if email available and not already sent
       if (appointment.customer_email && !existingCustomerReminder) {
         try {
-          await resend.emails.send({
-            from: getCalendarFrom(),
+          await activeResend2.client.emails.send({
+            from: activeResend2.from,
             to: [appointment.customer_email],
             subject: `📅 Erinnerung: Ihre Besichtigung ist morgen`,
             html: generateDayBeforeReminderEmail(appointment, company as Company, "customer"),

@@ -1145,8 +1145,8 @@ const FirmaOfferteBearbeiten = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-1 gap-4">
                 {/* Hourly Rate Notice */}
                 {items.some(item => item.unit === "Stunden") && (
-                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-800">
                       <span className="font-medium">⏱️ Stundenarbeiten:</span>{" "}
                       Die angegebenen Stunden sind eine Schätzung. Die tatsächliche Arbeitszeit 
                       kann je nach Gegebenheiten vor Ort variieren.

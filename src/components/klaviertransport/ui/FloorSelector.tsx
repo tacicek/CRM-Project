@@ -56,8 +56,8 @@ export function FloorSelector({ value, onChange, showPriceHint, pricePerFloor = 
             className={cn(
               "px-4 py-2 rounded-lg border-2 font-medium transition-all",
               value === floor
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300"
-                : "border-gray-200 dark:border-gray-700 hover:border-blue-300 text-gray-600 dark:text-gray-400"
+                ? "border-blue-500 bg-blue-50 text-blue-700"
+                : "border-gray-200 hover:border-blue-300 text-gray-600"
             )}
           >
             {floorShortLabels[floor]}
@@ -66,13 +66,13 @@ export function FloorSelector({ value, onChange, showPriceHint, pricePerFloor = 
       </div>
       
       {/* Selected Floor Label */}
-      <div className="text-sm text-gray-600 dark:text-gray-400">
+      <div className="text-sm text-gray-600">
         Gewählt: <span className="font-medium">{floorLabels[value]}</span>
       </div>
       
       {/* Price Hint */}
       {showPriceHint && selectedFloorNum > 0 && (
-        <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
           {selectedFloorNum}. Stock ohne Lift = ca. +CHF {selectedFloorNum * pricePerFloor}.-
         </div>
       )}

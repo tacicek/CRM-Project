@@ -43,7 +43,7 @@ export function Step8Summary({ data, updateData, errors, maxCompanies, onMaxComp
       {/* Summary Sections */}
       <div className="space-y-4">
         {/* Service & Instrument */}
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
           <h4 className="font-semibold mb-3 flex items-center gap-2">
             <span>{spec?.icon || '🎹'}</span>
             Instrument & Service
@@ -74,7 +74,7 @@ export function Step8Summary({ data, updateData, errors, maxCompanies, onMaxComp
         
         {/* Pickup Location */}
         {data.abholort && (
-          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               📍 Abholadresse
             </h4>
@@ -93,7 +93,7 @@ export function Step8Summary({ data, updateData, errors, maxCompanies, onMaxComp
         
         {/* Delivery Location */}
         {data.lieferort && data.service_type === 'transport' && (
-          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               📍 Lieferadresse
             </h4>
@@ -112,7 +112,7 @@ export function Step8Summary({ data, updateData, errors, maxCompanies, onMaxComp
         
         {/* Schedule */}
         {data.wunschdatum && (
-          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               📅 Termin
             </h4>
@@ -133,7 +133,7 @@ export function Step8Summary({ data, updateData, errors, maxCompanies, onMaxComp
         )}
         
         {/* Contact */}
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
           <h4 className="font-semibold mb-3 flex items-center gap-2">
             👤 Kontakt
           </h4>
@@ -167,8 +167,8 @@ export function Step8Summary({ data, updateData, errors, maxCompanies, onMaxComp
       </div>
 
       {/* Agreements */}
-      <div className="space-y-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
-        <h4 className="font-semibold text-amber-800 dark:text-amber-200">
+      <div className="space-y-4 bg-amber-50 rounded-xl p-4 border border-amber-200">
+        <h4 className="font-semibold text-amber-800">
           Bestätigungen
         </h4>
         
@@ -219,10 +219,10 @@ export function Step8Summary({ data, updateData, errors, maxCompanies, onMaxComp
       </div>
       
       {/* Final Note */}
-      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+      <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
         <div className="flex items-start gap-3">
           <span className="text-xl">ℹ️</span>
-          <div className="text-sm text-blue-700 dark:text-blue-300">
+          <div className="text-sm text-blue-700">
             <p className="font-medium mb-1">Was passiert als nächstes?</p>
             <p>
               Nach dem Absenden erhalten Sie innerhalb von 24 Stunden unverbindliche Angebote 

@@ -202,7 +202,7 @@ export default function CookieBanner() {
   const themeClasses = {
     light: "bg-white text-gray-900 border-gray-200",
     dark: "bg-gray-900 text-white border-gray-700",
-    auto: "bg-white dark:bg-gray-900 text-gray-900 dark:text-white border-gray-200 dark:border-gray-700",
+    auto: "bg-white text-gray-900 border-gray-200",
   };
 
   return (
@@ -223,7 +223,7 @@ export default function CookieBanner() {
         {settings.layout !== "banner" && (
           <button
             onClick={handleRejectAll}
-            className="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+            className="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-100 transition"
             aria-label="Schliessen"
           >
             <X className="h-5 w-5" />
@@ -368,7 +368,7 @@ export default function CookieBanner() {
                 <Button
                   variant="outline"
                   onClick={handleRejectAll}
-                  className="border-current text-current hover:bg-black/10 dark:hover:bg-white/10"
+                  className="border-current text-current hover:bg-black/10"
                 >
                   {settings.texts.reject_all}
                 </Button>

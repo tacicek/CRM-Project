@@ -50,7 +50,7 @@ export function Step2InstrumentDetails({ data, updateData, errors }: Step2Props)
     <div className="space-y-6">
       {/* Selected Instrument Header */}
       {spec && (
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
           <div className="flex items-center gap-3">
             <span className="text-3xl">{spec.icon}</span>
             <div>
@@ -181,12 +181,12 @@ export function Step2InstrumentDetails({ data, updateData, errors }: Step2Props)
       
       {/* Antique Warning */}
       {data.instrument_age === 'antique' && (
-        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <span className="text-xl">🏛️</span>
             <div>
-              <h4 className="font-semibold text-amber-800 dark:text-amber-200">Antikes Instrument</h4>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
+              <h4 className="font-semibold text-amber-800">Antikes Instrument</h4>
+              <p className="text-sm text-amber-700">
                 Instrumente über 50 Jahre sind oft besonders wertvoll und empfindlich. 
                 Wir empfehlen eine erhöhte Versicherungssumme und spezielle Verpackung.
               </p>
@@ -197,12 +197,12 @@ export function Step2InstrumentDetails({ data, updateData, errors }: Step2Props)
       
       {/* Premium Brand Info */}
       {data.instrument_brand && pianoBrands.premium.includes(data.instrument_brand) && (
-        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <span className="text-xl">⭐</span>
             <div>
-              <h4 className="font-semibold text-blue-800 dark:text-blue-200">Premium-Instrument</h4>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
+              <h4 className="font-semibold text-blue-800">Premium-Instrument</h4>
+              <p className="text-sm text-blue-700">
                 {data.instrument_brand} Instrumente sind hochwertig und erfordern besondere Sorgfalt. 
                 Unsere spezialisierten Teams sind für den Transport solcher Instrumente ausgebildet.
               </p>

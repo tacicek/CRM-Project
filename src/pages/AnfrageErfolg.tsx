@@ -20,7 +20,7 @@ export default function AnfrageErfolg() {
   }, [loaded, trackConversion]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50 to-background dark:from-green-950/20 dark:to-background">
+    <div className="min-h-screen bg-gradient-to-b from-green-50 to-background">
       {/* Header */}
       <header className="bg-card border-b border-border shadow-sm">
         <nav className="container mx-auto px-4 py-4">
@@ -39,8 +39,8 @@ export default function AnfrageErfolg() {
         <div className="max-w-2xl mx-auto text-center">
           {/* Success Icon */}
           <div className="mb-8">
-            <div className="w-24 h-24 mx-auto bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center">
-              <CheckCircle className="w-14 h-14 text-green-600 dark:text-green-400" />
+            <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-14 h-14 text-green-600" />
             </div>
           </div>
 

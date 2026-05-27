@@ -446,7 +446,7 @@ const TeamPage = () => {
                     return (
                       <div
                         key={member.id}
-                        className="group relative border rounded-2xl bg-white dark:bg-card hover:shadow-lg hover:border-primary/20 transition-all duration-300 overflow-hidden"
+                        className="group relative border rounded-2xl bg-white hover:shadow-lg hover:border-primary/20 transition-all duration-300 overflow-hidden"
                       >
                         <div className="p-5">
                           <div className="flex items-start gap-4">
@@ -457,7 +457,7 @@ const TeamPage = () => {
                               {/* FIX: Safe initial access */}
                               {getInitials(member.first_name, member.last_name)}
                               <div 
-                                className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-white dark:bg-card shadow-sm flex items-center justify-center border-2 border-white dark:border-card"
+                                className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-white shadow-sm flex items-center justify-center border-2 border-white"
                                 style={{ color: member.color_code }}
                               >
                                 <RoleIcon className="w-3.5 h-3.5" />
@@ -519,7 +519,7 @@ const TeamPage = () => {
                                 variant="outline" 
                                 size="sm" 
                                 asChild 
-                                className="h-10 gap-2 w-full justify-center hover:bg-green-50 hover:text-green-600 hover:border-green-200 dark:hover:bg-green-950/20"
+                                className="h-10 gap-2 w-full justify-center hover:bg-green-50 hover:text-green-600 hover:border-green-200"
                               >
                                 <a href={`tel:${member.phone}`}>
                                   <Phone className="w-4 h-4" />
@@ -538,7 +538,7 @@ const TeamPage = () => {
                                 variant="outline" 
                                 size="sm" 
                                 asChild 
-                                className="h-10 gap-2 w-full justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 dark:hover:bg-blue-950/20"
+                                className="h-10 gap-2 w-full justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
                               >
                                 <a href={`mailto:${member.email}`}>
                                   <Mail className="w-4 h-4" />

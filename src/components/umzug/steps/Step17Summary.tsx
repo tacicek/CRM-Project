@@ -41,16 +41,16 @@ const SectionCard = ({
   editStep: number;
   onEdit: (step: number) => void;
 }) => (
-  <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50">
+  <div className="rounded-xl border border-gray-200 overflow-hidden">
+    <div className="flex items-center justify-between p-3 bg-gray-50">
       <div className="flex items-center gap-2">
         {icon}
-        <h4 className="font-medium text-gray-800 dark:text-gray-200">{title}</h4>
+        <h4 className="font-medium text-gray-800">{title}</h4>
       </div>
       <button
         type="button"
         onClick={() => onEdit(editStep)}
-        className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+        className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
       >
         <Edit2 className="w-4 h-4 text-gray-500" />
       </button>
@@ -92,13 +92,13 @@ export const Step17Summary = ({
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/50 mb-4">
-          <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+          <CheckCircle2 className="w-8 h-8 text-green-600" />
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           Zusammenfassung
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           Prüfen Sie Ihre Angaben und senden Sie die Anfrage ab
         </p>
       </div>
@@ -178,7 +178,7 @@ export const Step17Summary = ({
                 ).map(([category, items]) => (
                   <div key={category}>
                     <span className="text-gray-500 text-xs">{category}:</span>{' '}
-                    <span className="text-gray-700 dark:text-gray-300">
+                    <span className="text-gray-700">
                       {items.map(item => `${item.anzahl}x ${item.name}`).join(', ')}
                     </span>
                   </div>
@@ -192,15 +192,15 @@ export const Step17Summary = ({
           {/* Special/Heavy Items */}
           {data.inventar?.schwere_gegenstaende && data.inventar.schwere_gegenstaende.length > 0 ? (
             <div className="mt-2">
-              <strong className="text-orange-600 dark:text-orange-400">
+              <strong className="text-orange-600">
                 Spezielle Gegenstände ({data.inventar.schwere_gegenstaende.length}):
               </strong>
               <div className="mt-1 pl-2 space-y-0.5">
                 {data.inventar.schwere_gegenstaende.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-gray-700 dark:text-gray-300">
+                  <div key={idx} className="flex justify-between text-gray-700">
                     <span>{item.anzahl}x {item.name}</span>
                     {item.aufpreis_chf && (
-                      <span className="text-orange-600 dark:text-orange-400 text-xs">
+                      <span className="text-orange-600 text-xs">
                         +CHF {item.aufpreis_chf * item.anzahl}
                       </span>
                     )}
@@ -246,7 +246,7 @@ export const Step17Summary = ({
 
       {/* Additional Notes */}
       <div className="space-y-3">
-        <h3 className="font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="font-semibold text-gray-800">
           Zusätzliche Bemerkungen
         </h3>
         <Textarea
@@ -261,8 +261,8 @@ export const Step17Summary = ({
       <div className={cn(
         "p-4 rounded-xl border-2 transition-colors",
         agbAccepted 
-          ? "border-green-500 bg-green-50 dark:bg-green-950/30" 
-          : "border-gray-200 dark:border-gray-700"
+          ? "border-green-500 bg-green-50" 
+          : "border-gray-200"
       )}>
         <label className="flex items-start gap-3 cursor-pointer">
           <Checkbox
@@ -270,7 +270,7 @@ export const Step17Summary = ({
             onCheckedChange={(checked) => onAgbChange(checked as boolean)}
             className="mt-0.5"
           />
-          <span className="text-sm text-gray-700 dark:text-gray-300">
+          <span className="text-sm text-gray-700">
             Ich akzeptiere die{' '}
             <a href="/agb" target="_blank" className="text-blue-600 hover:underline">
               AGB
@@ -286,8 +286,8 @@ export const Step17Summary = ({
       </div>
 
       {/* Info Note */}
-      <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-        <p className="text-sm text-blue-700 dark:text-blue-300">
+      <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
+        <p className="text-sm text-blue-700">
           📧 Nach dem Absenden erhalten Sie eine Bestätigung per E-Mail. 
           Die Umzugsfirmen werden sich innerhalb von 24 Stunden bei Ihnen melden.
         </p>

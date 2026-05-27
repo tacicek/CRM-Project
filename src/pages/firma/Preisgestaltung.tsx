@@ -694,7 +694,7 @@ export default function FirmaPreisgestaltung() {
             
             {/* Draft Indicator */}
             {hasDraft && (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                 <FileText className="h-3 w-3 mr-1" />
                 Lokaler Entwurf vorhanden
               </Badge>
@@ -731,10 +731,10 @@ export default function FirmaPreisgestaltung() {
 
           {/* Validation Warnings */}
           {validation.warnings.length > 0 && (
-            <Alert variant="default" className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+            <Alert variant="default" className="border-amber-500 bg-amber-50">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-800 dark:text-amber-200">Hinweise</AlertTitle>
-              <AlertDescription className="text-amber-700 dark:text-amber-300">
+              <AlertTitle className="text-amber-800">Hinweise</AlertTitle>
+              <AlertDescription className="text-amber-700">
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {validation.warnings.map((warning, i) => (
                     <li key={generateWarningKey(warning, i)}>{warning}</li>
@@ -818,7 +818,7 @@ export default function FirmaPreisgestaltung() {
                     key={template.id}
                     onClick={() => handleTemplateClick(template.id)}
                     className={`p-3 rounded-lg border text-left transition-colors hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                      template.isMarketStandard ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : ''
+                      template.isMarketStandard ? 'border-green-500 bg-green-50' : ''
                     }`}
                     disabled={isLoading || isSaving || isCompanyLoading}
                     aria-label={`Vorlage "${template.name}" anwenden`}

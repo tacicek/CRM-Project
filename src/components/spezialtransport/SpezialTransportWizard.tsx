@@ -396,7 +396,7 @@ export function SpezialTransportWizard({ onComplete, maxCompanies = 3, formId }:
         <div className="w-20 h-20 rounded-full bg-green-50 border-2 border-green-200 flex items-center justify-center text-4xl mb-6">
           {meta?.ico ?? "📦"}
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight mb-3 text-gray-900 dark:text-gray-100">
+        <h2 className="text-2xl font-semibold tracking-tight mb-3 text-gray-900">
           Anfrage gesendet!
         </h2>
         <p className="text-base text-gray-500 max-w-sm leading-relaxed mb-6">
@@ -419,7 +419,7 @@ export function SpezialTransportWizard({ onComplete, maxCompanies = 3, formId }:
     <div className="space-y-6">
       <div>
         <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Schritt 1 von 3</p>
-        <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Was soll transportiert werden?</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Was soll transportiert werden?</h2>
         <p className="text-sm text-gray-500 leading-relaxed mb-6">Wählen Sie einfach das Passende — wir finden die richtige Fachfirma.</p>
       </div>
 
@@ -451,7 +451,7 @@ export function SpezialTransportWizard({ onComplete, maxCompanies = 3, formId }:
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Schritt 2 von 3</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">
             {meta?.name} transportieren
           </h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Kurze Angaben zum Objekt und wo es sich befindet.</p>
@@ -545,7 +545,7 @@ export function SpezialTransportWizard({ onComplete, maxCompanies = 3, formId }:
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Schritt 3 von 3</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Termin & Kontakt</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Termin & Kontakt</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Wann soll der Transport stattfinden — und wie erreichen wir Sie?</p>
         </div>
 
@@ -770,7 +770,7 @@ export function SpezialTransportWizard({ onComplete, maxCompanies = 3, formId }:
 
       {/* Footer nav — hidden on step 3 (inline submit) and step 1 (auto-advance) */}
       {step === 2 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t border-gray-200 px-5 py-3.5 z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-200 px-5 py-3.5 z-50">
           <div className="max-w-2xl mx-auto flex items-center justify-between">
             <button type="button" onClick={handleBack}
               className="flex items-center gap-1.5 px-4 h-10 border-[1.5px] border-gray-200 rounded-xl text-[14px] font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all">

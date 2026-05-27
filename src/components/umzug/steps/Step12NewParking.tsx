@@ -29,13 +29,13 @@ export const Step12NewParking = ({ data, onChange }: Step12Props) => {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-          <ParkingCircle className="w-8 h-8 text-gray-600 dark:text-gray-400" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+          <ParkingCircle className="w-8 h-8 text-gray-600" />
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           Distanz zwischen Parkplatz und Gebäudeeingang
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           Informationen zum Zugang bei der neuen Adresse
         </p>
       </div>
@@ -52,8 +52,8 @@ export const Step12NewParking = ({ data, onChange }: Step12Props) => {
       {/* Steps Selection */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Footprints className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-          <h3 className="font-semibold text-gray-800 dark:text-gray-200">
+          <Footprints className="w-5 h-5 text-gray-600" />
+          <h3 className="font-semibold text-gray-800">
             Stufen bis zum Gebäudeeingang
           </h3>
         </div>
@@ -71,19 +71,19 @@ export const Step12NewParking = ({ data, onChange }: Step12Props) => {
                   "p-4 rounded-xl border-2 transition-all duration-200 text-center",
                   "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary",
                   isSelected
-                    ? "border-primary bg-primary/5 dark:bg-primary/10"
-                    : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary/50"
+                    ? "border-primary bg-primary/5"
+                    : "border-gray-200 bg-white hover:border-primary/50"
                 )}
               >
                 <div className={cn(
                   "w-8 h-8 mx-auto mb-2 rounded-lg flex items-center justify-center text-sm font-bold",
-                  isSelected ? "bg-primary/10 text-primary" : "bg-gray-100 dark:bg-gray-700 text-gray-500"
+                  isSelected ? "bg-primary/10 text-primary" : "bg-gray-100 text-gray-500"
                 )}>
                   {option.level}
                 </div>
                 <span className={cn(
                   "text-sm font-medium",
-                  isSelected ? "text-primary" : "text-gray-700 dark:text-gray-300"
+                  isSelected ? "text-primary" : "text-gray-700"
                 )}>
                   {option.label}
                 </span>
@@ -106,10 +106,10 @@ export const Step12NewParking = ({ data, onChange }: Step12Props) => {
             className="w-5 h-5 mt-0.5 rounded border-gray-300"
           />
           <div>
-            <span className="font-medium text-gray-800 dark:text-gray-200">
+            <span className="font-medium text-gray-800">
               Der Weg ist anderweitig beeinträchtigt
             </span>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500">
               (z.B. enger Weg, Treppen ohne Geländer, steile Auffahrt)
             </p>
           </div>
@@ -128,10 +128,10 @@ export const Step12NewParking = ({ data, onChange }: Step12Props) => {
       </div>
 
       {/* Completion Message */}
-      <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+      <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
         <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-gray-500 dark:text-gray-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <Info className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-gray-600">
             <strong>Fast geschafft!</strong> Die Adressinformationen sind komplett. 
             Im nächsten Schritt erfassen wir die Details zu Ihrem Umzug.
           </p>

@@ -302,7 +302,7 @@ export function RaeumungWizard({ onComplete, maxCompanies = 3, initialType, form
         <div className="w-20 h-20 rounded-full bg-green-50 border-2 border-green-200 flex items-center justify-center text-4xl mb-6">
           🎉
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight mb-3 text-gray-900 dark:text-gray-100">
+        <h2 className="text-2xl font-semibold tracking-tight mb-3 text-gray-900">
           {titles[svcType ?? "raeumung"]}
         </h2>
         <p className="text-base text-gray-500 max-w-sm leading-relaxed mb-6">
@@ -370,7 +370,7 @@ export function RaeumungWizard({ onComplete, maxCompanies = 3, initialType, form
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Kostenlose Anfrage</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Was brauchen Sie?</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Was brauchen Sie?</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">
             Wählen Sie die passende Leistung — wir verbinden Sie mit geprüften Firmen in Ihrer Nähe.
           </p>
@@ -412,7 +412,7 @@ export function RaeumungWizard({ onComplete, maxCompanies = 3, initialType, form
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">
             Räumung{svcType === "beides" ? " + Entsorgung" : ""} · Schritt 1
           </p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">
             Was soll geräumt werden?
           </h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Wählen Sie die passende Räumungsart.</p>
@@ -439,7 +439,7 @@ export function RaeumungWizard({ onComplete, maxCompanies = 3, initialType, form
     <div className="space-y-6">
       <div>
         <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Räumung · Schritt 2</p>
-        <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Grösse & Standort</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Grösse & Standort</h2>
         <p className="text-sm text-gray-500 leading-relaxed mb-6">Ungefähre Fläche und Adresse des zu räumenden Objekts.</p>
       </div>
 
@@ -528,7 +528,7 @@ export function RaeumungWizard({ onComplete, maxCompanies = 3, initialType, form
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Räumung · Schritt 3</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Umfang & Details</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Umfang & Details</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Wie viel soll geräumt werden und gibt es Besonderheiten?</p>
         </div>
 
@@ -681,7 +681,7 @@ export function RaeumungWizard({ onComplete, maxCompanies = 3, initialType, form
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">{eyebrow}</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Was soll entsorgt werden?</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Was soll entsorgt werden?</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Wählen Sie die Kategorien — mehrere sind möglich.</p>
         </div>
 
@@ -736,7 +736,7 @@ export function RaeumungWizard({ onComplete, maxCompanies = 3, initialType, form
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Entsorgung · Schritt 2</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Standort & Dringlichkeit</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Standort & Dringlichkeit</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Wo werden die Gegenstände abgeholt?</p>
         </div>
 
@@ -797,7 +797,7 @@ export function RaeumungWizard({ onComplete, maxCompanies = 3, initialType, form
       <div className="space-y-6">
         <div>
           <p className="text-xs font-mono font-medium text-blue-600 uppercase tracking-wider mb-1.5">Schritt {stepNum}</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 mb-2">Termin & Kontakt</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">Termin & Kontakt</h2>
           <p className="text-sm text-gray-500 leading-relaxed mb-6">Wann soll es stattfinden und wie erreichen wir Sie?</p>
         </div>
 

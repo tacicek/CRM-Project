@@ -47,8 +47,8 @@ export const FloorSelector = ({
               "relative p-4 rounded-xl border-2 transition-all duration-200",
               "hover:shadow-md hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
               isSelected
-                ? "border-primary bg-primary/5 dark:bg-primary/10"
-                : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                ? "border-primary bg-primary/5"
+                : "border-gray-200 bg-white"
             )}
           >
             {/* Selected indicator */}
@@ -63,7 +63,7 @@ export const FloorSelector = ({
               "w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center",
               isSelected 
                 ? "bg-primary/10 text-primary" 
-                : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                : "bg-gray-100 text-gray-600"
             )}>
               {option.icon}
             </div>
@@ -72,8 +72,8 @@ export const FloorSelector = ({
             <span className={cn(
               "text-sm font-medium block text-center",
               isSelected 
-                ? "text-primary dark:text-primary" 
-                : "text-gray-700 dark:text-gray-300"
+                ? "text-primary" 
+                : "text-gray-700"
             )}>
               {FLOOR_LEVEL_LABELS[option.value]}
             </span>

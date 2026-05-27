@@ -103,8 +103,8 @@ export function DistanceForm({
 
         {/* Quick Estimate Helper */}
         {distanceKm > 0 && drivingTimeMinutes === 0 && (
-          <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
+          <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+            <p className="text-sm text-blue-800">
               💡 <strong>Tipp:</strong> Für {distanceKm} km können Sie mit ca.{' '}
               {Math.round(distanceKm * 1.5)} - {Math.round(distanceKm * 2)} Minuten
               Fahrzeit rechnen (je nach Strecke und Verkehr).

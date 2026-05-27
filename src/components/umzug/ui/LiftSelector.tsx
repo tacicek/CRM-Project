@@ -31,8 +31,8 @@ export const LiftSelector = ({
               "relative p-4 rounded-xl border-2 transition-all duration-200 text-left",
               "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
               isSelected
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300"
+                ? "border-blue-500 bg-blue-50"
+                : "border-gray-200 bg-white hover:border-blue-300"
             )}
           >
             {/* Selected indicator */}
@@ -55,15 +55,15 @@ export const LiftSelector = ({
             {/* Label */}
             <h4 className={cn(
               "font-semibold text-center mb-1",
-              isSelected ? "text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-300"
+              isSelected ? "text-blue-700" : "text-gray-700"
             )}>
               {info.label}
             </h4>
             
             {/* Capacity info */}
             <div className="text-center space-y-0.5">
-              <p className="text-sm text-gray-500 dark:text-gray-400">{info.capacity}</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500">{info.weight}</p>
+              <p className="text-sm text-gray-500">{info.capacity}</p>
+              <p className="text-xs text-gray-400">{info.weight}</p>
             </div>
           </button>
         );

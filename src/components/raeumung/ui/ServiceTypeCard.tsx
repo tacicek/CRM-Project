@@ -80,8 +80,8 @@ export const ServiceTypeCard = ({
         "relative flex flex-col items-start p-5 rounded-xl border-2 transition-all duration-200 text-left w-full min-h-[140px]",
         "hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
         selected
-          ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-md"
-          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300",
+          ? "border-blue-500 bg-blue-50 shadow-md"
+          : "border-gray-200 bg-white hover:border-blue-300",
         disabled && "opacity-50 cursor-not-allowed",
         sensitive && !selected && "border-amber-200 bg-amber-50/30"
       )}
@@ -115,8 +115,8 @@ export const ServiceTypeCard = ({
         selected 
           ? "bg-blue-500 text-white" 
           : sensitive 
-            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
-            : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+            ? "bg-amber-100 text-amber-600"
+            : "bg-gray-100 text-gray-600"
       )}>
         <IconComponent className="w-6 h-6" />
       </div>
@@ -125,15 +125,15 @@ export const ServiceTypeCard = ({
       <h4 className={cn(
         "font-semibold mb-1",
         selected 
-          ? "text-blue-700 dark:text-blue-300" 
-          : "text-gray-800 dark:text-gray-200"
+          ? "text-blue-700" 
+          : "text-gray-800"
       )}>
         {label}
       </h4>
 
       {/* Description */}
       {description && (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-sm text-gray-500">
           {description}
         </p>
       )}

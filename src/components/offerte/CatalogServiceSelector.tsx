@@ -227,7 +227,7 @@ export function CatalogServiceSelector({
                         onClick={() => toggle(service.id)}
                         className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
                           isSelected
-                            ? "bg-emerald-50 dark:bg-emerald-950/20"
+                            ? "bg-emerald-50"
                             : "hover:bg-muted/30"
                         }`}
                       >
@@ -242,7 +242,7 @@ export function CatalogServiceSelector({
 
                         {/* Name + description */}
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium leading-tight ${isSelected ? "text-emerald-800 dark:text-emerald-200" : ""}`}>
+                          <p className={`text-sm font-medium leading-tight ${isSelected ? "text-emerald-800" : ""}`}>
                             {service.name}
                           </p>
                           {service.description && (

@@ -44,8 +44,8 @@ export function InstrumentCard({ type, selected, onClick }: InstrumentCardProps)
       className={cn(
         "relative p-5 rounded-xl border-2 text-left transition-all duration-200 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
         selected
-          ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-md"
-          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300"
+          ? "border-blue-500 bg-blue-50 shadow-md"
+          : "border-gray-200 bg-white hover:border-blue-300"
       )}
     >
       {/* Selected Indicator */}
@@ -60,7 +60,7 @@ export function InstrumentCard({ type, selected, onClick }: InstrumentCardProps)
         "w-12 h-12 rounded-xl flex items-center justify-center mb-3",
         selected 
           ? "bg-blue-500 text-white" 
-          : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+          : "bg-gray-100 text-gray-600"
       )}>
         <IconComponent className="w-6 h-6" />
       </div>
@@ -68,21 +68,21 @@ export function InstrumentCard({ type, selected, onClick }: InstrumentCardProps)
       {/* Label */}
       <h4 className={cn(
         "font-semibold text-sm mb-1",
-        selected ? "text-blue-700 dark:text-blue-300" : "text-gray-800 dark:text-gray-200"
+        selected ? "text-blue-700" : "text-gray-800"
       )}>
         {spec.labelShort}
       </h4>
       
       {/* Weight & Dimensions */}
-      <div className="flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400 mb-2">
-        <span className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+      <div className="flex flex-wrap gap-1 text-xs text-gray-500 mb-2">
+        <span className="bg-gray-100 px-2 py-0.5 rounded">
           {getWeightDisplay(type)}
         </span>
       </div>
       
       {/* Demontage Badge */}
       {spec.needs_demontage && (
-        <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+        <div className="text-xs text-green-600 flex items-center gap-1">
           <CheckCircle2 className="w-3 h-3" />
           Demontage inkl.
         </div>

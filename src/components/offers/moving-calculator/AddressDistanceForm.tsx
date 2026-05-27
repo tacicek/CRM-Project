@@ -211,8 +211,8 @@ export function AddressDistanceForm({
         {/* Origin Address */}
         <div className="space-y-2">
           <Label className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <span className="text-xs font-bold text-green-600 dark:text-green-400">A</span>
+            <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
+              <span className="text-xs font-bold text-green-600">A</span>
             </div>
             Auszugsadresse
           </Label>
@@ -239,8 +239,8 @@ export function AddressDistanceForm({
         {/* Destination Address */}
         <div className="space-y-2">
           <Label className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <span className="text-xs font-bold text-red-600 dark:text-red-400">B</span>
+            <div className="h-6 w-6 rounded-full bg-red-100 flex items-center justify-center">
+              <span className="text-xs font-bold text-red-600">B</span>
             </div>
             Einzugsadresse
           </Label>
@@ -386,8 +386,8 @@ export function AddressDistanceForm({
 
         {/* Distance Warning */}
         {distanceKm > 30 && (
-          <div className="p-2 sm:p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900">
-            <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-200">
+          <div className="p-2 sm:p-3 rounded-lg bg-amber-50 border border-amber-200">
+            <p className="text-xs sm:text-sm text-amber-800">
               ⚠️ Bei Distanzen über 30 km: CHF 2.00 pro km Zuschlag
             </p>
           </div>

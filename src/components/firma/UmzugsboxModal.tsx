@@ -465,7 +465,7 @@ export const UmzugsboxModal = ({
           )}
 
           {/* Customer Info */}
-          <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+          <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
             <div className="flex items-center gap-2 text-sm font-medium">
               <User className="w-4 h-4" />
               Kundendaten
@@ -507,12 +507,12 @@ export const UmzugsboxModal = ({
           {/* Addresses Grid */}
           <div className="grid md:grid-cols-2 gap-4">
             {/* Delivery Address - where boxes go first (old home) */}
-            <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
+            <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
                 <Truck className="w-4 h-4" />
                 📦 Lieferadresse (Boxen hinbringen)
               </div>
-              <p className="text-xs text-blue-600 dark:text-blue-400">Wohin die Boxen zuerst geliefert werden (alte Wohnung)</p>
+              <p className="text-xs text-blue-600">Wohin die Boxen zuerst geliefert werden (alte Wohnung)</p>
               <div className="space-y-3">
                 <div className="space-y-2">
                   <Label className="text-xs">Strasse</Label>
@@ -544,12 +544,12 @@ export const UmzugsboxModal = ({
             </div>
 
             {/* Pickup Address - where boxes will be collected (new home) */}
-            <div className="space-y-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-              <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-300">
+            <div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2 text-sm font-medium text-green-700">
                 <Truck className="w-4 h-4" />
                 🚚 Abholadresse (Boxen abholen)
               </div>
-              <p className="text-xs text-green-600 dark:text-green-400">Woher die Boxen später abgeholt werden (neue Wohnung)</p>
+              <p className="text-xs text-green-600">Woher die Boxen später abgeholt werden (neue Wohnung)</p>
               <div className="space-y-3">
                 <div className="space-y-2">
                   <Label className="text-xs">Strasse</Label>
@@ -582,7 +582,7 @@ export const UmzugsboxModal = ({
           </div>
 
           {/* Box Details */}
-          <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+          <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Package className="w-4 h-4" />
@@ -687,8 +687,8 @@ export const UmzugsboxModal = ({
 
           {/* Rental Info */}
           {formData.is_rental && (
-            <div className="space-y-4 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-              <div className="flex items-center gap-2 text-sm font-medium text-orange-800 dark:text-orange-200">
+            <div className="space-y-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
+              <div className="flex items-center gap-2 text-sm font-medium text-orange-800">
                 <Calendar className="w-4 h-4" />
                 Miet-Details
               </div>
@@ -726,7 +726,7 @@ export const UmzugsboxModal = ({
           )}
 
           {/* Dates */}
-          <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+          <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Calendar className="w-4 h-4" />
               Termine
@@ -814,7 +814,7 @@ export const UmzugsboxModal = ({
 
           {/* Team Assignment */}
           {teamMembers.length > 0 && (
-            <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+            <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
               <div className="text-sm font-medium">Team-Zuordnung</div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

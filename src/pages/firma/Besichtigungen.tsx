@@ -432,36 +432,36 @@ const FirmaBesichtigungen = () => {
           label: "Ausstehend",
           icon: Hourglass,
           color: "from-amber-500 to-orange-500",
-          bgColor: "bg-amber-50 dark:bg-amber-950/30",
-          textColor: "text-amber-700 dark:text-amber-400",
-          borderColor: "border-amber-200 dark:border-amber-800",
+          bgColor: "bg-amber-50",
+          textColor: "text-amber-700",
+          borderColor: "border-amber-200",
         };
       case "confirmed":
         return {
           label: "Bestätigt",
           icon: CheckCircle,
           color: "from-emerald-500 to-green-500",
-          bgColor: "bg-emerald-50 dark:bg-emerald-950/30",
-          textColor: "text-emerald-700 dark:text-emerald-400",
-          borderColor: "border-emerald-200 dark:border-emerald-800",
+          bgColor: "bg-emerald-50",
+          textColor: "text-emerald-700",
+          borderColor: "border-emerald-200",
         };
       case "completed":
         return {
           label: "Abgeschlossen",
           icon: CalendarCheck,
           color: "from-blue-500 to-indigo-500",
-          bgColor: "bg-blue-50 dark:bg-blue-950/30",
-          textColor: "text-blue-700 dark:text-blue-400",
-          borderColor: "border-blue-200 dark:border-blue-800",
+          bgColor: "bg-blue-50",
+          textColor: "text-blue-700",
+          borderColor: "border-blue-200",
         };
       case "cancelled":
         return {
           label: "Abgesagt",
           icon: CalendarX,
           color: "from-slate-400 to-slate-500",
-          bgColor: "bg-slate-50 dark:bg-slate-950/30",
-          textColor: "text-slate-600 dark:text-slate-400",
-          borderColor: "border-slate-200 dark:border-slate-800",
+          bgColor: "bg-slate-50",
+          textColor: "text-slate-600",
+          borderColor: "border-slate-200",
         };
       default:
         return {
@@ -688,7 +688,7 @@ const FirmaBesichtigungen = () => {
                         key={request.notification_id} 
                         className={`overflow-hidden transition-all duration-300 hover:shadow-lg ${
                           isNew 
-                            ? 'border-2 border-teal-400 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/30 dark:to-cyan-950/30 animate-pulse-slow' 
+                            ? 'border-2 border-teal-400 bg-gradient-to-br from-teal-50 to-cyan-50 animate-pulse-slow' 
                             : 'hover:border-primary/20'
                         }`}
                       >
@@ -729,12 +729,12 @@ const FirmaBesichtigungen = () => {
                                   </div>
                                   
                                   {/* Customer's request note */}
-                                  <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-                                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                    <p className="text-sm font-medium text-blue-800 flex items-center gap-2">
                                       <Calendar className="w-4 h-4" />
                                       Kundenwunsch:
                                     </p>
-                                    <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+                                    <p className="text-sm text-blue-700 mt-1">
                                       Besichtigung gewünscht am {formattedDate}
                                       {request.besichtigung_time && ` um ${request.besichtigung_time} Uhr`}
                                       {request.customer_note && `. ${request.customer_note}`}
@@ -1177,9 +1177,9 @@ const FirmaBesichtigungen = () => {
 
                           {/* Photo count indicator */}
                           {session.photo_count > 0 && (
-                            <div className="flex items-center gap-2 mb-3 p-2 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg">
+                            <div className="flex items-center gap-2 mb-3 p-2 bg-emerald-50 rounded-lg">
                               <Image className="w-4 h-4 text-emerald-600" />
-                              <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                              <span className="text-sm font-medium text-emerald-700">
                                 {session.photo_count} Foto{session.photo_count > 1 ? "s" : ""} hochgeladen
                               </span>
                             </div>
@@ -1247,7 +1247,7 @@ const FirmaBesichtigungen = () => {
             {selectedVirtualSession && (
               <div className="space-y-5">
                 {/* Customer Info */}
-                <div className="flex items-start justify-between gap-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 rounded-xl border">
+                <div className="flex items-start justify-between gap-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border">
                   <div>
                     <h3 className="text-xl font-semibold">{selectedVirtualSession.customer_name}</h3>
                     {selectedVirtualSession.from_city && (
@@ -1305,12 +1305,12 @@ const FirmaBesichtigungen = () => {
 
                 {/* Customer Notes */}
                 {selectedVirtualSession.customer_notes && (
-                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 space-y-2">
-                    <h4 className="font-medium text-sm text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+                    <h4 className="font-medium text-sm text-amber-700 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
                       Kundennotiz
                     </h4>
-                    <p className="text-sm text-amber-800 dark:text-amber-300 whitespace-pre-wrap">
+                    <p className="text-sm text-amber-800 whitespace-pre-wrap">
                       {selectedVirtualSession.customer_notes}
                     </p>
                   </div>
@@ -1333,7 +1333,7 @@ const FirmaBesichtigungen = () => {
                 </div>
 
                 {/* Data retention warning */}
-                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-400">
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">
                   <span className="text-base shrink-0">⏰</span>
                   <div>
                     <p className="font-medium mb-0.5">Automatische Datenlöschung</p>
@@ -1535,12 +1535,12 @@ const FirmaBesichtigungen = () => {
                 
                 {/* Internal Notes */}
                 {selectedDetails.internal_notes && (
-                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 space-y-2">
-                    <h4 className="font-medium text-sm text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+                    <h4 className="font-medium text-sm text-amber-700 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
                       Interne Notizen
                     </h4>
-                    <p className="text-sm text-amber-800 dark:text-amber-300 whitespace-pre-wrap">
+                    <p className="text-sm text-amber-800 whitespace-pre-wrap">
                       {selectedDetails.internal_notes}
                     </p>
                   </div>

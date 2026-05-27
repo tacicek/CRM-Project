@@ -679,11 +679,11 @@ export default function FirmaDatenarchiv() {
                 </Select>
               </div>
 
-              <div className="bg-red-50 dark:bg-red-950/20 p-3 rounded-lg">
-                <p className="text-sm text-red-800 dark:text-red-200">
+              <div className="bg-red-50 p-3 rounded-lg">
+                <p className="text-sm text-red-800">
                   <strong>Löschbare Datensätze:</strong>
                 </p>
-                <ul className="text-sm text-red-700 dark:text-red-300 mt-1 space-y-1">
+                <ul className="text-sm text-red-700 mt-1 space-y-1">
                   <li>• {stats?.leads_old || 0} Leads</li>
                   <li>• {stats?.offers_old || 0} Offerten</li>
                   <li>• {stats?.appointments_old || 0} Termine</li>

@@ -723,7 +723,7 @@ export default function FirmaLeistungskatalog() {
               <Card className="border-dashed border-2">
                 <CardContent className="py-10">
                   <div className="text-center mb-8">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 flex items-center justify-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
                       <Sparkles className="w-8 h-8 text-amber-600" />
                     </div>
                     <h3 className="text-xl font-semibold mb-2">Schnellstart mit Vorlagen</h3>
@@ -822,7 +822,7 @@ export default function FirmaLeistungskatalog() {
                                     key={service.id}
                                     className={`group flex flex-col sm:flex-row sm:items-start gap-3 p-4 rounded-xl border bg-card transition-all duration-200 ${
                                       isInlineEditing 
-                                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700" 
+                                        ? "bg-blue-50 border-blue-300" 
                                         : "hover:bg-muted/30 hover:border-primary/20"
                                     }`}
                                   >
@@ -906,7 +906,7 @@ export default function FirmaLeistungskatalog() {
                                       ) : (
                                         <>
                                           <div 
-                                            className="text-left sm:text-right shrink-0 cursor-pointer hover:bg-white/50 dark:hover:bg-black/20 rounded px-2 py-1 transition-colors"
+                                            className="text-left sm:text-right shrink-0 cursor-pointer hover:bg-white/50 rounded px-2 py-1 transition-colors"
                                             onClick={() => startInlineEdit(service)}
                                             title="Klicken zum Bearbeiten"
                                           >
@@ -1296,7 +1296,7 @@ export default function FirmaLeistungskatalog() {
                   className={`
                     flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all w-full
                     ${formData.is_default_included
-                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+                      ? 'border-emerald-500 bg-emerald-50'
                       : 'border-border hover:border-muted-foreground/40'
                     }
                   `}
@@ -1305,7 +1305,7 @@ export default function FirmaLeistungskatalog() {
                     {formData.is_default_included && <Check className="w-3 h-3 text-white" />}
                   </div>
                   <div>
-                    <p className={`text-sm font-semibold ${formData.is_default_included ? 'text-emerald-700 dark:text-emerald-400' : 'text-foreground'}`}>
+                    <p className={`text-sm font-semibold ${formData.is_default_included ? 'text-emerald-700' : 'text-foreground'}`}>
                       Immer inklusive
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -1321,7 +1321,7 @@ export default function FirmaLeistungskatalog() {
                   className={`
                     flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all w-full
                     ${!formData.is_default_included && formData.is_optional
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                      ? 'border-blue-500 bg-blue-50'
                       : 'border-border hover:border-muted-foreground/40'
                     }
                   `}
@@ -1330,7 +1330,7 @@ export default function FirmaLeistungskatalog() {
                     {(!formData.is_default_included && formData.is_optional) && <Check className="w-3 h-3 text-white" />}
                   </div>
                   <div>
-                    <p className={`text-sm font-semibold ${!formData.is_default_included && formData.is_optional ? 'text-blue-700 dark:text-blue-400' : 'text-foreground'}`}>
+                    <p className={`text-sm font-semibold ${!formData.is_default_included && formData.is_optional ? 'text-blue-700' : 'text-foreground'}`}>
                       Optional zubuchbar
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -1346,7 +1346,7 @@ export default function FirmaLeistungskatalog() {
                   className={`
                     flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all w-full
                     ${!formData.is_default_included && !formData.is_optional
-                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30'
+                      ? 'border-orange-500 bg-orange-50'
                       : 'border-border hover:border-muted-foreground/40'
                     }
                   `}
@@ -1355,7 +1355,7 @@ export default function FirmaLeistungskatalog() {
                     {(!formData.is_default_included && !formData.is_optional) && <Check className="w-3 h-3 text-white" />}
                   </div>
                   <div>
-                    <p className={`text-sm font-semibold ${!formData.is_default_included && !formData.is_optional ? 'text-orange-700 dark:text-orange-400' : 'text-foreground'}`}>
+                    <p className={`text-sm font-semibold ${!formData.is_default_included && !formData.is_optional ? 'text-orange-700' : 'text-foreground'}`}>
                       Nur manuell hinzufügen
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -1449,7 +1449,7 @@ export default function FirmaLeistungskatalog() {
                         key={service.id}
                         className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
                           isSelected 
-                            ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800" 
+                            ? "bg-green-50 border border-green-200" 
                             : "hover:bg-muted border border-transparent"
                         }`}
                         onClick={() => toggleTemplateService(service.id)}

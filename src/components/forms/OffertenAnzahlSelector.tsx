@@ -48,10 +48,10 @@ export function OffertenAnzahlSelector({
   return (
     <div className={cn("space-y-4", className)}>
       <div className="text-center mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900">
           Wie viele Offerten möchten Sie erhalten?
         </h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        <p className="text-sm text-gray-500 mt-1">
           Mehr Offerten = mehr Vergleichsmöglichkeiten
         </p>
       </div>
@@ -70,7 +70,7 @@ export function OffertenAnzahlSelector({
                 "relative p-5 rounded-xl border-2 text-center transition-all duration-200 hover:shadow-lg group",
                 isSelected
                   ? "border-primary bg-primary/5 shadow-md"
-                  : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary/50",
+                  : "border-gray-200 bg-white hover:border-primary/50",
                 option.highlight && !isSelected && "ring-2 ring-primary/20"
               )}
             >
@@ -83,7 +83,7 @@ export function OffertenAnzahlSelector({
                       ? "bg-primary text-white"
                       : option.highlight
                       ? "bg-primary/10 text-primary"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                      : "bg-gray-100 text-gray-600"
                   )}
                 >
                   {option.badge}
@@ -103,7 +103,7 @@ export function OffertenAnzahlSelector({
                   "w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center transition-colors",
                   isSelected
                     ? "bg-primary/10 text-primary"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 group-hover:text-primary"
+                    : "bg-gray-100 text-gray-500 group-hover:text-primary"
                 )}
               >
                 <Icon className="w-6 h-6" />
@@ -115,14 +115,14 @@ export function OffertenAnzahlSelector({
                   "font-semibold text-lg mb-1",
                   isSelected
                     ? "text-primary"
-                    : "text-gray-800 dark:text-gray-200"
+                    : "text-gray-800"
                 )}
               >
                 {option.label}
               </div>
 
               {/* Description */}
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500">
                 {option.description}
               </p>
             </button>

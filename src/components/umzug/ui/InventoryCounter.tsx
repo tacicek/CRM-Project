@@ -55,7 +55,7 @@ export const InventoryCounter = ({
         return (
           <div
             key={category.name}
-            className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden"
+            className="border border-gray-200 rounded-xl overflow-hidden"
           >
             {/* Category Header */}
             <button
@@ -63,17 +63,17 @@ export const InventoryCounter = ({
               onClick={() => toggleCategory(category.name)}
               className={cn(
                 "w-full flex items-center justify-between p-4 text-left",
-                "bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800",
+                "bg-gray-50 hover:bg-gray-100",
                 "transition-colors duration-200"
               )}
             >
               <div className="flex items-center gap-3">
                 <CategoryIcon category={category.name} />
-                <span className="font-semibold text-gray-800 dark:text-gray-200">
+                <span className="font-semibold text-gray-800">
                   {category.name}
                 </span>
                 {totalCount > 0 && (
-                  <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-sm rounded-full">
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-sm rounded-full">
                     {totalCount}
                   </span>
                 )}
@@ -87,18 +87,18 @@ export const InventoryCounter = ({
             
             {/* Category Items */}
             {isExpanded && (
-              <div className="p-4 space-y-3 bg-white dark:bg-gray-900">
+              <div className="p-4 space-y-3 bg-white">
                 {category.items.map((item) => (
                   <div
                     key={item.name}
                     className="flex items-center justify-between"
                   >
                     <div className="flex-1">
-                      <span className="text-gray-700 dark:text-gray-300">
+                      <span className="text-gray-700">
                         {item.name}
                       </span>
                       {item.aufpreis_chf && (
-                        <span className="ml-2 text-xs text-orange-600 dark:text-orange-400">
+                        <span className="ml-2 text-xs text-orange-600">
                           +CHF {item.aufpreis_chf}
                         </span>
                       )}
@@ -113,8 +113,8 @@ export const InventoryCounter = ({
                         className={cn(
                           "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
                           item.anzahl === 0
-                            ? "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
-                            : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                         )}
                       >
                         <Minus className="w-4 h-4" />
@@ -123,7 +123,7 @@ export const InventoryCounter = ({
                       <span className={cn(
                         "w-10 text-center font-semibold",
                         item.anzahl > 0 
-                          ? "text-blue-600 dark:text-blue-400" 
+                          ? "text-blue-600" 
                           : "text-gray-400"
                       )}>
                         {item.anzahl}

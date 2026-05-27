@@ -48,8 +48,8 @@ function ServiceCard({ title, subtitle, icon, price, active, onToggle, children 
     <div className={cn(
       "rounded-xl border-2 transition-all overflow-hidden",
       active 
-        ? "border-blue-500 bg-blue-50/50 dark:bg-blue-950/30" 
-        : "border-gray-200 dark:border-gray-700"
+        ? "border-blue-500 bg-blue-50/50" 
+        : "border-gray-200"
     )}>
       <div className="p-4">
         <div className="flex items-center justify-between">
@@ -61,14 +61,14 @@ function ServiceCard({ title, subtitle, icon, price, active, onToggle, children 
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-blue-600 dark:text-blue-400">{price}</span>
+            <span className="text-sm text-blue-600">{price}</span>
             <Switch checked={active} onCheckedChange={onToggle} />
           </div>
         </div>
       </div>
       
       {active && children && (
-        <div className="px-4 pb-4 pt-2 border-t border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+        <div className="px-4 pb-4 pt-2 border-t border-blue-200 bg-blue-50/50">
           {children}
         </div>
       )}
@@ -120,8 +120,8 @@ export function Step6AdditionalServices({ data, updateServices, errors: _errors 
                     className={cn(
                       "w-full p-2 rounded-lg border text-left text-sm transition-all flex items-center justify-between",
                       services.stimmen.zeitpunkt === option.value
-                        ? "border-blue-500 bg-white dark:bg-gray-800"
-                        : "border-gray-200 dark:border-gray-600"
+                        ? "border-blue-500 bg-white"
+                        : "border-gray-200"
                     )}
                   >
                     <span>{option.label}</span>
@@ -170,8 +170,8 @@ export function Step6AdditionalServices({ data, updateServices, errors: _errors 
                   className={cn(
                     "p-2 rounded-lg border text-sm transition-all",
                     services.lagerung.dauer === option.value
-                      ? "border-blue-500 bg-white dark:bg-gray-800"
-                      : "border-gray-200 dark:border-gray-600"
+                      ? "border-blue-500 bg-white"
+                      : "border-gray-200"
                   )}
                 >
                   {option.label}
@@ -204,8 +204,8 @@ export function Step6AdditionalServices({ data, updateServices, errors: _errors 
                   className={cn(
                     "p-2 rounded-lg border text-sm transition-all",
                     services.versicherung.summe === sum
-                      ? "border-blue-500 bg-white dark:bg-gray-800"
-                      : "border-gray-200 dark:border-gray-600"
+                      ? "border-blue-500 bg-white"
+                      : "border-gray-200"
                   )}
                 >
                   CHF {sum.toLocaleString('de-CH')}
@@ -244,11 +244,11 @@ export function Step6AdditionalServices({ data, updateServices, errors: _errors 
       {/* Summary of selected services */}
       {(services.stimmen.aktiv || services.verpackung || services.lagerung.aktiv || 
         services.versicherung.aktiv || services.entsorgung_alt) && (
-        <div className="bg-green-50 dark:bg-green-950/30 rounded-xl p-4 border border-green-200 dark:border-green-800">
-          <h4 className="font-semibold text-green-800 dark:text-green-200 mb-2">
+        <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+          <h4 className="font-semibold text-green-800 mb-2">
             Gewählte Zusatzleistungen
           </h4>
-          <ul className="text-sm text-green-700 dark:text-green-300 space-y-1">
+          <ul className="text-sm text-green-700 space-y-1">
             {services.stimmen.aktiv && (
               <li>✓ Klavierstimmen {services.stimmen.zeitpunkt && `(${tuningTimeOptions.find(o => o.value === services.stimmen.zeitpunkt)?.label})`}</li>
             )}

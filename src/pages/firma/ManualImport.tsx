@@ -1989,11 +1989,11 @@ Steinway Flügel, ca. 350kg`}
         {previewMode && extractedData && (
           <>
             {/* Service Type & AI Confidence */}
-            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-blue-200">
+            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white dark:bg-card rounded-lg shadow-sm">
+                    <div className="p-2 bg-white rounded-lg shadow-sm">
                       {SERVICE_TYPE_ICONS[extractedData.detected_service_type] || <Package className="w-5 h-5" />}
                     </div>
                     <div>

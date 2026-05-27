@@ -38,13 +38,13 @@ export const Step16Contact = ({ data, onChange, errors = {} }: Step16Props) => {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/50 mb-4">
-          <User className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
+          <User className="w-8 h-8 text-blue-600" />
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           Ihre Kontaktdaten
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           Damit die Umzugsfirmen Sie erreichen können
         </p>
       </div>
@@ -65,8 +65,8 @@ export const Step16Contact = ({ data, onChange, errors = {} }: Step16Props) => {
                   "flex-1 px-4 py-2 rounded-lg border-2 transition-all duration-200",
                   "hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
                   data.anrede === option.value
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300"
-                    : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300"
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-gray-200 text-gray-700"
                 )}
               >
                 {option.label}
@@ -169,9 +169,9 @@ export const Step16Contact = ({ data, onChange, errors = {} }: Step16Props) => {
       </div>
 
       {/* Privacy Note */}
-      <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 flex items-start gap-3">
+      <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-start gap-3">
         <Lock className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-gray-600">
           Ihre Daten werden vertraulich behandelt und nur für die 
           Angebotserstellung an ausgewählte Umzugsfirmen weitergegeben.
         </p>

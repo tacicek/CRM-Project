@@ -907,8 +907,8 @@ const LeadFormWizard = ({
                       formData.serviceType === service.id
                         ? "border-secondary bg-secondary/5 shadow-md"
                         : errors.serviceType
-                        ? "border-destructive/50 bg-white dark:bg-gray-800"
-                        : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-secondary/50"
+                        ? "border-destructive/50 bg-white"
+                        : "border-gray-200 bg-white hover:border-secondary/50"
                     }`}
                   >
                     {/* Selected Indicator */}

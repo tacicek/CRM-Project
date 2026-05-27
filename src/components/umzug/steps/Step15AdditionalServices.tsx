@@ -43,9 +43,9 @@ const ServiceCard = ({
     "rounded-xl border-2 transition-all duration-200 overflow-hidden",
     active
       ? highlight 
-        ? "border-orange-500 bg-orange-50 dark:bg-orange-950/30"
-        : "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-      : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+        ? "border-orange-500 bg-orange-50"
+        : "border-blue-500 bg-blue-50"
+      : "border-gray-200 hover:border-blue-300"
   )}>
     <button
       type="button"
@@ -59,7 +59,7 @@ const ServiceCard = ({
             ? highlight
               ? "bg-orange-500 text-white"
               : "bg-blue-500 text-white" 
-            : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+            : "bg-gray-100 text-gray-600"
         )}>
           {icon}
         </div>
@@ -68,13 +68,13 @@ const ServiceCard = ({
             "font-medium block",
             active 
               ? highlight 
-                ? "text-orange-700 dark:text-orange-300"
-                : "text-blue-700 dark:text-blue-300" 
-              : "text-gray-800 dark:text-gray-200"
+                ? "text-orange-700"
+                : "text-blue-700" 
+              : "text-gray-800"
           )}>
             {title}
           </span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className="text-sm text-gray-500">
             {subtitle}
           </span>
         </div>
@@ -87,7 +87,7 @@ const ServiceCard = ({
           ? highlight
             ? "bg-orange-500"
             : "bg-blue-500" 
-          : "bg-gray-300 dark:bg-gray-600"
+          : "bg-gray-300"
       )}>
         <div className={cn(
           "w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform",
@@ -98,7 +98,7 @@ const ServiceCard = ({
     
     {/* Expanded Content */}
     {active && children && (
-      <div className="px-4 pb-4 pt-2 border-t border-gray-200 dark:border-gray-700 animate-in slide-in-from-top-2 duration-200">
+      <div className="px-4 pb-4 pt-2 border-t border-gray-200 animate-in slide-in-from-top-2 duration-200">
         {children}
       </div>
     )}
@@ -110,13 +110,13 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/50 mb-4">
-          <Package className="w-8 h-8 text-green-600 dark:text-green-400" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+          <Package className="w-8 h-8 text-green-600" />
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
           Zusätzliche Dienstleistungen
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           Optionale Services für einen sorgenfreien Umzug
         </p>
       </div>
@@ -136,7 +136,7 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
           })}
         >
           <div className="space-y-2">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            <p className="text-sm text-gray-600 mb-3">
               Umfang des Verpackungsservice:
             </p>
             <div className="flex gap-3">
@@ -149,7 +149,7 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
                   "flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                   data.verpackung.umfang === 'alles'
                     ? "bg-blue-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                    : "bg-gray-100 text-gray-700"
                 )}
               >
                 Alles verpacken
@@ -163,7 +163,7 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
                   "flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                   data.verpackung.umfang === 'nur_fragiles'
                     ? "bg-blue-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                    : "bg-gray-100 text-gray-700"
                 )}
               >
                 Nur Fragiles
@@ -204,7 +204,7 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
           })}
         >
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-gray-600">
               Geschätztes Volumen (m³):
             </span>
             <CounterInput
@@ -227,7 +227,7 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
           onToggle={() => onChange({ endreinigung: !data.endreinigung })}
           highlight
         >
-          <div className="flex items-start gap-2 text-sm text-orange-700 dark:text-orange-300">
+          <div className="flex items-start gap-2 text-sm text-orange-700">
             <Info className="w-4 h-4 shrink-0 mt-0.5" />
             <p>
               Die Endreinigung kann separat über unser detailliertes 
@@ -250,7 +250,7 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
           })}
         >
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-gray-600">
               Dauer (Wochen):
             </span>
             <CounterInput
@@ -278,7 +278,7 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
           })}
         >
           <div className="space-y-2">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            <p className="text-sm text-gray-600 mb-3">
               Wo wird der Möbellift benötigt?
             </p>
             <div className="flex gap-2">
@@ -293,7 +293,7 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
                     "flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                     data.moebellift.standort === option
                       ? "bg-blue-500 text-white"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                      : "bg-gray-100 text-gray-700"
                   )}
                 >
                   {option === 'auszug' && 'Auszug'}
@@ -311,9 +311,9 @@ export const Step15AdditionalServices = ({ data, onChange }: Step15Props) => {
         typeof v === 'boolean' ? v : 
         typeof v === 'object' ? v.aktiv : false
       ) && (
-        <div className="p-4 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 flex items-start gap-3">
+        <div className="p-4 rounded-xl bg-green-50 border border-green-200 flex items-start gap-3">
           <Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-green-700 dark:text-green-300">
+          <p className="text-sm text-green-700">
             Sie haben zusätzliche Services ausgewählt. Diese werden im Angebot 
             berücksichtigt und können jederzeit angepasst werden.
           </p>

@@ -187,7 +187,7 @@ export function CreateVirtualBesichtigungDialog({
             Erstellen Sie einen Link, den der Kunde verwenden kann, um Fotos seiner
             Wohnung hochzuladen.
           </DialogDescription>
-          <div className="mt-2 flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-400">
+          <div className="mt-2 flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
             <span className="shrink-0 mt-0.5">⏰</span>
             <span>
               <strong>Datenschutz-Hinweis:</strong> Hochgeladene Fotos werden automatisch <strong>3 Tage nach Versand der Offerte</strong> gelöscht.

@@ -199,7 +199,7 @@ export function PricingBuilder({
                             <TableRow
                               ref={dragProvided.innerRef}
                               {...dragProvided.draggableProps}
-                              className={item.highlighted ? "bg-yellow-50 dark:bg-yellow-950/20" : ""}
+                              className={item.highlighted ? "bg-yellow-50" : ""}
                             >
                               <TableCell className="py-2">
                                 <div
@@ -316,7 +316,7 @@ export function PricingBuilder({
                           ref={dragProvided.innerRef}
                           {...dragProvided.draggableProps}
                           className={`border rounded-lg p-3 space-y-3 ${
-                            item.highlighted ? "bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200" : ""
+                            item.highlighted ? "bg-yellow-50 border-yellow-200" : ""
                           }`}
                         >
                           {/* Header */}

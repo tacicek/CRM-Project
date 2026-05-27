@@ -203,7 +203,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-violet-100 dark:bg-violet-900/30">
+                <div className="p-2 rounded-lg bg-violet-100">
                   <Users className="w-4 h-4 text-violet-600" />
                 </div>
                 <div>
@@ -253,7 +253,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                <div className="p-2 rounded-lg bg-blue-100">
                   <Mail className="w-4 h-4 text-blue-600" />
                 </div>
                 <div>
@@ -302,7 +302,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
           {/* Email Content Options */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+              <div className="p-2 rounded-lg bg-emerald-100">
                 <FileText className="w-4 h-4 text-emerald-600" />
               </div>
               <div>
@@ -410,7 +410,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
                   className="flex items-center justify-between p-3 rounded-lg border bg-muted/20"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/30">
+                    <div className="p-2 rounded-full bg-amber-100">
                       <Bell className="w-4 h-4 text-amber-600" />
                     </div>
                     <div>
@@ -441,17 +441,17 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
       )}
 
       {/* Info Card */}
-      <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20">
+      <Card className="border-blue-200 bg-blue-50/50">
         <CardContent className="pt-6">
           <div className="flex gap-4">
-            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 h-fit">
+            <div className="p-2 rounded-lg bg-blue-100 h-fit">
               <AlertCircle className="w-5 h-5 text-blue-600" />
             </div>
             <div className="space-y-2">
-              <h3 className="font-semibold text-blue-900 dark:text-blue-100">
+              <h3 className="font-semibold text-blue-900">
                 Wie funktionieren die Erinnerungen?
               </h3>
-              <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+              <ul className="text-sm text-blue-800 space-y-1">
                 <li>• Erinnerungen werden automatisch vor jedem Termin versendet</li>
                 <li>• Nur Termine mit zugewiesenen Teammitgliedern erhalten Erinnerungen</li>
                 <li>• Die E-Mail enthält alle wichtigen Details: Adresse, Kundenname, Telefon</li>

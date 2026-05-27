@@ -484,13 +484,13 @@ export default function Umzugsboxen() {
 
         {/* Urgent Alerts */}
         {urgentRentals.length > 0 && (
-          <Card className="border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/20">
+          <Card className="border-red-300 bg-red-50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-red-700 dark:text-red-400 flex items-center gap-2">
+              <CardTitle className="text-red-700 flex items-center gap-2">
                 <BellRing className="w-5 h-5" />
                 Dringende Abholungen ({urgentRentals.length})
               </CardTitle>
-              <CardDescription className="text-red-600 dark:text-red-400">
+              <CardDescription className="text-red-600">
                 Diese Boxen sind überfällig oder heute zur Rückgabe fällig
               </CardDescription>
             </CardHeader>
@@ -499,7 +499,7 @@ export default function Umzugsboxen() {
                 {urgentRentals.slice(0, 5).map((rental) => (
                   <div
                     key={rental.id}
-                    className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg border border-red-200 dark:border-red-800"
+                    className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200"
                   >
                     <div className="flex items-center gap-4">
                       <div>
@@ -740,7 +740,7 @@ export default function Umzugsboxen() {
                         className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
                       >
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
                             <Package className="w-5 h-5 text-orange-600" />
                           </div>
                           <div>

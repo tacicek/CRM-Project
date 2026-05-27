@@ -219,7 +219,7 @@ export const BesichtigungAnalysisView = ({
   if (!analysis) {
     return (
       <div className="space-y-4">
-        <div className="text-center py-6 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/20 dark:to-indigo-950/20 rounded-xl border border-dashed border-purple-200 dark:border-purple-800">
+        <div className="text-center py-6 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl border border-dashed border-purple-200">
           <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
             <Sparkles className="w-7 h-7 text-white" />
           </div>
@@ -280,37 +280,37 @@ export const BesichtigungAnalysisView = ({
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
           <CardContent className="p-3 text-center">
             <Package className="w-5 h-5 mx-auto mb-1 text-blue-600" />
-            <p className="text-xl font-bold text-blue-700 dark:text-blue-400">
+            <p className="text-xl font-bold text-blue-700">
               {analysis.estimated_volume_m3 ?? "–"} m³
             </p>
             <p className="text-xs text-blue-600/70">Geschätztes Volumen</p>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/30 dark:to-amber-900/20">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100">
           <CardContent className="p-3 text-center">
             <Clock className="w-5 h-5 mx-auto mb-1 text-amber-600" />
-            <p className="text-xl font-bold text-amber-700 dark:text-amber-400">
+            <p className="text-xl font-bold text-amber-700">
               {analysis.estimated_time_hours ?? "–"} Std.
             </p>
             <p className="text-xs text-amber-600/70">Geschätzte Dauer</p>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/30 dark:to-emerald-900/20">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100">
           <CardContent className="p-3 text-center">
             <Users className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
-            <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
+            <p className="text-xl font-bold text-emerald-700">
               {analysis.recommended_workers ?? "–"}
             </p>
             <p className="text-xs text-emerald-600/70">Empf. Arbeiter</p>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/20">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100">
           <CardContent className="p-3 text-center">
             <Truck className="w-5 h-5 mx-auto mb-1 text-purple-600" />
-            <p className="text-xl font-bold text-purple-700 dark:text-purple-400">
+            <p className="text-xl font-bold text-purple-700">
               {truckLabel(analysis.recommended_truck)}
             </p>
             <p className="text-xs text-purple-600/70">Empf. Fahrzeug</p>
@@ -346,8 +346,8 @@ export const BesichtigungAnalysisView = ({
 
       {/* Special Items Warning */}
       {analysis.special_items.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-1.5">
-          <h5 className="font-medium text-sm text-amber-700 dark:text-amber-400 flex items-center gap-2">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5">
+          <h5 className="font-medium text-sm text-amber-700 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
             Spezielle Gegenstände
           </h5>
@@ -363,12 +363,12 @@ export const BesichtigungAnalysisView = ({
 
       {/* Special Requirements */}
       {analysis.special_requirements.length > 0 && (
-        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 space-y-1.5">
-          <h5 className="font-medium text-sm text-blue-700 dark:text-blue-400 flex items-center gap-2">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-1.5">
+          <h5 className="font-medium text-sm text-blue-700 flex items-center gap-2">
             <Zap className="w-4 h-4" />
             Besondere Anforderungen
           </h5>
-          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-0.5">
+          <ul className="text-sm text-blue-700 space-y-0.5">
             {analysis.special_requirements.map((req, i) => (
               <li key={i} className="flex items-start gap-1.5">
                 <span className="mt-1.5 w-1 h-1 rounded-full bg-blue-500 shrink-0" />
@@ -444,7 +444,7 @@ export const BesichtigungAnalysisView = ({
                   {analysis.detected_items.map((item, idx) => (
                     <tr
                       key={idx}
-                      className={`hover:bg-muted/30 transition-colors ${item.special ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}`}
+                      className={`hover:bg-muted/30 transition-colors ${item.special ? "bg-amber-50/50" : ""}`}
                     >
                       <td className="p-2.5 pl-3 font-medium">
                         <div className="flex items-center gap-1.5">
@@ -486,7 +486,7 @@ export const BesichtigungAnalysisView = ({
       )}
 
       {/* Data retention notice */}
-      <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-400">
+      <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
         <span className="shrink-0 mt-0.5">⏰</span>
         <span>
           Fotos und Analysedaten werden <strong>3 Tage nach Offerte-Versand</strong> automatisch gelöscht.

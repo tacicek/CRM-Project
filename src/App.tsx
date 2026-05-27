@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "rea
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/useCompanyContext";
-import { ThemeProvider } from "next-themes";
 import { lazy, Suspense, useLayoutEffect } from "react";
 
 // CRM-FORK: removed TrackingProvider, CookieBanner — portal-only features
@@ -104,7 +103,6 @@ const PageLoader = () => (
 );
 
 const App = () => (
-  <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="crm-theme">
   <HelmetProvider>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -168,7 +166,6 @@ const App = () => (
       </AuthProvider>
     </QueryClientProvider>
   </HelmetProvider>
-  </ThemeProvider>
 );
 
 export default App;

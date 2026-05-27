@@ -382,7 +382,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
                         key={day.toISOString()}
                         className={`p-2 border-r last:border-r-0 min-h-[100px] relative group ${
                           isSameDay(day, new Date()) ? "bg-primary/5" : ""
-                        } ${isUnavailable ? "bg-gray-100 dark:bg-gray-800/50" : ""}`}
+                        } ${isUnavailable ? "bg-gray-100" : ""}`}
                       >
                         {/* Edit Button - FIX: Added aria-label and focus styles */}
                         <button

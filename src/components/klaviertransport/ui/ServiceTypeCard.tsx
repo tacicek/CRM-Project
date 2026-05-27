@@ -27,8 +27,8 @@ export function ServiceTypeCard({ type, selected, onClick }: ServiceTypeCardProp
       className={cn(
         "relative p-5 rounded-xl border-2 text-left transition-all duration-200 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
         selected
-          ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-md"
-          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300"
+          ? "border-blue-500 bg-blue-50 shadow-md"
+          : "border-gray-200 bg-white hover:border-blue-300"
       )}
     >
       {/* Selected Indicator */}
@@ -43,7 +43,7 @@ export function ServiceTypeCard({ type, selected, onClick }: ServiceTypeCardProp
         "w-12 h-12 rounded-xl flex items-center justify-center mb-3",
         selected 
           ? "bg-blue-500 text-white" 
-          : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+          : "bg-gray-100 text-gray-600"
       )}>
         <IconComponent className="w-6 h-6" />
       </div>
@@ -51,13 +51,13 @@ export function ServiceTypeCard({ type, selected, onClick }: ServiceTypeCardProp
       {/* Label */}
       <h4 className={cn(
         "font-semibold mb-1",
-        selected ? "text-blue-700 dark:text-blue-300" : "text-gray-800 dark:text-gray-200"
+        selected ? "text-blue-700" : "text-gray-800"
       )}>
         {info.label}
       </h4>
       
       {/* Description */}
-      <p className="text-sm text-gray-500 dark:text-gray-400">
+      <p className="text-sm text-gray-500">
         {info.description}
       </p>
     </button>

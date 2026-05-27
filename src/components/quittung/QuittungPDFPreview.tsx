@@ -30,10 +30,10 @@ export function QuittungPDFPreview({ quittung, company }: Props) {
   const doc = <QuittungPDF quittung={quittung} company={company} />;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">PDF-Vorschau</span>
+        <span className="text-sm font-semibold text-slate-700">PDF-Vorschau</span>
         <div className="flex items-center gap-2">
           {/* Open in new tab */}
           <BlobProvider document={doc}>
@@ -67,7 +67,7 @@ export function QuittungPDFPreview({ quittung, company }: Props) {
         </div>
       </div>
 
-      <div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+      <div className="px-4 py-8 text-center text-sm text-slate-500">
         <p className="mb-3">Klicken Sie auf <strong>Öffnen</strong>, um das PDF in einem neuen Tab anzuzeigen.</p>
         <p className="text-xs text-slate-400">Oder laden Sie die Datei direkt herunter.</p>
       </div>

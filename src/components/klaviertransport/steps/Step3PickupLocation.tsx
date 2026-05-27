@@ -196,8 +196,8 @@ export function Step3PickupLocation({ data, updateLocation, errors }: Step3Props
                     className={cn(
                       "p-3 rounded-lg border-2 text-sm transition-all",
                       location.lift_passt === option.value
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                        : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-blue-300"
                     )}
                   >
                     {option.label}
@@ -248,8 +248,8 @@ export function Step3PickupLocation({ data, updateLocation, errors }: Step3Props
               className={cn(
                 "p-3 rounded-lg border-2 text-left transition-all",
                 location.treppenhaus === option.value
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                  : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-200 hover:border-blue-300"
               )}
             >
               <div className="font-medium text-sm">{option.label}</div>
@@ -261,12 +261,12 @@ export function Step3PickupLocation({ data, updateLocation, errors }: Step3Props
       
       {/* Spiral Staircase Warning */}
       {location.treppenhaus === 'spiral' && (
-        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-semibold text-amber-800 dark:text-amber-200">Wendeltreppe</h4>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
+              <h4 className="font-semibold text-amber-800">Wendeltreppe</h4>
+              <p className="text-sm text-amber-700">
                 Bei Wendeltreppen ist oft ein Aussenlift oder Kran erforderlich. 
                 Wir werden dies bei der Angebotserstellung berücksichtigen.
               </p>
@@ -277,12 +277,12 @@ export function Step3PickupLocation({ data, updateLocation, errors }: Step3Props
       
       {/* Furniture Lift Recommendation */}
       {showLiftRecommendation && (
-        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <span className="text-xl">🏗️</span>
             <div>
-              <h4 className="font-semibold text-blue-800 dark:text-blue-200">Möbellift empfohlen</h4>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
+              <h4 className="font-semibold text-blue-800">Möbellift empfohlen</h4>
+              <p className="text-sm text-blue-700">
                 Für {spec?.label} im {floorLabels[location.stockwerk]} ohne passenden Lift 
                 empfehlen wir einen Möbellift (Aussenlift). Dies können Sie im nächsten Schritt auswählen.
               </p>

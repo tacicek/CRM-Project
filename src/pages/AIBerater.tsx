@@ -182,7 +182,7 @@ export default function AIBerater() {
 
       <Header />
 
-      <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
+      <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
         {/* Hero Section */}
         <section className="relative overflow-hidden py-20 lg:py-32">
           {/* Background Pattern */}
@@ -195,19 +195,19 @@ export default function AIBerater() {
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               {/* Left: Content */}
               <div className="space-y-8">
-                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-4 py-1.5">
+                <Badge className="bg-blue-100 text-blue-700 px-4 py-1.5">
                   <Bot className="w-4 h-4 mr-2" />
                   NEU: KI-Sprachassistent
                 </Badge>
 
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-white leading-tight">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 leading-tight">
                   Umzugsofferte in{" "}
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
                     2-3 Minuten
                   </span>
                 </h1>
 
-                <p className="text-xl text-slate-600 dark:text-slate-300 max-w-xl">
+                <p className="text-xl text-slate-600 max-w-xl">
                   Kein Formular ausfüllen – einfach mit unserem KI-Assistenten sprechen und
                   bis zu 5 unverbindliche Offerten von qualifizierten Schweizer Umzugsfirmen erhalten.
                 </p>
@@ -241,7 +241,7 @@ export default function AIBerater() {
                     {[1, 2, 3, 4, 5].map((i) => (
                       <div
                         key={i}
-                        className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 border-2 border-white dark:border-slate-800 flex items-center justify-center text-white text-xs font-bold"
+                        className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 border-2 border-white flex items-center justify-center text-white text-xs font-bold"
                       >
                         {String.fromCharCode(64 + i)}
                       </div>
@@ -253,7 +253,7 @@ export default function AIBerater() {
                         <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                       ))}
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-slate-500">
                       5'000+ zufriedene Kunden
                     </p>
                   </div>
@@ -262,7 +262,7 @@ export default function AIBerater() {
 
               {/* Right: Visual */}
               <div className="relative">
-                <div className="relative bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 rounded-3xl p-8 border border-blue-100 dark:border-blue-900/50">
+                <div className="relative bg-gradient-to-br from-blue-50 to-purple-50 rounded-3xl p-8 border border-blue-100">
                   {/* Voice Animation */}
                   <div className="flex justify-center mb-8">
                     <div className="relative">
@@ -281,8 +281,8 @@ export default function AIBerater() {
                       <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
                         <Bot className="w-4 h-4 text-white" />
                       </div>
-                      <div className="bg-white dark:bg-slate-800 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm">
-                        <p className="text-sm text-slate-700 dark:text-slate-300">
+                      <div className="bg-white rounded-2xl rounded-tl-none px-4 py-3 shadow-sm">
+                        <p className="text-sm text-slate-700">
                           Grüezi! Ich bin Ihr digitaler Umzugsberater. Wie kann ich Ihnen helfen?
                         </p>
                       </div>
@@ -294,7 +294,7 @@ export default function AIBerater() {
                           Ich ziehe von Zürich nach Bern...
                         </p>
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
                         <Volume2 className="w-4 h-4 text-slate-500" />
                       </div>
                     </div>
@@ -303,8 +303,8 @@ export default function AIBerater() {
                       <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
                         <Bot className="w-4 h-4 text-white" />
                       </div>
-                      <div className="bg-white dark:bg-slate-800 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm">
-                        <p className="text-sm text-slate-700 dark:text-slate-300">
+                      <div className="bg-white rounded-2xl rounded-tl-none px-4 py-3 shadow-sm">
+                        <p className="text-sm text-slate-700">
                           Sehr gut! Wie viele Zimmer hat Ihre aktuelle Wohnung?
                         </p>
                       </div>
@@ -323,13 +323,13 @@ export default function AIBerater() {
         </section>
 
         {/* Benefits Section */}
-        <section className="py-20 bg-white dark:bg-slate-900">
+        <section className="py-20 bg-white">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
                 Warum KI-Berater?
               </h2>
-              <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+              <p className="text-lg text-slate-600 max-w-2xl mx-auto">
                 Schneller, einfacher und persönlicher als jedes Online-Formular
               </p>
             </div>
@@ -338,13 +338,13 @@ export default function AIBerater() {
               {benefits.map((benefit, index) => (
                 <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
                   <CardContent className="p-6 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center mx-auto mb-4">
-                      <benefit.icon className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center mx-auto mb-4">
+                      <benefit.icon className="w-7 h-7 text-blue-600" />
                     </div>
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-2">
+                    <h3 className="font-bold text-lg text-slate-900 mb-2">
                       {benefit.title}
                     </h3>
-                    <p className="text-slate-600 dark:text-slate-400 text-sm">
+                    <p className="text-slate-600 text-sm">
                       {benefit.description}
                     </p>
                   </CardContent>
@@ -355,10 +355,10 @@ export default function AIBerater() {
         </section>
 
         {/* How it Works */}
-        <section className="py-20 bg-slate-50 dark:bg-slate-950">
+        <section className="py-20 bg-slate-50">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
                 So einfach geht's
               </h2>
             </div>
@@ -369,16 +369,16 @@ export default function AIBerater() {
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mx-auto mb-4 text-white text-2xl font-bold shadow-lg">
                     {step.number}
                   </div>
-                  <h3 className="font-bold text-xl text-slate-900 dark:text-white mb-2">
+                  <h3 className="font-bold text-xl text-slate-900 mb-2">
                     {step.title}
                   </h3>
-                  <p className="text-slate-600 dark:text-slate-400">
+                  <p className="text-slate-600">
                     {step.description}
                   </p>
 
                   {/* Connector Line */}
                   {index < steps.length - 1 && (
-                    <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-blue-300 to-purple-300 dark:from-blue-700 dark:to-purple-700" />
+                    <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-blue-300 to-purple-300" />
                   )}
                 </div>
               ))}
@@ -399,10 +399,10 @@ export default function AIBerater() {
         </section>
 
         {/* FAQ Section */}
-        <section className="py-20 bg-white dark:bg-slate-900">
+        <section className="py-20 bg-white">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
                 Häufige Fragen
               </h2>
             </div>
@@ -411,13 +411,13 @@ export default function AIBerater() {
               {faqs.map((faq, index) => (
                 <details
                   key={index}
-                  className="group bg-slate-50 dark:bg-slate-800 rounded-xl overflow-hidden"
+                  className="group bg-slate-50 rounded-xl overflow-hidden"
                 >
-                  <summary className="flex items-center justify-between cursor-pointer p-6 font-semibold text-slate-900 dark:text-white">
+                  <summary className="flex items-center justify-between cursor-pointer p-6 font-semibold text-slate-900">
                     {faq.question}
                     <ChevronDown className="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" />
                   </summary>
-                  <div className="px-6 pb-6 text-slate-600 dark:text-slate-400">
+                  <div className="px-6 pb-6 text-slate-600">
                     {faq.answer}
                   </div>
                 </details>
