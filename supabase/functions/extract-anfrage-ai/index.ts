@@ -276,72 +276,134 @@ serve(async (req) => {
 
     logStep("Access granted", { company_id });
 
-    // Call Claude API
-    // Priority: company's own key from DB → fallback to server env
+    // Load company AI settings from DB (provider + keys)
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    const { data: apiKeyRow } = await serviceClient
+    const { data: aiSettings } = await serviceClient
       .from("api_keys")
-      .select("key_value")
+      .select("key_name, key_value")
       .eq("company_id", company_id)
-      .eq("key_name", "anthropic_api_key")
-      .maybeSingle();
+      .in("key_name", ["ai_provider", "anthropic_api_key", "openai_api_key", "gemini_api_key"]);
 
-    const anthropicApiKey = apiKeyRow?.key_value || Deno.env.get("ANTHROPIC_API_KEY");
-
-    if (!anthropicApiKey) {
-      logStep("ANTHROPIC_API_KEY not configured");
-      return new Response(
-        JSON.stringify({ error: "AI-Service nicht konfiguriert. Bitte API-Schlüssel in den Einstellungen hinterlegen." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const settingsMap: Record<string, string> = {};
+    for (const row of (aiSettings ?? [])) {
+      settingsMap[row.key_name] = row.key_value;
     }
 
-    logStep("Calling Claude API");
-    
+    const provider = settingsMap["ai_provider"] || "anthropic";
+    logStep("AI provider resolved", { provider });
+
     // Use the shared prompt template
     const prompt = createExtractLeadPrompt(raw_text);
-    
-    const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5", // Latest Haiku - cheapest current model
-        max_tokens: 4096,
-        messages: [{
-          role: "user",
-          content: prompt
-        }]
-      })
-    });
+    let responseText: string;
 
-    if (!claudeResponse.ok) {
-      const errorText = await claudeResponse.text();
-      logStep("Claude API error", { status: claudeResponse.status, error: errorText });
-      return new Response(
-        JSON.stringify({ error: "AI-Verarbeitung fehlgeschlagen" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    if (provider === "openai") {
+      const apiKey = settingsMap["openai_api_key"] || Deno.env.get("OPENAI_API_KEY");
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: "OpenAI API-Schlüssel nicht konfiguriert." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      logStep("Calling OpenAI API");
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          max_tokens: 4096,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        logStep("OpenAI API error", { status: res.status, error: err });
+        return new Response(
+          JSON.stringify({ error: "AI-Verarbeitung fehlgeschlagen (OpenAI)" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const data = await res.json();
+      logStep("OpenAI API response received");
+      responseText = data.choices?.[0]?.message?.content ?? "";
+
+    } else if (provider === "gemini") {
+      const apiKey = settingsMap["gemini_api_key"] || Deno.env.get("GEMINI_API_KEY");
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: "Gemini API-Schlüssel nicht konfiguriert." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      logStep("Calling Gemini API");
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: 4096 }
+          })
+        }
       );
+      if (!res.ok) {
+        const err = await res.text();
+        logStep("Gemini API error", { status: res.status, error: err });
+        return new Response(
+          JSON.stringify({ error: "AI-Verarbeitung fehlgeschlagen (Gemini)" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const data = await res.json();
+      logStep("Gemini API response received");
+      responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    } else {
+      // Default: Anthropic Claude
+      const apiKey = settingsMap["anthropic_api_key"] || Deno.env.get("ANTHROPIC_API_KEY");
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: "Anthropic API-Schlüssel nicht konfiguriert." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      logStep("Calling Claude API");
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5",
+          max_tokens: 4096,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        logStep("Claude API error", { status: res.status, error: err });
+        return new Response(
+          JSON.stringify({ error: "AI-Verarbeitung fehlgeschlagen (Claude)" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const data = await res.json();
+      logStep("Claude API response received", { contentLength: data.content?.[0]?.text?.length });
+      responseText = data.content?.[0]?.text ?? "";
     }
 
-    const claudeData = await claudeResponse.json();
-    logStep("Claude API response received", { contentLength: claudeData.content?.[0]?.text?.length });
-
-    // Parse the JSON response from Claude
+    // Parse JSON response (all providers return same JSON format via prompt)
     let extractedData: ExtractedData;
     try {
-      const responseText = claudeData.content[0].text;
-      // Remove any potential markdown code blocks
       const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       extractedData = JSON.parse(cleanJson);
     } catch (parseError) {
-      logStep("Failed to parse Claude response", { error: parseError, response: claudeData.content?.[0]?.text });
+      logStep("Failed to parse AI response", { error: parseError, responseText });
       return new Response(
         JSON.stringify({ error: "AI-Antwort konnte nicht verarbeitet werden" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

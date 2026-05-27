@@ -76,10 +76,17 @@ const FirmaEinstellungen = () => {
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [showTwilioToken, setShowTwilioToken] = useState(false);
   const [showResendKey, setShowResendKey] = useState(false);
+  const [aiProvider, setAiProvider] = useState<"anthropic" | "openai" | "gemini">("anthropic");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [anthropicKeyMasked, setAnthropicKeyMasked] = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
-  const [isSavingAnthropicKey, setIsSavingAnthropicKey] = useState(false);
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [openaiKeyMasked, setOpenaiKeyMasked] = useState(false);
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
+  const [geminiKey, setGeminiKey] = useState("");
+  const [geminiKeyMasked, setGeminiKeyMasked] = useState(false);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
 
   // Draft tracking: user's unsaved profile changes persist across navigation
   const [isDirty, setIsDirty] = useState(false);
@@ -124,16 +131,17 @@ const FirmaEinstellungen = () => {
 
         if (!companyData) return;
 
-        // Load existing API keys
-        const { data: apiKeyRow } = await supabase
+        // Load existing AI settings
+        const { data: aiRows } = await supabase
           .from("api_keys")
-          .select("key_value")
+          .select("key_name, key_value")
           .eq("company_id", companyData.id)
-          .eq("key_name", "anthropic_api_key")
-          .maybeSingle();
-        if (apiKeyRow?.key_value) {
-          setAnthropicKey(apiKeyRow.key_value);
-          setAnthropicKeyMasked(true);
+          .in("key_name", ["ai_provider", "anthropic_api_key", "openai_api_key", "gemini_api_key"]);
+        for (const row of (aiRows ?? [])) {
+          if (row.key_name === "ai_provider") setAiProvider(row.key_value as "anthropic" | "openai" | "gemini");
+          if (row.key_name === "anthropic_api_key") { setAnthropicKey(row.key_value); setAnthropicKeyMasked(true); }
+          if (row.key_name === "openai_api_key") { setOpenaiKey(row.key_value); setOpenaiKeyMasked(true); }
+          if (row.key_name === "gemini_api_key") { setGeminiKey(row.key_value); setGeminiKeyMasked(true); }
         }
 
         // Restore unsaved draft if user navigated away before saving
@@ -243,44 +251,37 @@ const FirmaEinstellungen = () => {
     }
   };
 
-  const handleSaveAnthropicKey = async () => {
-    if (!company) return;
-    const trimmed = anthropicKey.trim();
-    if (!trimmed) {
-      toast({ title: "Fehler", description: "Bitte einen API-Schlüssel eingeben.", variant: "destructive" });
-      return;
-    }
-    setIsSavingAnthropicKey(true);
-    try {
-      const { error } = await supabase
-        .from("api_keys")
-        .upsert(
-          { company_id: company.id, key_name: "anthropic_api_key", key_value: trimmed },
-          { onConflict: "company_id,key_name" }
-        );
-      if (error) throw error;
-      setAnthropicKeyMasked(true);
-      setShowAnthropicKey(false);
-      toast({ title: "Gespeichert", description: "Anthropic API-Schlüssel wurde gespeichert." });
-    } catch (err) {
-      console.error("Error saving Anthropic key:", err);
-      toast({ title: "Fehler", description: "API-Schlüssel konnte nicht gespeichert werden.", variant: "destructive" });
-    } finally {
-      setIsSavingAnthropicKey(false);
-    }
-  };
-
-  const handleDeleteAnthropicKey = async () => {
+  const upsertApiKey = async (keyName: string, keyValue: string) => {
     if (!company) return;
     const { error } = await supabase
       .from("api_keys")
-      .delete()
-      .eq("company_id", company.id)
-      .eq("key_name", "anthropic_api_key");
-    if (!error) {
-      setAnthropicKey("");
-      setAnthropicKeyMasked(false);
-      toast({ title: "Gelöscht", description: "API-Schlüssel wurde entfernt. Server-Schlüssel wird verwendet." });
+      .upsert({ company_id: company.id, key_name: keyName, key_value: keyValue }, { onConflict: "company_id,key_name" });
+    if (error) throw error;
+  };
+
+  const deleteApiKey = async (keyName: string) => {
+    if (!company) return;
+    await supabase.from("api_keys").delete().eq("company_id", company.id).eq("key_name", keyName);
+  };
+
+  const handleSaveAiSettings = async () => {
+    if (!company) return;
+    setIsSavingAiSettings(true);
+    try {
+      await upsertApiKey("ai_provider", aiProvider);
+      if (anthropicKey.trim() && !anthropicKeyMasked) await upsertApiKey("anthropic_api_key", anthropicKey.trim());
+      if (openaiKey.trim() && !openaiKeyMasked) await upsertApiKey("openai_api_key", openaiKey.trim());
+      if (geminiKey.trim() && !geminiKeyMasked) await upsertApiKey("gemini_api_key", geminiKey.trim());
+      setAnthropicKeyMasked(!!anthropicKey.trim());
+      setOpenaiKeyMasked(!!openaiKey.trim());
+      setGeminiKeyMasked(!!geminiKey.trim());
+      setShowAnthropicKey(false); setShowOpenaiKey(false); setShowGeminiKey(false);
+      toast({ title: "Gespeichert", description: "KI-Einstellungen wurden gespeichert." });
+    } catch (err) {
+      console.error("Error saving AI settings:", err);
+      toast({ title: "Fehler", description: "KI-Einstellungen konnten nicht gespeichert werden.", variant: "destructive" });
+    } finally {
+      setIsSavingAiSettings(false);
     }
   };
 
@@ -1021,69 +1022,127 @@ const FirmaEinstellungen = () => {
                     KI-Integration
                   </CardTitle>
                   <CardDescription>
-                    API-Schlüssel für KI-Funktionen (Anfragen-Extraktion). Der hier hinterlegte Schlüssel
-                    hat Vorrang vor dem Server-Schlüssel.
+                    Wählen Sie Ihren KI-Anbieter und hinterlegen Sie den API-Schlüssel.
+                    Eigene Schlüssel haben Vorrang vor dem Server-Schlüssel.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="bg-muted/50 border rounded-lg p-4 space-y-1">
-                    <h4 className="font-medium text-sm">Anthropic API-Schlüssel</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Wird für die automatische Extraktion von Anfragen verwendet (<code className="text-xs bg-muted px-1 rounded">/firma/manual-import</code>).
-                      Erhalten Sie Ihren Schlüssel auf{" "}
-                      <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                        console.anthropic.com
-                      </a>.
-                    </p>
+
+                  {/* Provider selector */}
+                  <div className="space-y-3">
+                    <Label>KI-Anbieter</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {([
+                        { id: "anthropic", label: "Anthropic Claude", desc: "claude-haiku-4-5", color: "from-orange-50 to-amber-50 border-orange-200" },
+                        { id: "openai",    label: "OpenAI",           desc: "gpt-4o-mini",      color: "from-green-50 to-emerald-50 border-green-200" },
+                        { id: "gemini",    label: "Google Gemini",    desc: "gemini-2.0-flash",  color: "from-blue-50 to-sky-50 border-blue-200" },
+                      ] as const).map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setAiProvider(p.id)}
+                          className={`flex flex-col items-start p-3 rounded-lg border-2 text-left transition-all ${
+                            aiProvider === p.id
+                              ? `bg-gradient-to-br ${p.color} border-current`
+                              : "border-border hover:border-muted-foreground/30"
+                          }`}
+                        >
+                          <span className="font-medium text-sm">{p.label}</span>
+                          <span className="text-xs text-muted-foreground font-mono mt-0.5">{p.desc}</span>
+                          {aiProvider === p.id && <CheckCircle className="w-4 h-4 mt-1 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
+                  <Separator />
+
+                  {/* Anthropic key */}
                   <div className="space-y-2">
-                    <Label>API-Schlüssel</Label>
+                    <Label className="flex items-center gap-2">
+                      Anthropic API-Schlüssel
+                      {aiProvider === "anthropic" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Aktiv</span>}
+                    </Label>
                     <div className="relative">
                       <Input
                         type={showAnthropicKey ? "text" : "password"}
-                        value={anthropicKeyMasked && !showAnthropicKey
-                          ? "sk-ant-••••••••••••••••••••••••••••••••"
-                          : anthropicKey}
-                        onChange={(e) => {
-                          setAnthropicKey(e.target.value);
-                          setAnthropicKeyMasked(false);
-                        }}
+                        value={anthropicKeyMasked && !showAnthropicKey ? "sk-ant-••••••••••••••••••••••••••••••" : anthropicKey}
+                        onChange={(e) => { setAnthropicKey(e.target.value); setAnthropicKeyMasked(false); }}
                         placeholder="sk-ant-api03-..."
                         className="pr-10 font-mono text-sm"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowAnthropicKey(!showAnthropicKey)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
+                      <button type="button" onClick={() => setShowAnthropicKey(!showAnthropicKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                         {showAnthropicKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {anthropicKeyMasked
-                        ? "✓ Ein API-Schlüssel ist hinterlegt."
-                        : "Kein eigener Schlüssel — es wird der Server-Schlüssel verwendet."}
+                      {anthropicKeyMasked ? "✓ Schlüssel hinterlegt." : "Kein Schlüssel — Server-Fallback wird verwendet."}{" "}
+                      <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">console.anthropic.com</a>
                     </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleSaveAnthropicKey}
-                      disabled={isSavingAnthropicKey || !anthropicKey.trim()}
-                    >
-                      {isSavingAnthropicKey ? (
-                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Speichern…</>
-                      ) : (
-                        <><Save className="w-4 h-4 mr-2" />Schlüssel speichern</>
-                      )}
-                    </Button>
                     {anthropicKeyMasked && (
-                      <Button variant="outline" onClick={handleDeleteAnthropicKey}>
-                        Schlüssel entfernen
-                      </Button>
+                      <button type="button" onClick={() => { deleteApiKey("anthropic_api_key"); setAnthropicKey(""); setAnthropicKeyMasked(false); }} className="text-xs text-destructive underline">Entfernen</button>
                     )}
                   </div>
+
+                  {/* OpenAI key */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      OpenAI API-Schlüssel
+                      {aiProvider === "openai" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Aktiv</span>}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        type={showOpenaiKey ? "text" : "password"}
+                        value={openaiKeyMasked && !showOpenaiKey ? "sk-••••••••••••••••••••••••••••••••••" : openaiKey}
+                        onChange={(e) => { setOpenaiKey(e.target.value); setOpenaiKeyMasked(false); }}
+                        placeholder="sk-proj-..."
+                        className="pr-10 font-mono text-sm"
+                      />
+                      <button type="button" onClick={() => setShowOpenaiKey(!showOpenaiKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showOpenaiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {openaiKeyMasked ? "✓ Schlüssel hinterlegt." : "Kein Schlüssel hinterlegt."}{" "}
+                      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">platform.openai.com</a>
+                    </p>
+                    {openaiKeyMasked && (
+                      <button type="button" onClick={() => { deleteApiKey("openai_api_key"); setOpenaiKey(""); setOpenaiKeyMasked(false); }} className="text-xs text-destructive underline">Entfernen</button>
+                    )}
+                  </div>
+
+                  {/* Gemini key */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      Google Gemini API-Schlüssel
+                      {aiProvider === "gemini" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Aktiv</span>}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        type={showGeminiKey ? "text" : "password"}
+                        value={geminiKeyMasked && !showGeminiKey ? "AIza••••••••••••••••••••••••••••••••••" : geminiKey}
+                        onChange={(e) => { setGeminiKey(e.target.value); setGeminiKeyMasked(false); }}
+                        placeholder="AIzaSy..."
+                        className="pr-10 font-mono text-sm"
+                      />
+                      <button type="button" onClick={() => setShowGeminiKey(!showGeminiKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {geminiKeyMasked ? "✓ Schlüssel hinterlegt." : "Kein Schlüssel hinterlegt."}{" "}
+                      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">aistudio.google.com</a>
+                    </p>
+                    {geminiKeyMasked && (
+                      <button type="button" onClick={() => { deleteApiKey("gemini_api_key"); setGeminiKey(""); setGeminiKeyMasked(false); }} className="text-xs text-destructive underline">Entfernen</button>
+                    )}
+                  </div>
+
+                  <Button onClick={handleSaveAiSettings} disabled={isSavingAiSettings}>
+                    {isSavingAiSettings
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Speichern…</>
+                      : <><Save className="w-4 h-4 mr-2" />KI-Einstellungen speichern</>}
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
