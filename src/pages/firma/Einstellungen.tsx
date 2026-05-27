@@ -336,7 +336,7 @@ const FirmaEinstellungen = () => {
     if (!company || !company.resend_api_key || !company.resend_from_email) {
       toast({
         title: "Fehler",
-        description: "Bitte füllen Sie zuerst API-Key und Absender-E-Mail aus.",
+        description: "Bitte speichern Sie zuerst API-Key und Absender-E-Mail.",
         variant: "destructive",
       });
       return;
@@ -355,9 +355,7 @@ const FirmaEinstellungen = () => {
       const { data, error } = await supabase.functions.invoke('test-resend-email', {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: {
-          resend_api_key: company.resend_api_key,
-          from_email: company.resend_from_email,
-          from_name: company.resend_from_name || company.company_name,
+          company_id: company.id,
           to_email: company.notification_email || company.email,
         }
       });

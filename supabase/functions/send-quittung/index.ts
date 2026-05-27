@@ -193,10 +193,26 @@ serve(async (req) => {
   }
 
   try {
+    // JWT auth — require logged-in user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Nicht autorisiert" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const token = authHeader.replace("Bearer ", "");
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Ungültige Sitzung" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const body: SendQuittungRequest = await req.json();
     const { quittungId, quittungPdfBase64 } = body;
@@ -228,6 +244,37 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Quittung nicht gefunden" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Ownership check — user must belong to the quittung's company
+    const { data: quittungCompany } = await supabase
+      .from("quittungen")
+      .select("company_id")
+      .eq("id", quittungId)
+      .single();
+
+    if (quittungCompany) {
+      const { data: ownerRow } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("id", quittungCompany.company_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!ownerRow) {
+        const { data: memberRow } = await supabase
+          .from("company_members")
+          .select("id")
+          .eq("company_id", quittungCompany.company_id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!memberRow) {
+          return new Response(JSON.stringify({ error: "Keine Berechtigung" }), {
+            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
     }
 
     const q = quittung as unknown as QuittungRow;

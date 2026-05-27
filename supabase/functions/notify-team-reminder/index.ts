@@ -580,6 +580,16 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
+  if (cronSecret) {
+    const providedSecret = req.headers.get("x-internal-secret");
+    if (providedSecret !== cronSecret) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   try {
     logStep("Starting team reminder check");
 
