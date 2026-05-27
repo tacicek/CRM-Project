@@ -627,36 +627,36 @@ export default function FirmaPreisgestaltung() {
         <title>Preisgestaltung | Firma</title>
       </Helmet>
         <div className="space-y-6">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Calculator className="h-6 w-6 text-primary" />
-                Preisgestaltung
-              </h1>
-              <p className="text-muted-foreground text-sm mt-1">
-                Konfigurieren Sie Ihre Preise für Offerten und Kalkulationen
+          {/* Folk-style header */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+            <span className="text-4xl leading-none">💰</span>
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Preisgestaltung</h1>
+              <p className="mt-1 text-[13px] text-folk-ink2">
+                Preise für Offerten und Kalkulationen konfigurieren — Stundensätze, Aufschläge, Standards.
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setShowResetDialog(true)} 
+              <Button
+                variant="outline"
+                onClick={() => setShowResetDialog(true)}
                 disabled={isLoading || isSaving || isCompanyLoading}
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
-                <RotateCcw className="h-4 w-4 mr-2" />
+                <RotateCcw className="h-3.5 w-3.5" />
                 Zurücksetzen
               </Button>
-              <Button 
-                onClick={handleSave} 
+              <Button
+                onClick={handleSave}
                 disabled={!canSave || isLoading || isCompanyLoading || !companyId || !hasUnsavedChanges}
+                className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2 disabled:opacity-40"
               >
                 {isSaving ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : saveCountdown > 0 ? (
-                  <Clock className="h-4 w-4 mr-2" />
+                  <Clock className="h-3.5 w-3.5" />
                 ) : (
-                  <Save className="h-4 w-4 mr-2" />
+                  <Save className="h-3.5 w-3.5" />
                 )}
                 {saveCountdown > 0 ? `Warten (${Math.ceil(saveCountdown / 1000)}s)` : 'Speichern'}
               </Button>

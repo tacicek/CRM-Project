@@ -1,7 +1,5 @@
 import { Helmet } from "react-helmet-async";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -20,7 +18,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  FileText,
   Plus,
   Search,
   Calendar,
@@ -36,7 +33,6 @@ import {
   Mail,
   Phone,
   Loader2,
-  ClipboardList,
   Eye,
   Download,
   Package,
@@ -103,7 +99,6 @@ interface Auftrag {
   team_reminder_sent: boolean;
   status: string;
   created_at: string;
-  // Pricing & service data
   service_type?: string | null;
   pricing_type?: "fixed" | "hourly" | "estimate" | null;
   hourly_rate?: number | null;
@@ -114,7 +109,6 @@ interface Auftrag {
   items?: OfferItem[];
   extra_services?: ExtraService[];
   service_details?: Record<string, unknown>;
-  // Relations
   team_leader?: {
     first_name: string;
     last_name: string;
@@ -139,6 +133,15 @@ interface Stats {
   overdue: number;
 }
 
+// Folk status mapping
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  geplant:        { label: "Geplant",        color: "text-folk-sky",    bg: "bg-folk-sky-bg" },
+  bestaetigt:     { label: "Bestätigt",      color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
+  in_bearbeitung: { label: "In Bearbeitung", color: "text-folk-lemon",  bg: "bg-folk-lemon-bg" },
+  abgeschlossen:  { label: "Abgeschlossen",  color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
+  storniert:      { label: "Storniert",      color: "text-folk-coral",  bg: "bg-folk-coral-bg" },
+};
+
 const FirmaAuftraege = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -159,7 +162,6 @@ const FirmaAuftraege = () => {
     overdue: 0,
   });
 
-  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAuftrag, setSelectedAuftrag] = useState<Auftrag | null>(null);
   const [deleteAuftrag, setDeleteAuftrag] = useState<Auftrag | null>(null);
@@ -168,12 +170,10 @@ const FirmaAuftraege = () => {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<string | null>(null);
   const [extrasAuftragId, setExtrasAuftragId] = useState<string | null>(null);
 
-  // PDF Download function
   const handleDownloadPdf = async (auftrag: Auftrag) => {
     setIsDownloadingPdf(auftrag.id);
 
     try {
-      // Fetch complete company data for the PDF
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select(`
@@ -196,7 +196,6 @@ const FirmaAuftraege = () => {
 
       if (companyError) throw companyError;
 
-      // Fetch team members data if assigned
       let teamMembersData: { first_name: string; last_name: string; email: string | null; phone: string | null }[] = [];
       if (auftrag.assigned_team_members && auftrag.assigned_team_members.length > 0) {
         const { data: membersData } = await supabase
@@ -209,7 +208,6 @@ const FirmaAuftraege = () => {
         }
       }
 
-      // Generate PDF with complete data
       await generateAuftragPdf({
         id: auftrag.id,
         auftrag_nummer: auftrag.auftrag_nummer,
@@ -284,7 +282,6 @@ const FirmaAuftraege = () => {
       const auftraegeData = (data || []) as Auftrag[];
       setAuftraege(auftraegeData);
 
-      // Calculate stats
       const today = new Date();
       const weekEnd = addDays(today, 7);
 
@@ -419,42 +416,35 @@ const FirmaAuftraege = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { label: string; className: string }> = {
-      geplant: { label: "Geplant", className: "bg-blue-100 text-blue-700" },
-      bestaetigt: { label: "Bestätigt", className: "bg-green-100 text-green-700" },
-      in_bearbeitung: { label: "In Bearbeitung", className: "bg-amber-100 text-amber-700" },
-      abgeschlossen: { label: "Abgeschlossen", className: "bg-emerald-100 text-emerald-700" },
-      storniert: { label: "Storniert", className: "bg-red-100 text-red-700" },
-    };
-
-    const config = statusConfig[status] || { label: status, className: "bg-gray-100 text-gray-700" };
-    return <Badge variant="secondary" className={config.className}>{config.label}</Badge>;
+  const getStatusChip = (status: string) => {
+    const meta = STATUS_META[status] ?? { label: status, color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${meta.bg} ${meta.color}`}>
+        {meta.label}
+      </span>
+    );
   };
 
   const getDateBadge = (dateStr: string, status: string) => {
     const date = new Date(dateStr);
 
-    // Completed or cancelled orders should not show date badges
     if (status === "abgeschlossen" || status === "storniert") {
       return null;
     }
 
     if (isToday(date)) {
-      return <Badge className="bg-red-500 text-white">Heute</Badge>;
+      return <span className="inline-flex items-center rounded-md bg-folk-coral px-2 py-0.5 text-[11px] font-semibold text-white">Heute</span>;
     }
     if (isTomorrow(date)) {
-      return <Badge className="bg-amber-500 text-white">Morgen</Badge>;
+      return <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[11px] font-semibold text-folk-lemon">Morgen</span>;
     }
     if (isPast(date) && !isToday(date)) {
-      return <Badge variant="destructive">Überfällig</Badge>;
+      return <span className="inline-flex items-center rounded-md bg-folk-coral-bg px-2 py-0.5 text-[11px] font-semibold text-folk-coral">Überfällig</span>;
     }
     return null;
   };
 
-  // Filter auftraege
   const filteredAuftraege = auftraege.filter((a) => {
-    // Search filter
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch =
       !searchQuery ||
@@ -464,7 +454,6 @@ const FirmaAuftraege = () => {
       a.from_address?.toLowerCase().includes(searchLower) ||
       a.to_address?.toLowerCase().includes(searchLower);
 
-    // Tab filter
     let matchesTab = true;
     if (activeTab === "heute") {
       matchesTab = isToday(new Date(a.scheduled_date));
@@ -481,372 +470,352 @@ const FirmaAuftraege = () => {
     return matchesSearch && matchesTab;
   });
 
+  const kpiTiles = [
+    { emoji: "📅", label: "Heute",        value: stats.today,                       highlight: stats.today > 0 },
+    { emoji: "⏰", label: "Morgen",       value: stats.tomorrow,                    highlight: false },
+    { emoji: "📋", label: "Geplant",      value: stats.geplant + stats.bestaetigt,  highlight: false },
+    { emoji: "✅", label: "Abgeschlossen", value: stats.abgeschlossen,              highlight: false },
+  ];
+
   return (
     <>
       <Helmet>
-        <title>Aufträge | Firma</title>
+        <title>Aufträge · CRM</title>
       </Helmet>
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-                <ClipboardList className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 shrink-0" />
-                Aufträge
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Verwalten Sie Ihre Arbeitsaufträge und Team-Zuweisungen
-              </p>
+
+      <div className="space-y-5">
+        {/* Header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+          <span className="text-4xl leading-none">✅</span>
+          <div className="flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Aufträge</h1>
+              <span className="text-[13px] text-folk-ink3">
+                <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.today}</span> heute · <span className="font-mono">{stats.this_week}</span> diese Woche
+              </span>
             </div>
-            <Button className="w-full sm:w-auto" onClick={() => {
+            <p className="mt-1 text-[13px] text-folk-ink2">
+              Arbeitsaufträge und Team-Zuweisungen — Übersicht über alle geplanten Einsätze.
+            </p>
+          </div>
+          <Button
+            onClick={() => {
               setSelectedAuftrag(null);
               setIsModalOpen(true);
-            }}>
-              <Plus className="w-4 h-4 mr-2" />
-              Neuer Auftrag
-            </Button>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className={stats.today > 0 ? "border-red-300 bg-red-50" : ""}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
-                    <Calendar className="w-5 h-5 text-red-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.today}</p>
-                    <p className="text-xs text-muted-foreground">Heute</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className={stats.tomorrow > 0 ? "border-amber-300 bg-amber-50" : ""}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.tomorrow}</p>
-                    <p className="text-xs text-muted-foreground">Morgen</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.geplant + stats.bestaetigt}</p>
-                    <p className="text-xs text-muted-foreground">Geplant</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.abgeschlossen}</p>
-                    <p className="text-xs text-muted-foreground">Abgeschlossen</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Overdue Warning */}
-          {stats.overdue > 0 && (
-            <Card className="border-red-300 bg-red-50">
-              <CardContent className="p-4 flex items-center gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-                <span className="text-red-700 font-medium">
-                  {stats.overdue} überfällige{stats.overdue === 1 ? "r" : ""} Auftrag{stats.overdue === 1 ? "" : "e"}
-                </span>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Main Content */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3">
-                <div className="overflow-x-auto -mx-1 px-1">
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="w-max min-w-full sm:w-full">
-                      <TabsTrigger value="alle" className="text-xs sm:text-sm px-2 sm:px-3 flex-1 sm:flex-none">Alle ({stats.total})</TabsTrigger>
-                      <TabsTrigger value="heute" className="text-xs sm:text-sm px-2 sm:px-3 flex-1 sm:flex-none">Heute ({stats.today})</TabsTrigger>
-                      <TabsTrigger value="morgen" className="text-xs sm:text-sm px-2 sm:px-3 flex-1 sm:flex-none">Morgen ({stats.tomorrow})</TabsTrigger>
-                      <TabsTrigger value="geplant" className="text-xs sm:text-sm px-2 sm:px-3 flex-1 sm:flex-none">Geplant ({stats.geplant + stats.bestaetigt})</TabsTrigger>
-                      <TabsTrigger value="abgeschlossen" className="text-xs sm:text-sm px-2 sm:px-3 flex-1 sm:flex-none">
-                        <span className="hidden sm:inline">Erledigt</span>
-                        <span className="sm:hidden">Erled.</span>
-                        {" "}({stats.abgeschlossen})
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-                <div className="relative w-full">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Suchen..."
-                    className="pl-9"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                </div>
-              ) : filteredAuftraege.length === 0 ? (
-                <div className="text-center py-12">
-                  <ClipboardList className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">Keine Aufträge gefunden</p>
-                  <Button variant="outline" className="mt-4" onClick={() => setIsModalOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Ersten Auftrag erstellen
-                  </Button>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Auftrag</TableHead>
-                        <TableHead className="hidden sm:table-cell">Kunde</TableHead>
-                        <TableHead className="hidden md:table-cell">Datum/Zeit</TableHead>
-                        <TableHead className="hidden lg:table-cell">Team</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredAuftraege.map((auftrag) => (
-                        <TableRow key={auftrag.id} className="group">
-                          <TableCell>
-                            <div>
-                              <p className="font-semibold text-sm">{auftrag.title}</p>
-                              <p className="text-xs text-muted-foreground">{auftrag.auftrag_nummer}</p>
-                              {/* Mobile: show date inline */}
-                              <div className="flex items-center gap-1.5 mt-1 md:hidden">
-                                <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
-                                <p className="text-xs text-muted-foreground">
-                                  {format(new Date(auftrag.scheduled_date), "dd.MM.yy", { locale: de })}
-                                  {auftrag.scheduled_time && ` · ${auftrag.scheduled_time.substring(0, 5)}`}
-                                </p>
-                                {getDateBadge(auftrag.scheduled_date, auftrag.status)}
-                              </div>
-                              {/* Mobile: show customer name */}
-                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 sm:hidden">
-                                <User className="w-3 h-3" />
-                                {auftrag.customer_name}
-                              </p>
-                              {auftrag.from_address && (
-                                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 hidden sm:flex">
-                                  <MapPin className="w-3 h-3" />
-                                  {auftrag.from_address.split("\n")[0]}
-                                </p>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell">
-                            <div className="flex items-start gap-2">
-                              <User className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                              <div>
-                                <p className="font-medium text-sm">{auftrag.customer_name}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  {auftrag.customer_phone && (
-                                    <a href={`tel:${auftrag.customer_phone}`} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                                      <Phone className="w-3 h-3" />
-                                      {auftrag.customer_phone}
-                                    </a>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-sm">
-                                  {format(new Date(auftrag.scheduled_date), "dd.MM.yyyy", { locale: de })}
-                                </p>
-                                {getDateBadge(auftrag.scheduled_date, auftrag.status)}
-                              </div>
-                              {auftrag.scheduled_time && (
-                                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  {auftrag.scheduled_time.substring(0, 5)} Uhr
-                                </p>
-                              )}
-                              {auftrag.estimated_duration_minutes && (
-                                <p className="text-xs text-muted-foreground">
-                                  ~{Math.floor(auftrag.estimated_duration_minutes / 60)}h
-                                </p>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden lg:table-cell">
-                            {auftrag.team_leader ? (
-                              <div className="flex items-center gap-2">
-                                <Users className="w-4 h-4 text-muted-foreground shrink-0" />
-                                <div>
-                                  <p className="font-medium text-sm">{auftrag.team_leader.first_name} {auftrag.team_leader.last_name}</p>
-                                  {auftrag.team_reminder_sent && (
-                                    <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">
-                                      <Mail className="w-2.5 h-2.5 mr-1" />
-                                      Benachrichtigt
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground italic">Nicht zugewiesen</span>
-                            )}
-                          </TableCell>
-                          <TableCell>{getStatusBadge(auftrag.status)}</TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Auftrag Optionen">
-                                  <MoreVertical className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => {
-                                  setSelectedAuftrag(auftrag);
-                                  setIsModalOpen(true);
-                                }}>
-                                  <Edit className="w-4 h-4 mr-2" />
-                                  Bearbeiten
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => setExtrasAuftragId(auftrag.id)}
-                                  className="text-purple-600"
-                                >
-                                  <Package className="w-4 h-4 mr-2" />
-                                  Saha Extras
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleDownloadPdf(auftrag)}
-                                  disabled={isDownloadingPdf === auftrag.id}
-                                >
-                                  {isDownloadingPdf === auftrag.id ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  ) : (
-                                    <Download className="w-4 h-4 mr-2" />
-                                  )}
-                                  PDF herunterladen
-                                </DropdownMenuItem>
-                                {auftrag.offer && (
-                                  <DropdownMenuItem onClick={() => window.open(`/firma/offerten/${auftrag.offer?.id}`, "_blank")}>
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    Offerte anzeigen
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                {auftrag.status === "geplant" && (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "bestaetigt")}>
-                                    <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                                    Als bestätigt markieren
-                                  </DropdownMenuItem>
-                                )}
-                                {(auftrag.status === "geplant" || auftrag.status === "bestaetigt") && (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "in_bearbeitung")}>
-                                    <Clock className="w-4 h-4 mr-2 text-amber-600" />
-                                    In Bearbeitung
-                                  </DropdownMenuItem>
-                                )}
-                                {auftrag.status !== "abgeschlossen" && auftrag.status !== "storniert" && (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "abgeschlossen")}>
-                                    <CheckCircle className="w-4 h-4 mr-2 text-emerald-600" />
-                                    Als erledigt markieren
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onClick={() => setDeleteAuftrag(auftrag)}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Löschen
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            }}
+            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Neuer Auftrag
+          </Button>
         </div>
 
-        {/* Auftrag Modal */}
-        <AuftragModal
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false);
-            setSelectedAuftrag(null);
-          }}
-          companyId={companyId}
-          auftrag={selectedAuftrag}
-          onSuccess={fetchData}
-        />
+        {/* KPI tiles */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+          {kpiTiles.map((tile) => (
+            <div
+              key={tile.label}
+              className={`rounded-xl border bg-folk-card p-4 transition-all md:p-5 ${
+                tile.highlight ? "border-folk-coral/30 ring-1 ring-folk-coral/20" : "border-folk-line"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                <span className="text-xl leading-none">{tile.emoji}</span>
+              </div>
+              <div className="mt-3 font-sans text-3xl font-bold tracking-tight text-folk-ink">{tile.value}</div>
+            </div>
+          ))}
+        </div>
 
-        {/* Delete Confirmation */}
-        <AlertDialog open={!!deleteAuftrag} onOpenChange={() => setDeleteAuftrag(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Auftrag löschen?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Möchten Sie den Auftrag "{deleteAuftrag?.title}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Abbrechen</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Wird gelöscht...
-                  </>
-                ) : (
-                  "Löschen"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Overdue warning */}
+        {stats.overdue > 0 && (
+          <div className="flex items-center gap-3 rounded-xl border border-folk-coral/30 bg-folk-coral-bg px-4 py-3">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-folk-coral" />
+            <span className="text-[13px] font-semibold text-folk-coral">
+              <span className="font-mono">{stats.overdue}</span> überfällige{stats.overdue === 1 ? "r" : ""} Auftrag{stats.overdue === 1 ? "" : "e"}
+            </span>
+          </div>
+        )}
 
-        {/* Saha Extras Modal */}
-        <SahaExtrasModal
-          open={!!extrasAuftragId}
-          onOpenChange={(open) => !open && setExtrasAuftragId(null)}
-          auftragId={extrasAuftragId || ''}
-          onSaved={fetchData}
-        />
+        {/* Tabs + search */}
+        <section className="rounded-xl border border-folk-line bg-folk-card">
+          <div className="border-b border-folk-line p-4 md:p-5">
+            <div className="flex flex-col gap-3">
+              <div className="-mx-1 overflow-x-auto px-1">
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="h-auto w-max min-w-full gap-1 bg-folk-bg-warm p-1 sm:w-full">
+                    {[
+                      { v: "alle",          label: "Alle",         count: stats.total },
+                      { v: "heute",         label: "Heute",        count: stats.today },
+                      { v: "morgen",        label: "Morgen",       count: stats.tomorrow },
+                      { v: "geplant",       label: "Geplant",      count: stats.geplant + stats.bestaetigt },
+                      { v: "abgeschlossen", label: "Erledigt",     count: stats.abgeschlossen },
+                    ].map((tab) => (
+                      <TabsTrigger
+                        key={tab.v}
+                        value={tab.v}
+                        className="h-8 flex-1 gap-1.5 rounded-md px-3 text-[12.5px] text-folk-ink2 data-[state=active]:bg-folk-card data-[state=active]:font-semibold data-[state=active]:text-folk-ink data-[state=active]:shadow-[0_1px_2px_rgba(24,24,26,0.04)] sm:flex-none"
+                      >
+                        <span>{tab.label}</span>
+                        <span className="font-mono text-[11px] text-folk-ink3">{tab.count}</span>
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
+              <div className="relative w-full">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-folk-ink3" />
+                <Input
+                  placeholder="In Aufträgen suchen …"
+                  className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 text-[13px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 md:p-5">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-7 w-7 animate-spin text-folk-coral" />
+              </div>
+            ) : filteredAuftraege.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">📋</div>
+                <p className="text-[13px] text-folk-ink3">Keine Aufträge gefunden</p>
+                <Button
+                  variant="outline"
+                  className="mt-3 h-9 rounded-lg border-folk-line bg-folk-card text-[13px] text-folk-ink2 hover:bg-folk-bg-warm"
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Ersten Auftrag erstellen
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-folk-line hover:bg-transparent">
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Auftrag</TableHead>
+                      <TableHead className="hidden text-[11px] font-semibold uppercase tracking-wider text-folk-ink3 sm:table-cell">Kunde</TableHead>
+                      <TableHead className="hidden text-[11px] font-semibold uppercase tracking-wider text-folk-ink3 md:table-cell">Datum/Zeit</TableHead>
+                      <TableHead className="hidden text-[11px] font-semibold uppercase tracking-wider text-folk-ink3 lg:table-cell">Team</TableHead>
+                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Status</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAuftraege.map((auftrag) => (
+                      <TableRow key={auftrag.id} className="group cursor-pointer border-folk-line-soft transition-colors hover:bg-folk-bg-warm">
+                        <TableCell>
+                          <div>
+                            <p className="text-[13px] font-semibold tracking-tight text-folk-ink">{auftrag.title}</p>
+                            <p className="font-mono text-[11px] text-folk-ink4">{auftrag.auftrag_nummer}</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 md:hidden">
+                              <Calendar className="h-3 w-3 shrink-0 text-folk-ink4" />
+                              <p className="font-mono text-[11px] text-folk-ink3">
+                                {format(new Date(auftrag.scheduled_date), "dd.MM.yy", { locale: de })}
+                                {auftrag.scheduled_time && ` · ${auftrag.scheduled_time.substring(0, 5)}`}
+                              </p>
+                              {getDateBadge(auftrag.scheduled_date, auftrag.status)}
+                            </div>
+                            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-folk-ink3 sm:hidden">
+                              <User className="h-3 w-3" />
+                              {auftrag.customer_name}
+                            </p>
+                            {auftrag.from_address && (
+                              <p className="mt-0.5 hidden items-center gap-1 text-[11px] text-folk-ink4 sm:flex">
+                                <MapPin className="h-3 w-3" />
+                                {auftrag.from_address.split("\n")[0]}
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <div className="flex items-start gap-2">
+                            <User className="mt-0.5 h-4 w-4 shrink-0 text-folk-ink4" />
+                            <div>
+                              <p className="text-[13px] font-medium text-folk-ink">{auftrag.customer_name}</p>
+                              <div className="mt-1 flex items-center gap-2">
+                                {auftrag.customer_phone && (
+                                  <a href={`tel:${auftrag.customer_phone}`} className="flex items-center gap-1 font-mono text-[11px] text-folk-ink2 hover:text-folk-coral">
+                                    <Phone className="h-3 w-3 text-folk-ink4" />
+                                    {auftrag.customer_phone}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-[13px] font-medium text-folk-ink">
+                                {format(new Date(auftrag.scheduled_date), "dd.MM.yyyy", { locale: de })}
+                              </p>
+                              {getDateBadge(auftrag.scheduled_date, auftrag.status)}
+                            </div>
+                            {auftrag.scheduled_time && (
+                              <p className="flex items-center gap-1 text-[11px] text-folk-ink3">
+                                <Clock className="h-3 w-3" />
+                                <span className="font-mono">{auftrag.scheduled_time.substring(0, 5)}</span> Uhr
+                              </p>
+                            )}
+                            {auftrag.estimated_duration_minutes && (
+                              <p className="text-[11px] text-folk-ink4">
+                                ~<span className="font-mono">{Math.floor(auftrag.estimated_duration_minutes / 60)}</span>h
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          {auftrag.team_leader ? (
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 shrink-0 text-folk-ink4" />
+                              <div>
+                                <p className="text-[13px] font-medium text-folk-ink">{auftrag.team_leader.first_name} {auftrag.team_leader.last_name}</p>
+                                {auftrag.team_reminder_sent && (
+                                  <span className="mt-0.5 inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-1.5 py-0.5 text-[10px] font-semibold text-folk-mint">
+                                    <Mail className="h-2.5 w-2.5" />
+                                    Benachrichtigt
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] italic text-folk-ink4">Nicht zugewiesen</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{getStatusChip(auftrag.status)}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md text-folk-ink3 hover:bg-folk-card hover:text-folk-ink2" aria-label="Auftrag Optionen">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => {
+                                setSelectedAuftrag(auftrag);
+                                setIsModalOpen(true);
+                              }}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Bearbeiten
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setExtrasAuftragId(auftrag.id)}
+                                className="text-folk-violet"
+                              >
+                                <Package className="mr-2 h-4 w-4" />
+                                Saha Extras
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDownloadPdf(auftrag)}
+                                disabled={isDownloadingPdf === auftrag.id}
+                              >
+                                {isDownloadingPdf === auftrag.id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="mr-2 h-4 w-4" />
+                                )}
+                                PDF herunterladen
+                              </DropdownMenuItem>
+                              {auftrag.offer && (
+                                <DropdownMenuItem onClick={() => window.open(`/firma/offerten/${auftrag.offer?.id}`, "_blank")}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  Offerte anzeigen
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              {auftrag.status === "geplant" && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "bestaetigt")}>
+                                  <CheckCircle className="mr-2 h-4 w-4 text-folk-mint" />
+                                  Als bestätigt markieren
+                                </DropdownMenuItem>
+                              )}
+                              {(auftrag.status === "geplant" || auftrag.status === "bestaetigt") && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "in_bearbeitung")}>
+                                  <Clock className="mr-2 h-4 w-4 text-folk-lemon" />
+                                  In Bearbeitung
+                                </DropdownMenuItem>
+                              )}
+                              {auftrag.status !== "abgeschlossen" && auftrag.status !== "storniert" && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "abgeschlossen")}>
+                                  <CheckCircle className="mr-2 h-4 w-4 text-folk-mint" />
+                                  Als erledigt markieren
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-folk-coral"
+                                onClick={() => setDeleteAuftrag(auftrag)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Löschen
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <AuftragModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedAuftrag(null);
+        }}
+        companyId={companyId}
+        auftrag={selectedAuftrag}
+        onSuccess={fetchData}
+      />
+
+      <AlertDialog open={!!deleteAuftrag} onOpenChange={() => setDeleteAuftrag(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Auftrag löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie den Auftrag "{deleteAuftrag?.title}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-folk-coral hover:bg-folk-coral/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Wird gelöscht...
+                </>
+              ) : (
+                "Löschen"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <SahaExtrasModal
+        open={!!extrasAuftragId}
+        onOpenChange={(open) => !open && setExtrasAuftragId(null)}
+        auftragId={extrasAuftragId || ''}
+        onSaved={fetchData}
+      />
     </>
   );
 };
 
 export default FirmaAuftraege;
-

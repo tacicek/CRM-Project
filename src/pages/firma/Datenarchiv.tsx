@@ -415,19 +415,21 @@ export default function FirmaDatenarchiv() {
 
   return (
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Archive className="w-7 h-7" />
-              Datenarchiv & Datenschutz
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Verwalten Sie Ihre Firmendaten gemäss DSGVO/DSG
+        {/* Folk-style header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+          <span className="text-4xl leading-none">🗂️</span>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Datenarchiv & Datenschutz</h1>
+            <p className="mt-1 text-[13px] text-folk-ink2">
+              Firmendaten gemäss DSGVO/DSG verwalten — Export, Löschung und Audit-Log.
             </p>
           </div>
-          <Button variant="outline" onClick={loadStats}>
-            <RefreshCw className="w-4 h-4 mr-2" />
+          <Button
+            variant="outline"
+            onClick={loadStats}
+            className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
             Aktualisieren
           </Button>
         </div>

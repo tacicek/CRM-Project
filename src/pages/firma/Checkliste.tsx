@@ -601,46 +601,38 @@ const FirmaCheckliste = () => {
         <title>Checkliste | Firma</title>
       </Helmet>
         <div className="space-y-6">
-          {/* Modern Header */}
-          <Card className="border-0 shadow-lg overflow-hidden">
-            <div className={`relative bg-gradient-to-br ${currentTypeConfig.color} p-6 sm:p-8`}>
-              {/* Background decorative elements */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24" />
-              
-              <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                    <CheckSquare className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-white">
-                      Kunden-Checkliste
-                    </h1>
-                    <p className="text-white/80 text-sm sm:text-base mt-1">
-                      Hilfreiche Checklisten für Ihre Kunden erstellen
-                    </p>
-                  </div>
-                </div>
+          {/* Folk-style header */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+            <span className="text-4xl leading-none">☑️</span>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Kunden-Checkliste</h1>
+                <span className="text-[13px] text-folk-ink3">
+                  <span className="font-mono">{existingTemplates.length}</span> Vorlagen · <span className="font-mono">{totalSections}</span> Abschnitte · <span className="font-mono">{totalItems}</span> Punkte
+                </span>
               </div>
-
-              {/* Stats */}
-              <div className="relative grid grid-cols-3 gap-4 mt-6">
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-white">{existingTemplates.length}</p>
-                  <p className="text-white/70 text-sm">Vorlagen</p>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-white">{totalSections}</p>
-                  <p className="text-white/70 text-sm">Abschnitte</p>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-white">{totalItems}</p>
-                  <p className="text-white/70 text-sm">Punkte</p>
-                </div>
-              </div>
+              <p className="mt-1 text-[13px] text-folk-ink2">
+                Hilfreiche Checklisten für Ihre Kunden erstellen — pro Service-Typ konfigurierbar.
+              </p>
             </div>
-          </Card>
+          </div>
+
+          {/* KPI tiles */}
+          <div className="grid grid-cols-3 gap-3 md:gap-4">
+            {[
+              { emoji: '📋', label: 'Vorlagen',   value: existingTemplates.length },
+              { emoji: '🗂️', label: 'Abschnitte', value: totalSections },
+              { emoji: '✓',  label: 'Punkte',     value: totalItems },
+            ].map((tile) => (
+              <div key={tile.label} className="rounded-xl border border-folk-line bg-folk-card p-4 md:p-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                  <span className="text-xl leading-none">{tile.emoji}</span>
+                </div>
+                <div className="mt-3 font-sans text-3xl font-bold tracking-tight text-folk-ink">{tile.value}</div>
+              </div>
+            ))}
+          </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Main Editor */}

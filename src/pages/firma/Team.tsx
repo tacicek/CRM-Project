@@ -363,64 +363,55 @@ const TeamPage = () => {
         <title>Team | Firma</title>
       </Helmet>
         <div className="space-y-6">
-          {/* Modern Header */}
-          <Card className="border-0 shadow-lg overflow-hidden">
-            <div className="relative bg-gradient-to-br from-violet-600 to-purple-700 p-6 sm:p-8">
-              {/* Background decorative elements */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24" />
-              
-              <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                    <Users className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-white">
-                      Team-Verwaltung
-                    </h1>
-                    <p className="text-white/80 text-sm sm:text-base mt-1">
-                      Mitarbeiter, Fahrzeuge und Ausrüstung verwalten
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button 
-                    variant="outline"
-                    onClick={() => openResourceModal()}
-                    className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2"
-                  >
-                    <Truck className="w-4 h-4" />
-                    Ressource
-                  </Button>
-                  <Button 
-                    onClick={() => openMemberModal()}
-                    className="bg-white text-violet-700 hover:bg-white/90 shadow-lg gap-2"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Mitarbeiter
-                  </Button>
-                </div>
+          {/* Folk-style header */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+            <span className="text-4xl leading-none">👥</span>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Team-Verwaltung</h1>
+                <span className="text-[13px] text-folk-ink3">
+                  <span className="font-mono">{teamMembers.length}</span> Mitarbeiter · <span className="font-mono">{vehicles.length}</span> Fahrzeuge · <span className="font-mono">{equipment.length}</span> Ausrüstung
+                </span>
               </div>
-
-              {/* Stats */}
-              <div className="relative grid grid-cols-3 gap-4 mt-6">
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-white">{teamMembers.length}</p>
-                  <p className="text-white/70 text-sm">Mitarbeiter</p>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-white">{vehicles.length}</p>
-                  <p className="text-white/70 text-sm">Fahrzeuge</p>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <p className="text-3xl font-bold text-white">{equipment.length}</p>
-                  <p className="text-white/70 text-sm">Ausrüstung</p>
-                </div>
-              </div>
+              <p className="mt-1 text-[13px] text-folk-ink2">
+                Mitarbeiter, Fahrzeuge und Ausrüstung verwalten — Termine zuweisen und Verfügbarkeit prüfen.
+              </p>
             </div>
-          </Card>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => openResourceModal()}
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+              >
+                <Truck className="h-3.5 w-3.5" />
+                Ressource
+              </Button>
+              <Button
+                onClick={() => openMemberModal()}
+                className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Mitarbeiter
+              </Button>
+            </div>
+          </div>
+
+          {/* KPI tiles */}
+          <div className="grid grid-cols-3 gap-3 md:gap-4">
+            {[
+              { emoji: '👤', label: 'Mitarbeiter', value: teamMembers.length },
+              { emoji: '🚚', label: 'Fahrzeuge',   value: vehicles.length },
+              { emoji: '🧰', label: 'Ausrüstung',  value: equipment.length },
+            ].map((tile) => (
+              <div key={tile.label} className="rounded-xl border border-folk-line bg-folk-card p-4 md:p-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                  <span className="text-xl leading-none">{tile.emoji}</span>
+                </div>
+                <div className="mt-3 font-sans text-3xl font-bold tracking-tight text-folk-ink">{tile.value}</div>
+              </div>
+            ))}
+          </div>
 
           {/* Team Members */}
           <Card className="overflow-hidden">

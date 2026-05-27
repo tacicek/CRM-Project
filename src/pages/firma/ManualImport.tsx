@@ -16,20 +16,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Upload,
   Sparkles,
   Loader2,
   Check,
   ArrowLeft,
-  ArrowRight,
   AlertCircle,
   User,
   MapPin,
   Calendar,
   Package,
-  FileText,
-  Lock,
-  Crown,
   Home,
   Trash2,
   Piano,
@@ -1876,19 +1871,16 @@ const FirmaManualImport = () => {
       </Helmet>
 
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="w-5 h-5" />
-              Manuelle Anfrage Importieren
-            </CardTitle>
-            <CardDescription>
-              Fügen Sie eine Anfrage aus Ihrer E-Mail oder Website ein. 
-              Unsere AI erkennt automatisch den Service-Typ und extrahiert alle relevanten Informationen.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        {/* Folk-style header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+          <span className="text-4xl leading-none">📥</span>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Anfrage importieren</h1>
+            <p className="mt-1 text-[13px] text-folk-ink2">
+              Anfrage aus E-Mail oder Webformular einfügen — die KI erkennt Service-Typ und extrahiert alle Informationen.
+            </p>
+          </div>
+        </div>
 
         {/* Step 1: Input */}
         {!previewMode && (

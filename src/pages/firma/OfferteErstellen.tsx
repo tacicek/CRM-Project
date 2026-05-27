@@ -1266,18 +1266,25 @@ const FirmaOfferteErstellen = () => {
         <title>Offerte erstellen | Firma</title>
       </Helmet>
         <div className="space-y-4 sm:space-y-6">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="h-8 w-8 sm:h-10 sm:w-10" aria-label="Zurück">
-                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-              </Button>
-              <div>
-                <h2 className="text-lg sm:text-2xl font-bold">Offerte erstellen</h2>
-                <p className="text-xs sm:text-sm text-muted-foreground">
-                  Für {lead.customer_first_name} {lead.customer_last_name}
-                </p>
+          {/* Folk-style header */}
+          <div className="flex items-start gap-3 sm:gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              className="h-9 w-9 shrink-0 rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink2"
+              aria-label="Zurück"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <span className="text-2xl leading-none">📄</span>
+                <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">Offerte erstellen</h1>
               </div>
+              <p className="mt-1 text-[13px] text-folk-ink2">
+                Für <span className="font-semibold text-folk-ink">{lead.customer_first_name} {lead.customer_last_name}</span> — Pozisyon ekle, Versand-Kanal seç, gönder.
+              </p>
             </div>
           </div>
 

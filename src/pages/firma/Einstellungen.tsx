@@ -354,9 +354,15 @@ const FirmaEinstellungen = () => {
         <title>Einstellungen | Firma</title>
       </Helmet>
         <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold">Einstellungen</h2>
-            <p className="text-muted-foreground">Verwalten Sie Ihr Firmenprofil</p>
+          {/* Folk-style header */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+            <span className="text-4xl leading-none">⚙️</span>
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Einstellungen</h1>
+              <p className="mt-1 text-[13px] text-folk-ink2">
+                Firmenprofil, Benachrichtigungen, E-Mail-Versand und AGB konfigurieren.
+              </p>
+            </div>
           </div>
 
           <Tabs defaultValue="profile" className="w-full">

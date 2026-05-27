@@ -383,20 +383,20 @@ const FirmaOfferteDetail = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "draft":
-        return <Badge variant="secondary">Entwurf</Badge>;
-      case "sent":
-        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/30">Gesendet</Badge>;
-      case "viewed":
-        return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/30">Angesehen</Badge>;
-      case "accepted":
-        return <Badge className="bg-green-500/10 text-green-500 border-green-500/30">Angenommen</Badge>;
-      case "rejected":
-        return <Badge className="bg-red-500/10 text-red-500 border-red-500/30">Abgelehnt</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+    const meta: Record<string, { label: string; emoji: string; color: string; bg: string }> = {
+      draft:    { label: "Entwurf",    emoji: "📝", color: "text-folk-ink3",  bg: "bg-folk-bg-warm" },
+      sent:     { label: "Gesendet",   emoji: "📤", color: "text-folk-sky",   bg: "bg-folk-sky-bg" },
+      viewed:   { label: "Angesehen",  emoji: "👀", color: "text-folk-lemon", bg: "bg-folk-lemon-bg" },
+      accepted: { label: "Angenommen", emoji: "✅", color: "text-folk-mint",  bg: "bg-folk-mint-bg" },
+      rejected: { label: "Abgelehnt",  emoji: "❌", color: "text-folk-coral", bg: "bg-folk-coral-bg" },
+    };
+    const m = meta[status] ?? { label: status, emoji: "📄", color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${m.bg} ${m.color}`}>
+        <span>{m.emoji}</span>
+        {m.label}
+      </span>
+    );
   };
 
   const formatDateTime = (dateString: string) => {
@@ -774,85 +774,61 @@ const FirmaOfferteDetail = () => {
         <title>{offer.title} | Firma</title>
       </Helmet>
         <div className="space-y-4 sm:space-y-6">
-          {/* Mobile Header */}
-          <div className="flex flex-col gap-3 sm:hidden">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={() => navigate("/firma/offerten")} className="shrink-0" aria-label="Zurück zu Offerten">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold truncate">{offer.title}</h2>
-                  {getStatusBadge(offer.status)}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {formatDate(offer.created_at)}
-                  {offer.sent_at && ` • ${formatDate(offer.sent_at)}`}
-                </p>
+          {/* Folk-style header */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/firma/offerten")}
+              className="h-9 w-9 shrink-0 rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink2"
+              aria-label="Zurück zu Offerten"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                <span className="text-2xl leading-none">📄</span>
+                <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">{offer.title}</h1>
+                {getStatusBadge(offer.status)}
               </div>
+              <p className="mt-1 font-mono text-[12px] text-folk-ink3">
+                {formatDate(offer.created_at)}
+                {offer.sent_at && ` · gesendet ${formatDate(offer.sent_at)}`}
+              </p>
             </div>
-
-            {/* Mobile Action Buttons */}
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleDownloadPdf} className="flex-1">
-                <Download className="w-4 h-4 mr-1.5" />
-                PDF
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleDownloadPdf}
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">PDF herunterladen</span>
+                <span className="sm:hidden">PDF</span>
               </Button>
               {offer.status === "accepted" && (
-                <Button size="sm" onClick={() => setShowAuftragModal(true)} className="flex-1 bg-blue-600 hover:bg-blue-700">
-                  <ClipboardList className="w-4 h-4 mr-1.5" />
-                  Auftrag
+                <Button
+                  onClick={() => setShowAuftragModal(true)}
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Auftrag erstellen</span>
+                  <span className="sm:hidden">Auftrag</span>
                 </Button>
               )}
               {offer.status === "draft" && (
-                <Button size="sm" onClick={handleOpenPreview} disabled={isSending} className="flex-1">
+                <Button
+                  onClick={handleOpenPreview}
+                  disabled={isSending}
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                >
                   {isSending ? (
-                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    <Eye className="w-4 h-4 mr-1.5" />
+                    <Eye className="h-3.5 w-3.5" />
                   )}
-                  Vorschau
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Desktop Header */}
-          <div className="hidden sm:flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate("/firma/offerten")} aria-label="Zurück zu Offerten">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-              <div>
-                <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-bold">{offer.title}</h2>
-                  {getStatusBadge(offer.status)}
-                </div>
-                <p className="text-muted-foreground">
-                  Erstellt am {formatDate(offer.created_at)}
-                  {offer.sent_at && ` • Gesendet am ${formatDate(offer.sent_at)}`}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={handleDownloadPdf}>
-                <Download className="w-4 h-4 mr-2" />
-                PDF herunterladen
-              </Button>
-              {offer.status === "accepted" && (
-                <Button onClick={() => setShowAuftragModal(true)} className="bg-blue-600 hover:bg-blue-700">
-                  <ClipboardList className="w-4 h-4 mr-2" />
-                  Auftrag erstellen
-                </Button>
-              )}
-              {offer.status === "draft" && (
-                <Button onClick={handleOpenPreview} disabled={isSending}>
-                  {isSending ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Eye className="w-4 h-4 mr-2" />
-                  )}
-                  Vorschau & Senden
+                  <span className="hidden sm:inline">Vorschau & Senden</span>
+                  <span className="sm:hidden">Vorschau</span>
                 </Button>
               )}
             </div>

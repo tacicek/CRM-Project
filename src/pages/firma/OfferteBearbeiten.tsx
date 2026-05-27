@@ -616,34 +616,45 @@ const FirmaOfferteBearbeiten = () => {
         <title>Offerte bearbeiten | Firma</title>
       </Helmet>
         <div className="space-y-4 sm:space-y-6">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate("/firma/offerten")}
-                className="h-8 w-8 sm:h-10 sm:w-10"
-              >
-                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-              </Button>
-              <div>
-                <h2 className="text-lg sm:text-2xl font-bold">Offerte bearbeiten</h2>
-                <p className="text-xs sm:text-sm text-muted-foreground">
-                  {customerFirstName} {customerLastName}
-                </p>
+          {/* Folk-style header */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/firma/offerten")}
+              className="h-9 w-9 shrink-0 rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink2"
+              aria-label="Zurück"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <span className="text-2xl leading-none">📄</span>
+                <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">Offerte bearbeiten</h1>
               </div>
+              <p className="mt-1 text-[13px] text-folk-ink2">
+                Für <span className="font-semibold text-folk-ink">{customerFirstName} {customerLastName}</span>
+              </p>
             </div>
-            <div className="flex gap-2 self-end sm:self-auto">
-              <Button variant="outline" size="sm" onClick={() => handleSave(false)} disabled={isSaving || isSpellChecking} className="text-xs sm:text-sm h-8 sm:h-10">
-                {isSaving || isSpellChecking ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 animate-spin" /> : <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />}
-                <span className="hidden sm:inline">{isSpellChecking ? "Wird geprüft..." : "Speichern"}</span>
-                <span className="sm:hidden">{isSpellChecking ? "..." : "Speich."}</span>
+            <div className="flex flex-wrap gap-2 self-end sm:self-auto">
+              <Button
+                variant="outline"
+                onClick={() => handleSave(false)}
+                disabled={isSaving || isSpellChecking}
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+              >
+                {isSaving || isSpellChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{isSpellChecking ? "Wird geprüft …" : "Speichern"}</span>
+                <span className="sm:hidden">{isSpellChecking ? "…" : "Speich."}</span>
               </Button>
-              <Button size="sm" onClick={() => handleSave(true)} disabled={isSaving || isSpellChecking} className="text-xs sm:text-sm h-8 sm:h-10">
-                {isSaving || isSpellChecking ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 animate-spin" /> : <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />}
-                <span className="hidden sm:inline">{isSpellChecking ? "Text wird geprüft..." : "Speichern & Senden"}</span>
-                <span className="sm:hidden">{isSpellChecking ? "..." : "Senden"}</span>
+              <Button
+                onClick={() => handleSave(true)}
+                disabled={isSaving || isSpellChecking}
+                className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+              >
+                {isSaving || isSpellChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{isSpellChecking ? "Text wird geprüft …" : "Speichern & Senden"}</span>
+                <span className="sm:hidden">{isSpellChecking ? "…" : "Senden"}</span>
               </Button>
             </div>
           </div>

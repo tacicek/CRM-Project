@@ -347,26 +347,49 @@ export default function QuittungDetail() {
   return (
     <>
       <Helmet><title>{isNew ? "Neue Quittung" : `Quittung ${quittungNr}`} | Firma</title></Helmet>
-        <div className="space-y-5 max-w-3xl mx-auto">
-          {/* Toolbar */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/firma/quittungen")}>
-              <ArrowLeft className="w-4 h-4 mr-1.5" /> Zurück
+        <div className="mx-auto max-w-3xl space-y-5">
+          {/* Folk-style header */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/firma/quittungen")}
+              className="h-9 gap-1.5 rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink2"
+            >
+              <ArrowLeft className="h-4 w-4" /> Zurück
             </Button>
+            <div className="flex items-center gap-2.5">
+              <span className="text-2xl leading-none">🧾</span>
+              <div>
+                <h1 className="text-[17px] font-bold tracking-tight text-folk-ink">
+                  {isNew ? "Neue Quittung" : `Quittung ${quittungNr || ""}`}
+                </h1>
+              </div>
+            </div>
             <div className="flex-1" />
-            {quittungNr && (
-              <span className="text-xs font-mono text-slate-400">{quittungNr}</span>
+            {quittungNr && !isNew && (
+              <span className="font-mono text-[11px] text-folk-ink4">{quittungNr}</span>
             )}
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${cfg.bg} ${cfg.color}`}>
               {cfg.label}
             </span>
             {showPdfPreview ? (
-              <Button variant="outline" size="sm" onClick={() => setShowPdfPreview(false)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPdfPreview(false)}
+                className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[12.5px] text-folk-ink2 hover:bg-folk-bg-warm"
+              >
                 Formular
               </Button>
             ) : (
-              <Button variant="outline" size="sm" onClick={async () => { await save(); setShowPdfPreview(true); }}>
-                <FileText className="w-4 h-4 mr-1.5" /> PDF-Vorschau
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => { await save(); setShowPdfPreview(true); }}
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[12.5px] text-folk-ink2 hover:bg-folk-bg-warm"
+              >
+                <FileText className="h-4 w-4" /> PDF-Vorschau
               </Button>
             )}
           </div>
@@ -390,9 +413,8 @@ export default function QuittungDetail() {
           )}
 
           {/* Form */}
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
-            <div className="p-4 md:p-6 space-y-6">
+          <div className="rounded-xl border border-folk-line bg-folk-card">
+            <div className="space-y-6 p-4 md:p-6">
 
               {/* ── Header Section ── */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -51,7 +51,6 @@ import {
   CheckCircle,
   AlertTriangle,
   Clock,
-  Truck,
   Phone,
   Mail,
   MapPin,
@@ -426,100 +425,61 @@ export default function Umzugsboxen() {
   return (
     <>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Package className="w-7 h-7 text-orange-500" />
-              Umzugsboxen-Verwaltung
-            </h1>
-            <p className="text-muted-foreground">
-              Verwalten Sie Mietboxen und planen Sie Abholungen
+        {/* Folk-style header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+          <span className="text-4xl leading-none">📦</span>
+          <div className="flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Umzugsboxen</h1>
+              <span className="text-[13px] text-folk-ink3">
+                <span className="font-mono">{stats?.total_active || 0}</span> aktiv · <span className="font-mono">{stats?.overdue || 0}</span> überfällig · <span className="font-mono">{stats?.total_boxes_out || 0}</span> Boxen im Umlauf
+              </span>
+            </div>
+            <p className="mt-1 text-[13px] text-folk-ink2">
+              Mietboxen verwalten und Abholungen planen.
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={fetchData}>
-              <RefreshCw className="w-4 h-4 mr-2" />
+            <Button
+              variant="outline"
+              onClick={fetchData}
+              className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
               Aktualisieren
             </Button>
-            <Button onClick={handleNew}>
-              <Plus className="w-4 h-4 mr-2" />
-              Neue Box-Vermietung
+            <Button
+              onClick={handleNew}
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Neue Vermietung
             </Button>
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
-            <CardContent className="p-4">
+        {/* KPI grid */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:gap-4">
+          {[
+            { emoji: '📦', label: 'Aktive Vermietungen', value: stats?.total_active || 0,       highlight: false },
+            { emoji: '⚠️', label: 'Überfällig',          value: stats?.overdue || 0,            highlight: (stats?.overdue || 0) > 0 },
+            { emoji: '🚛', label: 'Heute abholen',       value: stats?.pickup_today || 0,       highlight: false },
+            { emoji: '📅', label: 'Diese Woche',         value: stats?.pickup_this_week || 0,   highlight: false },
+            { emoji: '🚚', label: 'Boxen im Umlauf',     value: stats?.total_boxes_out || 0,    highlight: false },
+          ].map((tile) => (
+            <div
+              key={tile.label}
+              className={`rounded-xl border bg-folk-card p-4 md:p-5 ${
+                tile.highlight ? 'border-folk-coral/30 ring-1 ring-folk-coral/20' : 'border-folk-line'
+              }`}
+            >
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-blue-600 dark:text-blue-400">Aktive Vermietungen</p>
-                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                    {stats?.total_active || 0}
-                  </p>
-                </div>
-                <Package className="w-8 h-8 text-blue-500 opacity-50" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                <span className="text-xl leading-none">{tile.emoji}</span>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-red-600 dark:text-red-400">Überfällig</p>
-                  <p className="text-2xl font-bold text-red-700 dark:text-red-300">
-                    {stats?.overdue || 0}
-                  </p>
-                </div>
-                <AlertTriangle className="w-8 h-8 text-red-500 opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-orange-600 dark:text-orange-400">Heute abholen</p>
-                  <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                    {stats?.pickup_today || 0}
-                  </p>
-                </div>
-                <Clock className="w-8 h-8 text-orange-500 opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border-yellow-200 dark:border-yellow-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-yellow-600 dark:text-yellow-400">Diese Woche</p>
-                  <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
-                    {stats?.pickup_this_week || 0}
-                  </p>
-                </div>
-                <Calendar className="w-8 h-8 text-yellow-500 opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-green-600 dark:text-green-400">Boxen im Umlauf</p>
-                  <p className="text-2xl font-bold text-green-700 dark:text-green-300">
-                    {stats?.total_boxes_out || 0}
-                  </p>
-                </div>
-                <Truck className="w-8 h-8 text-green-500 opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
+              <div className={`mt-3 font-sans text-3xl font-bold tracking-tight ${tile.highlight ? 'text-folk-coral' : 'text-folk-ink'}`}>{tile.value}</div>
+            </div>
+          ))}
         </div>
 
         {/* Urgent Alerts */}

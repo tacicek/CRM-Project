@@ -530,111 +530,78 @@ const FirmaBesichtigungen = () => {
         <title>Besichtigungen | Firma</title>
       </Helmet>
         <div className="space-y-6">
-          {/* Modern Header */}
-          <Card className="border-0 shadow-lg overflow-hidden">
-            <div className="relative bg-gradient-to-br from-teal-600 via-cyan-600 to-blue-600 p-6 sm:p-8">
-              {/* Background decorative elements */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-24 -translate-x-24" />
-              <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-white/3 rounded-full -translate-x-1/2 -translate-y-1/2" />
-              
-              <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                    <Eye className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3">
-                      Besichtigungen
-                      {newRequestsCount > 0 && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-white/20 text-white animate-pulse">
-                          <Bell className="w-4 h-4" />
-                          {newRequestsCount} neu
-                        </span>
-                      )}
-                    </h1>
-                    <p className="text-white/80 text-sm sm:text-base mt-1">
-                      Terminanfragen und geplante Besichtigungen verwalten
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2 flex-wrap">
-                  <Button 
-                    variant="outline"
-                    className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2 flex-1 sm:flex-none"
-                    onClick={() => setIsVirtualBesichtigungOpen(true)}
-                  >
-                    <Camera className="w-4 h-4 shrink-0" />
-                    <span className="hidden sm:inline">Virtuelle Besichtigung</span>
-                    <span className="sm:hidden">Virtuell</span>
-                  </Button>
-                  <Link to="/firma/kalender" className="flex-1 sm:flex-none">
-                    <Button 
-                      variant="outline"
-                      className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2"
-                    >
-                      <Calendar className="w-4 h-4 shrink-0" />
-                      <span className="hidden sm:inline">Kalender öffnen</span>
-                      <span className="sm:hidden">Kalender</span>
-                    </Button>
-                  </Link>
-                </div>
+          {/* Folk-style header */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+            <span className="text-4xl leading-none">🔎</span>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Besichtigungen</h1>
+                {newRequestsCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[11px] font-semibold text-folk-coral">
+                    <Bell className="h-3 w-3" />
+                    <span className="font-mono">{newRequestsCount}</span> neu
+                  </span>
+                )}
               </div>
-
-              {/* Stats */}
-              <div className="relative grid grid-cols-5 gap-1.5 sm:gap-3 mt-6">
-                <div 
-                  className={`bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-4 text-center cursor-pointer transition-all hover:bg-white/20 ${activeTab === 'pending' ? 'ring-2 ring-white/50' : ''}`}
-                  onClick={() => setActiveTab('pending')}
-                >
-                  <p className="text-xl sm:text-3xl font-bold text-white">{totalPending}</p>
-                  <p className="text-white/70 text-[10px] sm:text-sm leading-tight">Anfragen</p>
-                  {newRequestsCount > 0 && (
-                    <Badge className="mt-1 bg-red-500 text-white border-0 animate-pulse text-[9px] sm:text-xs px-1">
-                      {newRequestsCount} neu
-                    </Badge>
-                  )}
-                </div>
-                <div 
-                  className={`bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-4 text-center cursor-pointer transition-all hover:bg-white/20 ${activeTab === 'confirmed' ? 'ring-2 ring-white/50' : ''}`}
-                  onClick={() => setActiveTab('confirmed')}
-                >
-                  <p className="text-xl sm:text-3xl font-bold text-white">{totalConfirmed}</p>
-                  <p className="text-white/70 text-[10px] sm:text-sm leading-tight">Geplant</p>
-                </div>
-                <div 
-                  className={`bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-4 text-center cursor-pointer transition-all hover:bg-white/20 ${activeTab === 'virtual' ? 'ring-2 ring-white/50' : ''}`}
-                  onClick={() => setActiveTab('virtual')}
-                >
-                  <p className="text-xl sm:text-3xl font-bold text-white">{activeVirtualSessions.length}</p>
-                  <p className="text-white/70 text-[10px] sm:text-sm leading-tight">Virtuell</p>
-                  {activeVirtualSessions.filter(s => s.status === 'uploaded').length > 0 && (
-                    <Badge className="mt-1 bg-emerald-500 text-white border-0 text-[9px] sm:text-xs px-1">
-                      {activeVirtualSessions.filter(s => s.status === 'uploaded').length} neu
-                    </Badge>
-                  )}
-                </div>
-                <div 
-                  className={`bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-4 text-center cursor-pointer transition-all hover:bg-white/20 ${activeTab === 'completed' ? 'ring-2 ring-white/50' : ''}`}
-                  onClick={() => setActiveTab('completed')}
-                >
-                  <p className="text-xl sm:text-3xl font-bold text-white">{totalCompleted}</p>
-                  <p className="text-white/70 text-[10px] sm:text-sm leading-tight">
-                    <span className="hidden sm:inline">Abgeschlossen</span>
-                    <span className="sm:hidden">Abgeschl.</span>
-                  </p>
-                </div>
-                <div 
-                  className={`bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-4 text-center cursor-pointer transition-all hover:bg-white/20 ${activeTab === 'cancelled' ? 'ring-2 ring-white/50' : ''}`}
-                  onClick={() => setActiveTab('cancelled')}
-                >
-                  <p className="text-xl sm:text-3xl font-bold text-white">{totalCancelled}</p>
-                  <p className="text-white/70 text-[10px] sm:text-sm leading-tight">Abgesagt</p>
-                </div>
-              </div>
+              <p className="mt-1 text-[13px] text-folk-ink2">
+                Terminanfragen und geplante Besichtigungen verwalten — vor Ort und virtuell.
+              </p>
             </div>
-          </Card>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsVirtualBesichtigungOpen(true)}
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+              >
+                <Camera className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Virtuelle Besichtigung</span>
+                <span className="sm:hidden">Virtuell</span>
+              </Button>
+              <Link to="/firma/kalender">
+                <Button
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  Kalender öffnen
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          {/* KPI grid */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4">
+            {[
+              { key: 'pending',   emoji: '📬', label: 'Anfragen',     value: totalPending,                                           badge: newRequestsCount, highlight: newRequestsCount > 0 },
+              { key: 'confirmed', emoji: '📅', label: 'Geplant',      value: totalConfirmed,                                         badge: 0, highlight: false },
+              { key: 'virtual',   emoji: '📷', label: 'Virtuell',     value: activeVirtualSessions.length,                           badge: activeVirtualSessions.filter(s => s.status === 'uploaded').length, highlight: false },
+              { key: 'completed', emoji: '✅', label: 'Abgeschlossen', value: totalCompleted,                                         badge: 0, highlight: false },
+              { key: 'cancelled', emoji: '❌', label: 'Abgesagt',     value: totalCancelled,                                         badge: 0, highlight: false },
+            ].map((tile) => {
+              const isActive = activeTab === tile.key;
+              return (
+                <button
+                  key={tile.key}
+                  onClick={() => setActiveTab(tile.key)}
+                  className={`group relative overflow-hidden rounded-xl border bg-folk-card p-3 text-left transition-all sm:p-4 ${
+                    isActive ? 'border-folk-coral/30 ring-1 ring-folk-coral/20' : tile.highlight ? 'border-folk-coral/30' : 'border-folk-line'
+                  } hover:border-folk-ink5`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                    <span className="text-lg leading-none">{tile.emoji}</span>
+                  </div>
+                  <div className="mt-2 font-sans text-2xl font-bold tracking-tight text-folk-ink sm:text-3xl">
+                    {tile.value}
+                  </div>
+                  {tile.badge > 0 && (
+                    <span className="mt-1.5 inline-flex items-center rounded-md bg-folk-coral-bg px-1.5 py-0.5 text-[10px] font-semibold text-folk-coral">
+                      <span className="font-mono">{tile.badge}</span> neu
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Search and Filter Bar */}
           <Card className="border shadow-sm">

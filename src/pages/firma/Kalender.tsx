@@ -597,114 +597,87 @@ const KalenderPage = () => {
         <title>Kalender | Firma</title>
       </Helmet>
         <div className="space-y-4">
-          {/* Compact Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-violet-600 px-4 py-3 md:px-6 md:py-4 text-white">
-            <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,black)]" />
-            <div className="absolute -top-16 -right-16 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-
-            <div className="relative z-10 space-y-2">
-              {/* ── Satır 1: Başlık + istatistik + Neuer Termin ── */}
-              <div className="flex items-center gap-2">
-                {/* Icon + Title */}
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <div className="w-8 h-8 shrink-0 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                    <CalendarDays className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <h1 className="text-sm md:text-base font-bold leading-tight truncate">Kalender</h1>
-                    <p className="text-white/70 text-[10px] leading-tight truncate">
-                      {format(currentDate, "EEE, dd. MMM yyyy", { locale: de })}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Compact stats — hidden on very small screens */}
-                <div className="hidden xs:flex sm:flex items-center gap-2 text-[11px] shrink-0">
-                  <span className="flex items-center gap-0.5">
-                    <span className="font-bold text-white tabular-nums">{todayAppointments}</span>
-                    <span className="text-white/60">H</span>
-                  </span>
-                  <span className="text-white/30">·</span>
-                  <span className="flex items-center gap-0.5">
-                    <span className="font-bold text-white tabular-nums">{pendingAppointments}</span>
-                    <span className="text-white/60">O</span>
-                  </span>
-                  <span className="text-white/30">·</span>
-                  <span className="flex items-center gap-0.5">
-                    <span className="font-bold text-white tabular-nums">{thisWeekAppointments}</span>
-                    <span className="text-white/60">W</span>
-                  </span>
-                </div>
-
-                {/* New appointment button */}
-                <Button
-                  onClick={handleNewAppointment}
-                  size="sm"
-                  className="shrink-0 bg-white text-indigo-600 hover:bg-white/90 shadow-md shadow-black/10 h-8 px-2.5 text-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline ml-1">Neuer Termin</span>
-                </Button>
+          {/* Folk-style Header */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+            <span className="text-4xl leading-none">📅</span>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Kalender</h1>
+                <span className="text-[13px] text-folk-ink3">
+                  {format(currentDate, "EEEE, dd. MMMM yyyy", { locale: de })} · <span className="font-mono">{todayAppointments}</span> heute · <span className="font-mono">{pendingAppointments}</span> offen · <span className="font-mono">{thisWeekAppointments}</span> diese Woche
+                </span>
               </div>
+              <p className="mt-1 text-[13px] text-folk-ink2">
+                Alle Termine, Besichtigungen und Einsätze — drag & drop zum Verschieben, Rechtsklick für neuen Termin.
+              </p>
+            </div>
+            <Button
+              onClick={handleNewAppointment}
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Neuer Termin
+            </Button>
+          </div>
 
-              {/* ── Satır 2: Kontroller (tek satır, yatay kaydırmalı) ── */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none [-webkit-overflow-scrolling:touch]">
-                {/* Ansicht / Team */}
-                <div className="flex items-center gap-0.5 bg-white/10 rounded-lg p-0.5 shrink-0">
+          {/* Toolbar — Folk style */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Ansicht / Team */}
+            <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-folk-line bg-folk-card p-0.5">
+              <button
+                type="button"
+                aria-label="Kalenderansicht"
+                onClick={() => setActiveTab("calendar")}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12.5px] font-medium transition-colors ${activeTab === "calendar" ? "bg-folk-sidebar text-folk-ink" : "text-folk-ink3 hover:bg-folk-bg-warm"}`}
+              >
+                <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                <span>Ansicht</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("team")}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12.5px] font-medium transition-colors ${activeTab === "team" ? "bg-folk-sidebar text-folk-ink" : "text-folk-ink3 hover:bg-folk-bg-warm"}`}
+              >
+                <Users className="h-3.5 w-3.5 shrink-0" />
+                <span>Team</span>
+              </button>
+            </div>
+
+            {/* View switcher */}
+            {activeTab === "calendar" && (
+              <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-folk-line bg-folk-card p-0.5">
+                {[
+                  { view: Views.MONTH,  label: "Monat", icon: CalendarRange },
+                  { view: Views.WEEK,   label: "Woche", icon: CalendarDays },
+                  { view: Views.DAY,    label: "Tag",   icon: CalendarIcon },
+                  { view: Views.AGENDA, label: "Liste", icon: List },
+                ].map(({ view: v, label, icon: Icon }) => (
                   <button
+                    key={label}
                     type="button"
-                    aria-label="Kalenderansicht"
-                    onClick={() => setActiveTab("calendar")}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${activeTab === "calendar" ? "bg-white text-indigo-700 shadow-sm" : "text-white/90 hover:bg-white/10"}`}
+                    onClick={() => setView(v)}
+                    className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12.5px] font-medium transition-colors ${view === v ? "bg-folk-sidebar text-folk-ink" : "text-folk-ink3 hover:bg-folk-bg-warm"}`}
                   >
-                    <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
-                    <span>Ansicht</span>
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="hidden sm:inline">{label}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("team")}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${activeTab === "team" ? "bg-white text-indigo-700 shadow-sm" : "text-white/90 hover:bg-white/10"}`}
-                  >
-                    <Users className="w-3.5 h-3.5 shrink-0" />
-                    <span>Team</span>
-                  </button>
-                </div>
+                ))}
+              </div>
+            )}
 
-                {/* View switcher */}
-                {activeTab === "calendar" && (
-                  <div className="flex items-center gap-0.5 bg-white/10 rounded-lg p-0.5 shrink-0">
-                    {[
-                      { view: Views.MONTH,  label: "Monat", icon: CalendarRange },
-                      { view: Views.WEEK,   label: "Woche", icon: CalendarDays },
-                      { view: Views.DAY,    label: "Tag",   icon: CalendarIcon },
-                      { view: Views.AGENDA, label: "Liste", icon: List },
-                    ].map(({ view: v, label, icon: Icon }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => setView(v)}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${view === v ? "bg-white text-indigo-700 shadow-sm" : "text-white/90 hover:bg-white/10"}`}
-                      >
-                        <Icon className="w-3.5 h-3.5 shrink-0" />
-                        <span className="hidden sm:inline">{label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Filter */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="shrink-0 h-8 px-2.5 bg-white/15 border-white/30 text-white hover:bg-white/25 hover:text-white whitespace-nowrap">
-                      <Filter className="w-3.5 h-3.5" />
-                      <span className="ml-1 text-xs">Filter</span>
-                      {(filters.types.length < 5 || filters.statuses.length < 6 || filters.teamMemberIds.length > 0) && (
-                        <span className="ml-1 w-4 h-4 rounded-full bg-amber-300 text-indigo-900 text-[9px] font-bold flex items-center justify-center shrink-0">
-                          {5 - filters.types.length + 6 - filters.statuses.length + filters.teamMemberIds.length}
-                        </span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
+            {/* Filter */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1.5 rounded-lg border-folk-line bg-folk-card px-2.5 text-[12.5px] text-folk-ink2 hover:bg-folk-bg-warm">
+                  <Filter className="h-3.5 w-3.5" />
+                  Filter
+                  {(filters.types.length < 5 || filters.statuses.length < 6 || filters.teamMemberIds.length > 0) && (
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-folk-coral text-[9px] font-bold text-white">
+                      {5 - filters.types.length + 6 - filters.statuses.length + filters.teamMemberIds.length}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
                   <PopoverContent className="w-72 p-4" align="end">
                     <div className="space-y-5">
                       <div>
@@ -760,32 +733,30 @@ const KalenderPage = () => {
                   </PopoverContent>
                 </Popover>
 
-                {/* Active filter chips — yatay kaydırmalı */}
-                {(filters.types.length < 5 || filters.statuses.length < 6 || filters.teamMemberIds.length > 0) && (
-                  <>
-                    {filters.types.map((type) => (
-                      <button key={type} type="button" onClick={() => toggleFilter("types", type)}
-                        className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium bg-white/20 text-white hover:bg-white/30 border border-white/15 transition-colors whitespace-nowrap">
-                        <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: typeColors[type]?.bg }} />
-                        {typeColors[type]?.label}
-                        <X className="w-2.5 h-2.5 shrink-0 opacity-70" />
-                      </button>
-                    ))}
-                    {filters.teamMemberIds.map((id) => {
-                      const member = teamMembers.find(m => m.id === id);
-                      return member ? (
-                        <button key={id} type="button" onClick={() => toggleFilter("teamMemberIds", id)}
-                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium bg-white/20 text-white hover:bg-white/30 border border-white/15 transition-colors whitespace-nowrap">
-                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: member.color_code }} />
-                          {member.first_name}
-                          <X className="w-2.5 h-2.5 shrink-0 opacity-70" />
-                        </button>
-                      ) : null;
-                    })}
-                  </>
-                )}
-              </div>
-            </div>
+            {/* Active filter chips */}
+            {(filters.types.length < 5 || filters.statuses.length < 6 || filters.teamMemberIds.length > 0) && (
+              <>
+                {filters.types.map((type) => (
+                  <button key={type} type="button" onClick={() => toggleFilter("types", type)}
+                    className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-folk-line bg-folk-card px-2.5 py-1.5 text-[11.5px] font-medium text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
+                    <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: typeColors[type]?.bg }} />
+                    {typeColors[type]?.label}
+                    <X className="h-2.5 w-2.5 shrink-0 text-folk-ink4" />
+                  </button>
+                ))}
+                {filters.teamMemberIds.map((id) => {
+                  const member = teamMembers.find(m => m.id === id);
+                  return member ? (
+                    <button key={id} type="button" onClick={() => toggleFilter("teamMemberIds", id)}
+                      className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-folk-line bg-folk-card px-2.5 py-1.5 text-[11.5px] font-medium text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: member.color_code }} />
+                      {member.first_name}
+                      <X className="h-2.5 w-2.5 shrink-0 text-folk-ink4" />
+                    </button>
+                  ) : null;
+                })}
+              </>
+            )}
           </div>
 
           {/* Team Week View */}
@@ -845,10 +816,9 @@ const KalenderPage = () => {
                   calendarSidePanelOpen ? "lg:col-span-3" : "col-span-full"
                 )}
               >
-                <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 rounded-t-2xl" />
+                <div className="rounded-xl border border-folk-line bg-folk-card">
                   <div className="p-3 sm:p-4 md:p-6">
-                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mb-2 sm:mb-3 leading-snug">
+                    <p className="mb-2 text-[11.5px] leading-snug text-folk-ink3 sm:mb-3">
                       Tag anklicken für Terminliste · Rechtsklick: neuer Termin
                     </p>
                     <div
@@ -986,16 +956,15 @@ const KalenderPage = () => {
                   />
                 ) : selectedDate ? (
                   /* Selected Day's Appointments */
-                  <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col lg:h-full max-h-[70vh] lg:max-h-none">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500" />
-                    <div className="p-4 flex flex-col flex-1 min-h-0">
+                  <div className="flex max-h-[70vh] flex-col rounded-xl border border-folk-line bg-folk-card lg:h-full lg:max-h-none">
+                    <div className="flex min-h-0 flex-1 flex-col p-4">
                       {/* Header */}
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="mb-4 flex items-center justify-between">
                         <div>
-                          <h3 className="font-semibold text-slate-900 dark:text-white">
+                          <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">
                             {format(selectedDate, "EEEE", { locale: de })}
                           </h3>
-                          <p className="text-sm text-slate-500">
+                          <p className="font-mono text-[12px] text-folk-ink3">
                             {format(selectedDate, "d. MMMM yyyy", { locale: de })}
                           </p>
                         </div>
@@ -1003,9 +972,9 @@ const KalenderPage = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => setSelectedDate(null)}
-                          className="h-8 w-8"
+                          className="h-8 w-8 rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink2"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
 
@@ -1016,7 +985,7 @@ const KalenderPage = () => {
                           setModalInitialDate(selectedDate);
                           setIsModalOpen(true);
                         }}
-                        className="w-full mb-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
+                        className="mb-4 h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[13px] font-semibold text-white hover:bg-folk-ink2"
                         size="sm"
                       >
                         <Plus className="w-4 h-4 mr-2" />
@@ -1188,32 +1157,32 @@ const AppointmentDetailCard = ({
 
   return (
     <>
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 min-w-0">
-      {/* Header with gradient */}
-      <div className={`relative overflow-hidden p-4 bg-gradient-to-r ${typeInfo.gradient} text-white`}>
-        <div className="absolute inset-0 bg-grid-white/10" />
-        <div className="relative z-10">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <typeInfo.icon className="w-4 h-4" />
-              </div>
-              <span className="text-sm font-medium text-white/90">{typeInfo.label}</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/10"
-              onClick={onClose}
+    <div className="min-w-0 overflow-hidden rounded-xl border border-folk-line bg-folk-card">
+      {/* Header — Folk style with subtle type color accent */}
+      <div className="border-b border-folk-line bg-folk-bg-warm p-4">
+        <div className="mb-3 flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
+              style={{ backgroundColor: typeInfo.bg }}
             >
-              <X className="w-4 h-4" />
-            </Button>
+              <typeInfo.icon className="h-4 w-4" />
+            </div>
+            <span className="text-[12.5px] font-medium text-folk-ink2">{typeInfo.label}</span>
           </div>
-          <h3 className="font-bold text-lg break-words">{appointment.title}</h3>
-          <div className={`inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.bgColor} ${statusInfo.color}`}>
-            <Circle className="w-2 h-2 fill-current" />
-            {statusInfo.label}
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-md text-folk-ink3 hover:bg-folk-card hover:text-folk-ink2"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <h3 className="break-words text-[16px] font-bold tracking-tight text-folk-ink">{appointment.title}</h3>
+        <div className={`mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${statusInfo.bgColor} ${statusInfo.color}`}>
+          <Circle className="h-2 w-2 fill-current" />
+          {statusInfo.label}
         </div>
       </div>
 
@@ -1346,29 +1315,29 @@ const AppointmentDetailCard = ({
           {appointment.status === "pending" && (
             <Button
               onClick={onConfirm}
-              className="w-full bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600"
+              className="h-9 w-full gap-1.5 rounded-lg bg-folk-mint text-[13px] font-semibold text-white hover:bg-folk-mint/90"
             >
-              <CheckCircle className="w-4 h-4 mr-2 shrink-0" />
+              <CheckCircle className="h-4 w-4 shrink-0" />
               Bestätigen
             </Button>
           )}
           {appointment.status === "confirmed" && (
             <Button
               onClick={onComplete}
-              className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-sm"
+              className="h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[13px] font-semibold text-white hover:bg-folk-ink2"
             >
-              <CheckCircle className="w-4 h-4 mr-2 shrink-0" />
+              <CheckCircle className="h-4 w-4 shrink-0" />
               <span className="truncate">Erledigt</span>
             </Button>
           )}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onEdit} className="h-9 flex-1 min-w-0 text-sm">
-              <Edit2 className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+            <Button variant="outline" onClick={onEdit} className="h-9 min-w-0 flex-1 rounded-lg border-folk-line bg-folk-card text-[12.5px] text-folk-ink2 hover:bg-folk-bg-warm">
+              <Edit2 className="mr-1.5 h-3.5 w-3.5 shrink-0" />
               <span className="truncate">Bearbeiten</span>
             </Button>
             {appointment.status !== "cancelled" && appointment.status !== "completed" && (
-              <Button variant="destructive" onClick={onCancel} className="h-9 flex-1 min-w-0 text-sm">
-                <XCircle className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+              <Button onClick={onCancel} className="h-9 min-w-0 flex-1 rounded-lg bg-folk-coral text-[12.5px] font-semibold text-white hover:bg-folk-coral/90">
+                <XCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">Absagen</span>
               </Button>
             )}
