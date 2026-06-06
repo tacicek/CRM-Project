@@ -245,12 +245,9 @@ const PublicOfferView = () => {
           setCompany(companyData[0] as Company);
         }
 
-        // Get offer items - these are accessible if the offer is valid
+        // Get offer items via SECURITY DEFINER RPC (bypasses RLS for anon users)
         const { data: itemsData } = await supabase
-          .from("offer_items")
-          .select("*")
-          .eq("offer_id", offerData.id)
-          .order("position");
+          .rpc("get_offer_items_by_token", { p_access_token: token });
 
         setItems(itemsData || []);
 
@@ -293,20 +290,25 @@ const PublicOfferView = () => {
             : baseChecklistQuery;
 
           const [checklistResult, agbResult] = await Promise.all([
-            checklistQuery.maybeSingle(),
-            agbQuery,
+            supabase.rpc("get_checklist_by_offer_token", {
+              p_access_token: token,
+              p_service_type: normalizedServiceType ?? null,
+            }),
+            supabase.rpc("get_agb_sections_by_offer_token", {
+              p_access_token: token,
+              p_service_type: normalizedServiceType ?? null,
+            }),
           ]);
 
-          if (checklistResult.data) {
-            const sections = Array.isArray(checklistResult.data.sections) 
-              ? (checklistResult.data.sections as unknown as ChecklistSection[])
+          // RPC returns an array; pick first row
+          const checklistRow = Array.isArray(checklistResult.data) ? checklistResult.data[0] : checklistResult.data;
+          if (checklistRow) {
+            const sections = Array.isArray(checklistRow.sections)
+              ? (checklistRow.sections as unknown as ChecklistSection[])
               : [];
-            setChecklist({
-              ...checklistResult.data,
-              sections
-            });
+            setChecklist({ ...checklistRow, sections });
           }
-          
+
           setAgbSections(agbResult.data || []);
         }
       } catch (error) {
@@ -380,11 +382,13 @@ const PublicOfferView = () => {
   };
 
   const sendNotification = async (responseType: "accepted" | "rejected") => {
-    if (!offer || !company) return;
+    if (!offer || !company || !token) return;
 
     try {
       await supabase.functions.invoke("notify-offer-response", {
         body: {
+          offerId: offer.id,
+          accessToken: token,
           offerTitle: offer.title,
           customerName: `${offer.customer_first_name} ${offer.customer_last_name}`,
           customerEmail: offer.customer_email,
@@ -392,6 +396,7 @@ const PublicOfferView = () => {
           responseNote: responseNote || null,
           companyEmail: company.email,
           companyName: company.company_name,
+          companyId: company.id,
           offerTotal: offer.total,
         },
       });
@@ -1118,6 +1123,8 @@ const PublicOfferView = () => {
                   // Send email notification to company
                   await supabase.functions.invoke("notify-offer-response", {
                     body: {
+                      offerId: offer.id,
+                      accessToken: token,
                       offerTitle: offer.title,
                       customerName: `${offer.customer_first_name} ${offer.customer_last_name}`,
                       customerEmail: offer.customer_email,
@@ -1126,6 +1133,7 @@ const PublicOfferView = () => {
                       responseNote: contactMessage,
                       companyEmail: company.email,
                       companyName: company.company_name,
+                      companyId: company.id,
                       offerTotal: offer.total,
                     },
                   });
@@ -1222,15 +1230,16 @@ const PublicOfferView = () => {
                 setIsResponding(true);
                 try {
                   const besichtigungInfo = `Besichtigung gewünscht am ${new Date(besichtigungDate).toLocaleDateString("de-CH")}${besichtigungTime ? " um " + besichtigungTime + " Uhr" : ""}. ${responseNote || ""}`;
-                  
-                  const { error } = await supabase
-                    .from("offers")
-                    .update({
-                      customer_response_note: besichtigungInfo,
-                    })
-                    .eq("id", offer.id);
+
+                  // Use RPC (SECURITY DEFINER) — anon cannot write directly to offers
+                  const { data: updated, error } = await supabase
+                    .rpc("update_offer_by_token", {
+                      offer_access_token: token,
+                      new_customer_response_note: besichtigungInfo,
+                    });
 
                   if (error) throw error;
+                  if (!updated) throw new Error("Aktualisierung fehlgeschlagen");
 
                   // Send email notification to company
                   try {

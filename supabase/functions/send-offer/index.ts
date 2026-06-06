@@ -288,10 +288,19 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // BUG-4: Çift gönderim koruması — offer zaten "sent" ise tekrar gönderme
-    // (force_resend: true ile kasıtlı yeniden gönderim mümkün)
-    if (offer.status === "sent" && !forceResendFromBody) {
-      logStep("Offer already sent, skipping duplicate", { offerId });
+    // Terminal statüdeki teklifler gönderilemez — status regression engellemek için
+    const TERMINAL_STATUSES = ["accepted", "rejected"];
+    if (TERMINAL_STATUSES.includes(offer.status)) {
+      logStep("Cannot resend — offer is in terminal status", { offerId, status: offer.status });
+      return new Response(
+        JSON.stringify({ error: `Diese Offerte kann nicht erneut gesendet werden (Status: ${offer.status}).` }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Çift gönderim koruması — offer zaten "sent" veya "viewed" ise force_resend gerek
+    if (["sent", "viewed"].includes(offer.status) && !forceResendFromBody) {
+      logStep("Offer already sent/viewed, skipping duplicate", { offerId, status: offer.status });
       return new Response(
         JSON.stringify({ error: "Diese Offerte wurde bereits gesendet. Verwenden Sie force_resend: true um erneut zu senden." }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }

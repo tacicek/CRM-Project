@@ -190,6 +190,17 @@ const FirmaOfferteBearbeiten = () => {
           return;
         }
 
+        // Kabul edilmiş veya reddedilmiş teklifler düzenlenemez
+        if (["accepted", "rejected"].includes(offerData.status)) {
+          toast({
+            title: "Bearbeitung nicht möglich",
+            description: `Diese Offerte wurde bereits ${offerData.status === "accepted" ? "angenommen" : "abgelehnt"} und kann nicht mehr bearbeitet werden.`,
+            variant: "destructive",
+          });
+          navigate(`/firma/offerten/${offerId}`);
+          return;
+        }
+
         setOffer(offerData);
         setTitle(offerData.title || "");
         setDescription(offerData.description || "");
@@ -502,19 +513,16 @@ const FirmaOfferteBearbeiten = () => {
 
       if (offerError) throw offerError;
 
-      // Delete existing items and insert new ones
-      await supabase.from("offer_items").delete().eq("offer_id", offerId);
-
-      const itemsToInsert = items.map((item) => {
+      // Atomic replace via RPC — delete + insert in a single transaction
+      // Prevents orphan state if insert fails after delete
+      const itemsPayload = items.map((item) => {
         const te = item.timeEstimate;
         const teValid = te && te.minHours && te.maxHours && te.hourlyRate;
         return {
-          offer_id: offerId,
           position: item.position,
           description: item.description,
           quantity: item.unit === "inkl." ? 1 : item.quantity,
           unit: item.unit,
-          // For time-estimate items, unit_price = minHours × hourlyRate (used as base for subtotal)
           unit_price: teValid ? parseFloat(te!.minHours) * parseFloat(te!.hourlyRate) : (item.unit === "inkl." ? 0 : item.unit_price),
           price_type: item.price_type || inferPriceType(item.unit, item.unit_price),
           is_highlighted: item.is_highlighted || false,
@@ -526,8 +534,10 @@ const FirmaOfferteBearbeiten = () => {
       });
 
       const { error: itemsError } = await supabase
-        .from("offer_items")
-        .insert(itemsToInsert);
+        .rpc("replace_offer_items", {
+          p_offer_id: offerId,
+          p_items: itemsPayload,
+        });
 
       if (itemsError) throw itemsError;
 

@@ -369,7 +369,8 @@ const FirmaOfferten = () => {
           .from("offers")
           .select("*")
           .eq("company_id", companyId)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .limit(200);
 
         if (offersError) throw offersError;
         if (!isMounted) return;
@@ -432,7 +433,8 @@ const FirmaOfferten = () => {
             .from("email_logs")
             .select("metadata")
             .eq("email_type", "offer_sent")
-            .eq("company_id", companyId);
+            .eq("company_id", companyId)
+            .in("metadata->>offer_id" as string, offerIds);
 
           if (!isMounted) return;
           if (emailLogsData) {
@@ -564,7 +566,7 @@ const FirmaOfferten = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={(e) => handleResendOffer(offer.id, e as unknown as React.MouseEvent)}
-                  disabled={isResending === offer.id}
+                  disabled={isResending === offer.id || ["accepted", "rejected"].includes(offer.status)}
                 >
                   {isResending === offer.id ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -995,7 +997,7 @@ const FirmaOfferten = () => {
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
                                           onClick={(e) => handleResendOffer(offer.id, e)}
-                                          disabled={isResending === offer.id}
+                                          disabled={isResending === offer.id || ["accepted", "rejected"].includes(offer.status)}
                                         >
                                           {isResending === offer.id ? (
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
