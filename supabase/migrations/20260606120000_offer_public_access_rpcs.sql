@@ -18,7 +18,7 @@ RETURNS TABLE (
   unit_price    numeric,
   total         numeric,
   price_type    text,
-  position      integer,
+  "position"    integer,
   is_optional   boolean,
   is_highlighted boolean
 )
@@ -36,7 +36,7 @@ AS $$
     oi.unit_price,
     oi.total,
     oi.price_type::text,
-    oi.position,
+    oi."position",
     COALESCE(oi.is_optional, false),
     COALESCE(oi.is_highlighted, false)
   FROM public.offer_items oi
