@@ -104,27 +104,29 @@ serve(async (req: Request) => {
       );
     }
 
-    // Token validated - now check distribution
-    const { data: distribution, error: distError } = await supabase
-      .from("lead_distributions")
-      .select("id, status")
-      .eq("lead_id", leadId)
-      .eq("company_id", companyId)
-      .single();
+    // Token ist validiert (Zeile oben: offer.access_token === token) — das ist die
+    // eigentliche Autorisierung. Der frühere lead_distributions-Gate war ein
+    // Multi-Tenant-Überrest (Tabelle im Single-Tenant leer) und wurde entfernt.
 
-    if (distError || !distribution) {
-      console.error("Distribution not found:", distError);
-      return new Response(
-        JSON.stringify({ error: "Ungültiger Zugriff - Lead-Verteilung nicht gefunden" }),
-        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    // Replay-Schutz: Existiert bereits ein bestätigter Besichtigungstermin für
+    // diesen Lead, wird die Anfrage nicht erneut verarbeitet (verhindert
+    // Doppel-Termine bei Doppelklick oder erneutem Link-Aufruf).
+    const { count: confirmedCount, error: replayError } = await supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("lead_id", leadId)
+      .eq("appointment_type", "besichtigung")
+      .eq("status", "confirmed");
+
+    if (replayError) {
+      console.error("Error checking existing appointments:", replayError);
+      throw replayError;
     }
 
-    // BUG-2: Replay koruması — zaten işlenmiş ise ikinci kez randevu oluşturma
-    if (distribution.status === "accepted") {
+    if ((confirmedCount ?? 0) > 0) {
       return new Response(
-        JSON.stringify({ success: true, message: "Bereits bestätigt" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: "Termin bereits bestätigt" }),
+        { status: 409, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -175,13 +177,6 @@ serve(async (req: Request) => {
       }
 
       console.log("Appointment created:", newAppointment.id);
-
-      // Update lead distribution status
-      await supabase
-        .from("lead_distributions")
-        .update({ status: "accepted", responded_at: new Date().toISOString() })
-        .eq("lead_id", leadId)
-        .eq("company_id", companyId);
 
       // Create notification for company
       await supabase.from("notifications").insert({
