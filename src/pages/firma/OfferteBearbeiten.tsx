@@ -33,7 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import SpellCheckModal from "@/components/offerte/SpellCheckModal";
 import { runSpellCheck, type SpellCheckFields } from "@/lib/spellCheckService";
-import { buildOfferEmailAttachments } from "@/lib/buildOfferEmailAttachments";
+import { sendOffer } from "@/lib/sendOffer";
 
 interface Company {
   id: string;
@@ -542,54 +542,20 @@ const FirmaOfferteBearbeiten = () => {
 
       if (itemsError) throw itemsError;
 
-      // Send email if requested — PDFs werden im Frontend erzeugt (gleiches Muster
-      // wie Erstellen/Offerten) und an die Edge Function übergeben; diese setzt den
-      // Status auf "sent" nur bei erfolgreichem Versand. force_resend, weil die
+      // Send email if requested — den Status-Übergang ("sent") setzt die send-offer
+      // Edge Function selbst, nur bei erfolgreichem Versand. forceResend, weil die
       // Offerte bereits "sent"/"viewed" sein kann (Bearbeiten blockt accepted/rejected).
       if (sendAfterSave) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) {
-            throw new Error("Sitzung abgelaufen. Bitte neu einloggen.");
-          }
-
-          const { offerPdfBase64, agbPdfBase64, checklistPdfBase64 } =
-            await buildOfferEmailAttachments(offerId, company.id);
-
-          const { data: sendData, error: emailError } = await supabase.functions.invoke(
-            "send-offer",
-            {
-              headers: { Authorization: `Bearer ${session.access_token}` },
-              body: {
-                offerId,
-                force_resend: true,
-                ...(offerPdfBase64 ? { offerPdfBase64 } : {}),
-                ...(agbPdfBase64 ? { agbPdfBase64 } : {}),
-                ...(checklistPdfBase64 ? { checklistPdfBase64 } : {}),
-              },
-            }
-          );
-
-          if (emailError) {
-            let errorMessage = "Die E-Mail konnte nicht gesendet werden.";
-            try {
-              const body = await (emailError as unknown as { context?: Response }).context?.json();
-              if (body?.error) errorMessage = String(body.error);
-            } catch (_) { /* ignore */ }
-            throw new Error(errorMessage);
-          }
-          if (sendData?.error) throw new Error(sendData.error);
-
+        const result = await sendOffer({ offerId, companyId: company.id, forceResend: true });
+        if (result.success) {
           toast({
             title: "Offerte gesendet",
             description: "Die Offerte wurde erfolgreich aktualisiert und gesendet.",
           });
-        } catch (emailErr) {
-          console.error("Email error:", emailErr);
+        } else {
           toast({
             title: "Offerte gespeichert",
-            description:
-              "Die Offerte wurde gespeichert, aber die E-Mail konnte nicht gesendet werden. Sie können sie unter Offerten erneut versenden.",
+            description: `Die Offerte wurde gespeichert, aber: ${result.error ?? "die E-Mail konnte nicht gesendet werden."} Sie können sie unter Offerten erneut versenden.`,
             variant: "destructive",
           });
         }

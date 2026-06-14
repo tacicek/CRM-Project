@@ -48,7 +48,7 @@ import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { buildOfferEmailAttachments } from "@/lib/buildOfferEmailAttachments";
+import { sendOffer } from "@/lib/sendOffer";
 import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
 import { OfferteItemRow, type OfferItem } from "@/components/offerte/OfferteItemRow";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
@@ -1144,61 +1144,16 @@ const FirmaOfferteErstellen = () => {
         }
       }
 
-      // Send email if requested - only update to "sent" on success
+      // Send email if requested — den Status-Übergang ("sent") setzt die
+      // send-offer Edge Function selbst, nur bei erfolgreichem Versand.
       if (sendAfterSave) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) {
-            throw new Error("Sitzung abgelaufen. Bitte neu einloggen.");
-          }
-
-          const { offerPdfBase64, agbPdfBase64, checklistPdfBase64 } = await buildOfferEmailAttachments(
-            offer.id,
-            company.id
-          );
-
-          const { data: sendData, error: sendError } = await supabase.functions.invoke("send-offer", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-            body: {
-              offerId: offer.id,
-              ...(offerPdfBase64 ? { offerPdfBase64 } : {}),
-              ...(agbPdfBase64 ? { agbPdfBase64 } : {}),
-              ...(checklistPdfBase64 ? { checklistPdfBase64 } : {}),
-            },
+        const result = await sendOffer({ offerId: offer.id, companyId: company.id, forceResend: false });
+        if (!result.success) {
+          toast({
+            title: "E-Mail nicht gesendet",
+            description: `Die Offerte wurde gespeichert, aber: ${result.error ?? "Die E-Mail konnte nicht gesendet werden."} Sie können sie unter Offerten erneut versenden.`,
+            variant: "destructive",
           });
-
-          if (sendError) {
-            let errorMessage = "Die E-Mail konnte nicht gesendet werden.";
-            try {
-              const body = await (sendError as unknown as { context?: Response }).context?.json();
-              if (body?.error) errorMessage = String(body.error);
-            } catch (_) { /* ignore */ }
-            throw new Error(errorMessage);
-          }
-          if (sendData?.error) throw new Error(sendData.error);
-
-          await supabase
-            .from("offers")
-            .update({ status: "sent", sent_at: new Date().toISOString() })
-            .eq("id", offer.id);
-        } catch (emailError) {
-          console.error("Error during offer email flow:", emailError);
-          const raw = (emailError as { message?: string })?.message ?? "";
-          let title = "E-Mail nicht gesendet";
-          let description = "Die Offerte wurde gespeichert, aber die E-Mail konnte nicht gesendet werden. Sie können sie unter Offerten erneut versenden.";
-
-          if (raw.includes("Keine E-Mail") || raw.includes("customer_email") || raw.includes("No customer")) {
-            title = "Keine Kunden-E-Mail";
-            description = "Die Offerte wurde gespeichert. Der Kunde hat keine E-Mail-Adresse – bitte ergänzen und erneut senden.";
-          } else if (raw.includes("RESEND") || raw.includes("email") || raw.includes("422")) {
-            title = "E-Mail-Versand fehlgeschlagen";
-            description = "Die Offerte wurde gespeichert. Die E-Mail konnte nicht zugestellt werden. Bitte prüfen Sie die Kunden-E-Mail-Adresse.";
-          } else if (raw.includes("401") || raw.includes("unauthorized") || raw.includes("Sitzung")) {
-            title = "Sitzung abgelaufen";
-            description = "Die Offerte wurde gespeichert. Bitte laden Sie die Seite neu, um die E-Mail zu versenden.";
-          }
-
-          toast({ title, description, variant: "destructive" });
           navigate("/firma/offerten");
           return;
         }

@@ -67,6 +67,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
+import { sendOffer } from "@/lib/sendOffer";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -214,6 +215,7 @@ const FirmaOfferteDetail = () => {
   });
   const [showPreview, setShowPreview] = useState(false);
   const [showAuftragModal, setShowAuftragModal] = useState(false);
+  const [existingAuftragId, setExistingAuftragId] = useState<string | null>(null);
   const [offer, setOffer] = useState<Offer | null>(null);
   const [items, setItems] = useState<OfferItem[]>([]);
   const [company, setCompany] = useState<Company | null>(null);
@@ -228,11 +230,6 @@ const FirmaOfferteDetail = () => {
     content: string;
     display_order: number;
   }>>([]);
-  const [checklistTemplate, setChecklistTemplate] = useState<{
-    title: string;
-    subtitle?: string | null;
-    sections: Array<{ id: string; timeline: string; items: string[]; order: number }>;
-  } | null>(null);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [leadAddress, setLeadAddress] = useState<LeadAddress | null>(null);
 
@@ -276,6 +273,16 @@ const FirmaOfferteDetail = () => {
         }
         setOffer(offerData);
 
+        // Check if an auftrag already exists for this offer
+        if (offerData.status === "accepted") {
+          const { data: existingAuftrag } = await supabase
+            .from("auftraege")
+            .select("id")
+            .eq("offer_id", id)
+            .maybeSingle();
+          setExistingAuftragId(existingAuftrag?.id ?? null);
+        }
+
         // Get lead info to fetch AGB sections and address data
         let normalizedServiceType = "";
         if (offerData.lead_id) {
@@ -292,7 +299,7 @@ const FirmaOfferteDetail = () => {
         }
 
         // Get offer items, leistungsuebersicht, email logs, AGB and checklist in parallel
-        const [itemsResult, leistungResult, emailLogsResult, agbResult, checklistResult] = await Promise.all([
+        const [itemsResult, leistungResult, emailLogsResult, agbResult] = await Promise.all([
           supabase
             .from("offer_items")
             .select("*")
@@ -315,22 +322,11 @@ const FirmaOfferteDetail = () => {
             .eq("service_type", normalizedServiceType)
             .eq("is_active", true)
             .order("display_order", { ascending: true }) : Promise.resolve({ data: null }),
-          normalizedServiceType ? supabase
-            .from("checklist_templates")
-            .select("title, subtitle, sections")
-            .eq("company_id", companyData.id)
-            .eq("service_type", normalizedServiceType)
-            .eq("is_active", true)
-            .eq("include_in_offerte", true)
-            .maybeSingle() : Promise.resolve({ data: null }),
         ]);
 
         setItems(itemsResult.data || []);
         setEmailLogs((emailLogsResult.data || []) as EmailLog[]);
         setAgbSections(agbResult.data || []);
-        if (checklistResult.data && Array.isArray((checklistResult.data as { sections: unknown }).sections)) {
-          setChecklistTemplate(checklistResult.data as typeof checklistTemplate);
-        }
 
         if (leistungResult.data) {
           // Parse included_services from JSON
@@ -475,6 +471,7 @@ const FirmaOfferteDetail = () => {
                 mwst_number: company.mwst_number || undefined,
                 logo_url: company.logo_url || undefined,
                 primary_color: company.primary_color || undefined,
+                iban: company.iban || undefined,
               },
       customer_address: leadAddress ? {
         street: leadAddress.from_street || undefined,
@@ -508,70 +505,15 @@ const FirmaOfferteDetail = () => {
 
     setIsSending(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast({ title: "Sitzung abgelaufen", description: "Bitte neu einloggen und erneut versuchen.", variant: "destructive" });
-        setIsSending(false);
+      const result = await sendOffer({ offerId: offer.id, companyId: company.id, forceResend: true });
+
+      if (!result.success) {
+        toast({
+          title: "E-Mail nicht gesendet",
+          description: result.error ?? "Die Offerte konnte nicht per E-Mail gesendet werden. Bitte versuchen Sie es erneut.",
+          variant: "destructive",
+        });
         return;
-      }
-
-      // Generate the same PDF as the download button using @react-pdf/renderer
-      const payload = buildOfferPayload();
-      if (!payload) throw new Error("Offer data incomplete");
-
-      const { generateOfferPdfBase64 } = await import("@/lib/generateOfferPdf");
-      const offerPdfBase64 = await generateOfferPdfBase64(payload);
-      const agbPdfBase64 =
-        agbSections.length > 0
-          ? await (async () => {
-              const { generateAgbPdfBase64 } = await import("@/lib/generateAgbPdf");
-              return generateAgbPdfBase64(agbSections, company.company_name);
-            })()
-          : null;
-
-      const checklistPdfBase64 =
-        checklistTemplate?.sections?.length
-          ? await (async () => {
-              const { getChecklistPdfBase64 } = await import("@/lib/generateChecklistPdf");
-              return getChecklistPdfBase64({
-                title: checklistTemplate.title,
-                subtitle: checklistTemplate.subtitle ?? undefined,
-                sections: checklistTemplate.sections,
-                company: {
-                  company_name: company.company_name,
-                  street: company.street ?? undefined,
-                  house_number: company.house_number ?? undefined,
-                  plz: company.plz,
-                  city: company.city,
-                  phone: company.phone ?? undefined,
-                  email: company.email,
-                  website: company.website ?? undefined,
-                  logo_url: company.logo_url ?? undefined,
-                  primary_color: company.primary_color ?? undefined,
-                },
-              });
-            })()
-          : null;
-
-      // Send to edge function with pre-generated PDF
-      const { error: invokeError } = await supabase.functions.invoke("send-offer", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: {
-          offerId: offer.id,
-          force_resend: true,
-          offerPdfBase64,
-          ...(agbPdfBase64 ? { agbPdfBase64 } : {}),
-          ...(checklistPdfBase64 ? { checklistPdfBase64 } : {}),
-        },
-      });
-
-      if (invokeError) {
-        let errorMessage = "Die E-Mail konnte nicht gesendet werden.";
-        try {
-          const body = await (invokeError as unknown as { context?: Response }).context?.json();
-          if (body?.error) errorMessage = String(body.error);
-        } catch (_) { /* ignore */ }
-        throw new Error(errorMessage);
       }
 
       setOffer({ ...offer, status: "sent", sent_at: new Date().toISOString() });
@@ -580,27 +522,6 @@ const FirmaOfferteDetail = () => {
         description: "Die Offerte wurde erfolgreich per E-Mail an den Kunden gesendet.",
         variant: "success",
       });
-    } catch (error) {
-      console.error("Error sending offer:", error);
-      const raw = (error as { message?: string })?.message ?? "";
-      let title = "E-Mail nicht gesendet";
-      let description = "Die Offerte konnte nicht per E-Mail gesendet werden. Bitte versuchen Sie es erneut.";
-
-      if (raw.includes("Keine E-Mail") || raw.includes("customer_email") || raw.includes("No customer")) {
-        title = "Keine Kunden-E-Mail";
-        description = "Der Kunde hat keine E-Mail-Adresse hinterlegt. Bitte Offerte bearbeiten und E-Mail ergänzen.";
-      } else if (raw.includes("RESEND") || raw.includes("email") || raw.includes("422")) {
-        title = "E-Mail-Versand fehlgeschlagen";
-        description = "Die E-Mail konnte nicht zugestellt werden. Bitte prüfen Sie die Kunden-E-Mail-Adresse.";
-      } else if (raw.includes("401") || raw.includes("unauthorized") || raw.includes("Sitzung")) {
-        title = "Sitzung abgelaufen";
-        description = "Bitte laden Sie die Seite neu und versuchen Sie es erneut.";
-      } else if (raw.includes("500")) {
-        title = "Serverfehler";
-        description = "Ein technischer Fehler ist aufgetreten. Bitte versuchen Sie es in einigen Minuten erneut.";
-      }
-
-      toast({ title, description, variant: "destructive" });
     } finally {
       setIsSending(false);
     }
@@ -807,14 +728,26 @@ const FirmaOfferteDetail = () => {
                 <span className="sm:hidden">PDF</span>
               </Button>
               {offer.status === "accepted" && (
-                <Button
-                  onClick={() => setShowAuftragModal(true)}
-                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
-                >
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Auftrag erstellen</span>
-                  <span className="sm:hidden">Auftrag</span>
-                </Button>
+                existingAuftragId ? (
+                  <Button
+                    onClick={() => navigate("/firma/auftraege")}
+                    variant="outline"
+                    className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm hover:text-folk-ink2"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Auftrag anzeigen</span>
+                    <span className="sm:hidden">Auftrag</span>
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => setShowAuftragModal(true)}
+                    className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Auftrag erstellen</span>
+                    <span className="sm:hidden">Auftrag</span>
+                  </Button>
+                )
               )}
               {offer.status === "draft" && (
                 <Button
@@ -1602,6 +1535,7 @@ const FirmaOfferteDetail = () => {
           offerId={offer?.id || null}
           onSuccess={() => {
             setShowAuftragModal(false);
+            setExistingAuftragId("created");
             toast({
               title: "Auftrag erstellt",
               description: "Der Auftrag wurde erfolgreich erstellt. Sie finden ihn unter 'Aufträge'.",

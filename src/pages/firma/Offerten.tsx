@@ -62,7 +62,7 @@ import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { getServiceLabel } from "@/lib/serviceLabels";
-import { buildOfferEmailAttachments } from "@/lib/buildOfferEmailAttachments";
+import { sendOffer } from "@/lib/sendOffer";
 
 interface Offer {
   id: string;
@@ -229,6 +229,7 @@ const FirmaOfferten = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isResending, setIsResending] = useState<string | null>(null);
   const [auftragOffer, setAuftragOffer] = useState<Offer | null>(null);
+  const [offersWithAuftrag, setOffersWithAuftrag] = useState<Set<string>>(new Set());
   const [_checklistMap, setChecklistMap] = useState<Record<string, string>>({});
   const [_leadServiceTypes, setLeadServiceTypes] = useState<Record<string, string>>({});
   const [leadInfoMap, setLeadInfoMap] = useState<Record<string, LeadInfo>>({});
@@ -257,52 +258,22 @@ const FirmaOfferten = () => {
 
   useEffect(() => { setCurrentPage(1); }, [activeFilter, pageSize, searchQuery, typeFilter]);
 
-  const buildEmailAttachmentsForOffer = async (
-    offerId: string
-  ): Promise<{ offerPdfBase64: string | null; agbPdfBase64: string | null; checklistPdfBase64: string | null }> => {
-    try {
-      if (!companyId) return { offerPdfBase64: null, agbPdfBase64: null, checklistPdfBase64: null };
-      return await buildOfferEmailAttachments(offerId, companyId);
-    } catch (err) {
-      console.warn("[Offerten] Failed to generate email attachments on frontend", err);
-      return { offerPdfBase64: null, agbPdfBase64: null, checklistPdfBase64: null };
-    }
-  };
-
   const handleResendOffer = async (offerId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!companyId) return;
     setIsResending(offerId);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast({ title: "Sitzung abgelaufen", description: "Bitte neu einloggen und erneut versuchen.", variant: "destructive" });
-        setIsResending(null);
+      const result = await sendOffer({ offerId, companyId, forceResend: true });
+
+      if (!result.success) {
+        toast({
+          title: "E-Mail nicht gesendet",
+          description: result.error ?? "Die Offerte konnte nicht per E-Mail gesendet werden. Bitte versuchen Sie es erneut.",
+          variant: "destructive",
+        });
         return;
       }
-
-      const { offerPdfBase64, agbPdfBase64, checklistPdfBase64 } = await buildEmailAttachmentsForOffer(offerId);
-
-      const { data, error } = await supabase.functions.invoke("send-offer", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: {
-          offerId,
-          force_resend: true,
-          ...(offerPdfBase64 ? { offerPdfBase64 } : {}),
-          ...(agbPdfBase64 ? { agbPdfBase64 } : {}),
-          ...(checklistPdfBase64 ? { checklistPdfBase64 } : {}),
-        },
-      });
-
-      if (error) {
-        let errorMessage = "Die E-Mail konnte nicht gesendet werden.";
-        try {
-          const body = await (error as unknown as { context?: Response }).context?.json();
-          if (body?.error) errorMessage = String(body.error);
-        } catch (_) { /* ignore */ }
-        throw new Error(errorMessage);
-      }
-      if (data?.error) throw new Error(data.error);
 
       toast({
         title: "Offerte gesendet",
@@ -319,27 +290,6 @@ const FirmaOfferten = () => {
       if (updatedOffer) {
         setOffers(prev => prev.map(o => o.id === offerId ? updatedOffer : o));
       }
-    } catch (error: unknown) {
-      console.error("Resend error:", error);
-      const raw = (error as { message?: string })?.message ?? "";
-      let title = "E-Mail nicht gesendet";
-      let description = "Die Offerte konnte nicht per E-Mail gesendet werden. Bitte versuchen Sie es erneut.";
-
-      if (raw.includes("Keine E-Mail") || raw.includes("customer_email") || raw.includes("No customer")) {
-        title = "Keine Kunden-E-Mail";
-        description = "Der Kunde hat keine E-Mail-Adresse hinterlegt. Bitte Offerte bearbeiten und E-Mail ergänzen.";
-      } else if (raw.includes("RESEND") || raw.includes("email") || raw.includes("422")) {
-        title = "E-Mail-Versand fehlgeschlagen";
-        description = "Die E-Mail konnte nicht zugestellt werden. Bitte prüfen Sie die Kunden-E-Mail-Adresse.";
-      } else if (raw.includes("401") || raw.includes("unauthorized") || raw.includes("Sitzung")) {
-        title = "Sitzung abgelaufen";
-        description = "Bitte laden Sie die Seite neu und versuchen Sie es erneut.";
-      } else if (raw.includes("500")) {
-        title = "Serverfehler";
-        description = "Ein technischer Fehler ist aufgetreten. Bitte versuchen Sie es in einigen Minuten erneut.";
-      }
-
-      toast({ title, description, variant: "destructive" });
     } finally {
       setIsResending(null);
     }
@@ -424,6 +374,22 @@ const FirmaOfferten = () => {
             setLeadServiceTypes(serviceMap);
             setLeadInfoMap(infoMap);
           }
+        }
+
+        // Fetch which accepted offers already have an auftrag
+        const acceptedOfferIds = (offersData || [])
+          .filter((o: Offer) => o.status === "accepted")
+          .map((o: Offer) => o.id);
+        if (acceptedOfferIds.length > 0) {
+          const { data: auftraegeData } = await supabase
+            .from("auftraege")
+            .select("offer_id")
+            .in("offer_id", acceptedOfferIds);
+          if (!isMounted) return;
+          const withAuftragSet = new Set<string>(
+            (auftraegeData || []).map((a: { offer_id: string }) => a.offer_id).filter(Boolean)
+          );
+          setOffersWithAuftrag(withAuftragSet);
         }
 
         const sentOffers = (offersData || []).filter((o: Offer) => o.sent_at);
@@ -557,10 +523,17 @@ const FirmaOfferten = () => {
                       <CalendarPlus className="mr-2 h-4 w-4 text-folk-mint" />
                       Zum Kalender hinzufügen
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setAuftragOffer(offer)}>
-                      <FileCheck className="mr-2 h-4 w-4 text-folk-sky" />
-                      Auftrag erstellen
-                    </DropdownMenuItem>
+                    {offersWithAuftrag.has(offer.id) ? (
+                      <DropdownMenuItem onClick={() => navigate("/firma/auftraege")}>
+                        <FileCheck className="mr-2 h-4 w-4 text-folk-mint" />
+                        Auftrag anzeigen
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => setAuftragOffer(offer)}>
+                        <FileCheck className="mr-2 h-4 w-4 text-folk-sky" />
+                        Auftrag erstellen
+                      </DropdownMenuItem>
+                    )}
                   </>
                 )}
                 <DropdownMenuSeparator />
@@ -1054,6 +1027,9 @@ const FirmaOfferten = () => {
         companyId={companyId}
         offerId={auftragOffer?.id || null}
         onSuccess={() => {
+          if (auftragOffer?.id) {
+            setOffersWithAuftrag(prev => new Set([...prev, auftragOffer.id]));
+          }
           setAuftragOffer(null);
           toast({
             title: "Auftrag erstellt",
