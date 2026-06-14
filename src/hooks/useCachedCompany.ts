@@ -1,6 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { useCompanyContext, CompanyData } from "@/hooks/useCompanyContext";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 
 const COMPANY_CACHE_KEY = "firma_company_cache";
 

@@ -253,41 +253,12 @@ const PublicOfferView = () => {
 
         // Get lead to determine service type and address
         if (offerData.lead_id && companyData && companyData.length > 0) {
-          const companyInfo = companyData[0];
-          
-          // For public users, we need to access lead data through offers
-          // The lead data is limited since we're not authenticated
-          // We'll fetch what we can via the offer's stored data
-          
-          // Get matching checklist template and AGB sections.
-          // AGB is filtered by the offer's service type so the customer
-          // only sees the relevant terms (not all services merged together).
+          // Checkliste und AGB werden über SECURITY DEFINER RPCs geladen (anon-safe),
+          // gefiltert nach dem Service-Typ der Offerte, damit der Kunde nur die
+          // relevanten Bedingungen sieht (nicht alle Services zusammengeführt).
           const normalizedServiceType = offerData.service_type
             ? normalizeServiceTypeForAgb(offerData.service_type)
             : null;
-
-          const baseAgbQuery = supabase
-            .from("agb_sections")
-            .select("*")
-            .eq("company_id", companyInfo.id)
-            .eq("is_active", true)
-            .order("display_order", { ascending: true });
-
-          const agbQuery = normalizedServiceType
-            ? baseAgbQuery.eq("service_type", normalizedServiceType)
-            : baseAgbQuery;
-
-          const baseChecklistQuery = supabase
-            .from("checklist_templates")
-            .select("id, title, subtitle, sections")
-            .eq("company_id", companyInfo.id)
-            .eq("is_active", true)
-            .eq("include_in_offerte", true)
-            .limit(1);
-
-          const checklistQuery = normalizedServiceType
-            ? baseChecklistQuery.eq("service_type", normalizedServiceType)
-            : baseChecklistQuery;
 
           const [checklistResult, agbResult] = await Promise.all([
             supabase.rpc("get_checklist_by_offer_token", {

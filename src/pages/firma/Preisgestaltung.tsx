@@ -13,7 +13,6 @@
 
 import { useEffect, useState, useId, useMemo, useRef, memo } from 'react';
 import { Helmet } from 'react-helmet-async';
-import FirmaLayout from '@/components/firma/FirmaLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompanyPricing } from '@/hooks/useCompanyPricing';
 import { fetchSingleCompanyForUser } from '@/lib/fetchSingleCompanyForUser';
