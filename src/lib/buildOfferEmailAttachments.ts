@@ -69,9 +69,9 @@ export const buildOfferEmailAttachments = async (
     price_model: (offerData.price_model as 'pauschal' | 'stundenansatz' | 'kostendach' | null) ?? 'pauschal',
     hourly_rate: offerData.hourly_rate ?? null,
     kostendach_max: offerData.kostendach_max ?? null,
-    payment_terms: (offerData as Record<string, unknown>).payment_terms as string | null ?? null,
-    service_start_time: (offerData as Record<string, unknown>).service_start_time as string | null ?? null,
-    service_end_time: (offerData as Record<string, unknown>).service_end_time as string | null ?? null,
+    payment_terms: offerData.payment_terms ?? null,
+    service_start_time: offerData.service_start_time ?? null,
+    service_end_time: offerData.service_end_time ?? null,
     items: itemsData.map(
       (item: {
         description: string;
@@ -122,9 +122,9 @@ export const buildOfferEmailAttachments = async (
           }
         : undefined,
     service_type: (leadData?.service_type as string) || undefined,
-    brief_layout: (offerData as Record<string, unknown>).brief_layout as boolean ?? false,
-    customer_salutation: (offerData as Record<string, unknown>).customer_salutation as string | null ?? null,
-    offerte_type: ((offerData as Record<string, unknown>).offerte_type as 'normal' | 'blind' | null) ?? 'normal',
+    brief_layout: offerData.brief_layout ?? false,
+    customer_salutation: offerData.customer_salutation ?? null,
+    offerte_type: (offerData.offerte_type as 'normal' | 'blind' | null) ?? 'normal',
     access_token: offerData.access_token,
     baseUrl: window.location.origin,
     leistungsuebersicht: leistungRes.data

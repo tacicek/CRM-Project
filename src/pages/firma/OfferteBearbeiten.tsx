@@ -213,16 +213,16 @@ const FirmaOfferteBearbeiten = () => {
         setCustomerLastName(offerData.customer_last_name || "");
         setCustomerEmail(offerData.customer_email || "");
         setCustomerPhone(offerData.customer_phone || "");
-        if ((offerData as Record<string, unknown>).payment_terms) {
-          setPaymentTerms(String((offerData as Record<string, unknown>).payment_terms));
+        if (offerData.payment_terms) {
+          setPaymentTerms(String(offerData.payment_terms));
         }
         // Price model
         const pm = (offerData.price_model as PriceModel | null | undefined) ?? 'pauschal';
         setPriceModel(pm);
         if (offerData.hourly_rate !== null && offerData.hourly_rate !== undefined) setHourlyRate(String(offerData.hourly_rate));
         if (offerData.kostendach_max !== null && offerData.kostendach_max !== undefined) setKostendachMax(String(offerData.kostendach_max));
-        setBriefLayout((offerData as Record<string, unknown>).brief_layout as boolean ?? false);
-        const ot = (offerData as Record<string, unknown>).offerte_type as string | undefined;
+        setBriefLayout(offerData.brief_layout ?? false);
+        const ot = offerData.offerte_type;
         setOfferteType(ot === 'blind' ? 'blind' : 'normal');
 
         // Get offer items
