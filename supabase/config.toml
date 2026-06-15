@@ -120,10 +120,6 @@ verify_jwt = false
 verify_jwt = false
 # Auth handled inside: verifyAdminAccess() with service_role key
 
-[functions.accept-lead]
-verify_jwt = false
-# Auth handled inside: auth.getUser(token) + company ownership check
-
 [functions.notify-admin-new-lead]
 verify_jwt = false
 

@@ -206,7 +206,9 @@ accept-lead, admin-add-company-member, admin-create-user, admin-delete-user,
 admin-remove-company-member, admin-reset-password, admin-update-user-email,
 analyze-besichtigung, auto-archive, calculate-distance, cleanup-besichtigung,
 cleanup-box-rentals, complete-besichtigung, confirm-besichtigung,
-confirm-lead-by-token, create-besichtigung-session, delete-besichtigung-photo,
+confirm-lead-by-token (deployed ama akış kopuk — validate-lead-quality deployed
+değil + /lead-bestaetigen sayfası yok; public intake açılırsa bu zincir birlikte
+aktive edilmeli), create-besichtigung-session, delete-besichtigung-photo,
 estimate-job-price, extract-anfrage-ai, generate-sitemap,
 google-places-autocomplete, google-places-details, handle-proposal-response,
 import-manual-lead, notify-appointment-reminder, notify-auftrag-reminder,
