@@ -182,7 +182,6 @@ const createEmptyItem = (position: number): OfferItem => ({
   priceType: "pauschale",
   highlighted: false,
   details: [],
-  mwstIncluded: true,
 });
 
 /** Gültig bis kürzer als 7 Tage ab heute — nur Hinweis im Formular */
@@ -554,7 +553,6 @@ const FirmaOfferteErstellen = () => {
       priceType: "pauschale" as const,
       highlighted: false,
       details: ai.note ? [ai.note] : [],
-      mwstIncluded: true,
     }));
     setItems(prev => [...prev, ...newItems]);
   }, [items.length]);
@@ -594,7 +592,7 @@ const FirmaOfferteErstellen = () => {
       description: descriptionLines.join('\n'),
       quantity: 1, unit: "Pauschale",
       unit_price: result.costBreakdown.laborCost + result.costBreakdown.vehicleCost,
-      priceType: "pauschale", highlighted: true, details: [], mwstIncluded: true,
+      priceType: "pauschale", highlighted: true, details: [],
     });
 
     if (result.costBreakdown.distanceSurcharge > 0) {
@@ -602,14 +600,14 @@ const FirmaOfferteErstellen = () => {
         id: generateItemId(), position: ++position,
         description: `Distanz-Zuschlag (${result.movingDetails.distanceKm} km)`,
         quantity: 1, unit: "Pauschale", unit_price: result.costBreakdown.distanceSurcharge,
-        priceType: "pauschale", highlighted: false, details: [], mwstIncluded: true,
+        priceType: "pauschale", highlighted: false, details: [],
       });
     }
-    if (result.extraServices.packingService) newItems.push({ id: generateItemId(), position: ++position, description: "Verpackungsservice", quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.packingServiceRate ?? 50), priceType: "pauschale", highlighted: false, details: ["Professionelles Verpacken Ihres Umzugsguts"], mwstIncluded: true });
-    if (result.extraServices.externalLift) newItems.push({ id: generateItemId(), position: ++position, description: "Außenlift / Möbellift", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.externalLiftCost ?? 600, priceType: "pauschale", highlighted: false, details: [], mwstIncluded: true });
-    if (result.extraServices.disposal) newItems.push({ id: generateItemId(), position: ++position, description: "Entsorgung / Sperrgut", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.disposalCost ?? 300, priceType: "pauschale", highlighted: false, details: [], mwstIncluded: true });
-    if (result.extraServices.pianoTransport) newItems.push({ id: generateItemId(), position: ++position, description: "Klaviertransport", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.pianoTransportCost ?? 400, priceType: "pauschale", highlighted: false, details: ["Spezialtransport für Klavier/Flügel"], mwstIncluded: true });
-    if (result.extraServices.storage) newItems.push({ id: generateItemId(), position: ++position, description: `Zwischenlagerung (${result.netVolume.toFixed(1)} m³)`, quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.storageCostPerM3 ?? 80), priceType: "pauschale", highlighted: false, details: ["Sichere Lagerung Ihres Umzugsguts"], mwstIncluded: true });
+    if (result.extraServices.packingService) newItems.push({ id: generateItemId(), position: ++position, description: "Verpackungsservice", quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.packingServiceRate ?? 50), priceType: "pauschale", highlighted: false, details: ["Professionelles Verpacken Ihres Umzugsguts"] });
+    if (result.extraServices.externalLift) newItems.push({ id: generateItemId(), position: ++position, description: "Außenlift / Möbellift", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.externalLiftCost ?? 600, priceType: "pauschale", highlighted: false, details: [] });
+    if (result.extraServices.disposal) newItems.push({ id: generateItemId(), position: ++position, description: "Entsorgung / Sperrgut", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.disposalCost ?? 300, priceType: "pauschale", highlighted: false, details: [] });
+    if (result.extraServices.pianoTransport) newItems.push({ id: generateItemId(), position: ++position, description: "Klaviertransport", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.pianoTransportCost ?? 400, priceType: "pauschale", highlighted: false, details: ["Spezialtransport für Klavier/Flügel"] });
+    if (result.extraServices.storage) newItems.push({ id: generateItemId(), position: ++position, description: `Zwischenlagerung (${result.netVolume.toFixed(1)} m³)`, quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.storageCostPerM3 ?? 80), priceType: "pauschale", highlighted: false, details: ["Sichere Lagerung Ihres Umzugsguts"] });
 
     setItems(replace ? newItems : [...items, ...newItems]);
     setCalculatorResult(result);
@@ -643,7 +641,6 @@ const FirmaOfferteErstellen = () => {
       priceType: service.unit === "Inklusiv" ? "inkl" : (service.default_price === 0 ? "inkl" : "pauschale"),
       highlighted: false,
       details: [],
-      mwstIncluded: true,
     }));
 
     setItems([...items, ...newItems]);
@@ -709,7 +706,6 @@ const FirmaOfferteErstellen = () => {
       priceType: item.unit === "Inklusiv" ? "inkl" : (item.default_price === 0 ? "inkl" : "pauschale"),
       highlighted: false,
       details: [],
-      mwstIncluded: true,
     }));
 
     setItems([...items, ...newItems]);
@@ -811,14 +807,9 @@ const FirmaOfferteErstellen = () => {
 
   const calculateVat = () => {
     if (!mwstEnabled) return 0;
-    const taxableTotal = items.reduce((sum, item) => {
-      if (!item.mwstIncluded || item.priceType === "inkl" || item.priceType === "optional") return sum;
-      const te = item.timeEstimate;
-      if (te && te.minHours && te.hourlyRate)
-        return sum + parseFloat(te.minHours) * parseFloat(te.hourlyRate);
-      return sum + item.quantity * item.unit_price;
-    }, 0);
-    return taxableTotal * (vatRate / 100);
+    // MwSt-Basis = voller steuerbarer Zwischensumme. Entspricht exakt der DB-Generated-
+    // Column (subtotal * vat_rate / 100), damit Vorschau = gespeicherte/versendete Offerte.
+    return calculateSubtotal() * (vatRate / 100);
   };
 
   const calculateMaxVat = (): number | null => {

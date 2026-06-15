@@ -3,7 +3,6 @@ import { GripVertical, Trash2, Highlighter, Plus, X, ChevronDown, ChevronUp } fr
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -30,7 +29,6 @@ export interface OfferItem {
   priceType: "pauschale" | "per_unit" | "per_hour" | "inkl" | "optional";
   highlighted: boolean;
   details: string[];
-  mwstIncluded: boolean;
   timeEstimate?: ItemTimeEstimate | null;
 }
 
@@ -388,23 +386,7 @@ export const OfferteItemRow = ({
                 )}
 
                 {/* Bottom Controls */}
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
-                  {/* MwSt Toggle */}
-                  <div className="flex items-center">
-                    {item.priceType !== "inkl" && (
-                      <div className="flex items-center gap-1.5">
-                        <Switch
-                          checked={item.mwstIncluded}
-                          onCheckedChange={(checked) => onUpdate(index, "mwstIncluded", checked)}
-                          id={`mwst-${item.id}`}
-                          className="scale-90 sm:scale-100"
-                        />
-                        <Label htmlFor={`mwst-${item.id}`} className="text-[10px] sm:text-xs cursor-pointer">
-                          inkl. MwSt
-                        </Label>
-                      </div>
-                    )}
-                  </div>
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50">
 
                   {/* Right side: Highlight + Remove */}
                   <div className="flex items-center gap-1">
