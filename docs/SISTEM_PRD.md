@@ -201,8 +201,8 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 > `{"msg":"InvalidWorkerCreation: ... could not find an appropriate entrypoint"}`
 > (404 değil). Fonksiyon sağlıklıysa kendi auth/validasyon kodundan 400/401/404 döner.
 
-### C) Prod'da aktif — repo + sunucuda (39 fonksiyon)
-accept-lead, admin-add-company-member, admin-create-user, admin-delete-user,
+### C) Prod'da aktif — repo + sunucuda (38 fonksiyon)
+admin-add-company-member, admin-create-user, admin-delete-user,
 admin-remove-company-member, admin-reset-password, admin-update-user-email,
 analyze-besichtigung, auto-archive, calculate-distance, cleanup-besichtigung,
 cleanup-box-rentals, complete-besichtigung, confirm-besichtigung,
@@ -229,8 +229,9 @@ import-stripe-subscriptions, sync-stripe-subscriptions, subscription-manager
 (Stripe kalıntısı), import-swiss-plz, notify-box-pickup, resend-email,
 send-purchase-confirmation, transcribe-voice
 
-### A) Sadece sunucuda (2) — uygulama değil
-hello, main (Supabase Edge Runtime scaffold'ları)
+### A) Sadece sunucuda — scaffold + eski kalıntı (3)
+hello, main (Supabase Edge Runtime scaffold'ları), accept-lead (multi-tenant
+kalıntısı — repo'dan silindi, sunucuda deployed, çağıran yok)
 
 > Not: 2026-06-15'te 8 fonksiyon deploy edildi (temiz boot doğrulandı). Runtime
 > kesinliği ilk gerçek çağrıda teyit edilmeli (lazy boot + env var/`_shared` bağımlılığı).
