@@ -194,51 +194,47 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 
 ---
 
-## 5. Edge Functions Haritası (gerçek 50 fonksiyon)
+## 5. Edge Functions — Deployed Durum (2026-06-15 doğrulandı)
 
-`supabase/functions/` altında **50 fonksiyon**. [config.toml](../supabase/config.toml)'da
-**42 tanesi `verify_jwt = false`** (public; custom auth: Bearer token + membership,
-RPC token, x-internal-secret, ya da reCAPTCHA). Kalan ~8 fonksiyon JWT ister.
+### C) Prod'da aktif — repo + sunucuda (31 fonksiyon)
+accept-lead, admin-add-company-member, admin-create-user, admin-delete-user,
+admin-remove-company-member, admin-reset-password, admin-update-user-email,
+analyze-besichtigung, auto-archive, calculate-distance, cleanup-besichtigung,
+cleanup-box-rentals, complete-besichtigung, confirm-besichtigung,
+confirm-lead-by-token, create-besichtigung-session, delete-besichtigung-photo,
+estimate-job-price, extract-anfrage-ai, generate-sitemap,
+google-places-autocomplete, google-places-details, handle-proposal-response,
+import-manual-lead, notify-appointment-reminder, notify-auftrag-reminder,
+notify-offer-response, notify-team-reminder, send-offer, send-quittung,
+test-resend-email
 
-**Ortak helper'lar** [supabase/functions/_shared/](../supabase/functions/_shared/) (15 dosya):
-`cors.ts`, `adminAuth.ts` (`verifyAdminAccess`), `verifyCompanyMembership.ts`,
-`envConfig.ts`, `emailLayout.ts` + `emailTemplates.ts` (Resend HTML), `prompts.ts`
-(AI promptları), `pricing.ts`, `leadQualityValidator.ts`, `rateLimit.ts` (in-memory),
-`logEmail.ts`, `logger.ts`, `serviceLabels.ts`, `types.ts`, `dashboardAppUrl.ts`.
+### B) Repo'da var, sunucuda YOK — deployed değil (19 fonksiyon)
 
-### Gruplar (yalnızca gerçekten var olan dizinler)
+🔴 Frontend'den çağrılıyor — prod'da 404 riski (11):
+| Fonksiyon | Çağıran |
+|---|---|
+| validate-besichtigung-token | VirtualBesichtigung (public) |
+| upload-besichtigung-photo | VirtualBesichtigung (public) |
+| notify-besichtigung | OfferView "Besichtigung anfragen" |
+| notify-appointment-cancelled | AppointmentCancel (public) |
+| notify-appointment-reschedule | AppointmentReschedule (public) |
+| handle-reschedule-response | NotificationDropdown |
+| send-appointment-confirmation | AppointmentModal |
+| send-lead-confirmation | wizard sendCustomerConfirmation |
+| validate-lead-quality | wizard triggerLeadQualityValidation |
+| verify-recaptcha | public wizard'lar |
+| spell-check-ai | OfferteErstellen/Bearbeiten |
 
-- **Lead lifecycle:** `accept-lead`, `confirm-lead-by-token`, `import-manual-lead`,
-  `validate-lead-quality`, `extract-anfrage-ai` (AI), `send-lead-confirmation`
-- **Offer akışı:** `send-offer` (en büyük fn — PDF ekleri + terminal-status koruması),
-  `handle-proposal-response`, `notify-offer-response`
-- **Quittung:** `send-quittung`, `send-purchase-confirmation`
-- **Randevu/bildirim:** `notify-appointment-reminder`, `notify-appointment-reschedule`,
-  `notify-appointment-cancelled`, `handle-reschedule-response`,
-  `send-appointment-confirmation`, `notify-auftrag-reminder`, `notify-team-reminder`,
-  `notify-box-pickup`
-- **Besichtigung (sanal keşif):** `create-besichtigung-session`,
-  `validate-besichtigung-token`, `upload-besichtigung-photo`, `delete-besichtigung-photo`,
-  `confirm-besichtigung`, `complete-besichtigung`, `notify-besichtigung`,
-  `analyze-besichtigung` (Claude Vision), `cleanup-besichtigung`
-- **AI:** `extract-anfrage-ai`, `validate-lead-quality`, `analyze-besichtigung`,
-  `spell-check-ai`, `transcribe-voice`
-- **Admin:** `admin-create-user`, `admin-delete-user`, `admin-reset-password`,
-  `admin-update-user-email`, `admin-add-company-member`, `admin-remove-company-member`
-- **Google/PLZ/pricing:** `google-places-autocomplete`, `google-places-details`,
-  `calculate-distance`, `import-swiss-plz`, `estimate-job-price`
-- **Email altyapı:** `resend-email`, `test-resend-email`, `verify-recaptcha`
-- **Scheduler/temizlik:** `auto-archive`, `cleanup-box-rentals`, `cleanup-besichtigung`, `generate-sitemap`
-- **KALINTI (kullanma):** `import-stripe-subscriptions`, `sync-stripe-subscriptions`,
-  `subscription-manager`, `send-purchase-confirmation`(token satışı bağlamı)
+⚪ Çağrılmıyor — prod etkisi yok (8):
+import-stripe-subscriptions, sync-stripe-subscriptions, subscription-manager
+(Stripe kalıntısı), import-swiss-plz, notify-box-pickup, resend-email,
+send-purchase-confirmation, transcribe-voice
 
-> ⚠️ Bir önceki keşifte AI ajanı `match-lead`, `notify-companies`, `generate-blog-ai`,
-> `create-token-checkout`, `admin-assign-lead` gibi **var olmayan** fonksiyonlar uydurdu.
-> Yukarıdaki liste `ls supabase/functions` ile doğrulanmıştır. Bir fonksiyona referans
-> vermeden önce dizinin gerçekten var olduğunu kontrol et.
+### A) Sadece sunucuda (2) — uygulama değil
+hello, main (Supabase Edge Runtime scaffold'ları)
 
-**Deploy:** `npx supabase functions deploy <name>` (veya self-host: `scp index.ts` +
-edge container restart — bkz. SUPABASE_MCP_BAGLANTI.md). `.env` değişikliği → Coolify Redeploy.
+> Deploy kararı bekliyor: B/🔴 listesindeki 11 fonksiyon isteniyor mu?
+> spell-check-ai, sanal keşif, randevu bildirimleri, reCAPTCHA bunlarda.
 
 ---
 
