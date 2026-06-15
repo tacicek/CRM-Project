@@ -4,6 +4,11 @@ Bu dosya, Claude Code (ve diğer AI ajanları) için bu repoda çalışırken re
 Kod yazmadan önce oku — proje fork geçmişi ve "yapılmayacaklar" listesi nedeniyle
 varsayılan davranışlar yanıltıcı olabilir.
 
+> 📐 **Mimari + domain modeli için → [docs/SISTEM_PRD.md](docs/SISTEM_PRD.md)** (Claude kalıcı
+> referansı; canlı DB üzerinde doğrulanmış). Bu CLAUDE.md **kuralları** verir, SISTEM_PRD
+> **sistemi** (lead→offer→auftrag→quittung akışı, şema, edge fn'ler, aktif-vs-kalıntı) anlatır.
+> Sistemi geliştirmeye/analiz etmeye başlamadan önce ikisini de oku.
+
 ---
 
 ## 1. Proje Özeti
@@ -300,6 +305,7 @@ prerender konfigünü güncelle.
 
 ## 13. İlgili Dokümanlar
 
+- **[docs/SISTEM_PRD.md](docs/SISTEM_PRD.md) — ⭐ Sistem mimarisi + domain modeli (Claude kalıcı referansı, canlı DB doğrulamalı).**
 - [README.md](README.md) — Setup özeti, deployment notları.
 - [docs/AUTH_SYSTEM.md](docs/AUTH_SYSTEM.md) — Auth detay.
 - [docs/CRM_IMPLEMENTATION_ROADMAP.md](docs/CRM_IMPLEMENTATION_ROADMAP.md) — Geçmiş ve aktif adım (`CURRENT_STEP`).
