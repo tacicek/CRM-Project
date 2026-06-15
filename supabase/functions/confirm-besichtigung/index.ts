@@ -92,7 +92,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Get company details including Resend settings
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const { data: company, error: companyError } = await supabase
       .from("companies")
       .select("*, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
@@ -104,7 +103,6 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
     }
 
     // Determine which Resend API key and from address to use
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     let resendApiKey = Deno.env.get("RESEND_API_KEY");
     let fromAddress = getDefaultFrom();
     let isCompanyEmail = false;
@@ -115,15 +113,12 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
       fromAddress = `${fromName} <${company.resend_from_email}>`;
       isCompanyEmail = true;
       logStep("Using company's own Resend API", { fromAddress });
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     } else {
       logStep("Using default Resend API");
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     }
     
     if (!resendApiKey) {
       logStep("No Resend API key configured, skipping email");
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
       return new Response(
         JSON.stringify({ success: true, message: "No email sent - no API key configured" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -131,7 +126,6 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
     }
 
     const resend = new Resend(resendApiKey);
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     // Determine if this is a confirm or propose request
     // If no type specified and has besichtigungDate, treat as confirm

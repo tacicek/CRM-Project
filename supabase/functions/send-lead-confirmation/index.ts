@@ -135,7 +135,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const resend = new Resend(resendApiKey);
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const rawBody = await req.json();
     
     // CRITICAL FIX: Rate limit check BEFORE validation to prevent CPU abuse

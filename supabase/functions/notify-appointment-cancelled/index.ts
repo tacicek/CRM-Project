@@ -46,7 +46,6 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     // Get company details including Resend settings
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     let company = null;
     if (request.companyId) {
       const { data, error } = await supabase
@@ -63,28 +62,23 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
     }
 
     // Determine which Resend API key and from address to use
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     let resendApiKey = Deno.env.get("RESEND_API_KEY");
     let fromAddress = getCalendarFrom();
     let isCompanyEmail = false;
 
     // Use company's own Resend settings if configured
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     if (company?.resend_enabled && company?.resend_api_key && company?.resend_from_email) {
       resendApiKey = company.resend_api_key;
       const fromName = company.resend_from_name || company.company_name;
       fromAddress = `${fromName} <${company.resend_from_email}>`;
       isCompanyEmail = true;
       logStep("Using company's own Resend API", { fromAddress });
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     } else {
       logStep("Using default Resend API");
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     }
     
     if (!resendApiKey) {
       logStep("No Resend API key configured, skipping email");
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
       return new Response(
         JSON.stringify({ success: true, message: "Email notification skipped - API key not configured" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -92,7 +86,6 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
     }
 
     const resend = new Resend(resendApiKey);
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 
     const formatDate = (dateString: string) => {
       return new Date(dateString).toLocaleDateString("de-CH", {

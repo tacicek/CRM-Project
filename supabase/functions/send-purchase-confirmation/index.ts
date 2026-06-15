@@ -43,7 +43,6 @@ serve(async (req) => {
     }
 
     const resend = new Resend(resendApiKey);
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     const rawBody = await req.json();
     
     // Validiere Input mit Zod

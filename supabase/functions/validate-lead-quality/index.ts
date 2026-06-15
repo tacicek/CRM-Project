@@ -141,7 +141,6 @@ async function sendDoubleOptInEmail(
   serviceType: string | null,
 ): Promise<boolean> {
   const resend = new Resend(resendApiKey);
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
   const confirmUrl = `${getConfirmationBaseUrl()}/lead-bestaetigen/${token}`;
   const greeting = firstName ? `Guten Tag ${firstName}` : "Guten Tag";
 
@@ -189,7 +188,6 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
     return true;
   } catch (e) {
     logStep("Resend send error", { error: (e as Error).message });
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
     return false;
   }
 }
