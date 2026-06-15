@@ -196,7 +196,7 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 
 ## 5. Edge Functions — Deployed Durum (2026-06-15 doğrulandı)
 
-### C) Prod'da aktif — repo + sunucuda (31 fonksiyon)
+### C) Prod'da aktif — repo + sunucuda (39 fonksiyon)
 accept-lead, admin-add-company-member, admin-create-user, admin-delete-user,
 admin-remove-company-member, admin-reset-password, admin-update-user-email,
 analyze-besichtigung, auto-archive, calculate-distance, cleanup-besichtigung,
@@ -206,24 +206,16 @@ estimate-job-price, extract-anfrage-ai, generate-sitemap,
 google-places-autocomplete, google-places-details, handle-proposal-response,
 import-manual-lead, notify-appointment-reminder, notify-auftrag-reminder,
 notify-offer-response, notify-team-reminder, send-offer, send-quittung,
-test-resend-email
+test-resend-email,
+**handle-reschedule-response, notify-appointment-cancelled,
+notify-appointment-reschedule, notify-besichtigung, send-appointment-confirmation,
+spell-check-ai, upload-besichtigung-photo, validate-besichtigung-token**
+(son 8: 2026-06-15 deploy edildi)
 
-### B) Repo'da var, sunucuda YOK — deployed değil (19 fonksiyon)
+### B) Repo'da var, sunucuda YOK — deployed değil (11 fonksiyon)
 
-🔴 Frontend'den çağrılıyor — prod'da 404 riski (11):
-| Fonksiyon | Çağıran |
-|---|---|
-| validate-besichtigung-token | VirtualBesichtigung (public) |
-| upload-besichtigung-photo | VirtualBesichtigung (public) |
-| notify-besichtigung | OfferView "Besichtigung anfragen" |
-| notify-appointment-cancelled | AppointmentCancel (public) |
-| notify-appointment-reschedule | AppointmentReschedule (public) |
-| handle-reschedule-response | NotificationDropdown |
-| send-appointment-confirmation | AppointmentModal |
-| send-lead-confirmation | wizard sendCustomerConfirmation |
-| validate-lead-quality | wizard triggerLeadQualityValidation |
-| verify-recaptcha | public wizard'lar |
-| spell-check-ai | OfferteErstellen/Bearbeiten |
+⚪ Deployed değil — public wizard yolu bu sistemde aktif değil (ManualImport kullanılıyor) (3):
+`send-lead-confirmation`, `validate-lead-quality`, `verify-recaptcha`
 
 ⚪ Çağrılmıyor — prod etkisi yok (8):
 import-stripe-subscriptions, sync-stripe-subscriptions, subscription-manager
@@ -233,8 +225,8 @@ send-purchase-confirmation, transcribe-voice
 ### A) Sadece sunucuda (2) — uygulama değil
 hello, main (Supabase Edge Runtime scaffold'ları)
 
-> Deploy kararı bekliyor: B/🔴 listesindeki 11 fonksiyon isteniyor mu?
-> spell-check-ai, sanal keşif, randevu bildirimleri, reCAPTCHA bunlarda.
+> Not: 2026-06-15'te 8 fonksiyon deploy edildi (temiz boot doğrulandı). Runtime
+> kesinliği ilk gerçek çağrıda teyit edilmeli (lazy boot + env var/`_shared` bağımlılığı).
 
 ---
 
