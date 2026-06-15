@@ -196,6 +196,11 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 
 ## 5. Edge Functions — Deployed Durum (2026-06-15 doğrulandı)
 
+> **Runtime davranış notu (2026-06-15 doğrulandı):**
+> Bu self-hosted Supabase Edge Runtime'da "deployed değil" = HTTP 500
+> `{"msg":"InvalidWorkerCreation: ... could not find an appropriate entrypoint"}`
+> (404 değil). Fonksiyon sağlıklıysa kendi auth/validasyon kodundan 400/401/404 döner.
+
 ### C) Prod'da aktif — repo + sunucuda (39 fonksiyon)
 accept-lead, admin-add-company-member, admin-create-user, admin-delete-user,
 admin-remove-company-member, admin-reset-password, admin-update-user-email,
