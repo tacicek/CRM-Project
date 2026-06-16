@@ -155,6 +155,12 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/notify-team-reminder/index.ts"
 
+[functions.notify-auftrag-reminder]
+enabled = true
+verify_jwt = false
+# Called internally via cron/service_role with x-internal-secret
+entrypoint = "./functions/notify-auftrag-reminder/index.ts"
+
 [functions.extract-anfrage-ai]
 enabled = true
 verify_jwt = false
