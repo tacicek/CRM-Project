@@ -14,7 +14,7 @@ import {
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { QuittungPDF } from "@/components/quittung/QuittungPDF";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { logoToBase64 } from "@/lib/logoToBase64";
@@ -72,12 +72,34 @@ function buildDefaultPositionen(): QuittungPosition[] {
   ];
 }
 
+interface AuftragPrefillItem {
+  description?: string;
+  beschreibung?: string;
+  quantity?: number;
+  unit?: string | null;
+  unit_price?: number;
+  total?: number | null;
+}
+
+interface FromAuftragPrefill {
+  offerId: string | null;
+  customerName?: string;
+  customerAddress?: string;
+  customerDestination?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  items?: AuftragPrefillItem[];
+  extraServices?: AuftragPrefillItem[];
+}
+
 export default function QuittungDetail() {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === "neu";
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
+  const prefillAppliedRef = useRef(false);
 
   const [company, setCompany] = useState<CompanyInfo | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
@@ -213,6 +235,47 @@ export default function QuittungDetail() {
   }, [id, isNew, navigate, toast]);
 
   useEffect(() => { loadQuittung(); }, [loadQuittung]);
+
+  // Prefill aus einem Auftrag (Auftrag → Quittung Brücke). Nur einmal, nur bei Neuanlage.
+  useEffect(() => {
+    if (!isNew || prefillAppliedRef.current) return;
+    const fa = (location.state as { fromAuftrag?: FromAuftragPrefill } | null)?.fromAuftrag;
+    if (!fa) return;
+    prefillAppliedRef.current = true;
+
+    if (fa.customerName) setCustomerName(fa.customerName);
+    if (fa.customerAddress) setCustomerAddress(fa.customerAddress);
+    if (fa.customerDestination) setCustomerDestination(fa.customerDestination);
+    if (fa.customerEmail) setCustomerEmail(fa.customerEmail);
+    if (fa.customerPhone) setCustomerPhone(fa.customerPhone);
+    if (fa.offerId) setLinkedOfferId(fa.offerId);
+
+    const toRow = (it: AuftragPrefillItem): QuittungPosition => {
+      const qty = it.quantity ?? 1;
+      const unitPrice = it.unit_price ?? 0;
+      const betrag = it.total ?? qty * unitPrice;
+      return {
+        id: uuidv4(),
+        beschreibung: it.description ?? it.beschreibung ?? "",
+        satz: it.unit ? `${qty} ${it.unit}` : "",
+        betrag: Math.round((betrag || 0) * 100) / 100,
+        checked: true,
+        is_custom: true,
+      };
+    };
+
+    const mapped = [...(fa.items ?? []), ...(fa.extraServices ?? [])]
+      .filter((it) => (it.description ?? it.beschreibung ?? "").trim().length > 0)
+      .map(toRow);
+
+    if (mapped.length > 0) {
+      // Vordefinierte (ungekreuzte) Zeilen behalten, gemappte Auftrag-Positionen anhängen
+      setPositionen((prev) => [...prev.filter((p) => !p.is_custom), ...mapped]);
+    }
+
+    // State leeren, damit ein Reload die Prefill nicht erneut anwendet
+    navigate(location.pathname, { replace: true, state: null });
+  }, [isNew, location.state, location.pathname, navigate]);
 
   // Position helpers
   const updatePosition = (pos: Partial<QuittungPosition> & { id: string }) => {
