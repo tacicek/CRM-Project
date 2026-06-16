@@ -36,8 +36,12 @@ import {
   Eye,
   Download,
   Package,
+  FileText,
+  XCircle,
+  RotateCcw,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,8 +49,10 @@ import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, isPast, addDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { AuftragModal } from "@/components/firma/AuftragModal";
+import { AuftragAbschlussDialog } from "@/components/firma/AuftragAbschlussDialog";
 import { SahaExtrasModal } from "@/components/firma/SahaExtrasModal";
 import { generateAuftragPdf } from "@/lib/generateAuftragPdf";
+import { canTransitionAuftrag } from "@/lib/auftragStatus";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,6 +87,7 @@ interface Auftrag {
   auftrag_nummer: string;
   offer_id: string | null;
   lead_id: string | null;
+  appointment_id?: string | null;
   title: string;
   customer_name: string;
   customer_email: string | null;
@@ -145,6 +152,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 const FirmaAuftraege = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [auftraege, setAuftraege] = useState<Auftrag[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -169,6 +177,7 @@ const FirmaAuftraege = () => {
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<string | null>(null);
   const [extrasAuftragId, setExtrasAuftragId] = useState<string | null>(null);
+  const [completionAuftrag, setCompletionAuftrag] = useState<Auftrag | null>(null);
 
   const handleDownloadPdf = async (auftrag: Auftrag) => {
     setIsDownloadingPdf(auftrag.id);
@@ -275,6 +284,7 @@ const FirmaAuftraege = () => {
           offer:offer_id (id, title)
         `)
         .eq("company_id", company.id)
+        .is("deleted_at", null)
         .order("scheduled_date", { ascending: true });
 
       if (error) throw error;
@@ -324,9 +334,10 @@ const FirmaAuftraege = () => {
 
     setIsDeleting(true);
     try {
+      // Soft-delete: Audit-Trail bleibt erhalten, Zeile wird nur archiviert/ausgeblendet.
       const { error } = await supabase
         .from("auftraege")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", deleteAuftrag.id);
 
       if (error) throw error;
@@ -340,7 +351,7 @@ const FirmaAuftraege = () => {
 
       toast({
         title: "Erfolg",
-        description: "Auftrag wurde gelöscht.",
+        description: "Auftrag wurde archiviert.",
       });
     } catch (error) {
       console.error("Error deleting auftrag:", error);
@@ -414,6 +425,23 @@ const FirmaAuftraege = () => {
         return next;
       });
     }
+  };
+
+  const handleCreateQuittung = (auftrag: Auftrag) => {
+    navigate("/firma/quittungen/neu", {
+      state: {
+        fromAuftrag: {
+          offerId: auftrag.offer_id ?? null,
+          customerName: auftrag.customer_name,
+          customerAddress: auftrag.from_address ?? "",
+          customerDestination: auftrag.to_address ?? "",
+          customerEmail: auftrag.customer_email ?? "",
+          customerPhone: auftrag.customer_phone ?? "",
+          items: auftrag.items ?? [],
+          extraServices: auftrag.extra_services ?? [],
+        },
+      },
+    });
   };
 
   const getStatusChip = (status: string) => {
@@ -729,23 +757,45 @@ const FirmaAuftraege = () => {
                                   Offerte anzeigen
                                 </DropdownMenuItem>
                               )}
+                              <DropdownMenuItem
+                                onClick={() => handleCreateQuittung(auftrag)}
+                                className="text-folk-mint"
+                              >
+                                <FileText className="mr-2 h-4 w-4" />
+                                Quittung erstellen
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              {auftrag.status === "geplant" && (
+                              {canTransitionAuftrag(auftrag.status, "bestaetigt") && (
                                 <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "bestaetigt")}>
                                   <CheckCircle className="mr-2 h-4 w-4 text-folk-mint" />
                                   Als bestätigt markieren
                                 </DropdownMenuItem>
                               )}
-                              {(auftrag.status === "geplant" || auftrag.status === "bestaetigt") && (
+                              {canTransitionAuftrag(auftrag.status, "in_bearbeitung") && (
                                 <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "in_bearbeitung")}>
                                   <Clock className="mr-2 h-4 w-4 text-folk-lemon" />
                                   In Bearbeitung
                                 </DropdownMenuItem>
                               )}
-                              {auftrag.status !== "abgeschlossen" && auftrag.status !== "storniert" && (
-                                <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "abgeschlossen")}>
+                              {canTransitionAuftrag(auftrag.status, "abgeschlossen") && (
+                                <DropdownMenuItem onClick={() => setCompletionAuftrag(auftrag)}>
                                   <CheckCircle className="mr-2 h-4 w-4 text-folk-mint" />
-                                  Als erledigt markieren
+                                  Abschliessen …
+                                </DropdownMenuItem>
+                              )}
+                              {auftrag.status === "storniert" && canTransitionAuftrag(auftrag.status, "geplant") && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "geplant")}>
+                                  <RotateCcw className="mr-2 h-4 w-4 text-folk-sky" />
+                                  Reaktivieren
+                                </DropdownMenuItem>
+                              )}
+                              {canTransitionAuftrag(auftrag.status, "storniert") && (
+                                <DropdownMenuItem
+                                  onClick={() => handleStatusChange(auftrag.id, "storniert")}
+                                  className="text-folk-coral"
+                                >
+                                  <XCircle className="mr-2 h-4 w-4" />
+                                  Stornieren
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />
@@ -754,7 +804,7 @@ const FirmaAuftraege = () => {
                                 onClick={() => setDeleteAuftrag(auftrag)}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
-                                Löschen
+                                Archivieren
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -783,9 +833,9 @@ const FirmaAuftraege = () => {
       <AlertDialog open={!!deleteAuftrag} onOpenChange={() => setDeleteAuftrag(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Auftrag löschen?</AlertDialogTitle>
+            <AlertDialogTitle>Auftrag archivieren?</AlertDialogTitle>
             <AlertDialogDescription>
-              Möchten Sie den Auftrag "{deleteAuftrag?.title}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+              Möchten Sie den Auftrag "{deleteAuftrag?.title}" wirklich archivieren? Der Auftrag wird aus der Liste entfernt, bleibt aber für die Nachvollziehbarkeit gespeichert.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -813,6 +863,13 @@ const FirmaAuftraege = () => {
         onOpenChange={(open) => !open && setExtrasAuftragId(null)}
         auftragId={extrasAuftragId || ''}
         onSaved={fetchData}
+      />
+
+      <AuftragAbschlussDialog
+        open={!!completionAuftrag}
+        onOpenChange={(open) => !open && setCompletionAuftrag(null)}
+        auftrag={completionAuftrag}
+        onCompleted={fetchData}
       />
     </>
   );

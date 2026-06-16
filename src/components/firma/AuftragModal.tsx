@@ -55,6 +55,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getServiceLabel } from "@/lib/serviceLabels";
+import { allowedAuftragTargets } from "@/lib/auftragStatus";
 
 // =============================================================================
 // INTERFACES
@@ -166,6 +167,7 @@ interface Auftrag {
   auftrag_nummer: string;
   offer_id: string | null;
   lead_id: string | null;
+  appointment_id?: string | null;
   title: string;
   customer_name: string;
   customer_email: string | null;
@@ -645,6 +647,27 @@ export function AuftragModal({
     }).format(amount);
   };
 
+  // "HH:MM" + Minuten → "HH:MM:SS" (für appointment end_time)
+  const addMinutesToTime = (time: string, minutes: number): string => {
+    const [h, m] = time.split(":").map((n) => parseInt(n, 10));
+    const total = (h * 60 + m + minutes) % (24 * 60);
+    const hh = String(Math.floor(total / 60)).padStart(2, "0");
+    const mm = String(total % 60).padStart(2, "0");
+    return `${hh}:${mm}:00`;
+  };
+
+  // Schedule-Felder für den kanonischen Termin (appointments) aus dem Formular
+  const buildAppointmentSchedule = () => {
+    const start = (formData.scheduled_time || "09:00").slice(0, 5);
+    const dur = formData.estimated_duration_minutes || 120;
+    return {
+      appointment_date: format(formData.scheduled_date, "yyyy-MM-dd"),
+      start_time: `${start}:00`,
+      end_time: addMinutesToTime(start, dur),
+      duration_minutes: dur,
+    };
+  };
+
   const getServiceIcon = (serviceType: string) => {
     switch (serviceType) {
       case "umzug":
@@ -772,14 +795,39 @@ export function AuftragModal({
       };
 
       if (auftrag) {
-        // Update existing — auftrag_nummer and company_id must NOT be updated
-        // auftrag_nummer: trigger only fires on INSERT; sending "" would overwrite with empty
-        // string and cause UNIQUE(company_id, auftrag_nummer) violation on subsequent edits.
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        // Update existing — auftrag_nummer and company_id must NOT be updated.
         const { auftrag_nummer: _nr, company_id: _cid, ...updateData } = auftragData;
+
+        const dateChanged = auftrag.scheduled_date !== auftragData.scheduled_date;
+
+        // Reschedule: Datum değiştiyse hatırlatma bayraklarını sıfırla.
+        const rescheduleReset = dateChanged
+          ? {
+              team_reminder_sent: false,
+              reminder_sent_at: null,
+              customer_reminder_sent: false,
+              customer_reminder_sent_at: null,
+            }
+          : {};
+
+        // #7 Tek kaynak: Zaman (Datum/Zeit/Dauer) kanonik olarak appointments'ta.
+        // Linkli randevu varsa zamanı ORAYA yaz — trigger auftrag.scheduled_*'ı aynalar.
+        // Bu yüzden auftrag update'inden schedule alanlarını çıkarıyoruz.
+        if (auftrag.appointment_id) {
+          const { error: apptError } = await supabase
+            .from("appointments")
+            .update(buildAppointmentSchedule())
+            .eq("id", auftrag.appointment_id);
+          if (apptError) throw apptError;
+
+          delete (updateData as Record<string, unknown>).scheduled_date;
+          delete (updateData as Record<string, unknown>).scheduled_time;
+          delete (updateData as Record<string, unknown>).estimated_duration_minutes;
+        }
+
         const { error } = await supabase
           .from("auftraege")
-          .update(updateData)
+          .update({ ...updateData, ...rescheduleReset })
           .eq("id", auftrag.id);
 
         if (error) throw error;
@@ -789,10 +837,54 @@ export function AuftragModal({
           description: "Auftrag wurde aktualisiert.",
         });
       } else {
-        // Create new
+        // Create new — jeder aktive Auftrag bekommt einen kanonischen service-Termin.
+        const linkedOfferId = auftragData.offer_id;
+        let appointmentId: string | null = null;
+
+        // Vorhandenen service-Termin der Offerte wiederverwenden (vom Accept-Flow)
+        if (linkedOfferId) {
+          const { data: existingAppt } = await supabase
+            .from("appointments")
+            .select("id")
+            .eq("offer_id", linkedOfferId)
+            .eq("appointment_type", "service")
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          appointmentId = existingAppt?.id ?? null;
+        }
+
+        // Sonst neuen service-Termin erstellen
+        if (!appointmentId) {
+          const schedule = buildAppointmentSchedule();
+          const [firstName, ...rest] = formData.customer_name.trim().split(" ");
+          const { data: newAppt, error: apptError } = await supabase
+            .from("appointments")
+            .insert({
+              company_id: companyId,
+              offer_id: linkedOfferId,
+              lead_id: auftragData.lead_id,
+              appointment_type: "service",
+              status: "pending",
+              ...schedule,
+              all_day: false,
+              location_address: formData.from_address || null,
+              customer_first_name: firstName || formData.customer_name,
+              customer_last_name: rest.join(" ") || null,
+              customer_email: formData.customer_email || null,
+              customer_phone: formData.customer_phone || null,
+              title: formData.title,
+              description: formData.description || null,
+            })
+            .select("id")
+            .single();
+          if (apptError) throw apptError;
+          appointmentId = newAppt.id;
+        }
+
         const { error } = await supabase
           .from("auftraege")
-          .insert(auftragData);
+          .insert({ ...auftragData, appointment_id: appointmentId });
 
         if (error) throw error;
 
@@ -846,6 +938,18 @@ export function AuftragModal({
     { value: "abgeschlossen", label: "Abgeschlossen", color: "bg-emerald-100 text-emerald-700" },
     { value: "storniert", label: "Storniert", color: "bg-red-100 text-red-700" },
   ];
+
+  // State machine: beim Bearbeiten nur erlaubte Zielstatus anzeigen.
+  // Bei Neuanlage nur "geplant" (Aufträge starten immer als geplant).
+  // "abgeschlossen" wird hier NICHT angeboten — der Abschluss läuft über den
+  // Abschluss-Dialog (erfasst tatsächliche Stunden / Endpreis / Notizen).
+  const visibleStatusOptions = auftrag
+    ? statusOptions.filter((o) => {
+        if (!allowedAuftragTargets(auftrag.status).includes(o.value as never)) return false;
+        if (o.value === "abgeschlossen" && auftrag.status !== "abgeschlossen") return false;
+        return true;
+      })
+    : statusOptions.filter((o) => o.value === "geplant");
 
   // =============================================================================
   // RENDER SERVICE-SPECIFIC DETAILS
@@ -1413,7 +1517,7 @@ export function AuftragModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {statusOptions.map((status) => (
+                      {visibleStatusOptions.map((status) => (
                         <SelectItem key={status.value} value={status.value}>
                           <Badge variant="secondary" className={status.color}>
                             {status.label}

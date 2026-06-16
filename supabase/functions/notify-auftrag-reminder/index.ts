@@ -37,6 +37,22 @@ interface AuftragReminder {
   assigned_team_members: string[];
 }
 
+interface CustomerReminder {
+  auftrag_id: string;
+  company_id: string;
+  company_name: string;
+  auftrag_nummer: string;
+  title: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  from_address: string;
+  to_address: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  estimated_duration_minutes: number;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -63,6 +79,8 @@ serve(async (req) => {
     const results = {
       reminders_sent: 0,
       reminders_failed: 0,
+      customer_reminders_sent: 0,
+      customer_reminders_failed: 0,
       errors: [] as string[],
     };
 
@@ -195,8 +213,72 @@ serve(async (req) => {
       }
     }
 
+    // ── Kundenerinnerungen (unabhängig vom Team-Leiter) ─────────────────────
+    const { data: customerReminders, error: customerQueryError } = await supabase
+      .rpc("get_auftraege_needing_customer_reminders");
+
+    if (customerQueryError) {
+      console.error("Error getting customer reminders:", customerQueryError);
+    } else if (customerReminders && customerReminders.length > 0) {
+      for (const auftrag of customerReminders as CustomerReminder[]) {
+        try {
+          if (!auftrag.customer_email) continue;
+
+          const { data: companySettings } = await supabase
+            .from("companies")
+            .select("resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+            .eq("id", auftrag.company_id)
+            .maybeSingle();
+
+          const activeResendKey = (companySettings?.resend_enabled && companySettings?.resend_api_key)
+            ? companySettings.resend_api_key
+            : globalResendKey;
+
+          if (!activeResendKey) {
+            results.customer_reminders_failed++;
+            results.errors.push(`${auftrag.auftrag_nummer} (Kunde): No Resend key configured`);
+            continue;
+          }
+
+          const resend = new Resend(activeResendKey);
+          const fromAddress = (companySettings?.resend_enabled && companySettings?.resend_from_email)
+            ? `${companySettings.resend_from_name || auftrag.company_name} <${companySettings.resend_from_email}>`
+            : `${auftrag.company_name} <${getAdminEmail()}>`;
+
+          const scheduledDate = new Date(auftrag.scheduled_date);
+          const formattedDate = scheduledDate.toLocaleDateString("de-CH", {
+            weekday: "long",
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          });
+
+          await resend.emails.send({
+            from: fromAddress,
+            to: auftrag.customer_email,
+            subject: `Erinnerung: Ihr Termin am ${formattedDate} – ${auftrag.company_name}`,
+            html: generateCustomerEmailHtml(auftrag, formattedDate),
+          });
+
+          await supabase
+            .from("auftraege")
+            .update({
+              customer_reminder_sent: true,
+              customer_reminder_sent_at: new Date().toISOString(),
+            })
+            .eq("id", auftrag.auftrag_id);
+
+          results.customer_reminders_sent++;
+        } catch (customerError) {
+          console.error(`Failed customer reminder for ${auftrag.auftrag_nummer}:`, customerError);
+          results.customer_reminders_failed++;
+          results.errors.push(`${auftrag.auftrag_nummer} (Kunde): ${String(customerError)}`);
+        }
+      }
+    }
+
     // Send admin summary (uses global server key)
-    if (results.reminders_sent > 0 && globalResendKey) {
+    if ((results.reminders_sent > 0 || results.customer_reminders_sent > 0) && globalResendKey) {
       try {
         const adminResend = new Resend(globalResendKey);
         await adminResend.emails.send({
@@ -205,8 +287,10 @@ serve(async (req) => {
           subject: `📊 Auftrag-Erinnerungen: ${results.reminders_sent} gesendet`,
           html: `
             <h2>Auftrag-Erinnerungen Zusammenfassung</h2>
-            <p><strong>Gesendet:</strong> ${results.reminders_sent}</p>
-            <p><strong>Fehlgeschlagen:</strong> ${results.reminders_failed}</p>
+            <p><strong>Team gesendet:</strong> ${results.reminders_sent}</p>
+            <p><strong>Team fehlgeschlagen:</strong> ${results.reminders_failed}</p>
+            <p><strong>Kunden gesendet:</strong> ${results.customer_reminders_sent}</p>
+            <p><strong>Kunden fehlgeschlagen:</strong> ${results.customer_reminders_failed}</p>
             ${results.errors.length > 0 ? `<p><strong>Fehler:</strong><br>${results.errors.join("<br>")}</p>` : ""}
           `,
         });
@@ -341,6 +425,67 @@ function generateEmailHtml(
       
       <p style="color: #6b7280; font-size: 14px; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px; text-align: center;">
         Viel Erfolg morgen! 💪
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+function generateCustomerEmailHtml(
+  auftrag: CustomerReminder,
+  formattedDate: string
+): string {
+  const timeStr = auftrag.scheduled_time
+    ? auftrag.scheduled_time.substring(0, 5) + " Uhr"
+    : "Wird noch bekannt gegeben";
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background-color: #f3f4f6;">
+  <div style="width:100%;max-width:600px;box-sizing:border-box;margin:0 auto;padding:16px 14px;">
+    <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 28px; border-radius: 16px 16px 0 0; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 22px;">Ihr Termin steht bevor</h1>
+      <p style="color: #d1fae5; margin: 8px 0 0 0; font-size: 14px;">${auftrag.company_name}</p>
+    </div>
+
+    <div style="background: white; padding: 28px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+      <p style="font-size: 16px;">Guten Tag <strong>${auftrag.customer_name}</strong>,</p>
+      <p>wir möchten Sie an Ihren bevorstehenden Termin erinnern:</p>
+
+      <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 15px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+        <p style="margin: 0; font-size: 18px; font-weight: bold; color: #047857;">${auftrag.title}</p>
+        <p style="margin: 8px 0 0 0; color: #047857;">📅 ${formattedDate}</p>
+        <p style="margin: 4px 0 0 0; color: #047857;">⏰ ${timeStr}</p>
+      </div>
+
+      ${auftrag.from_address ? `
+      <p style="margin: 0 0 10px 0;">
+        <strong style="color: #059669;">Adresse:</strong><br>
+        ${auftrag.from_address.replace(/\n/g, "<br>")}
+      </p>
+      ` : ""}
+      ${auftrag.to_address ? `
+      <p style="margin: 0 0 10px 0;">
+        <strong style="color: #dc2626;">Zieladresse:</strong><br>
+        ${auftrag.to_address.replace(/\n/g, "<br>")}
+      </p>
+      ` : ""}
+
+      <p style="margin-top: 20px;">
+        Bitte stellen Sie sicher, dass alles für den Termin vorbereitet ist.
+        Bei Fragen oder Änderungen kontaktieren Sie uns bitte rechtzeitig.
+      </p>
+
+      <p style="color: #6b7280; font-size: 14px; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 28px;">
+        Freundliche Grüsse<br>
+        <strong>${auftrag.company_name}</strong>
       </p>
     </div>
   </div>
