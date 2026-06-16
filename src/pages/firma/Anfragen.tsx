@@ -216,11 +216,11 @@ export default function FirmaAnfragen() {
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Anfragen</h1>
-              <span className="text-[13px] text-folk-ink3">
+              <span className="text-[15px] text-folk-ink3">
                 <span className="font-mono">{leads.length}</span> Anfrage{leads.length !== 1 ? "n" : ""} · {presentGroups.length} Gruppe{presentGroups.length !== 1 ? "n" : ""}
               </span>
             </div>
-            <p className="mt-1 text-[13px] text-folk-ink2">
+            <p className="mt-1 text-[15px] text-folk-ink2">
               Eingehende Anfragen aus Webformularen, Import und direkter Erfassung — bereit für die Offerte.
             </p>
           </div>
@@ -230,14 +230,14 @@ export default function FirmaAnfragen() {
               size="sm"
               onClick={fetchLeads}
               disabled={isLoading}
-              className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+              className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
             >
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
               Aktualisieren
             </Button>
             <Button
               onClick={() => navigate("/firma/manual-import")}
-              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
             >
               <Plus className="h-3.5 w-3.5" />
               Neue Anfrage
@@ -253,7 +253,7 @@ export default function FirmaAnfragen() {
               <button
                 key={tab.key}
                 onClick={() => setServiceFilter(tab.key)}
-                className={`-mb-px flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-[13px] transition-colors ${
+                className={`-mb-px flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-[15px] transition-colors ${
                   active
                     ? "border-folk-ink font-semibold text-folk-ink"
                     : "border-transparent font-medium text-folk-ink2 hover:text-folk-ink"
@@ -261,7 +261,7 @@ export default function FirmaAnfragen() {
               >
                 <span className={`leading-none ${tab.key === "all" ? "text-base text-folk-ink4 opacity-40" : "text-sm"}`}>{tab.emoji}</span>
                 <span>{tab.label}</span>
-                <span className="ml-0.5 font-mono text-[11px] text-folk-ink3">{tab.count}</span>
+                <span className="ml-0.5 font-mono text-[13px] text-folk-ink3">{tab.count}</span>
               </button>
             );
           })}
@@ -276,13 +276,13 @@ export default function FirmaAnfragen() {
               placeholder="In Anfragen suchen …"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 text-[13px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
+              className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 text-[15px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
             />
           </div>
           {serviceFilter !== "all" && (
             <button
               onClick={() => setServiceFilter("all")}
-              className="inline-flex items-center gap-1.5 rounded-md border border-folk-line bg-folk-card px-2.5 py-1.5 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+              className="inline-flex items-center gap-1.5 rounded-md border border-folk-line bg-folk-card px-2.5 py-1.5 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
             >
               <span>{getServiceGroup(serviceFilter).emoji}</span>
               <span>{getServiceGroup(serviceFilter).label}</span>
@@ -301,18 +301,18 @@ export default function FirmaAnfragen() {
             {leads.length === 0 ? (
               <div className="space-y-3">
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">📭</div>
-                <p className="text-[13.5px] font-semibold text-folk-ink">Noch keine Anfragen importiert</p>
-                <p className="px-4 text-[12px] text-folk-ink3">Importieren Sie Anfragen aus Ihren E-Mails oder Webformularen.</p>
+                <p className="text-[15px] font-semibold text-folk-ink">Noch keine Anfragen importiert</p>
+                <p className="px-4 text-[14px] text-folk-ink3">Importieren Sie Anfragen aus Ihren E-Mails oder Webformularen.</p>
                 <Button
                   onClick={() => navigate("/firma/manual-import")}
-                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Erste Anfrage importieren
                 </Button>
               </div>
             ) : (
-              <p className="text-[13px] text-folk-ink3">Keine Anfragen entsprechen Ihrer Suche.</p>
+              <p className="text-[15px] text-folk-ink3">Keine Anfragen entsprechen Ihrer Suche.</p>
             )}
           </div>
         ) : (
@@ -334,24 +334,24 @@ export default function FirmaAnfragen() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <h3 className="text-[14px] font-semibold tracking-tight text-folk-ink">{getCustomerName(lead)}</h3>
-                          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${group.bg} ${group.color}`}>
+                          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-medium ${group.bg} ${group.color}`}>
                             <span>{group.emoji}</span>
                             <span>{getServiceLabel(lead.service_type)}</span>
                           </span>
                           {lead.preferred_date && (
-                            <span className="inline-flex items-center gap-1 rounded-md border border-folk-line bg-folk-bg-warm px-2 py-0.5 text-[11px] text-folk-ink2">
+                            <span className="inline-flex items-center gap-1 rounded-md border border-folk-line bg-folk-bg-warm px-2 py-0.5 text-[13px] text-folk-ink2">
                               <Calendar className="h-3 w-3" />
                               <span className="font-mono">{formatDate(lead.preferred_date)}</span>
                             </span>
                           )}
                           {isNew && (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[11px] font-semibold text-folk-coral">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">
                               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-folk-coral" />
                               Neu
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-folk-ink3">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[14px] text-folk-ink3">
                           {(lead.from_city || lead.from_plz) && (
                             <span className="inline-flex items-center gap-1">
                               <MapPin className="h-3 w-3 text-folk-ink4" />
@@ -376,14 +376,14 @@ export default function FirmaAnfragen() {
                           )}
                         </div>
                       </div>
-                      <span className="whitespace-nowrap font-mono text-[11px] text-folk-ink4">
+                      <span className="whitespace-nowrap font-mono text-[13px] text-folk-ink4">
                         {formatRelativeDate(lead.created_at)}
                       </span>
                     </div>
 
                     {/* Contact line */}
                     {(lead.customer_phone || lead.customer_email) && (
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-folk-bg-warm px-3 py-2 text-[12px] text-folk-ink2">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-folk-bg-warm px-3 py-2 text-[14px] text-folk-ink2">
                         {lead.customer_phone && (
                           <a
                             href={`tel:${lead.customer_phone}`}
@@ -410,7 +410,7 @@ export default function FirmaAnfragen() {
                       <Button
                         size="sm"
                         onClick={() => handleCreateOffer(lead)}
-                        className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[12px] font-semibold text-white hover:bg-folk-ink2"
+                        className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-white hover:bg-folk-ink2"
                       >
                         <FileText className="h-3.5 w-3.5" />
                         Offerte erstellen
@@ -419,7 +419,7 @@ export default function FirmaAnfragen() {
                         variant="outline"
                         size="sm"
                         onClick={() => navigate(`/firma/besichtigungen?lead_id=${lead.id}`)}
-                        className="h-8 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+                        className="h-8 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
                       >
                         <Eye className="h-3.5 w-3.5" />
                         Besichtigung
@@ -428,7 +428,7 @@ export default function FirmaAnfragen() {
                         variant="ghost"
                         size="sm"
                         onClick={() => setSelectedLead(lead)}
-                        className="h-8 gap-1.5 rounded-lg px-3 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+                        className="h-8 gap-1.5 rounded-lg px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
                       >
                         Details
                       </Button>
@@ -468,8 +468,8 @@ export default function FirmaAnfragen() {
                   <DialogTitle className="text-[18px] font-bold tracking-tight text-folk-ink">
                     {getCustomerName(selectedLead)}
                   </DialogTitle>
-                  <DialogDescription className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-folk-ink3">
-                    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${getServiceGroup(selectedLead.service_type).bg} ${getServiceGroup(selectedLead.service_type).color}`}>
+                  <DialogDescription className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] text-folk-ink3">
+                    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[13px] font-medium ${getServiceGroup(selectedLead.service_type).bg} ${getServiceGroup(selectedLead.service_type).color}`}>
                       <span>{getServiceGroup(selectedLead.service_type).emoji}</span>
                       <span>{getServiceLabel(selectedLead.service_type)}</span>
                     </span>
@@ -479,11 +479,11 @@ export default function FirmaAnfragen() {
               </div>
             </DialogHeader>
 
-            <div className="space-y-4 text-[13px]">
+            <div className="space-y-4 text-[15px]">
               {/* Contact */}
               {(selectedLead.customer_email || selectedLead.customer_phone) && (
                 <div>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Kontakt</p>
+                  <p className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Kontakt</p>
                   <div className="space-y-1 text-folk-ink2">
                     {selectedLead.customer_email && (
                       <p className="flex items-center gap-2">
@@ -509,7 +509,7 @@ export default function FirmaAnfragen() {
                 <>
                   <Separator className="bg-folk-line-soft" />
                   <div>
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Adresse</p>
+                    <p className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Adresse</p>
                     <div className="space-y-1 text-folk-ink2">
                       {selectedLead.from_city && (
                         <p className="flex items-center gap-2">
@@ -555,7 +555,7 @@ export default function FirmaAnfragen() {
                 <>
                   <Separator className="bg-folk-line-soft" />
                   <div>
-                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">📝 Beschreibung</p>
+                    <p className="mb-1.5 text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">📝 Beschreibung</p>
                     <p className="whitespace-pre-wrap rounded-md bg-folk-bg-warm px-3 py-2 text-folk-ink2">
                       {selectedLead.description}
                     </p>
@@ -565,7 +565,7 @@ export default function FirmaAnfragen() {
 
               <div className="flex gap-2 pt-2">
                 <Button
-                  className="h-9 flex-1 gap-1.5 rounded-lg bg-folk-ink text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                  className="h-9 flex-1 gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-white hover:bg-folk-ink2"
                   onClick={() => handleCreateOffer(selectedLead)}
                 >
                   <FileText className="h-4 w-4" />

@@ -603,17 +603,17 @@ const KalenderPage = () => {
             <div className="flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                 <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Kalender</h1>
-                <span className="text-[13px] text-folk-ink3">
+                <span className="text-[15px] text-folk-ink3">
                   {format(currentDate, "EEEE, dd. MMMM yyyy", { locale: de })} · <span className="font-mono">{todayAppointments}</span> heute · <span className="font-mono">{pendingAppointments}</span> offen · <span className="font-mono">{thisWeekAppointments}</span> diese Woche
                 </span>
               </div>
-              <p className="mt-1 text-[13px] text-folk-ink2">
+              <p className="mt-1 text-[15px] text-folk-ink2">
                 Alle Termine, Besichtigungen und Einsätze — drag & drop zum Verschieben, Rechtsklick für neuen Termin.
               </p>
             </div>
             <Button
               onClick={handleNewAppointment}
-              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
             >
               <Plus className="h-3.5 w-3.5" />
               Neuer Termin
@@ -964,7 +964,7 @@ const KalenderPage = () => {
                           <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">
                             {format(selectedDate, "EEEE", { locale: de })}
                           </h3>
-                          <p className="font-mono text-[12px] text-folk-ink3">
+                          <p className="font-mono text-[14px] text-folk-ink3">
                             {format(selectedDate, "d. MMMM yyyy", { locale: de })}
                           </p>
                         </div>
@@ -985,7 +985,7 @@ const KalenderPage = () => {
                           setModalInitialDate(selectedDate);
                           setIsModalOpen(true);
                         }}
-                        className="mb-4 h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                        className="mb-4 h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-white hover:bg-folk-ink2"
                         size="sm"
                       >
                         <Plus className="w-4 h-4 mr-2" />
@@ -1180,7 +1180,7 @@ const AppointmentDetailCard = ({
           </Button>
         </div>
         <h3 className="break-words text-[16px] font-bold tracking-tight text-folk-ink">{appointment.title}</h3>
-        <div className={`mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${statusInfo.bgColor} ${statusInfo.color}`}>
+        <div className={`mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${statusInfo.bgColor} ${statusInfo.color}`}>
           <Circle className="h-2 w-2 fill-current" />
           {statusInfo.label}
         </div>
@@ -1315,7 +1315,7 @@ const AppointmentDetailCard = ({
           {appointment.status === "pending" && (
             <Button
               onClick={onConfirm}
-              className="h-9 w-full gap-1.5 rounded-lg bg-folk-mint text-[13px] font-semibold text-white hover:bg-folk-mint/90"
+              className="h-9 w-full gap-1.5 rounded-lg bg-folk-mint text-[15px] font-semibold text-white hover:bg-folk-mint/90"
             >
               <CheckCircle className="h-4 w-4 shrink-0" />
               Bestätigen
@@ -1324,7 +1324,7 @@ const AppointmentDetailCard = ({
           {appointment.status === "confirmed" && (
             <Button
               onClick={onComplete}
-              className="h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[13px] font-semibold text-white hover:bg-folk-ink2"
+              className="h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-white hover:bg-folk-ink2"
             >
               <CheckCircle className="h-4 w-4 shrink-0" />
               <span className="truncate">Erledigt</span>

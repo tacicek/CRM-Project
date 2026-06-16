@@ -103,15 +103,15 @@ const FirmaSidebar = ({
           {company.logo_url ? (
             <img src={company.logo_url} alt={company.company_name} className="h-6 w-6 rounded-md object-cover" />
           ) : (
-            <div className="grid h-6 w-6 place-items-center rounded-md bg-folk-ink text-[11px] font-bold tracking-tight text-folk-bg">
+            <div className="grid h-6 w-6 place-items-center rounded-md bg-folk-ink text-[13px] font-bold tracking-tight text-folk-bg">
               {initials}
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold leading-tight text-folk-ink">
+            <div className="truncate text-[15px] font-semibold leading-tight text-folk-ink">
               {company.company_name}
             </div>
-            <div className="mt-px text-[11px] text-folk-ink3">Workspace</div>
+            <div className="mt-px text-[13px] text-folk-ink3">Workspace</div>
           </div>
           <ChevronDown className="h-3.5 w-3.5 text-folk-ink3" strokeWidth={1.8} />
           {onClose && (
@@ -137,14 +137,14 @@ const FirmaSidebar = ({
                 key={item.url}
                 to={item.url}
                 onClick={onClose}
-                className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[15px] transition-colors ${
                   active ? "bg-folk-card font-semibold text-folk-ink shadow-[0_1px_2px_rgba(24,24,26,0.03)]" : "text-folk-ink2 hover:bg-folk-bg-warm"
                 }`}
               >
                 <span className="text-[14px] leading-none">{item.emoji}</span>
                 <span className="flex-1 truncate">{item.title}</span>
                 {item.badge ? (
-                  <span className="font-mono text-[11px] text-folk-ink3">{item.badge}</span>
+                  <span className="font-mono text-[13px] text-folk-ink3">{item.badge}</span>
                 ) : null}
               </Link>
             );
@@ -157,7 +157,7 @@ const FirmaSidebar = ({
         {groups.map((group) => (
           <div key={group.id} className="mt-3">
             <div className="flex items-center justify-between px-2.5 pb-1.5 pt-0.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{group.label}</span>
+              <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{group.label}</span>
             </div>
             {group.items.map((item) => {
               const active = isActive(item.url);
@@ -166,7 +166,7 @@ const FirmaSidebar = ({
                   key={item.url}
                   to={item.url}
                   onClick={onClose}
-                  className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                  className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[15px] transition-colors ${
                     active
                       ? "border border-folk-line bg-folk-card font-semibold text-folk-ink"
                       : "border border-transparent text-folk-ink2 hover:bg-folk-bg-warm"
@@ -175,7 +175,7 @@ const FirmaSidebar = ({
                   <span className="text-[14px] leading-none">{item.emoji}</span>
                   <span className="flex-1 truncate">{item.title}</span>
                   {item.badge ? (
-                    <span className="font-mono text-[11px] text-folk-ink3">{item.badge}</span>
+                    <span className="font-mono text-[13px] text-folk-ink3">{item.badge}</span>
                   ) : null}
                 </Link>
               );
@@ -186,12 +186,12 @@ const FirmaSidebar = ({
 
       {/* Profile footer */}
       <div className="flex items-center gap-2 border-t border-folk-line px-2.5 py-2">
-        <div className="grid h-[26px] w-[26px] place-items-center rounded-full bg-folk-coral text-[11px] font-bold text-white">
+        <div className="grid h-[26px] w-[26px] place-items-center rounded-full bg-folk-coral text-[13px] font-bold text-white">
           {userInitials}
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[12.5px] font-semibold leading-tight text-folk-ink">{userName}</div>
-          <div className="truncate text-[11px] text-folk-ink3">{userEmail}</div>
+          <div className="truncate text-[13px] text-folk-ink3">{userEmail}</div>
         </div>
         <button
           onClick={onSignOut}
@@ -514,7 +514,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
 
           {/* Breadcrumb + title */}
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="hidden truncate text-[12px] text-folk-ink3 sm:inline">
+            <span className="hidden truncate text-[14px] text-folk-ink3 sm:inline">
               {company.company_name} <span className="mx-1.5 text-folk-ink4">/</span>
             </span>
             <span className="text-base leading-none sm:text-lg">{pageEmoji}</span>

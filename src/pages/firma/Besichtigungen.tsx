@@ -537,13 +537,13 @@ const FirmaBesichtigungen = () => {
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                 <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Besichtigungen</h1>
                 {newRequestsCount > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[11px] font-semibold text-folk-coral">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">
                     <Bell className="h-3 w-3" />
                     <span className="font-mono">{newRequestsCount}</span> neu
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-[13px] text-folk-ink2">
+              <p className="mt-1 text-[15px] text-folk-ink2">
                 Terminanfragen und geplante Besichtigungen verwalten — vor Ort und virtuell.
               </p>
             </div>
@@ -551,7 +551,7 @@ const FirmaBesichtigungen = () => {
               <Button
                 variant="outline"
                 onClick={() => setIsVirtualBesichtigungOpen(true)}
-                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
                 <Camera className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Virtuelle Besichtigung</span>
@@ -559,7 +559,7 @@ const FirmaBesichtigungen = () => {
               </Button>
               <Link to="/firma/kalender">
                 <Button
-                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
                 >
                   <Calendar className="h-3.5 w-3.5" />
                   Kalender öffnen

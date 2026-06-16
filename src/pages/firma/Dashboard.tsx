@@ -272,26 +272,26 @@ const FirmaDashboard = () => {
     switch (status) {
       case "sent":
         return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[11px] font-semibold text-folk-coral">
+          <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-folk-coral" />
             Neu
           </span>
         );
       case "accepted":
         return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-2 py-0.5 text-[11px] font-semibold text-folk-mint">
+          <span className="inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-2 py-0.5 text-[13px] font-semibold text-folk-mint">
             ✓ Akzeptiert
           </span>
         );
       case "rejected":
         return (
-          <span className="inline-flex items-center rounded-md bg-folk-bg-warm px-2 py-0.5 text-[11px] font-medium text-folk-ink3">
+          <span className="inline-flex items-center rounded-md bg-folk-bg-warm px-2 py-0.5 text-[13px] font-medium text-folk-ink3">
             Abgelehnt
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center rounded-md border border-folk-line bg-folk-card px-2 py-0.5 text-[11px] text-folk-ink2">
+          <span className="inline-flex items-center rounded-md border border-folk-line bg-folk-card px-2 py-0.5 text-[13px] text-folk-ink2">
             {status}
           </span>
         );
@@ -370,22 +370,22 @@ const FirmaDashboard = () => {
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Übersicht</h1>
-              <span className="text-[13px] text-folk-ink3">
+              <span className="text-[15px] text-folk-ink3">
                 {today} · <span className="font-mono">{totalOpen}</span> offen
               </span>
             </div>
-            <p className="mt-1 text-[13px] text-folk-ink2">
+            <p className="mt-1 text-[15px] text-folk-ink2">
               Alle aktiven Anfragen, Offerten und heutigen Termine auf einen Blick.
             </p>
           </div>
           <div className="flex gap-2">
             <Link to="/firma/anfragen">
-              <Button className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2">
+              <Button className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2">
                 <span className="text-[14px] leading-none">+</span> Anfrage erfassen
               </Button>
             </Link>
             <Link to="/firma/offerten">
-              <Button variant="outline" className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm">
+              <Button variant="outline" className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm">
                 Offerten
               </Button>
             </Link>
@@ -402,7 +402,7 @@ const FirmaDashboard = () => {
                 } hover:border-folk-ink5`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{stat.title}</span>
+                  <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{stat.title}</span>
                   <span className="text-xl leading-none">{stat.emoji}</span>
                 </div>
                 <div className="mt-3 font-sans text-3xl font-bold tracking-tight text-folk-ink">
@@ -413,10 +413,10 @@ const FirmaDashboard = () => {
                   )}
                 </div>
                 {stat.hint && (
-                  <p className="mt-1 text-[11px] text-folk-ink4">{stat.hint}</p>
+                  <p className="mt-1 text-[13px] text-folk-ink4">{stat.hint}</p>
                 )}
                 {stat.link && (
-                  <div className="mt-2 flex items-center gap-1 text-[11px] text-folk-ink4 transition-colors group-hover:text-folk-coral">
+                  <div className="mt-2 flex items-center gap-1 text-[13px] text-folk-ink4 transition-colors group-hover:text-folk-coral">
                     <span>Details</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>
@@ -471,8 +471,8 @@ const FirmaDashboard = () => {
                       {typeEmoji[appt.appointment_type] ?? "🗓️"}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-folk-ink">{appt.title}</p>
-                      <p className="mt-0.5 text-[11px] text-folk-ink3">
+                      <p className="truncate text-[15px] font-semibold text-folk-ink">{appt.title}</p>
+                      <p className="mt-0.5 text-[13px] text-folk-ink3">
                         <span className="font-mono">{apptTime}</span>
                         {apptTime && " · "}
                         {typeLabel[appt.appointment_type] ?? "Termin"}
@@ -509,14 +509,14 @@ const FirmaDashboard = () => {
                   >
                     <div className="flex-1">
                       <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-folk-sky-bg px-2 py-0.5 text-[11px] font-semibold text-folk-sky">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-folk-sky-bg px-2 py-0.5 text-[13px] font-semibold text-folk-sky">
                           🔎 Besichtigung
                         </span>
                         <span className="font-mono text-[10.5px] text-folk-ink4">{formatDate(request.created_at)}</span>
                       </div>
-                      <h3 className="text-[13.5px] font-semibold tracking-tight text-folk-ink">{request.title}</h3>
-                      <p className="mt-0.5 text-[12px] text-folk-ink3">{request.customer_name}</p>
-                      <div className="mt-2 flex items-start gap-2 rounded-md border border-folk-line bg-folk-card px-2.5 py-2 text-[12px] text-folk-ink2">
+                      <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">{request.title}</h3>
+                      <p className="mt-0.5 text-[14px] text-folk-ink3">{request.customer_name}</p>
+                      <div className="mt-2 flex items-start gap-2 rounded-md border border-folk-line bg-folk-card px-2.5 py-2 text-[14px] text-folk-ink2">
                         <Calendar className="mt-0.5 h-3.5 w-3.5 shrink-0 text-folk-sky" />
                         <span>
                           Gewünscht am <span className="font-mono">{formattedDate}</span>
@@ -535,7 +535,7 @@ const FirmaDashboard = () => {
                     <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[12px] font-semibold text-white hover:bg-folk-ink2"
+                        className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-white hover:bg-folk-ink2"
                         onClick={() => handleOpenAcceptDialog(request)}
                       >
                         <CalendarCheck className="h-3.5 w-3.5" />
@@ -543,7 +543,7 @@ const FirmaDashboard = () => {
                       </Button>
                       {request.customer_phone && (
                         <a href={`tel:${request.customer_phone}`}>
-                          <Button variant="outline" size="sm" className="h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm">
+                          <Button variant="outline" size="sm" className="h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm">
                             <Phone className="mr-1.5 h-3.5 w-3.5" />
                             Anrufen
                           </Button>
@@ -551,7 +551,7 @@ const FirmaDashboard = () => {
                       )}
                       {request.offer_id && (
                         <Link to={`/firma/offerten/${request.offer_id}`}>
-                          <Button variant="ghost" size="sm" className="h-8 rounded-lg px-3 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm">
+                          <Button variant="ghost" size="sm" className="h-8 rounded-lg px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm">
                             Offerte
                             <ChevronRight className="ml-1 h-3.5 w-3.5" />
                           </Button>
@@ -578,7 +578,7 @@ const FirmaDashboard = () => {
                 </div>
               </div>
               <Link to="/firma/anfragen">
-                <Button variant="outline" size="sm" className="group h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm">
+                <Button variant="outline" size="sm" className="group h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm">
                   Alle anzeigen
                   <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                 </Button>
@@ -597,8 +597,8 @@ const FirmaDashboard = () => {
                         📄
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-[13.5px] font-semibold tracking-tight text-folk-ink">{lead.service_type}</p>
-                        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-folk-ink3">
+                        <p className="truncate text-[15px] font-semibold tracking-tight text-folk-ink">{lead.service_type}</p>
+                        <div className="mt-0.5 flex items-center gap-1.5 text-[14px] text-folk-ink3">
                           <MapPin className="h-3 w-3" />
                           <span className="truncate">{lead.from_city}</span>
                           {lead.to_city && (
@@ -630,8 +630,8 @@ const FirmaDashboard = () => {
             ) : (
               <div className="py-12 text-center">
                 <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">📭</div>
-                <p className="text-[13px] text-folk-ink3">Noch keine Anfragen erhalten</p>
-                <p className="mt-1 text-[11px] text-folk-ink4">Neue Leads erscheinen hier automatisch</p>
+                <p className="text-[15px] text-folk-ink3">Noch keine Anfragen erhalten</p>
+                <p className="mt-1 text-[13px] text-folk-ink4">Neue Leads erscheinen hier automatisch</p>
               </div>
             )}
           </section>
@@ -644,7 +644,7 @@ const FirmaDashboard = () => {
                   <div className="flex items-center gap-2">
                     <span className="text-xl leading-none">📦</span>
                     <div>
-                      <h3 className="text-[13.5px] font-semibold tracking-tight text-folk-ink">Umzugsboxen</h3>
+                      <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">Umzugsboxen</h3>
                       <p className="text-[10.5px] text-folk-ink4">Offene Vermietungen</p>
                     </div>
                   </div>
@@ -668,7 +668,7 @@ const FirmaDashboard = () => {
                 </div>
 
                 <Link to="/firma/umzugsboxen" className="block">
-                  <Button variant="outline" className="group h-9 w-full rounded-lg border-folk-line bg-folk-card text-[12px] font-medium text-folk-ink2 hover:bg-folk-bg-warm">
+                  <Button variant="outline" className="group h-9 w-full rounded-lg border-folk-line bg-folk-card text-[14px] font-medium text-folk-ink2 hover:bg-folk-bg-warm">
                     <Package className="mr-2 h-3.5 w-3.5 text-folk-ink3" />
                     Boxen verwalten
                     <ChevronRight className="ml-auto h-3.5 w-3.5 text-folk-ink4 transition-transform group-hover:translate-x-0.5" />
@@ -685,10 +685,10 @@ const FirmaDashboard = () => {
                       📥
                     </div>
                     <div className="flex-1">
-                      <p className="text-[13px] font-bold tracking-tight text-folk-ink">
+                      <p className="text-[15px] font-bold tracking-tight text-folk-ink">
                         <span className="font-mono">{stats.pendingLeads}</span> neue {stats.pendingLeads === 1 ? "Anfrage" : "Anfragen"}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-folk-ink2">Jetzt prüfen und reagieren</p>
+                      <p className="mt-0.5 text-[13px] text-folk-ink2">Jetzt prüfen und reagieren</p>
                     </div>
                     <ArrowRight className="h-4 w-4 text-folk-coral transition-transform group-hover:translate-x-1" />
                   </div>
@@ -702,29 +702,29 @@ const FirmaDashboard = () => {
                 <div className="flex items-center gap-3">
                   <span className="text-2xl leading-none">✨</span>
                   <div>
-                    <h3 className="text-[13.5px] font-semibold tracking-tight text-folk-ink">Alles im grünen Bereich</h3>
-                    <p className="text-[11px] text-folk-ink3">Keine offenen Vorgänge im Moment.</p>
+                    <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">Alles im grünen Bereich</h3>
+                    <p className="text-[13px] text-folk-ink3">Keine offenen Vorgänge im Moment.</p>
                   </div>
                 </div>
               </section>
             )}
 
             <section className="rounded-xl border border-folk-line bg-folk-card p-5">
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Schnellzugriff</h3>
+              <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Schnellzugriff</h3>
               <div className="space-y-1">
-                <Link to="/firma/offerten" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
+                <Link to="/firma/offerten" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[15px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
                   <span>📄</span><span className="flex-1">Offerten</span>
                   <ChevronRight className="h-3.5 w-3.5 text-folk-ink4" />
                 </Link>
-                <Link to="/firma/kalender" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
+                <Link to="/firma/kalender" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[15px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
                   <span>📅</span><span className="flex-1">Kalender</span>
                   <ChevronRight className="h-3.5 w-3.5 text-folk-ink4" />
                 </Link>
-                <Link to="/firma/team" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
+                <Link to="/firma/team" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[15px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
                   <span>👥</span><span className="flex-1">Team</span>
                   <ChevronRight className="h-3.5 w-3.5 text-folk-ink4" />
                 </Link>
-                <Link to="/firma/einstellungen" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
+                <Link to="/firma/einstellungen" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[15px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
                   <span>⚙️</span><span className="flex-1">Einstellungen</span>
                   <ChevronRight className="h-3.5 w-3.5 text-folk-ink4" />
                 </Link>

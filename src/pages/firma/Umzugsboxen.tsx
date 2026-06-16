@@ -431,11 +431,11 @@ export default function Umzugsboxen() {
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Umzugsboxen</h1>
-              <span className="text-[13px] text-folk-ink3 whitespace-nowrap">
+              <span className="text-[15px] text-folk-ink3 whitespace-nowrap">
                 <span className="font-mono">{stats?.total_active || 0}</span> aktiv · <span className="font-mono">{stats?.overdue || 0}</span> überfällig · <span className="font-mono">{stats?.total_boxes_out || 0}</span> im Umlauf
               </span>
             </div>
-            <p className="mt-1 text-[13px] text-folk-ink2">
+            <p className="mt-1 text-[15px] text-folk-ink2">
               Mietboxen verwalten und Abholungen planen.
             </p>
           </div>
@@ -443,14 +443,14 @@ export default function Umzugsboxen() {
             <Button
               variant="outline"
               onClick={fetchData}
-              className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm hover:text-folk-ink2"
+              className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm hover:text-folk-ink2"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Aktualisieren</span>
             </Button>
             <Button
               onClick={handleNew}
-              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
             >
               <Plus className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Neue Vermietung</span>
@@ -474,7 +474,7 @@ export default function Umzugsboxen() {
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
                 <span className="text-xl leading-none">{tile.emoji}</span>
               </div>
               <div className={`mt-3 font-sans text-3xl font-bold tracking-tight ${tile.highlight ? 'text-folk-coral' : 'text-folk-ink'}`}>{tile.value}</div>

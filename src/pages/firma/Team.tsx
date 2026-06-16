@@ -369,11 +369,11 @@ const TeamPage = () => {
             <div className="flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                 <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Team-Verwaltung</h1>
-                <span className="text-[13px] text-folk-ink3">
+                <span className="text-[15px] text-folk-ink3">
                   <span className="font-mono">{teamMembers.length}</span> Mitarbeiter · <span className="font-mono">{vehicles.length}</span> Fahrzeuge · <span className="font-mono">{equipment.length}</span> Ausrüstung
                 </span>
               </div>
-              <p className="mt-1 text-[13px] text-folk-ink2">
+              <p className="mt-1 text-[15px] text-folk-ink2">
                 Mitarbeiter, Fahrzeuge und Ausrüstung verwalten — Termine zuweisen und Verfügbarkeit prüfen.
               </p>
             </div>
@@ -381,14 +381,14 @@ const TeamPage = () => {
               <Button
                 variant="outline"
                 onClick={() => openResourceModal()}
-                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
                 <Truck className="h-3.5 w-3.5" />
                 Ressource
               </Button>
               <Button
                 onClick={() => openMemberModal()}
-                className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
               >
                 <UserPlus className="h-3.5 w-3.5" />
                 Mitarbeiter
@@ -405,7 +405,7 @@ const TeamPage = () => {
             ].map((tile) => (
               <div key={tile.label} className="rounded-xl border border-folk-line bg-folk-card p-4 md:p-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                  <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
                   <span className="text-xl leading-none">{tile.emoji}</span>
                 </div>
                 <div className="mt-3 font-sans text-3xl font-bold tracking-tight text-folk-ink">{tile.value}</div>

@@ -388,7 +388,7 @@ const FirmaOfferteDetail = () => {
     };
     const m = meta[status] ?? { label: status, emoji: "📄", color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
     return (
-      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${m.bg} ${m.color}`}>
+      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${m.bg} ${m.color}`}>
         <span>{m.emoji}</span>
         {m.label}
       </span>
@@ -712,7 +712,7 @@ const FirmaOfferteDetail = () => {
                 <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">{offer.title}</h1>
                 {getStatusBadge(offer.status)}
               </div>
-              <p className="mt-1 font-mono text-[12px] text-folk-ink3">
+              <p className="mt-1 font-mono text-[14px] text-folk-ink3">
                 {formatDate(offer.created_at)}
                 {offer.sent_at && ` · gesendet ${formatDate(offer.sent_at)}`}
               </p>
@@ -721,7 +721,7 @@ const FirmaOfferteDetail = () => {
               <Button
                 variant="outline"
                 onClick={handleDownloadPdf}
-                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
                 <Download className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">PDF herunterladen</span>
@@ -732,7 +732,7 @@ const FirmaOfferteDetail = () => {
                   <Button
                     onClick={() => navigate("/firma/auftraege")}
                     variant="outline"
-                    className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm hover:text-folk-ink2"
+                    className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm hover:text-folk-ink2"
                   >
                     <ClipboardList className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Auftrag anzeigen</span>
@@ -741,7 +741,7 @@ const FirmaOfferteDetail = () => {
                 ) : (
                   <Button
                     onClick={() => setShowAuftragModal(true)}
-                    className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                    className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
                   >
                     <ClipboardList className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Auftrag erstellen</span>
@@ -753,7 +753,7 @@ const FirmaOfferteDetail = () => {
                 <Button
                   onClick={handleOpenPreview}
                   disabled={isSending}
-                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
                 >
                   {isSending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

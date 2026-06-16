@@ -1228,7 +1228,7 @@ const FirmaOfferteErstellen = () => {
                 <span className="text-2xl leading-none">📄</span>
                 <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">Offerte erstellen</h1>
               </div>
-              <p className="mt-1 text-[13px] text-folk-ink2">
+              <p className="mt-1 text-[15px] text-folk-ink2">
                 Für <span className="font-semibold text-folk-ink">{lead.customer_first_name} {lead.customer_last_name}</span> — Pozisyon ekle, Versand-Kanal seç, gönder.
               </p>
             </div>

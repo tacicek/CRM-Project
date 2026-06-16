@@ -607,11 +607,11 @@ const FirmaCheckliste = () => {
             <div className="flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                 <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Kunden-Checkliste</h1>
-                <span className="text-[13px] text-folk-ink3">
+                <span className="text-[15px] text-folk-ink3">
                   <span className="font-mono">{existingTemplates.length}</span> Vorlagen · <span className="font-mono">{totalSections}</span> Abschnitte · <span className="font-mono">{totalItems}</span> Punkte
                 </span>
               </div>
-              <p className="mt-1 text-[13px] text-folk-ink2">
+              <p className="mt-1 text-[15px] text-folk-ink2">
                 Hilfreiche Checklisten für Ihre Kunden erstellen — pro Service-Typ konfigurierbar.
               </p>
             </div>
@@ -626,7 +626,7 @@ const FirmaCheckliste = () => {
             ].map((tile) => (
               <div key={tile.label} className="rounded-xl border border-folk-line bg-folk-card p-4 md:p-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                  <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
                   <span className="text-xl leading-none">{tile.emoji}</span>
                 </div>
                 <div className="mt-3 font-sans text-3xl font-bold tracking-tight text-folk-ink">{tile.value}</div>

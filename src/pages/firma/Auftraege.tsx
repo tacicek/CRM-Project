@@ -447,7 +447,7 @@ const FirmaAuftraege = () => {
   const getStatusChip = (status: string) => {
     const meta = STATUS_META[status] ?? { label: status, color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
     return (
-      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${meta.bg} ${meta.color}`}>
+      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${meta.bg} ${meta.color}`}>
         {meta.label}
       </span>
     );
@@ -461,13 +461,13 @@ const FirmaAuftraege = () => {
     }
 
     if (isToday(date)) {
-      return <span className="inline-flex items-center rounded-md bg-folk-coral px-2 py-0.5 text-[11px] font-semibold text-white">Heute</span>;
+      return <span className="inline-flex items-center rounded-md bg-folk-coral px-2 py-0.5 text-[13px] font-semibold text-white">Heute</span>;
     }
     if (isTomorrow(date)) {
-      return <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[11px] font-semibold text-folk-lemon">Morgen</span>;
+      return <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[13px] font-semibold text-folk-lemon">Morgen</span>;
     }
     if (isPast(date) && !isToday(date)) {
-      return <span className="inline-flex items-center rounded-md bg-folk-coral-bg px-2 py-0.5 text-[11px] font-semibold text-folk-coral">Überfällig</span>;
+      return <span className="inline-flex items-center rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">Überfällig</span>;
     }
     return null;
   };
@@ -518,11 +518,11 @@ const FirmaAuftraege = () => {
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Aufträge</h1>
-              <span className="text-[13px] text-folk-ink3">
+              <span className="text-[15px] text-folk-ink3">
                 <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.today}</span> heute · <span className="font-mono">{stats.this_week}</span> diese Woche
               </span>
             </div>
-            <p className="mt-1 text-[13px] text-folk-ink2">
+            <p className="mt-1 text-[15px] text-folk-ink2">
               Arbeitsaufträge und Team-Zuweisungen — Übersicht über alle geplanten Einsätze.
             </p>
           </div>
@@ -531,7 +531,7 @@ const FirmaAuftraege = () => {
               setSelectedAuftrag(null);
               setIsModalOpen(true);
             }}
-            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
           >
             <Plus className="h-3.5 w-3.5" />
             Neuer Auftrag
@@ -548,7 +548,7 @@ const FirmaAuftraege = () => {
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
                 <span className="text-xl leading-none">{tile.emoji}</span>
               </div>
               <div className="mt-3 font-sans text-3xl font-bold tracking-tight text-folk-ink">{tile.value}</div>
@@ -560,7 +560,7 @@ const FirmaAuftraege = () => {
         {stats.overdue > 0 && (
           <div className="flex items-center gap-3 rounded-xl border border-folk-coral/30 bg-folk-coral-bg px-4 py-3">
             <AlertTriangle className="h-5 w-5 shrink-0 text-folk-coral" />
-            <span className="text-[13px] font-semibold text-folk-coral">
+            <span className="text-[15px] font-semibold text-folk-coral">
               <span className="font-mono">{stats.overdue}</span> überfällige{stats.overdue === 1 ? "r" : ""} Auftrag{stats.overdue === 1 ? "" : "e"}
             </span>
           </div>
@@ -586,7 +586,7 @@ const FirmaAuftraege = () => {
                         className="h-8 flex-1 gap-1.5 rounded-md px-3 text-[12.5px] text-folk-ink2 data-[state=active]:bg-folk-card data-[state=active]:font-semibold data-[state=active]:text-folk-ink data-[state=active]:shadow-[0_1px_2px_rgba(24,24,26,0.04)] sm:flex-none"
                       >
                         <span>{tab.label}</span>
-                        <span className="font-mono text-[11px] text-folk-ink3">{tab.count}</span>
+                        <span className="font-mono text-[13px] text-folk-ink3">{tab.count}</span>
                       </TabsTrigger>
                     ))}
                   </TabsList>
@@ -596,7 +596,7 @@ const FirmaAuftraege = () => {
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-folk-ink3" />
                 <Input
                   placeholder="In Aufträgen suchen …"
-                  className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 text-[13px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
+                  className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 text-[15px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -612,10 +612,10 @@ const FirmaAuftraege = () => {
             ) : filteredAuftraege.length === 0 ? (
               <div className="py-12 text-center">
                 <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">📋</div>
-                <p className="text-[13px] text-folk-ink3">Keine Aufträge gefunden</p>
+                <p className="text-[15px] text-folk-ink3">Keine Aufträge gefunden</p>
                 <Button
                   variant="outline"
-                  className="mt-3 h-9 rounded-lg border-folk-line bg-folk-card text-[13px] text-folk-ink2 hover:bg-folk-bg-warm"
+                  className="mt-3 h-9 rounded-lg border-folk-line bg-folk-card text-[15px] text-folk-ink2 hover:bg-folk-bg-warm"
                   onClick={() => setIsModalOpen(true)}
                 >
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -627,11 +627,11 @@ const FirmaAuftraege = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-folk-line hover:bg-transparent">
-                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Auftrag</TableHead>
-                      <TableHead className="hidden text-[11px] font-semibold uppercase tracking-wider text-folk-ink3 sm:table-cell">Kunde</TableHead>
-                      <TableHead className="hidden text-[11px] font-semibold uppercase tracking-wider text-folk-ink3 md:table-cell">Datum/Zeit</TableHead>
-                      <TableHead className="hidden text-[11px] font-semibold uppercase tracking-wider text-folk-ink3 lg:table-cell">Team</TableHead>
-                      <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Status</TableHead>
+                      <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Auftrag</TableHead>
+                      <TableHead className="hidden text-[13px] font-semibold uppercase tracking-wider text-folk-ink3 sm:table-cell">Kunde</TableHead>
+                      <TableHead className="hidden text-[13px] font-semibold uppercase tracking-wider text-folk-ink3 md:table-cell">Datum/Zeit</TableHead>
+                      <TableHead className="hidden text-[13px] font-semibold uppercase tracking-wider text-folk-ink3 lg:table-cell">Team</TableHead>
+                      <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Status</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -640,22 +640,22 @@ const FirmaAuftraege = () => {
                       <TableRow key={auftrag.id} className="group cursor-pointer border-folk-line-soft transition-colors hover:bg-folk-bg-warm">
                         <TableCell>
                           <div>
-                            <p className="text-[13px] font-semibold tracking-tight text-folk-ink">{auftrag.title}</p>
-                            <p className="font-mono text-[11px] text-folk-ink4">{auftrag.auftrag_nummer}</p>
+                            <p className="text-[15px] font-semibold tracking-tight text-folk-ink">{auftrag.title}</p>
+                            <p className="font-mono text-[13px] text-folk-ink4">{auftrag.auftrag_nummer}</p>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5 md:hidden">
                               <Calendar className="h-3 w-3 shrink-0 text-folk-ink4" />
-                              <p className="font-mono text-[11px] text-folk-ink3">
+                              <p className="font-mono text-[13px] text-folk-ink3">
                                 {format(new Date(auftrag.scheduled_date), "dd.MM.yy", { locale: de })}
                                 {auftrag.scheduled_time && ` · ${auftrag.scheduled_time.substring(0, 5)}`}
                               </p>
                               {getDateBadge(auftrag.scheduled_date, auftrag.status)}
                             </div>
-                            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-folk-ink3 sm:hidden">
+                            <p className="mt-0.5 flex items-center gap-1 text-[13px] text-folk-ink3 sm:hidden">
                               <User className="h-3 w-3" />
                               {auftrag.customer_name}
                             </p>
                             {auftrag.from_address && (
-                              <p className="mt-0.5 hidden items-center gap-1 text-[11px] text-folk-ink4 sm:flex">
+                              <p className="mt-0.5 hidden items-center gap-1 text-[13px] text-folk-ink4 sm:flex">
                                 <MapPin className="h-3 w-3" />
                                 {auftrag.from_address.split("\n")[0]}
                               </p>
@@ -666,10 +666,10 @@ const FirmaAuftraege = () => {
                           <div className="flex items-start gap-2">
                             <User className="mt-0.5 h-4 w-4 shrink-0 text-folk-ink4" />
                             <div>
-                              <p className="text-[13px] font-medium text-folk-ink">{auftrag.customer_name}</p>
+                              <p className="text-[15px] font-medium text-folk-ink">{auftrag.customer_name}</p>
                               <div className="mt-1 flex items-center gap-2">
                                 {auftrag.customer_phone && (
-                                  <a href={`tel:${auftrag.customer_phone}`} className="flex items-center gap-1 font-mono text-[11px] text-folk-ink2 hover:text-folk-coral">
+                                  <a href={`tel:${auftrag.customer_phone}`} className="flex items-center gap-1 font-mono text-[13px] text-folk-ink2 hover:text-folk-coral">
                                     <Phone className="h-3 w-3 text-folk-ink4" />
                                     {auftrag.customer_phone}
                                   </a>
@@ -681,19 +681,19 @@ const FirmaAuftraege = () => {
                         <TableCell className="hidden md:table-cell">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <p className="font-mono text-[13px] font-medium text-folk-ink">
+                              <p className="font-mono text-[15px] font-medium text-folk-ink">
                                 {format(new Date(auftrag.scheduled_date), "dd.MM.yyyy", { locale: de })}
                               </p>
                               {getDateBadge(auftrag.scheduled_date, auftrag.status)}
                             </div>
                             {auftrag.scheduled_time && (
-                              <p className="flex items-center gap-1 text-[11px] text-folk-ink3">
+                              <p className="flex items-center gap-1 text-[13px] text-folk-ink3">
                                 <Clock className="h-3 w-3" />
                                 <span className="font-mono">{auftrag.scheduled_time.substring(0, 5)}</span> Uhr
                               </p>
                             )}
                             {auftrag.estimated_duration_minutes && (
-                              <p className="text-[11px] text-folk-ink4">
+                              <p className="text-[13px] text-folk-ink4">
                                 ~<span className="font-mono">{Math.floor(auftrag.estimated_duration_minutes / 60)}</span>h
                               </p>
                             )}
@@ -704,7 +704,7 @@ const FirmaAuftraege = () => {
                             <div className="flex items-center gap-2">
                               <Users className="h-4 w-4 shrink-0 text-folk-ink4" />
                               <div>
-                                <p className="text-[13px] font-medium text-folk-ink">{auftrag.team_leader.first_name} {auftrag.team_leader.last_name}</p>
+                                <p className="text-[15px] font-medium text-folk-ink">{auftrag.team_leader.first_name} {auftrag.team_leader.last_name}</p>
                                 {auftrag.team_reminder_sent && (
                                   <span className="mt-0.5 inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-1.5 py-0.5 text-[10px] font-semibold text-folk-mint">
                                     <Mail className="h-2.5 w-2.5" />
@@ -714,7 +714,7 @@ const FirmaAuftraege = () => {
                               </div>
                             </div>
                           ) : (
-                            <span className="text-[11px] italic text-folk-ink4">Nicht zugewiesen</span>
+                            <span className="text-[13px] italic text-folk-ink4">Nicht zugewiesen</span>
                           )}
                         </TableCell>
                         <TableCell>{getStatusChip(auftrag.status)}</TableCell>

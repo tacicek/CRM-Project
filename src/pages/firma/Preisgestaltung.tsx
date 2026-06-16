@@ -631,7 +631,7 @@ export default function FirmaPreisgestaltung() {
             <span className="text-4xl leading-none">💰</span>
             <div className="flex-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Preisgestaltung</h1>
-              <p className="mt-1 text-[13px] text-folk-ink2">
+              <p className="mt-1 text-[15px] text-folk-ink2">
                 Preise für Offerten und Kalkulationen konfigurieren — Stundensätze, Aufschläge, Standards.
               </p>
             </div>
@@ -640,7 +640,7 @@ export default function FirmaPreisgestaltung() {
                 variant="outline"
                 onClick={() => setShowResetDialog(true)}
                 disabled={isLoading || isSaving || isCompanyLoading}
-                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Zurücksetzen
@@ -648,7 +648,7 @@ export default function FirmaPreisgestaltung() {
               <Button
                 onClick={handleSave}
                 disabled={!canSave || isLoading || isCompanyLoading || !companyId || !hasUnsavedChanges}
-                className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2 disabled:opacity-40"
+                className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2 disabled:opacity-40"
               >
                 {isSaving ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -173,17 +173,17 @@ export default function FirmaQuittungen() {
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Quittungen</h1>
-              <span className="text-[13px] text-folk-ink3">
+              <span className="text-[15px] text-folk-ink3">
                 <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.paid}</span> bezahlt · Umsatz <span className="font-mono">{formatChf(stats.revenue)}</span>
               </span>
             </div>
-            <p className="mt-1 text-[13px] text-folk-ink2">
+            <p className="mt-1 text-[15px] text-folk-ink2">
               Quittungen vor Ort erstellen, unterzeichnen und an Kunden versenden.
             </p>
           </div>
           <Button
             onClick={() => navigate("/firma/quittungen/neu")}
-            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
           >
             <Plus className="h-3.5 w-3.5" />
             Neue Quittung
@@ -196,7 +196,7 @@ export default function FirmaQuittungen() {
             {kpiTiles.map((tile) => (
               <div key={tile.label} className="rounded-xl border border-folk-line bg-folk-card p-4 md:p-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                  <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
                   <span className="text-xl leading-none">{tile.emoji}</span>
                 </div>
                 <div className={`mt-3 font-sans font-bold tracking-tight text-folk-ink ${tile.isValue ? "text-lg md:text-xl" : "text-3xl"}`}>
@@ -218,7 +218,7 @@ export default function FirmaQuittungen() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Nr. oder Kundenname …"
-                  className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 pr-7 text-[13px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
+                  className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 pr-7 text-[15px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
                 />
                 {search && (
                   <button
@@ -261,7 +261,7 @@ export default function FirmaQuittungen() {
                 {quittungen.length === 0 && (
                   <Button
                     size="sm"
-                    className="mt-3 h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                    className="mt-3 h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
                     onClick={() => navigate("/firma/quittungen/neu")}
                   >
                     <Plus className="h-3.5 w-3.5" /> Erste Quittung erstellen
@@ -285,7 +285,7 @@ export default function FirmaQuittungen() {
                           >
                             <div className="mb-0.5 flex items-center gap-2">
                               <span className="font-mono text-[10.5px] text-folk-ink4">{q.quittung_nr}</span>
-                              <p className="truncate text-[13.5px] font-semibold tracking-tight text-folk-ink">
+                              <p className="truncate text-[15px] font-semibold tracking-tight text-folk-ink">
                                 {q.customer_name || "–"}
                               </p>
                             </div>
@@ -351,11 +351,11 @@ export default function FirmaQuittungen() {
 
                         <div className="flex items-center justify-between">
                           <div className="flex flex-wrap gap-1.5">
-                            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${cfg.bg} ${cfg.color}`}>
+                            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[13px] font-semibold ${cfg.bg} ${cfg.color}`}>
                               {cfg.label}
                             </span>
                             {q.betrag_noch_offen && (
-                              <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[11px] font-semibold text-folk-lemon">
+                              <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[13px] font-semibold text-folk-lemon">
                                 <Clock className="mr-1 h-2.5 w-2.5" /> Offen
                               </span>
                             )}

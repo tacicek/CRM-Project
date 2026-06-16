@@ -420,14 +420,14 @@ export default function FirmaDatenarchiv() {
           <span className="text-4xl leading-none">🗂️</span>
           <div className="flex-1">
             <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Datenarchiv & Datenschutz</h1>
-            <p className="mt-1 text-[13px] text-folk-ink2">
+            <p className="mt-1 text-[15px] text-folk-ink2">
               Firmendaten gemäss DSGVO/DSG verwalten — Export, Löschung und Audit-Log.
             </p>
           </div>
           <Button
             variant="outline"
             onClick={loadStats}
-            className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+            className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Aktualisieren

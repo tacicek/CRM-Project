@@ -1876,7 +1876,7 @@ const FirmaManualImport = () => {
           <span className="text-4xl leading-none">📥</span>
           <div className="flex-1">
             <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Anfrage importieren</h1>
-            <p className="mt-1 text-[13px] text-folk-ink2">
+            <p className="mt-1 text-[15px] text-folk-ink2">
               Anfrage aus E-Mail oder Webformular einfügen — die KI erkennt Service-Typ und extrahiert alle Informationen.
             </p>
           </div>

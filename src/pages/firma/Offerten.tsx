@@ -158,12 +158,12 @@ const PaginationBar = ({ total, page, pageSize, onPageChange, onPageSizeChange }
       <div className="flex items-center gap-3 text-[12.5px] text-folk-ink3">
         <span><span className="font-mono">{from}–{to}</span> von <span className="font-mono">{total}</span></span>
         <Select value={String(pageSize)} onValueChange={(v) => { onPageSizeChange(Number(v) as PageSizeOption); onPageChange(1); }}>
-          <SelectTrigger className="h-8 w-[110px] rounded-md border-folk-line bg-folk-card text-[12px] text-folk-ink2">
+          <SelectTrigger className="h-8 w-[110px] rounded-md border-folk-line bg-folk-card text-[14px] text-folk-ink2">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {PAGE_SIZE_OPTIONS.map((s) => (
-              <SelectItem key={s} value={String(s)} className="text-[12px]">{s} pro Seite</SelectItem>
+              <SelectItem key={s} value={String(s)} className="text-[14px]">{s} pro Seite</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -183,7 +183,7 @@ const PaginationBar = ({ total, page, pageSize, onPageChange, onPageSizeChange }
             ) : (
               <button
                 key={p}
-                className={`flex h-8 w-8 items-center justify-center rounded-md border font-mono text-[12px] transition-colors ${
+                className={`flex h-8 w-8 items-center justify-center rounded-md border font-mono text-[14px] transition-colors ${
                   p === page
                     ? "border-folk-ink bg-folk-ink text-white"
                     : "border-folk-line bg-folk-card text-folk-ink2 hover:bg-folk-bg-warm"
@@ -487,15 +487,15 @@ const FirmaOfferten = () => {
                 <span className="shrink-0 font-mono text-[10.5px] text-folk-ink4">
                   #{offer.offer_number ?? offer.id.slice(0, 6).toUpperCase()}
                 </span>
-                <p className="line-clamp-1 min-w-0 text-[13.5px] font-semibold leading-tight tracking-tight text-folk-ink">
+                <p className="line-clamp-1 min-w-0 text-[15px] font-semibold leading-tight tracking-tight text-folk-ink">
                   {offer.title}
                 </p>
               </div>
-              <p className="text-[12px] text-folk-ink3">
+              <p className="text-[14px] text-folk-ink3">
                 {offer.customer_first_name} {offer.customer_last_name}
               </p>
               {leadInfo && (
-                <div className="mt-1 flex items-center gap-1 text-[11px] text-folk-ink4">
+                <div className="mt-1 flex items-center gap-1 text-[13px] text-folk-ink4">
                   <MapPin className="h-3 w-3 shrink-0" />
                   <span className="truncate">{leadInfo.from_city}{leadInfo.to_city ? ` → ${leadInfo.to_city}` : ''}</span>
                 </div>
@@ -554,29 +554,29 @@ const FirmaOfferten = () => {
 
           {/* Badges */}
           <div className="mb-3 flex flex-wrap items-center gap-1.5">
-            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${status.bg} ${status.color}`}>
+            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${status.bg} ${status.color}`}>
               <span>{status.emoji}</span>
               {status.label}
             </span>
             {offer.offerte_type === 'blind' && (
-              <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[11px] font-semibold text-folk-lemon">
+              <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[13px] font-semibold text-folk-lemon">
                 Blind
               </span>
             )}
             {offer.price_model === 'stundenansatz' && (
-              <span className="inline-flex items-center rounded-md bg-folk-sky-bg px-2 py-0.5 text-[11px] font-semibold text-folk-sky">
+              <span className="inline-flex items-center rounded-md bg-folk-sky-bg px-2 py-0.5 text-[13px] font-semibold text-folk-sky">
                 Stundenansatz
               </span>
             )}
             {offer.price_model === 'kostendach' && (
-              <span className="inline-flex items-center rounded-md bg-folk-mint-bg px-2 py-0.5 text-[11px] font-semibold text-folk-mint">
+              <span className="inline-flex items-center rounded-md bg-folk-mint-bg px-2 py-0.5 text-[13px] font-semibold text-folk-mint">
                 {offer.kostendach_max !== null && offer.kostendach_max !== undefined
                   ? `Kostendach CHF ${Number(offer.kostendach_max).toLocaleString('de-CH')}`
                   : 'Kostendach'}
               </span>
             )}
             {(!offer.price_model || offer.price_model === 'pauschal') && (
-              <span className="inline-flex items-center rounded-md bg-folk-bg-warm px-2 py-0.5 text-[11px] font-medium text-folk-ink3">
+              <span className="inline-flex items-center rounded-md bg-folk-bg-warm px-2 py-0.5 text-[13px] font-medium text-folk-ink3">
                 Pauschal
               </span>
             )}
@@ -590,7 +590,7 @@ const FirmaOfferten = () => {
             <span className="font-sans text-xl font-bold tracking-tight text-folk-ink">
               {formatCurrency(Number(offer.total))}
             </span>
-            <span className="font-mono text-[11px] text-folk-ink4">{formatDate(offer.created_at)}</span>
+            <span className="font-mono text-[13px] text-folk-ink4">{formatDate(offer.created_at)}</span>
           </div>
 
           {/* Info Row */}
@@ -645,17 +645,17 @@ const FirmaOfferten = () => {
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Offerten</h1>
-              <span className="text-[13px] text-folk-ink3">
+              <span className="text-[15px] text-folk-ink3">
                 <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.sent + stats.viewed}</span> ausstehend · Wert <span className="font-mono">{formatCurrency(stats.acceptedValue)}</span>
               </span>
             </div>
-            <p className="mt-1 text-[13px] text-folk-ink2">
+            <p className="mt-1 text-[15px] text-folk-ink2">
               Alle versandten und gespeicherten Angebote — Status, Werte und Versandkanal auf einen Blick.
             </p>
           </div>
           <Button
             onClick={() => navigate("/firma/anfragen")}
-            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
           >
             <Plus className="h-3.5 w-3.5" />
             Neue Offerte
@@ -677,7 +677,7 @@ const FirmaOfferten = () => {
                   } hover:border-folk-ink5`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
+                    <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{tile.label}</span>
                     <span className="text-xl leading-none">{tile.emoji}</span>
                   </div>
                   <div className={`mt-3 font-sans font-bold tracking-tight text-folk-ink ${tile.isValue ? "text-lg md:text-xl" : "text-3xl"}`}>
@@ -712,7 +712,7 @@ const FirmaOfferten = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => setActiveFilter(null)}
-                  className="h-8 shrink-0 rounded-lg border-folk-line bg-folk-card px-2.5 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+                  className="h-8 shrink-0 rounded-lg border-folk-line bg-folk-card px-2.5 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
                 >
                   <X className="mr-1 h-3 w-3" />
                   Reset
@@ -728,7 +728,7 @@ const FirmaOfferten = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Nr., Name oder Titel …"
-                  className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 pr-7 text-[13px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
+                  className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 pr-7 text-[15px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
                 />
                 {searchQuery && (
                   <button
@@ -756,7 +756,7 @@ const FirmaOfferten = () => {
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <Loader2 className="mb-3 h-7 w-7 animate-spin text-folk-coral" />
-                <p className="text-[13px] text-folk-ink3">Lade Offerten …</p>
+                <p className="text-[15px] text-folk-ink3">Lade Offerten …</p>
               </div>
             ) : offers.length > 0 ? (
               <>
@@ -794,13 +794,13 @@ const FirmaOfferten = () => {
                       <div className="py-12 text-center">
                         <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">🔍</div>
                         <p className="font-semibold text-folk-ink">Keine Offerte gefunden</p>
-                        <p className="mt-1 text-[12px] text-folk-ink3">
+                        <p className="mt-1 text-[14px] text-folk-ink3">
                           Kein Ergebnis für „{searchQuery}"
                         </p>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="mt-3 h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[12px] text-folk-ink2 hover:bg-folk-bg-warm"
+                          className="mt-3 h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
                           onClick={() => setSearchQuery("")}
                         >
                           Suche zurücksetzen
@@ -821,15 +821,15 @@ const FirmaOfferten = () => {
                         <Table>
                           <TableHeader>
                             <TableRow className="border-folk-line hover:bg-transparent">
-                              <TableHead className="w-20 text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Nr.</TableHead>
-                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Datum</TableHead>
-                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Titel</TableHead>
-                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Kunde</TableHead>
-                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Details</TableHead>
-                              <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Betrag</TableHead>
-                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Status</TableHead>
-                              <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">E-Mail</TableHead>
-                              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">Gültig bis</TableHead>
+                              <TableHead className="w-20 text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Nr.</TableHead>
+                              <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Datum</TableHead>
+                              <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Titel</TableHead>
+                              <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Kunde</TableHead>
+                              <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Details</TableHead>
+                              <TableHead className="text-right text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Betrag</TableHead>
+                              <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Status</TableHead>
+                              <TableHead className="text-center text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">E-Mail</TableHead>
+                              <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Gültig bis</TableHead>
                               <TableHead className="text-right"></TableHead>
                             </TableRow>
                           </TableHeader>
@@ -851,7 +851,7 @@ const FirmaOfferten = () => {
                                   <TableCell className="font-mono text-[12.5px] text-folk-ink2">
                                     {formatDate(offer.created_at)}
                                   </TableCell>
-                                  <TableCell className="max-w-[180px] text-[13px] font-medium">
+                                  <TableCell className="max-w-[180px] text-[15px] font-medium">
                                     <div>
                                       <span className="block truncate text-folk-ink">{offer.title}</span>
                                       {leadInfo && (
@@ -861,7 +861,7 @@ const FirmaOfferten = () => {
                                       )}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="text-[13px] text-folk-ink2">
+                                  <TableCell className="text-[15px] text-folk-ink2">
                                     {offer.customer_first_name} {offer.customer_last_name}
                                   </TableCell>
                                   <TableCell className="text-[12.5px]">
@@ -878,7 +878,7 @@ const FirmaOfferten = () => {
                                           )}
                                         </div>
                                         {leadInfo.from_rooms && (
-                                          <div className="flex items-center gap-1 text-[11px] text-folk-ink4">
+                                          <div className="flex items-center gap-1 text-[13px] text-folk-ink4">
                                             <Home className="h-3 w-3" />
                                             <span><span className="font-mono">{leadInfo.from_rooms}</span> Zi.</span>
                                             {leadInfo.from_living_space_m2 && (
@@ -889,11 +889,11 @@ const FirmaOfferten = () => {
                                       </div>
                                     )}
                                   </TableCell>
-                                  <TableCell className="text-right font-sans text-[13.5px] font-bold tracking-tight text-folk-ink">
+                                  <TableCell className="text-right font-sans text-[15px] font-bold tracking-tight text-folk-ink">
                                     {formatCurrency(Number(offer.total))}
                                   </TableCell>
                                   <TableCell>
-                                    <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${status.bg} ${status.color}`}>
+                                    <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${status.bg} ${status.color}`}>
                                       <StatusIcon className="h-3 w-3" />
                                       {status.label}
                                     </span>
@@ -1005,12 +1005,12 @@ const FirmaOfferten = () => {
                 <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-folk-bg-warm text-3xl">📄</div>
                 <Clock className="hidden" />
                 <h3 className="mb-2 text-[16px] font-semibold tracking-tight text-folk-ink">Keine Offerten vorhanden</h3>
-                <p className="mb-4 text-[13px] text-folk-ink3">
+                <p className="mb-4 text-[15px] text-folk-ink3">
                   Erstellen Sie eine Offerte aus einer akzeptierten Anfrage
                 </p>
                 <Button
                   onClick={() => navigate("/firma/anfragen")}
-                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                   Zu den Anfragen

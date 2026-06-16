@@ -622,7 +622,7 @@ const FirmaOfferteBearbeiten = () => {
                 <span className="text-2xl leading-none">📄</span>
                 <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">Offerte bearbeiten</h1>
               </div>
-              <p className="mt-1 text-[13px] text-folk-ink2">
+              <p className="mt-1 text-[15px] text-folk-ink2">
                 Für <span className="font-semibold text-folk-ink">{customerFirstName} {customerLastName}</span>
               </p>
             </div>
@@ -631,7 +631,7 @@ const FirmaOfferteBearbeiten = () => {
                 variant="outline"
                 onClick={() => handleSave(false)}
                 disabled={isSaving || isSpellChecking}
-                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[13px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
                 {isSaving || isSpellChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 <span className="hidden sm:inline">{isSpellChecking ? "Wird geprüft …" : "Speichern"}</span>
@@ -640,7 +640,7 @@ const FirmaOfferteBearbeiten = () => {
               <Button
                 onClick={() => handleSave(true)}
                 disabled={isSaving || isSpellChecking}
-                className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13px] font-semibold text-white hover:bg-folk-ink2"
+                className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
               >
                 {isSaving || isSpellChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 <span className="hidden sm:inline">{isSpellChecking ? "Text wird geprüft …" : "Speichern & Senden"}</span>
