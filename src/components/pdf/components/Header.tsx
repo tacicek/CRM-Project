@@ -1,106 +1,127 @@
 import { Image, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
+import { FONT_SIZES } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
-import { formatDate } from "../utils/formatters";
+
+const DARK = "#1C1C27";
+const ACCENT = "#F97316"; // orange — overridden by company.primaryColor if set
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderBottomWidth: 1.5,
-    borderBottomColor: COLORS.gray[900],
-    paddingBottom: SPACING.sm,
-  },
-  topRow: {
+    backgroundColor: DARK,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: SPACING.base,
+    alignItems: "center",
+    marginHorizontal: -24, // bleed to page edges
   },
-  leftCol: { flex: 1 },
-  rightCol: { width: 220, alignItems: "flex-end" },
-  logo: { width: 140, height: 36, objectFit: "contain", marginBottom: SPACING.xs },
-  mutedLabel: { fontSize: FONT_SIZES.xs, color: COLORS.text.secondary, marginBottom: 1 },
-  subLabel: { fontSize: FONT_SIZES.xs, color: COLORS.text.secondary },
-  value: { fontSize: FONT_SIZES.sm, marginBottom: 1 },
-  address: { fontSize: FONT_SIZES.sm, color: COLORS.text.secondary, marginBottom: 1 },
-  offerNumber: { fontSize: FONT_SIZES.base, fontWeight: 700, marginTop: SPACING.base },
-  cityDate: { fontSize: FONT_SIZES.sm, color: COLORS.text.secondary, marginTop: 1 },
-  blindBadge: {
-    marginTop: SPACING.xs,
-    borderWidth: 1,
-    borderColor: "#D97706",
-    borderRadius: 3,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    alignSelf: "flex-end",
+  leftCol: {
+    flex: 1,
+    flexDirection: "column",
+    justifyContent: "center",
   },
-  blindBadgeText: {
-    fontSize: FONT_SIZES.xs,
-    color: "#D97706",
+  logo: {
+    width: 130,
+    height: 34,
+    objectFit: "contain",
+    objectPositionX: "left",
+    marginBottom: 4,
+  },
+  companyName: {
+    fontSize: FONT_SIZES["2xl"],
     fontWeight: 700,
-    textTransform: "uppercase" as const,
+    color: "#FFFFFF",
+    letterSpacing: 1,
+  },
+  tagline: {
+    fontSize: FONT_SIZES.xs,
+    color: "#A0A0B0",
+    marginTop: 2,
     letterSpacing: 0.5,
   },
+  rightCol: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+  },
+  titleMain: {
+    fontSize: 30,
+    fontWeight: 700,
+    color: "#FFFFFF",
+    letterSpacing: 3,
+  },
+  titleAccent: {
+    fontSize: 30,
+    fontWeight: 700,
+    letterSpacing: 3,
+  },
+  offerNumber: {
+    fontSize: FONT_SIZES.sm,
+    color: "#D0D0D8",
+    textAlign: "right",
+    marginTop: 4,
+  },
+  dateText: {
+    fontSize: FONT_SIZES.xs,
+    color: "#A0A0B0",
+    textAlign: "right",
+    marginTop: 1,
+  },
 });
+
+const formatShortDate = (iso: string): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("de-CH", { day: "numeric", month: "long", year: "numeric" });
+};
 
 interface HeaderProps {
   data: OfferData;
 }
 
 export const Header = ({ data }: HeaderProps) => {
-  const { company, createdDate, offerNumber, validUntil } = data;
-  const customerAddress = data.customer.address;
+  const { company, offerNumber, createdDate } = data;
+  const accent = company.primaryColor || ACCENT;
 
-  const hasValidLogo = company.logo && (
-    company.logo.startsWith("data:image") ||
-    company.logo.startsWith("http://") ||
-    company.logo.startsWith("https://")
-  );
+  const hasValidLogo =
+    company.logo &&
+    (company.logo.startsWith("data:image") ||
+      company.logo.startsWith("http://") ||
+      company.logo.startsWith("https://"));
+
+  // Split "OFFERTE" so last 2 chars can be coloured with accent
+  const titleBase = "OFFER";
+  const titleEnd = "TE";
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.topRow}>
-        {/* LEFT — firm info only */}
-        <View style={styles.leftCol}>
-          {hasValidLogo ? (
-            <Image
-              style={styles.logo}
-              src={company.logo}
-              cache={false}
-            />
-          ) : null}
-          <Text style={styles.mutedLabel}>Unsere Referenz:</Text>
-          <Text style={styles.value}>{company.name}</Text>
-          {company.phone ? (
-            <Text style={styles.subLabel}>{`Tel. ${company.phone}`}</Text>
-          ) : null}
-          <Text style={styles.subLabel}>{company.email}</Text>
-          {company.mwstNr ? (
-            <Text style={[styles.value, { marginTop: 4 }]}>{`MwSt: ${company.mwstNr}`}</Text>
-          ) : null}
-        </View>
+      {/* LEFT — logo or company name */}
+      <View style={styles.leftCol}>
+        {hasValidLogo ? (
+          <Image style={styles.logo} src={company.logo} cache={false} />
+        ) : (
+          <Text style={styles.companyName}>{company.name.toUpperCase()}</Text>
+        )}
+        {company.phone || company.address ? (
+          <Text style={styles.tagline}>
+            {[company.address, company.zip && company.city ? `${company.zip} ${company.city}` : company.city]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+        ) : null}
+      </View>
 
-        {/* RIGHT — customer info + document metadata */}
-        <View style={styles.rightCol}>
-          <Text style={styles.value}>{data.customer.name}</Text>
-          {customerAddress ? (
-            <Text style={styles.address}>{customerAddress}</Text>
-          ) : null}
-          {data.customer.phone?.trim() ? (
-            <Text style={styles.address}>{`Telefon: ${data.customer.phone.trim()}`}</Text>
-          ) : null}
-          {data.customer.email?.trim() ? (
-            <Text style={styles.address}>{`E-Mail: ${data.customer.email.trim()}`}</Text>
-          ) : null}
-          <Text style={styles.offerNumber}>{`Offerte Nr. ${offerNumber}`}</Text>
-          <Text style={styles.cityDate}>{formatDate(createdDate)}</Text>
-          {validUntil ? (
-            <Text style={styles.cityDate}>{`Gültig bis: ${formatDate(validUntil)}`}</Text>
-          ) : null}
-          {data.offerteType === 'blind' ? (
-            <View style={styles.blindBadge}>
-              <Text style={styles.blindBadgeText}>BLIND OFFERTE — Ohne Besichtigung</Text>
-            </View>
-          ) : null}
+      {/* RIGHT — title + number */}
+      <View style={styles.rightCol}>
+        <View style={styles.titleRow}>
+          <Text style={styles.titleMain}>{titleBase}</Text>
+          <Text style={[styles.titleAccent, { color: accent }]}>{titleEnd}</Text>
         </View>
+        <Text style={styles.offerNumber}>{`Nr. ${offerNumber}  ·  ${formatShortDate(createdDate)}`}</Text>
       </View>
     </View>
   );

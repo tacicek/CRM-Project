@@ -59,6 +59,7 @@ export interface LegacyCompanyInfo {
   mwst_number?: string;
   logo_url?: string;
   primary_color?: string;
+  iban?: string;
 }
 
 export interface LegacyAddress {
@@ -214,14 +215,24 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
   const items = offer.items.map((item) => {
     const parts = item.description.split("\n").map((line) => line.trim()).filter(Boolean);
     const te = item.time_estimate;
+    const mainDesc = parts[0] || item.description;
+    // Detect section header: price=0, total=0, no time estimate, description is all-caps
+    const isSectionHeader =
+      !te &&
+      item.unit_price === 0 &&
+      item.total === 0 &&
+      mainDesc.trim().length > 0 &&
+      mainDesc.trim() === mainDesc.trim().toUpperCase() &&
+      mainDesc.trim().length <= 40;
     return {
-      description: parts[0] || item.description,
+      description: mainDesc,
       details: parts.length > 1 ? parts.slice(1) : undefined,
       quantity: item.quantity,
       unit: item.unit || "Pauschale",
       price: item.unit_price,
       total: item.total || item.quantity * item.unit_price,
       timeEstimate: te ?? null,
+      isSectionHeader,
     };
   });
 
@@ -240,6 +251,7 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       website: offer.company.website,
       mwstNr: offer.company.mwst_number,
       primaryColor: offer.company.primary_color,
+      iban: offer.company.iban,
     },
     offerNumber,
     offerTitle: offer.title ?? null,

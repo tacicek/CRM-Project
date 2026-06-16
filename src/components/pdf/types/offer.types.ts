@@ -10,6 +10,7 @@ export interface OfferData {
     website?: string;
     mwstNr?: string;
     primaryColor?: string;
+    iban?: string;
   };
   offerNumber: string;
   /** Custom offer title entered by the company (e.g. "Privatumzug Luzern nach Bern") */
@@ -44,6 +45,8 @@ export interface OfferData {
     total: number;
     /** Per-item time estimate for Blind Offerte */
     timeEstimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
+    /** True when this item is a section/category header (price=0, separator row) */
+    isSectionHeader?: boolean;
   }>;
   breakdown?: {
     volume?: number;

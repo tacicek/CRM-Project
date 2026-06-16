@@ -4,119 +4,148 @@ import { OfferData } from "../types/offer.types";
 import { formatCurrency, formatTime } from "../utils/formatters";
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
 
+const DARK = "#1C1C27";
+const SECTION_BG = "#F9FAFB";
+
 const styles = StyleSheet.create({
   container: {
     marginTop: SPACING.base,
   },
+  // Table header
   headerRow: {
     flexDirection: "row",
-    backgroundColor: COLORS.gray[900],
-    paddingVertical: SPACING.sm,
+    backgroundColor: DARK,
+    paddingVertical: 7,
     paddingHorizontal: SPACING.sm,
   },
   headerCell: {
-    color: COLORS.text.white,
-    fontSize: FONT_SIZES.base,
+    color: "#FFFFFF",
+    fontSize: FONT_SIZES.xs,
     fontWeight: 700,
+    letterSpacing: 0.5,
   },
+  // Category header row
+  categoryRow: {
+    flexDirection: "row",
+    backgroundColor: SECTION_BG,
+    paddingVertical: 6,
+    paddingHorizontal: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray[200],
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray[200],
+    marginTop: 2,
+    alignItems: "center",
+  },
+  categoryBullet: {
+    width: 8,
+    height: 8,
+    borderRadius: 1,
+    marginRight: 6,
+    marginTop: 1,
+  },
+  categoryName: {
+    flex: 1,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: 700,
+    color: COLORS.text.primary,
+    letterSpacing: 0.5,
+  },
+  categoryTotal: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: 700,
+    color: COLORS.text.primary,
+    minWidth: 70,
+    textAlign: "right",
+  },
+  // Item row
   row: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray[200],
-    paddingVertical: 10,
+    borderBottomColor: COLORS.gray[100],
+    paddingVertical: 8,
     paddingHorizontal: SPACING.sm,
+    alignItems: "flex-start",
   },
-  position: {
-    flex: 0.45,
-    fontSize: FONT_SIZES.base,
+  rowAlt: {
+    backgroundColor: "#FAFAFA",
   },
-  description: {
-    flex: 2.2,
-    fontSize: FONT_SIZES.base,
-  },
-  quantity: {
-    flex: 0.7,
-    textAlign: "center",
-    fontSize: FONT_SIZES.base,
-  },
-  price: {
-    flex: 0.8,
-    textAlign: "right",
-    fontSize: FONT_SIZES.base,
-  },
-  total: {
-    flex: 0.8,
-    textAlign: "right",
-    fontSize: FONT_SIZES.base,
-    fontWeight: 700,
-  },
-  details: {
+  // Column widths (must match header)
+  colPos: { flex: 0.45, fontSize: FONT_SIZES.sm, color: COLORS.text.secondary },
+  colDesc: { flex: 2.2 },
+  colQty: { flex: 0.8, textAlign: "center", fontSize: FONT_SIZES.sm },
+  colUnit: { flex: 0.8, textAlign: "right", fontSize: FONT_SIZES.sm },
+  colTotal: { flex: 0.8, textAlign: "right", fontSize: FONT_SIZES.sm, fontWeight: 700 },
+  descMain: {
     fontSize: FONT_SIZES.sm,
+    fontWeight: 700,
     color: COLORS.text.primary,
-    marginTop: 2,
-    marginLeft: 8,
   },
-  totalsContainer: {
+  descDetail: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.text.secondary,
+    marginTop: 1,
+    lineHeight: 1.35,
+  },
+  // Totals block (right-aligned summary)
+  totalsOuter: {
     marginTop: SPACING.base,
     alignItems: "flex-end",
-    borderWidth: 1,
-    borderColor: COLORS.gray[200],
-    borderRadius: 4,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.gray[50],
+  },
+  totalsBox: {
+    width: 220,
   },
   totalRow: {
     flexDirection: "row",
-    width: 230,
     justifyContent: "space-between",
-    marginBottom: 2,
+    paddingVertical: 3,
+    paddingHorizontal: SPACING.sm,
   },
   totalLabel: {
-    fontSize: FONT_SIZES.base,
+    fontSize: FONT_SIZES.sm,
     color: COLORS.text.secondary,
   },
   totalValue: {
-    fontSize: FONT_SIZES.base,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.primary,
+    fontWeight: 700,
   },
   totalDivider: {
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.gray[300],
-    marginVertical: 4,
-    width: 230,
+    height: 1,
+    backgroundColor: COLORS.gray[200],
+    marginHorizontal: SPACING.sm,
+    marginVertical: 2,
   },
-  grandTotalRow: {
+  grandTotalBox: {
+    backgroundColor: DARK,
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.sm,
     flexDirection: "row",
-    width: 230,
     justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 2,
+    borderRadius: 3,
   },
   grandTotalLabel: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.base,
     fontWeight: 700,
-    color: COLORS.primary,
+    color: "#FFFFFF",
+    letterSpacing: 1,
+  },
+  grandTotalCurrency: {
+    fontSize: FONT_SIZES.xs,
+    color: "#A0A0B0",
+    marginRight: 4,
   },
   grandTotalValue: {
     fontSize: FONT_SIZES.lg,
     fontWeight: 700,
-    color: COLORS.primary,
   },
-  breakdownBox: {
-    marginTop: SPACING.base,
-    padding: SPACING.base,
-    borderWidth: 1,
-    borderColor: COLORS.gray[200],
-    borderRadius: 4,
-    backgroundColor: COLORS.gray[50],
+  grandTotalValueRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
   },
-  breakdownTitle: {
-    fontSize: FONT_SIZES.base,
-    fontWeight: 700,
-    marginBottom: SPACING.xs,
-  },
-  breakdownLine: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.text.secondary,
-    marginBottom: 2,
-  },
+  // Price model notes
   priceModelBox: {
     marginTop: SPACING.base,
     padding: SPACING.base,
@@ -142,17 +171,60 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 1.4,
   },
+  breakdownBox: {
+    marginTop: SPACING.base,
+    padding: SPACING.base,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    borderRadius: 4,
+    backgroundColor: COLORS.gray[50],
+  },
+  breakdownTitle: {
+    fontSize: FONT_SIZES.base,
+    fontWeight: 700,
+    marginBottom: SPACING.xs,
+  },
+  breakdownLine: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.secondary,
+    marginBottom: 2,
+  },
 });
 
-interface ServiceTableProps {
-  data: OfferData;
-  /** If set, render only this slice (multi-page tables). */
-  itemsOverride?: OfferData["items"];
-  /** Zwischensumme / MwSt / Total — only on last table page */
-  showTotalsBlock?: boolean;
-  /** Global Pos. offset when table is split across pages */
-  positionOffset?: number;
+// ─── Category grouping ────────────────────────────────────────────────────────
+
+interface ItemGroup {
+  header: string | null;
+  headerTotal: number;
+  items: { item: OfferData["items"][number]; localIdx: number }[];
+  groupIdx: number;
 }
+
+function groupItems(items: OfferData["items"]): ItemGroup[] {
+  const groups: ItemGroup[] = [];
+  let current: ItemGroup = { header: null, headerTotal: 0, items: [], groupIdx: 0 };
+
+  for (const item of items) {
+    if (item.isSectionHeader) {
+      if (current.items.length > 0 || current.header !== null) {
+        current.headerTotal = current.items.reduce((sum, { item: it }) => sum + (it.total || 0), 0);
+        groups.push(current);
+      }
+      current = { header: item.description, headerTotal: 0, items: [], groupIdx: groups.length };
+    } else {
+      current.items.push({ item, localIdx: current.items.length });
+    }
+  }
+
+  current.headerTotal = current.items.reduce((sum, { item: it }) => sum + (it.total || 0), 0);
+  if (current.items.length > 0 || current.header !== null) {
+    groups.push(current);
+  }
+
+  return groups;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const buildBreakdownLines = (data: OfferData) => {
   const b = data.breakdown;
@@ -169,6 +241,67 @@ const buildBreakdownLines = (data: OfferData) => {
   ].filter(Boolean) as string[];
 };
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+interface RowProps {
+  item: OfferData["items"][number];
+  posLabel: string;
+  alt: boolean;
+}
+
+const ItemRow = ({ item, posLabel, alt }: RowProps) => {
+  const te = item.timeEstimate;
+  const hasTE = te && te.minHours > 0 && te.hourlyRate > 0;
+
+  return (
+    <View style={[styles.row, alt ? styles.rowAlt : {}]} wrap={false}>
+      <Text style={styles.colPos}>{posLabel}</Text>
+      <View style={styles.colDesc}>
+        <Text style={styles.descMain}>{item.description}</Text>
+        {item.details?.map((d, di) => {
+          const clean = d.replace(/^[•·-]\s*/, "").trim();
+          return (
+            <Text key={`${clean}-${di}`} style={styles.descDetail}>
+              {clean}
+            </Text>
+          );
+        })}
+      </View>
+      {hasTE ? (
+        <>
+          <Text style={styles.colQty}>{`${te!.minHours}–${te!.maxHours} Std.`}</Text>
+          <Text style={styles.colUnit}>{`${formatCurrency(te!.hourlyRate)}/Std.`}</Text>
+          <View style={[styles.colTotal, { alignItems: "flex-end" }]}>
+            <Text style={{ fontSize: FONT_SIZES.sm, fontWeight: 700, color: "#B45309" }}>
+              {formatCurrency(te!.minHours * te!.hourlyRate)}
+            </Text>
+            <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
+              {"\u2013"} {formatCurrency(te!.maxHours * te!.hourlyRate)}
+            </Text>
+          </View>
+        </>
+      ) : (
+        <>
+          <Text style={styles.colQty}>{formatQuantityUnit(item.quantity, item.unit)}</Text>
+          <Text style={styles.colUnit}>{formatCurrency(item.price)}</Text>
+          <Text style={styles.colTotal}>{formatCurrency(item.total)}</Text>
+        </>
+      )}
+    </View>
+  );
+};
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+interface ServiceTableProps {
+  data: OfferData;
+  itemsOverride?: OfferData["items"];
+  showTotalsBlock?: boolean;
+  positionOffset?: number;
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export const ServiceTable = ({
   data,
   itemsOverride,
@@ -177,112 +310,148 @@ export const ServiceTable = ({
 }: ServiceTableProps) => {
   const items = itemsOverride ?? data.items;
   const breakdownLines = buildBreakdownLines(data);
-  const primary = data.company.primaryColor || COLORS.primary;
+  const accent = data.company.primaryColor || "#F97316";
+
+  const groups = groupItems(items);
+  const hasCategories = groups.some((g) => g.header !== null);
+
+  // Global row counter for flat numbering (when no categories)
+  let flatIdx = positionOffset;
 
   return (
     <View style={styles.container}>
+      {/* Header row */}
       <View style={styles.headerRow} wrap={false}>
-        <Text style={[styles.headerCell, styles.position]}>Pos.</Text>
-        <Text style={[styles.headerCell, styles.description]}>Beschreibung</Text>
-        <Text style={[styles.headerCell, styles.quantity]}>Menge</Text>
-        <Text style={[styles.headerCell, styles.price]}>Preis</Text>
-        <Text style={[styles.headerCell, styles.total]}>Total (CHF)</Text>
+        <Text style={[styles.headerCell, styles.colPos]}>POS.</Text>
+        <Text style={[styles.headerCell, styles.colDesc]}>BESCHREIBUNG</Text>
+        <Text style={[styles.headerCell, styles.colQty]}>MENGE</Text>
+        <Text style={[styles.headerCell, styles.colUnit]}>EINZEL CHF</Text>
+        <Text style={[styles.headerCell, styles.colTotal]}>TOTAL CHF</Text>
       </View>
 
-      {items.map((item, index) => {
-        const te = item.timeEstimate;
-        const hasTE = te && te.minHours > 0 && te.hourlyRate > 0;
-        return (
-          <View key={`${item.description}-${positionOffset + index}`} style={styles.row} wrap={false}>
-            <Text style={styles.position}>{positionOffset + index + 1}</Text>
-            <View style={styles.description}>
-              <Text>{item.description}</Text>
-              {item.details?.map((detail, detailIndex) => {
-                const cleanDetail = detail.replace(/^[•·-]\s*/, "").trim();
-                return (
-                  <Text key={`${cleanDetail}-${detailIndex}`} style={styles.details}>
-                    • {cleanDetail}
-                  </Text>
-                );
-              })}
+      {/* Rows */}
+      {groups.map((group, gi) => (
+        <View key={`group-${gi}`}>
+          {/* Category header row (if this group has a header) */}
+          {group.header ? (
+            <View style={styles.categoryRow} wrap={false}>
+              <View style={[styles.categoryBullet, { backgroundColor: accent }]} />
+              <Text style={styles.categoryName}>{group.header}</Text>
+              {group.headerTotal > 0 ? (
+                <Text style={styles.categoryTotal}>{formatCurrency(group.headerTotal)}</Text>
+              ) : null}
             </View>
-            {hasTE ? (
-              <>
-                <Text style={styles.quantity}>{te!.minHours} – {te!.maxHours} Std.</Text>
-                <Text style={styles.price}>{formatCurrency(te!.hourlyRate)}/Std.</Text>
-                <View style={[styles.total, { alignItems: "flex-end" }]}>
-                  <Text style={{ fontSize: FONT_SIZES.base, fontWeight: 700, color: "#B45309" }}>
-                    {formatCurrency(te!.minHours * te!.hourlyRate)}
+          ) : null}
+
+          {/* Items in this group */}
+          {group.items.map(({ item, localIdx }) => {
+            const posLabel = hasCategories
+              ? `${gi + 1}.${localIdx + 1}`
+              : String(++flatIdx);
+
+            return (
+              <ItemRow
+                key={`${item.description}-${posLabel}`}
+                item={item}
+                posLabel={posLabel}
+                alt={localIdx % 2 === 1}
+              />
+            );
+          })}
+        </View>
+      ))}
+
+      {/* Totals block */}
+      {showTotalsBlock ? (
+        <View style={styles.totalsOuter} wrap={false}>
+          <View style={styles.totalsBox}>
+            {/* Zwischensumme */}
+            {data.pricing.maxSubtotal !== null ? (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Zwischensumme:</Text>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={[styles.totalValue, { color: "#B45309" }]}>
+                    {formatCurrency(data.pricing.subtotal)}
                   </Text>
                   <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                    {"\u2013"} {formatCurrency(te!.maxHours * te!.hourlyRate)}
+                    {"\u2013"} {formatCurrency(data.pricing.maxSubtotal)}
                   </Text>
                 </View>
-              </>
+              </View>
             ) : (
-              <>
-                <Text style={styles.quantity}>{formatQuantityUnit(item.quantity, item.unit)}</Text>
-                <Text style={styles.price}>{formatCurrency(item.price)}</Text>
-                <Text style={styles.total}>{formatCurrency(item.total)}</Text>
-              </>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Zwischensumme</Text>
+                <Text style={styles.totalValue}>{formatCurrency(data.pricing.subtotal)}</Text>
+              </View>
             )}
-          </View>
-        );
-      })}
 
-      {showTotalsBlock ? (
-        <View style={styles.totalsContainer} wrap={false}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Zwischensumme:</Text>
-            {data.pricing.maxSubtotal !== null && data.pricing.maxSubtotal !== undefined ? (
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.totalValue, { color: "#B45309", fontWeight: 700 }]}>
-                  {formatCurrency(data.pricing.subtotal)}
-                </Text>
-                <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                  {"\u2013"} {formatCurrency(data.pricing.maxSubtotal)}
-                </Text>
+            <View style={styles.totalDivider} />
+
+            {/* MwSt */}
+            {data.pricing.maxMwstAmount !== null ? (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>{`MwSt ${data.pricing.mwstRate} %`}</Text>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={[styles.totalValue, { color: "#B45309" }]}>
+                    {formatCurrency(data.pricing.mwstAmount)}
+                  </Text>
+                  <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
+                    {"\u2013"} {formatCurrency(data.pricing.maxMwstAmount)}
+                  </Text>
+                </View>
               </View>
             ) : (
-              <Text style={styles.totalValue}>{formatCurrency(data.pricing.subtotal)}</Text>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>{`MwSt ${data.pricing.mwstRate} %`}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(data.pricing.mwstAmount)}</Text>
+              </View>
             )}
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>MwSt. ({data.pricing.mwstRate}%):</Text>
-            {data.pricing.maxMwstAmount !== null && data.pricing.maxMwstAmount !== undefined ? (
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.totalValue, { color: "#B45309" }]}>
-                  {formatCurrency(data.pricing.mwstAmount)}
-                </Text>
-                <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                  {"\u2013"} {formatCurrency(data.pricing.maxMwstAmount)}
-                </Text>
+
+            {/* GESAMTBETRAG — dark box */}
+            <View style={styles.grandTotalBox}>
+              <Text style={styles.grandTotalLabel}>GESAMTBETRAG</Text>
+              <View style={styles.grandTotalValueRow}>
+                <Text style={styles.grandTotalCurrency}>CHF</Text>
+                {data.pricing.maxTotal !== null ? (
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={[styles.grandTotalValue, { color: accent }]}>
+                      {formatCurrency(data.pricing.total)}
+                    </Text>
+                    <Text style={{ fontSize: FONT_SIZES.xs, color: "#A0A0B0" }}>
+                      {"\u2013"} {formatCurrency(data.pricing.maxTotal)}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.grandTotalValue, { color: accent }]}>
+                    {formatCurrency(data.pricing.total)}
+                  </Text>
+                )}
               </View>
-            ) : (
-              <Text style={styles.totalValue}>{formatCurrency(data.pricing.mwstAmount)}</Text>
-            )}
-          </View>
-          <View style={[styles.totalDivider, { borderBottomColor: primary }]} />
-          <View style={styles.grandTotalRow}>
-            <Text style={[styles.grandTotalLabel, { color: primary }]}>Total:</Text>
-            {data.pricing.maxTotal !== null && data.pricing.maxTotal !== undefined ? (
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.grandTotalValue, { color: "#B45309" }]}>
-                  {formatCurrency(data.pricing.total)}
-                </Text>
-                <Text style={{ fontSize: FONT_SIZES.sm, fontWeight: 700, color: "#B45309" }}>
-                  {"\u2013"} {formatCurrency(data.pricing.maxTotal)}
-                </Text>
-              </View>
-            ) : (
-              <Text style={[styles.grandTotalValue, { color: primary }]}>
-                {formatCurrency(data.pricing.total)}
+            </View>
+
+            {/* Valid until note */}
+            {data.validUntil ? (
+              <Text
+                style={{
+                  fontSize: FONT_SIZES.xs,
+                  color: COLORS.text.secondary,
+                  textAlign: "right",
+                  marginTop: 4,
+                  paddingHorizontal: SPACING.sm,
+                }}
+              >
+                {`Angebot gültig bis ${new Date(data.validUntil).toLocaleDateString("de-CH", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}`}
               </Text>
-            )}
+            ) : null}
           </View>
         </View>
       ) : null}
 
+      {/* Breakdown */}
       {showTotalsBlock && breakdownLines.length > 0 ? (
         <View style={styles.breakdownBox} wrap={false}>
           <Text style={styles.breakdownTitle}>Service-Details</Text>
@@ -294,39 +463,43 @@ export const ServiceTable = ({
         </View>
       ) : null}
 
+      {/* Price model: Stundenansatz */}
       {showTotalsBlock &&
         data.pricing.priceModel === "stundenansatz" &&
-        data.pricing.hourlyRate !== null &&
-        data.pricing.hourlyRate !== undefined && (
-          <View style={[styles.priceModelBox, { borderColor: primary, backgroundColor: "#F0F9FF" }]} wrap={false}>
+        data.pricing.hourlyRate !== null && (
+          <View
+            style={[styles.priceModelBox, { borderColor: accent, backgroundColor: "#F0F9FF" }]}
+            wrap={false}
+          >
             <View style={styles.priceModelRow}>
-              <Text style={[styles.priceModelLabel, { color: primary }]}>Preismodell:</Text>
-              <Text style={[styles.priceModelValue, { color: primary }]}>
-                Stundenansatz — CHF {Number(data.pricing.hourlyRate).toLocaleString("de-CH")} / Std.
+              <Text style={[styles.priceModelLabel, { color: accent }]}>Preismodell:</Text>
+              <Text style={[styles.priceModelValue, { color: accent }]}>
+                {`Stundenansatz — CHF ${Number(data.pricing.hourlyRate).toLocaleString("de-CH")} / Std.`}
               </Text>
             </View>
             <Text style={[styles.priceModelNote, { color: COLORS.text.secondary }]}>
-              Die Abrechnung erfolgt nach effektivem Zeitaufwand zum angegebenen Stundenansatz. Der Endpreis ergibt sich aus den tatsächlich geleisteten Stunden.
+              Die Abrechnung erfolgt nach effektivem Zeitaufwand zum angegebenen Stundenansatz.
             </Text>
           </View>
         )}
 
+      {/* Price model: Kostendach */}
       {showTotalsBlock &&
         data.pricing.priceModel === "kostendach" &&
         data.pricing.hourlyRate !== null &&
-        data.pricing.hourlyRate !== undefined &&
-        data.pricing.kostendachMax !== null &&
-        data.pricing.kostendachMax !== undefined && (
-          <View style={[styles.priceModelBox, { borderColor: "#D97706", backgroundColor: "#FFFBEB" }]} wrap={false}>
+        data.pricing.kostendachMax !== null && (
+          <View
+            style={[styles.priceModelBox, { borderColor: "#D97706", backgroundColor: "#FFFBEB" }]}
+            wrap={false}
+          >
             <View style={styles.priceModelRow}>
               <Text style={[styles.priceModelLabel, { color: "#92400E" }]}>Preismodell:</Text>
               <Text style={[styles.priceModelValue, { color: "#92400E" }]}>
-                Stundenansatz CHF {Number(data.pricing.hourlyRate).toLocaleString("de-CH")} / Std. — Kostendach: max. CHF{" "}
-                {Number(data.pricing.kostendachMax).toLocaleString("de-CH")}
+                {`Stundenansatz CHF ${Number(data.pricing.hourlyRate).toLocaleString("de-CH")} / Std. — Kostendach max. CHF ${Number(data.pricing.kostendachMax).toLocaleString("de-CH")}`}
               </Text>
             </View>
             <Text style={[styles.priceModelNote, { color: "#92400E" }]}>
-              Sie zahlen maximal CHF {Number(data.pricing.kostendachMax).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.
+              {`Sie zahlen maximal CHF ${Number(data.pricing.kostendachMax).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.`}
             </Text>
           </View>
         )}

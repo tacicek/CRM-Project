@@ -1,10 +1,8 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { Header } from "./components/Header";
 import { CustomerSection } from "./components/CustomerSection";
-import { TitleSection } from "./components/TitleSection";
 import { AddressComparison } from "./components/AddressComparison";
 import { ServiceTable } from "./components/ServiceTable";
-import { IncludedServices } from "./components/IncludedServices";
 import { Footer, PDF_FOOTER_RESERVE_PT } from "./components/Footer";
 import { SignaturePage } from "./components/SignaturePage";
 import { BlindOfferteDisclaimer } from "./components/BlindOfferteDisclaimer";
@@ -19,54 +17,75 @@ const TABLE_ROWS_FIRST_PAGE = 5;
 /** Rows on continuation pages */
 const TABLE_ROWS_CONTINUATION = 11;
 
+const ACCENT_DEFAULT = "#F97316";
+
 const styles = StyleSheet.create({
-  paymentBlock: {
-    marginTop: SPACING.sm,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.gray[50],
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: COLORS.gray[200],
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-  },
-  paymentLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: 700,
-    color: COLORS.text.primary,
-    minWidth: 110,
-  },
-  paymentValue: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.text.primary,
-    flex: 1,
-  },
   page: {
-    paddingTop: 24,
+    paddingTop: 0, // header bleeds to edge — no top padding
     paddingHorizontal: 24,
     paddingBottom: PDF_FOOTER_RESERVE_PT,
     fontSize: FONT_SIZES.base,
     fontFamily: "Helvetica",
     color: COLORS.text.primary,
   },
-  tableContinuationBanner: {
-    marginBottom: 14,
+  // ── Bottom section (payment info boxes) ──────────────────────────────────
+  bottomSection: {
+    marginTop: SPACING.lg,
+    flexDirection: "column",
+    gap: SPACING.sm,
   },
-  tableContinuationTitle: {
+  infoBox: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+    padding: SPACING.sm,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    backgroundColor: "#FFF7ED",
+  },
+  infoBoxAccent: {
+    width: 3,
+    borderRadius: 2,
+    alignSelf: "stretch",
+    backgroundColor: ACCENT_DEFAULT,
+  },
+  infoBoxContent: {
+    flex: 1,
+  },
+  infoBoxTitle: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: 700,
+    color: "#92400E",
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  infoBoxText: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.text.secondary,
+    lineHeight: 1.45,
+  },
+  // ── Continuation pages ────────────────────────────────────────────────────
+  continuationBanner: {
+    paddingTop: SPACING.base,
+    marginBottom: SPACING.base,
+  },
+  continuationTitle: {
     fontSize: 11,
     fontWeight: 700,
     color: COLORS.text.primary,
   },
-  tableContinuationSub: {
-    fontSize: 9,
+  continuationSub: {
+    fontSize: FONT_SIZES.sm,
     color: COLORS.text.secondary,
     marginTop: 2,
   },
+  // ── Page 2 (signature) ────────────────────────────────────────────────────
   pageTwoHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 16,
+    paddingTop: SPACING.base,
+    marginBottom: SPACING.lg,
     alignItems: "center",
   },
   pageTwoLogo: {
@@ -79,16 +98,88 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     textAlign: "right",
   },
+  // ── Description / extra info ──────────────────────────────────────────────
+  descBox: {
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.gray[50],
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+  },
+  descLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: 700,
+    color: COLORS.text.secondary,
+    marginBottom: 3,
+  },
+  descText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.primary,
+    lineHeight: 1.45,
+  },
 });
 
 interface OfferPDFProps {
   data: OfferData;
 }
 
+// ─── Payment / insurance bottom section ──────────────────────────────────────
+
+interface BottomSectionProps {
+  data: OfferData;
+  accent: string;
+}
+
+const BottomSection = ({ data, accent }: BottomSectionProps) => {
+  const paymentText = data.paymentTerms?.trim();
+  const insuranceText = data.includedServices?.find((s) =>
+    /versicherung|haftpflicht/i.test(s)
+  );
+
+  // Only render if there's something to show
+  if (!paymentText && !insuranceText && !data.description) return null;
+
+  return (
+    <View style={styles.bottomSection} wrap={false}>
+      {paymentText ? (
+        <View style={styles.infoBox}>
+          <View style={[styles.infoBoxAccent, { backgroundColor: accent }]} />
+          <View style={styles.infoBoxContent}>
+            <Text style={[styles.infoBoxTitle, { color: "#92400E" }]}>ZAHLUNG</Text>
+            <Text style={styles.infoBoxText}>{paymentText}</Text>
+          </View>
+        </View>
+      ) : null}
+
+      {insuranceText ? (
+        <View style={styles.infoBox}>
+          <View style={[styles.infoBoxAccent, { backgroundColor: "#D97706" }]} />
+          <View style={styles.infoBoxContent}>
+            <Text style={[styles.infoBoxTitle, { color: "#92400E" }]}>VERSICHERUNG</Text>
+            <Text style={styles.infoBoxText}>{insuranceText}</Text>
+          </View>
+        </View>
+      ) : null}
+
+      {data.description ? (
+        <View style={styles.descBox}>
+          <Text style={styles.descLabel}>BEMERKUNGEN</Text>
+          <Text style={styles.descText}>{data.description}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+};
+
+// ─── Main document ────────────────────────────────────────────────────────────
+
 export const OfferPDF = ({ data }: OfferPDFProps) => {
   if (data.briefLayout) {
     return <OfferPDFBrief data={data} />;
   }
+
+  const accent = data.company.primaryColor || ACCENT_DEFAULT;
 
   const chunks = chunkOfferTableItems(data.items, TABLE_ROWS_FIRST_PAGE, TABLE_ROWS_CONTINUATION);
 
@@ -102,17 +193,23 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
           <Page key={`offer-table-${chunkIdx}`} size="A4" style={styles.page}>
             {chunkIdx === 0 ? (
               <>
+                {/* Dark header band — bleeds to edges (negative margin handled in Header) */}
                 <Header data={data} />
+
+                {/* Two-column: Auftraggeber + Offerte-Details */}
                 <CustomerSection data={data} />
-                <TitleSection data={data} />
+
+                {/* Route comparison box */}
                 <AddressComparison data={data} />
+
+                {/* Blind offerte disclaimer + time estimate note */}
                 {data.offerteType === "blind" && <BlindOfferteDisclaimer />}
                 <TimeEstimateBlock data={data} />
               </>
             ) : (
-              <View style={styles.tableContinuationBanner} wrap={false}>
-                <Text style={styles.tableContinuationTitle}>Leistungstabelle — Fortsetzung</Text>
-                <Text style={styles.tableContinuationSub}>Offerte Nr. {data.offerNumber}</Text>
+              <View style={styles.continuationBanner}>
+                <Text style={styles.continuationTitle}>Leistungstabelle — Fortsetzung</Text>
+                <Text style={styles.continuationSub}>{`Offerte Nr. ${data.offerNumber}`}</Text>
               </View>
             )}
 
@@ -124,21 +221,7 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
             />
 
             {isLastChunk ? (
-              <View wrap={false}>
-                <IncludedServices data={data} />
-                {data.description ? (
-                  <View style={styles.paymentBlock}>
-                    <Text style={styles.paymentLabel}>Beschreibung:</Text>
-                    <Text style={styles.paymentValue}>{data.description}</Text>
-                  </View>
-                ) : null}
-                {data.paymentTerms ? (
-                  <View style={styles.paymentBlock}>
-                    <Text style={styles.paymentLabel}>Zahlungskondition:</Text>
-                    <Text style={styles.paymentValue}>{data.paymentTerms}</Text>
-                  </View>
-                ) : null}
-              </View>
+              <BottomSection data={data} accent={accent} />
             ) : null}
 
             <Footer data={data} />
@@ -146,12 +229,13 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
         );
       })}
 
+      {/* Signature page */}
       <Page size="A4" style={styles.page}>
         <View style={styles.pageTwoHeader}>
           {data.company.logo ? (
             <Image style={styles.pageTwoLogo} src={data.company.logo} />
           ) : (
-            <Text>{data.company.name}</Text>
+            <Text style={{ fontSize: FONT_SIZES.lg, fontWeight: 700 }}>{data.company.name}</Text>
           )}
           <Text style={styles.pageTwoCity}>{`${data.company.zip} ${data.company.city}`}</Text>
         </View>

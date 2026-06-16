@@ -6,39 +6,55 @@ import { lightenHex } from "../utils/colors";
 
 const styles = StyleSheet.create({
   titleText: {
-    fontSize: FONT_SIZES["3xl"],
+    fontSize: FONT_SIZES["2xl"],
     fontWeight: 700,
     textAlign: "center",
     marginBottom: SPACING.base,
   },
-  acceptanceBox: {
+  // Compact two-column acceptance row
+  acceptanceRow: {
     marginTop: SPACING.base,
     borderWidth: 1,
     borderColor: COLORS.gray[300],
     borderRadius: 4,
     padding: SPACING.base,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.base,
+  },
+  acceptanceLeft: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  acceptanceRight: {
     alignItems: "center",
   },
   button: {
     backgroundColor: COLORS.primary,
     color: COLORS.text.white,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 6,
-    fontSize: FONT_SIZES.base,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+    fontSize: FONT_SIZES.sm,
     fontWeight: 700,
     textAlign: "center",
-    width: 220,
+    marginBottom: SPACING.sm,
+  },
+  buttonNote: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.text.secondary,
+    lineHeight: 1.4,
   },
   qr: {
-    width: 132,
-    height: 132,
-    marginTop: SPACING.base,
+    width: 80,
+    height: 80,
   },
   qrCaption: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: 7,
     color: COLORS.text.secondary,
-    marginTop: SPACING.xs,
+    marginTop: 3,
+    textAlign: "center",
+    maxWidth: 85,
   },
   legalText: {
     fontSize: FONT_SIZES.sm,
@@ -55,18 +71,18 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   summaryTitle: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.base,
     fontWeight: 700,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
   summaryLine: {
-    fontSize: FONT_SIZES.base,
-    marginBottom: 4,
+    fontSize: FONT_SIZES.sm,
+    marginBottom: 3,
   },
   summaryTotal: {
-    fontSize: FONT_SIZES.xl,
+    fontSize: FONT_SIZES.lg,
     fontWeight: 700,
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
   signatureRow: {
     flexDirection: "row",
@@ -79,8 +95,8 @@ const styles = StyleSheet.create({
   signatureLine: {
     borderBottomWidth: 1,
     borderBottomColor: COLORS.gray[700],
-    marginTop: 40,
-    marginBottom: 6,
+    marginTop: 36,
+    marginBottom: 5,
   },
   signatureLabel: {
     fontSize: FONT_SIZES.sm,
@@ -105,18 +121,29 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
     <View>
       <Text style={[styles.titleText, { color: primary }]}>Auftragsbestätigung</Text>
 
-      <View style={styles.acceptanceBox}>
-        {data.acceptanceUrl ? (
-          <Link src={data.acceptanceUrl} style={[styles.button, { backgroundColor: primary }]}>
-            Online Offerte annehmen
-          </Link>
-        ) : (
-          <Text style={[styles.button, { backgroundColor: primary }]}>Online Offerte annehmen</Text>
-        )}
-        {data.qrCodeUrl ? <Image style={styles.qr} src={data.qrCodeUrl} /> : null}
-        <Text style={styles.qrCaption}>Mit Handy scannen</Text>
-        {shortUrl ? <Text style={styles.qrCaption}>{shortUrl}</Text> : null}
-        <Text style={styles.qrCaption}>oder unterschreiben Sie unten:</Text>
+      <View style={styles.acceptanceRow}>
+        {/* Left: button + note */}
+        <View style={styles.acceptanceLeft}>
+          {data.acceptanceUrl ? (
+            <Link src={data.acceptanceUrl} style={[styles.button, { backgroundColor: primary }]}>
+              Online Offerte annehmen
+            </Link>
+          ) : (
+            <Text style={[styles.button, { backgroundColor: primary }]}>Online Offerte annehmen</Text>
+          )}
+          <Text style={styles.buttonNote}>
+            Klicken Sie auf den Link oder scannen Sie den QR-Code mit Ihrem Handy um die Offerte
+            online anzunehmen — oder unterschreiben Sie weiter unten.
+          </Text>
+        </View>
+
+        {/* Right: compact QR */}
+        {data.qrCodeUrl ? (
+          <View style={styles.acceptanceRight}>
+            <Image style={styles.qr} src={data.qrCodeUrl} />
+            {shortUrl ? <Text style={styles.qrCaption}>{shortUrl}</Text> : null}
+          </View>
+        ) : null}
       </View>
 
       <Text style={styles.legalText}>
