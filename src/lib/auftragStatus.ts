@@ -28,7 +28,7 @@ export const AUFTRAG_TRANSITIONS: Record<AuftragStatus, AuftragStatus[]> = {
 };
 
 export const isAuftragStatus = (value: string): value is AuftragStatus =>
-  value in AUFTRAG_STATUS_LABELS;
+  Object.prototype.hasOwnProperty.call(AUFTRAG_STATUS_LABELS, value);
 
 /** True, wenn der Wechsel von `from` nach `to` erlaubt ist (gleicher Status ist immer erlaubt). */
 export const canTransitionAuftrag = (from: string, to: string): boolean => {
