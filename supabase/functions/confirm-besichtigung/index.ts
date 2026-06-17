@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { logEmail } from "../_shared/logEmail.ts";
+import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,8 +77,29 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // ── Auth: Aufrufer muss ein eingeloggter Benutzer sein ──
+    // (verify_jwt=false in config.toml; daher hier explizit prüfen)
+    const authHeader = req.headers.get("Authorization");
+    const token = authHeader?.replace(/^Bearer\s+/i, "").trim();
+    if (!token) {
+      logStep("Unauthorized: missing token");
+      return new Response(
+        JSON.stringify({ error: "Nicht autorisiert" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !user) {
+      logStep("Unauthorized: invalid token");
+      return new Response(
+        JSON.stringify({ error: "Nicht autorisiert" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     const request: RequestBody = await req.json();
-    
+
     logStep("Processing besichtigung request", { type: request.type, offerId: request.offerId });
 
     // Get offer details
@@ -89,6 +111,16 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (offerError || !offer) {
       throw new Error("Offer not found");
+    }
+
+    // ── Authz: Benutzer muss Mitglied der Firma dieser Offerte sein ──
+    const isMember = await verifyCompanyMembership(supabase, user.id, offer.company_id);
+    if (!isMember) {
+      logStep("Forbidden: user is not a member of offer's company", { userId: user.id, companyId: offer.company_id });
+      return new Response(
+        JSON.stringify({ error: "Keine Berechtigung für diese Firma" }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
     }
 
     // Get company details including Resend settings
@@ -456,12 +488,12 @@ function generateConfirmationEmail(params: ConfirmationEmailParams): string {
           
           <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
             Mit freundlichen Grüssen<br>
-            <strong>${params.isCompanyEmail ? params.companyName : "Ihr ${getAppName()} Team"}</strong>
+            <strong>${params.isCompanyEmail ? params.companyName : `Ihr ${getAppName()} Team`}</strong>
           </p>
         </div>
-        
+
         <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-          <p>Diese E-Mail wurde automatisch${params.isCompanyEmail ? ` von ${params.companyName}` : " von ${getAppName()}"} gesendet.</p>
+          <p>Diese E-Mail wurde automatisch${params.isCompanyEmail ? ` von ${params.companyName}` : ` von ${getAppName()}`} gesendet.</p>
         </div>
       </body>
     </html>
@@ -560,12 +592,12 @@ function generateProposalEmail(params: ProposalEmailParams): string {
           
           <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
             Mit freundlichen Grüssen<br>
-            <strong>${params.isCompanyEmail ? params.companyName : "Ihr ${getAppName()} Team"}</strong>
+            <strong>${params.isCompanyEmail ? params.companyName : `Ihr ${getAppName()} Team`}</strong>
           </p>
         </div>
-        
+
         <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-          <p>Diese E-Mail wurde automatisch${params.isCompanyEmail ? ` von ${params.companyName}` : " von ${getAppName()}"} gesendet.</p>
+          <p>Diese E-Mail wurde automatisch${params.isCompanyEmail ? ` von ${params.companyName}` : ` von ${getAppName()}`} gesendet.</p>
         </div>
       </body>
     </html>
