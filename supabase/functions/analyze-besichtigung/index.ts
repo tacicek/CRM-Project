@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -134,6 +135,30 @@ serve(async (req: Request) => {
     }
 
     console.log(`[analyze-besichtigung] User ${user.id} starting analysis for session: ${session_id}`);
+
+    // ── Authz: session must belong to a company the caller is a member of ──
+    // (verify_jwt=false; without this any logged-in user could analyze any session → IDOR)
+    const { data: sessionRow, error: sessionRowError } = await supabase
+      .from("virtual_besichtigung_sessions")
+      .select("company_id")
+      .eq("id", session_id)
+      .single();
+
+    if (sessionRowError || !sessionRow) {
+      return new Response(
+        JSON.stringify({ error: "Session nicht gefunden" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const isMember = await verifyCompanyMembership(supabase, user.id, sessionRow.company_id);
+    if (!isMember) {
+      console.warn(`[analyze-besichtigung] Forbidden: user ${user.id} not a member of company ${sessionRow.company_id}`);
+      return new Response(
+        JSON.stringify({ error: "Keine Berechtigung für diese Besichtigung" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // ── Fetch photos for this session ──
     const { data: photosRaw, error: photosError } = await supabase.rpc(
