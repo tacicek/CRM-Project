@@ -638,6 +638,7 @@ export type Database = {
       }
       auftraege: {
         Row: {
+          appointment_id: string | null
           assigned_team_members: string[] | null
           auftrag_nummer: string
           company_id: string
@@ -647,6 +648,9 @@ export type Database = {
           customer_email: string | null
           customer_name: string
           customer_phone: string | null
+          customer_reminder_sent: boolean | null
+          customer_reminder_sent_at: string | null
+          deleted_at: string | null
           description: string | null
           estimated_duration_minutes: number | null
           extra_services: Json | null
@@ -677,6 +681,7 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          appointment_id?: string | null
           assigned_team_members?: string[] | null
           auftrag_nummer: string
           company_id: string
@@ -686,6 +691,9 @@ export type Database = {
           customer_email?: string | null
           customer_name: string
           customer_phone?: string | null
+          customer_reminder_sent?: boolean | null
+          customer_reminder_sent_at?: string | null
+          deleted_at?: string | null
           description?: string | null
           estimated_duration_minutes?: number | null
           extra_services?: Json | null
@@ -716,6 +724,7 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          appointment_id?: string | null
           assigned_team_members?: string[] | null
           auftrag_nummer?: string
           company_id?: string
@@ -725,6 +734,9 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string
           customer_phone?: string | null
+          customer_reminder_sent?: boolean | null
+          customer_reminder_sent_at?: string | null
+          deleted_at?: string | null
           description?: string | null
           estimated_duration_minutes?: number | null
           extra_services?: Json | null
@@ -755,6 +767,20 @@ export type Database = {
           vat_rate?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "auftraege_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auftraege_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "pending_team_reminders"
+            referencedColumns: ["appointment_id"]
+          },
           {
             foreignKeyName: "auftraege_company_id_fkey"
             columns: ["company_id"]
@@ -5517,6 +5543,24 @@ export type Database = {
           total_records: number
         }[]
       }
+      get_auftraege_needing_customer_reminders: {
+        Args: never
+        Returns: {
+          auftrag_id: string
+          auftrag_nummer: string
+          company_id: string
+          company_name: string
+          customer_email: string
+          customer_name: string
+          customer_phone: string
+          estimated_duration_minutes: number
+          from_address: string
+          scheduled_date: string
+          scheduled_time: string
+          title: string
+          to_address: string
+        }[]
+      }
       get_auftraege_needing_reminders: {
         Args: never
         Returns: {
@@ -5763,6 +5807,10 @@ export type Database = {
       is_staff: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       is_support_admin: { Args: never; Returns: boolean }
+      map_auftrag_to_appointment_status: {
+        Args: { p_status: string }
+        Returns: Database["public"]["Enums"]["appointment_status"]
+      }
       replace_offer_items: {
         Args: { p_items: Json; p_offer_id: string }
         Returns: undefined
