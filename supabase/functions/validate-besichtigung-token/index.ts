@@ -39,6 +39,15 @@ serve(async (req) => {
       );
     }
 
+    // Server-side expiry enforcement — expires_at geçtiyse veri döndürme.
+    // 410 Gone: süresi dolmuş kaynak için semantik olarak doğru HTTP kodu.
+    if (session.expires_at && new Date(session.expires_at) < new Date()) {
+      return new Response(
+        JSON.stringify({ error: "Session abgelaufen" }),
+        { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get company info
     const { data: company } = await supabase
       .from("companies")

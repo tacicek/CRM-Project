@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,7 +64,14 @@ export default function VirtualBesichtigung() {
           }
         );
 
-        if (fnError) throw fnError;
+        if (fnError) {
+          // Server gibt 410 Gone bei abgelaufener Session zurück
+          if (fnError instanceof FunctionsHttpError && fnError.context?.status === 410) {
+            setSessionStatus("expired");
+            return;
+          }
+          throw fnError;
+        }
 
         if (!data?.session) {
           setSessionStatus("error");
