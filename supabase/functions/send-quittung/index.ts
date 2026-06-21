@@ -4,6 +4,7 @@ import { getDefaultFrom, getSenderEmail, getAppName, getSiteUrl, getDashAppUrl, 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
+import { buildInvoiceEmailHtml, fmtChf, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,112 +60,44 @@ interface QuittungRow {
   };
 }
 
-function fmtChf(amount: number): string {
-  return "CHF " + amount.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtDate(isoDate: string): string {
-  const d = new Date(isoDate);
-  return d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 function buildCustomerEmail(q: QuittungRow, brand: string): string {
-  const checkedItems = q.positionen.filter(p => p.checked && p.betrag > 0);
+  const lines = q.positionen
+    .filter((p) => p.checked && p.betrag > 0)
+    .map((p) => ({ beschreibung: p.beschreibung, detail: p.satz || "", betrag: p.betrag }));
 
-  const rows = checkedItems.map(p => `
-    <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #e4e4e7;font-size:13px;">${p.beschreibung}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e4e4e7;font-size:13px;color:#71717a;">${p.satz || ""}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e4e4e7;font-size:13px;text-align:right;">${fmtChf(p.betrag)}</td>
-    </tr>`).join("");
-
-  const inner = `
-    <!-- Header -->
-    <div style="background:${brand};padding:24px 20px 20px;">
-      <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.75);font-family:${EMAIL_FONT_STACK}">
-        Quittung
-      </p>
-      <h1 style="margin:0;font-size:22px;font-weight:700;color:#fff;font-family:${EMAIL_FONT_STACK}">
-        ${q.companies.company_name}
-      </h1>
-      <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.85);font-family:${EMAIL_FONT_STACK}">
-        ${q.quittung_nr} · ${fmtDate(q.datum)}
-      </p>
-    </div>
-
-    <!-- Body -->
-    <div style="padding:24px 20px;background:#fafafa;">
-      <p style="margin:0 0 16px;font-size:15px;color:#18181b;font-family:${EMAIL_FONT_STACK}">
-        Guten Tag ${q.customer_name},
-      </p>
-      <p style="margin:0 0 20px;font-size:14px;color:#3f3f46;font-family:${EMAIL_FONT_STACK}">
-        Vielen Dank für Ihren Auftrag. Anbei finden Sie Ihre Quittung im Anhang.
-      </p>
-
-      <!-- Service table -->
-      <table width="100%" cellspacing="0" cellpadding="0" border="0"
-        style="border-collapse:collapse;border:1px solid #e4e4e7;border-radius:8px;overflow:hidden;background:#fff;margin-bottom:16px;">
-        <thead>
-          <tr style="background:${brand};">
-            <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-weight:600;font-family:${EMAIL_FONT_STACK}">Beschreibung</th>
-            <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-weight:600;font-family:${EMAIL_FONT_STACK}">Satz</th>
-            <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-weight:600;font-family:${EMAIL_FONT_STACK}">Betrag</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
-
-      <!-- Totals -->
-      <table width="100%" cellspacing="0" cellpadding="0" border="0"
-        style="max-width:280px;margin-left:auto;border-collapse:collapse;margin-bottom:16px;">
-        <tr>
-          <td style="padding:5px 0;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">Zwischensumme:</td>
-          <td style="padding:5px 0;font-size:13px;text-align:right;font-family:${EMAIL_FONT_STACK}">${fmtChf(q.zwischensumme)}</td>
-        </tr>
-        ${q.rabatt > 0 ? `
-        <tr>
-          <td style="padding:5px 0;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">Rabatt:</td>
-          <td style="padding:5px 0;font-size:13px;text-align:right;font-family:${EMAIL_FONT_STACK}">-${fmtChf(q.rabatt)}</td>
-        </tr>` : ""}
-        <tr>
-          <td style="padding:5px 0;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">MwSt. (${q.mwst_satz}%):</td>
-          <td style="padding:5px 0;font-size:13px;text-align:right;font-family:${EMAIL_FONT_STACK}">${fmtChf(q.mwst_betrag)}</td>
-        </tr>
-        <tr>
-          <td style="padding:10px 12px;font-size:16px;font-weight:700;background:${brand}22;border-radius:4px 0 0 4px;color:${brand};font-family:${EMAIL_FONT_STACK}">Gesamttotal:</td>
-          <td style="padding:10px 12px;font-size:16px;font-weight:700;background:${brand}22;border-radius:0 4px 4px 0;text-align:right;color:${brand};font-family:${EMAIL_FONT_STACK}">${fmtChf(q.gesamttotal)}</td>
-        </tr>
-      </table>
-
-      ${q.betrag_noch_offen ? `
+  const extraSection = q.betrag_noch_offen
+    ? `
       <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
         <p style="margin:0;font-size:13px;font-weight:600;color:#92400E;font-family:${EMAIL_FONT_STACK}">
           ⚠️ Betrag noch offen – Bitte begleichen Sie den ausstehenden Betrag.
         </p>
-      </div>` : ""}
+      </div>`
+    : undefined;
 
-      <p style="margin:16px 0 4px;font-size:13px;color:#3f3f46;font-family:${EMAIL_FONT_STACK}">
-        Mit freundlichen Grüssen,<br>
-        <strong>${q.companies.company_name}</strong>
-      </p>
-    </div>
-
-    <!-- Footer -->
-    <div style="padding:14px 20px;background:#f4f4f5;border-top:1px solid #e4e4e7;text-align:center;">
-      <p style="margin:0;font-size:11px;color:#a1a1aa;font-family:${EMAIL_FONT_STACK}">
-        ${[
-          q.companies.iban ? "IBAN: " + q.companies.iban : "",
-          q.companies.bank_name || "",
-          q.companies.mwst_number ? "MwSt-Nr.: " + q.companies.mwst_number : "",
-          q.companies.phone || "",
-        ].filter(Boolean).join("  ·  ")}
-      </p>
-    </div>
-  `;
-
-  return wrapEmailDocument(inner);
+  return buildInvoiceEmailHtml({
+    companyName: q.companies.company_name,
+    brand,
+    documentLabel: "Quittung",
+    documentNumber: q.quittung_nr,
+    datum: q.datum,
+    customerName: q.customer_name,
+    intro: "Vielen Dank für Ihren Auftrag. Anbei finden Sie Ihre Quittung im Anhang.",
+    detailLabel: "Satz",
+    lines,
+    zwischensumme: q.zwischensumme,
+    rabatt: q.rabatt,
+    mwstSatz: q.mwst_satz,
+    mwstBetrag: q.mwst_betrag,
+    totalLabel: "Gesamttotal",
+    total: q.gesamttotal,
+    extraSection,
+    footerParts: [
+      q.companies.iban ? "IBAN: " + q.companies.iban : "",
+      q.companies.bank_name || "",
+      q.companies.mwst_number ? "MwSt-Nr.: " + q.companies.mwst_number : "",
+      q.companies.phone || "",
+    ],
+  });
 }
 
 function buildFirmaEmail(q: QuittungRow, brand: string): string {

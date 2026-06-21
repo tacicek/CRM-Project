@@ -3,7 +3,8 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getSenderEmail } from "../_shared/envConfig.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
-import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
+import { EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
+import { buildInvoiceEmailHtml, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,80 +57,18 @@ interface RechnungRow {
   };
 }
 
-function fmtChf(amount: number): string {
-  return "CHF " + amount.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtDate(isoDate: string): string {
-  const d = new Date(isoDate);
-  return d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 function buildCustomerEmail(r: RechnungRow, brand: string): string {
-  const rows = r.positionen
+  const lines = r.positionen
     .filter((p) => p.betrag > 0 || (p.beschreibung ?? "").trim().length > 0)
-    .map((p) => {
-      const mengeStr = p.menge != null ? `${p.menge}${p.einheit ? " " + p.einheit : ""}` : "";
-      return `
-    <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #e4e4e7;font-size:13px;">${p.beschreibung}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e4e4e7;font-size:13px;color:#71717a;">${mengeStr}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e4e4e7;font-size:13px;text-align:right;">${fmtChf(p.betrag)}</td>
-    </tr>`;
-    })
-    .join("");
+    .map((p) => ({
+      beschreibung: p.beschreibung,
+      detail: typeof p.menge === "number" ? `${p.menge}${p.einheit ? " " + p.einheit : ""}` : "",
+      betrag: p.betrag,
+    }));
 
   const iban = r.qr_iban || r.companies.iban || "";
 
-  const inner = `
-    <div style="background:${brand};padding:24px 20px 20px;">
-      <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.75);font-family:${EMAIL_FONT_STACK}">
-        Rechnung
-      </p>
-      <h1 style="margin:0;font-size:22px;font-weight:700;color:#fff;font-family:${EMAIL_FONT_STACK}">
-        ${r.companies.company_name}
-      </h1>
-      <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.85);font-family:${EMAIL_FONT_STACK}">
-        ${r.rechnung_nr} · ${fmtDate(r.datum)}
-      </p>
-    </div>
-
-    <div style="padding:24px 20px;background:#fafafa;">
-      <p style="margin:0 0 16px;font-size:15px;color:#18181b;font-family:${EMAIL_FONT_STACK}">
-        Guten Tag ${r.customer_name},
-      </p>
-      <p style="margin:0 0 20px;font-size:14px;color:#3f3f46;font-family:${EMAIL_FONT_STACK}">
-        Anbei erhalten Sie Ihre Rechnung mit QR-Zahlteil im PDF-Anhang.
-      </p>
-
-      <table width="100%" cellspacing="0" cellpadding="0" border="0"
-        style="border-collapse:collapse;border:1px solid #e4e4e7;border-radius:8px;overflow:hidden;background:#fff;margin-bottom:16px;">
-        <thead>
-          <tr style="background:${brand};">
-            <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-weight:600;font-family:${EMAIL_FONT_STACK}">Beschreibung</th>
-            <th style="padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-weight:600;font-family:${EMAIL_FONT_STACK}">Menge</th>
-            <th style="padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-weight:600;font-family:${EMAIL_FONT_STACK}">Betrag</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-
-      <table width="100%" cellspacing="0" cellpadding="0" border="0"
-        style="max-width:280px;margin-left:auto;border-collapse:collapse;margin-bottom:16px;">
-        <tr>
-          <td style="padding:5px 0;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">Zwischensumme:</td>
-          <td style="padding:5px 0;font-size:13px;text-align:right;font-family:${EMAIL_FONT_STACK}">${fmtChf(r.zwischensumme)}</td>
-        </tr>
-        <tr>
-          <td style="padding:5px 0;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">MwSt. (${r.mwst_satz}%):</td>
-          <td style="padding:5px 0;font-size:13px;text-align:right;font-family:${EMAIL_FONT_STACK}">${fmtChf(r.mwst_betrag)}</td>
-        </tr>
-        <tr>
-          <td style="padding:10px 12px;font-size:16px;font-weight:700;background:${brand}22;border-radius:4px 0 0 4px;color:${brand};font-family:${EMAIL_FONT_STACK}">Total:</td>
-          <td style="padding:10px 12px;font-size:16px;font-weight:700;background:${brand}22;border-radius:0 4px 4px 0;text-align:right;color:${brand};font-family:${EMAIL_FONT_STACK}">${fmtChf(r.gesamttotal || r.total)}</td>
-        </tr>
-      </table>
-
+  const extraSection = `
       <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:12px 14px;margin-bottom:16px;">
         <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#1E40AF;font-family:${EMAIL_FONT_STACK}">
           Zahlbar bis ${fmtDate(r.faellig_am)}
@@ -137,27 +76,31 @@ function buildCustomerEmail(r: RechnungRow, brand: string): string {
         <p style="margin:0;font-size:12px;color:#3f3f46;font-family:${EMAIL_FONT_STACK}">
           ${[iban ? "IBAN: " + iban : "", r.qr_referenz ? "Referenz: " + r.qr_referenz : ""].filter(Boolean).join("  ·  ")}
         </p>
-      </div>
+      </div>`;
 
-      <p style="margin:16px 0 4px;font-size:13px;color:#3f3f46;font-family:${EMAIL_FONT_STACK}">
-        Mit freundlichen Grüssen,<br>
-        <strong>${r.companies.company_name}</strong>
-      </p>
-    </div>
-
-    <div style="padding:14px 20px;background:#f4f4f5;border-top:1px solid #e4e4e7;text-align:center;">
-      <p style="margin:0;font-size:11px;color:#a1a1aa;font-family:${EMAIL_FONT_STACK}">
-        ${[
-          iban ? "IBAN: " + iban : "",
-          r.companies.bank_name || "",
-          r.companies.mwst_number ? "MwSt-Nr.: " + r.companies.mwst_number : "",
-          r.companies.phone || "",
-        ].filter(Boolean).join("  ·  ")}
-      </p>
-    </div>
-  `;
-
-  return wrapEmailDocument(inner);
+  return buildInvoiceEmailHtml({
+    companyName: r.companies.company_name,
+    brand,
+    documentLabel: "Rechnung",
+    documentNumber: r.rechnung_nr,
+    datum: r.datum,
+    customerName: r.customer_name,
+    intro: "Anbei erhalten Sie Ihre Rechnung mit QR-Zahlteil im PDF-Anhang.",
+    detailLabel: "Menge",
+    lines,
+    zwischensumme: r.zwischensumme,
+    mwstSatz: r.mwst_satz,
+    mwstBetrag: r.mwst_betrag,
+    totalLabel: "Total",
+    total: r.gesamttotal || r.total,
+    extraSection,
+    footerParts: [
+      iban ? "IBAN: " + iban : "",
+      r.companies.bank_name || "",
+      r.companies.mwst_number ? "MwSt-Nr.: " + r.companies.mwst_number : "",
+      r.companies.phone || "",
+    ],
+  });
 }
 
 serve(async (req) => {
