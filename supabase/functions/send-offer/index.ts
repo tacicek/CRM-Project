@@ -721,10 +721,18 @@ const handler = async (req: Request): Promise<Response> => {
               if (te && te.maxHours > 0 && te.hourlyRate > 0) return sum + te.maxHours * te.hourlyRate;
               return sum + item.quantity * item.unit_price;
             }, 0);
-            const minVat = minSub * (Number(offer.vat_rate) / 100);
-            const maxVat = maxSub * (Number(offer.vat_rate) / 100);
-            const minTotal = minSub + minVat;
-            const maxTotal = maxSub + maxVat;
+            // Zuschläge: Zwischensumme-Range bleibt Positionen; Zuschläge fix dazwischen, MwSt auf (Sub + Zuschläge).
+            const rangeSurcharges = Array.isArray(offer.surcharges) ? offer.surcharges : [];
+            const rangeSurchargesSum = rangeSurcharges.reduce((sum, x) => sum + (Number(x?.amount) || 0), 0);
+            const rangeSurchargeRows = rangeSurcharges.map((x) => `
+            <div style="margin-bottom: 8px;">
+              <span style="color: #6b7280;">${x?.label || 'Zuschlag'}:</span>
+              <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(x?.amount) || 0)}</span>
+            </div>`).join("");
+            const minVat = (minSub + rangeSurchargesSum) * (Number(offer.vat_rate) / 100);
+            const maxVat = (maxSub + rangeSurchargesSum) * (Number(offer.vat_rate) / 100);
+            const minTotal = minSub + rangeSurchargesSum + minVat;
+            const maxTotal = maxSub + rangeSurchargesSum + maxVat;
             return `
           ${offer.offerte_type === 'blind' ? `
           <div style="margin: 0 0 20px 0; padding: 16px; background-color: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b;">
@@ -738,7 +746,7 @@ const handler = async (req: Request): Promise<Response> => {
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">Zwischensumme:</span>
               <span style="margin-left: 24px; color: #b45309; font-weight: 600;">${fmtCHF(minSub)} &ndash; ${fmtCHF(maxSub)}</span>
-            </div>
+            </div>${rangeSurchargeRows}
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">MwSt. (${offer.vat_rate}%):</span>
               <span style="margin-left: 24px; color: #b45309;">${fmtCHF(minVat)} &ndash; ${fmtCHF(maxVat)}</span>
