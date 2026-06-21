@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save, Loader2, Download, Plus, Trash2, CheckCircle } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Download, Plus, Trash2, CheckCircle, Send } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useRechnungen, positionenToJson, type RechnungInsert } from "@/hooks/useRechnungen";
 import {
-  downloadRechnungPdf, type RechnungCompany, type RechnungData, type RechnungPosition,
+  buildRechnungDoc, downloadRechnungPdf, type RechnungCompany, type RechnungData, type RechnungPosition,
 } from "@/lib/generateRechnungPdf";
 import { computeQrReference, type NeueRechnung } from "@/lib/erstelleRechnung";
 import {
@@ -78,6 +78,7 @@ export default function RechnungDetail() {
 
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [rechnungId, setRechnungId] = useState<string | null>(isNew ? null : id ?? null);
 
   // Form state
@@ -320,6 +321,41 @@ export default function RechnungDetail() {
     }
   };
 
+  const handleSendEmail = async () => {
+    if (!customerEmail.trim()) {
+      toast({ title: "Keine Kunden-E-Mail", variant: "destructive" });
+      return;
+    }
+    const savedId = await save();
+    if (!savedId) return;
+    const data = buildPdfData();
+    if (!data) return;
+    if (!data.company.iban) {
+      toast({ title: "IBAN fehlt", description: "Bitte IBAN in den Einstellungen hinterlegen.", variant: "destructive" });
+      return;
+    }
+    setIsSendingEmail(true);
+    try {
+      // PDF client-seitig erzeugen (jsPDF QR-Bill) → base64 an Edge Function
+      const doc = await buildRechnungDoc(data);
+      const pdfBase64 = doc.output("datauristring").split(",")[1] ?? "";
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData.session;
+      if (!session) throw new Error("Nicht angemeldet");
+      const { error } = await supabase.functions.invoke("send-rechnung-email", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { rechnungId: savedId, pdfBase64 },
+      });
+      if (error) throw error;
+      setStatus("versendet");
+      toast({ title: "Rechnung versendet", description: `E-Mail an ${customerEmail} gesendet.` });
+    } catch (e) {
+      toast({ title: "Fehler beim Versenden", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -481,6 +517,12 @@ export default function RechnungDetail() {
           <Button variant="outline" onClick={handleDownload}>
             <Download className="w-4 h-4 mr-2" /> PDF herunterladen
           </Button>
+          {customerEmail && status !== "bezahlt" && (
+            <Button onClick={handleSendEmail} disabled={isSendingEmail || isSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+              {isSendingEmail ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+              Per E-Mail senden
+            </Button>
+          )}
           {rechnungId && status !== "bezahlt" && (
             <Button onClick={() => handleStatusChange("bezahlt")} className="bg-emerald-600 hover:bg-emerald-700 text-white">
               <CheckCircle className="w-4 h-4 mr-2" /> Zahlung erhalten
