@@ -5814,6 +5814,7 @@ export type Database = {
           service_type: string
           status: string
           subtotal: number
+          surcharges: Json
           title: string
           to_city: string
           to_floor: number

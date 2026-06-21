@@ -47,6 +47,7 @@ import { useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
+import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
 
 interface OfferItem {
   id: string;
@@ -69,6 +70,7 @@ interface Offer {
   service_date: string | null;
   valid_until: string | null;
   subtotal: number;
+  surcharges?: unknown;
   vat_rate: number;
   vat_amount: number;
   total: number;
@@ -789,14 +791,28 @@ const PublicOfferView = () => {
 
               <div className="flex justify-end">
                 <div className="w-72 space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Zwischensumme</span>
-                    <span>{formatCurrency(Number(offer.subtotal))}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">MwSt. ({offer.vat_rate}%)</span>
-                    <span>{formatCurrency(Number(offer.vat_amount))}</span>
-                  </div>
+                  {(() => {
+                    const surchargeList = parseSurcharges(offer.surcharges);
+                    const itemsSub = Number(offer.subtotal) - sumSurchargeAmounts(surchargeList);
+                    return (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Zwischensumme</span>
+                          <span>{formatCurrency(itemsSub)}</span>
+                        </div>
+                        {surchargeList.map((s, i) => (
+                          <div key={i} className="flex justify-between">
+                            <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
+                            <span>{formatCurrency(s.amount)}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">MwSt. ({offer.vat_rate}%)</span>
+                          <span>{formatCurrency(Number(offer.vat_amount))}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
                   <Separator />
                   <div className="flex justify-between text-xl font-bold">
                     <span>Total</span>
