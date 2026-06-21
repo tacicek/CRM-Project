@@ -3238,6 +3238,7 @@ export type Database = {
           service_start_time: string | null
           status: string
           subtotal: number
+          surcharges: Json | null
           time_estimate: Json | null
           title: string
           total: number | null
@@ -3297,6 +3298,7 @@ export type Database = {
           service_start_time?: string | null
           status?: string
           subtotal?: number
+          surcharges?: Json | null
           time_estimate?: Json | null
           title: string
           total?: number | null
@@ -3356,6 +3358,7 @@ export type Database = {
           service_start_time?: string | null
           status?: string
           subtotal?: number
+          surcharges?: Json | null
           time_estimate?: Json | null
           title?: string
           total?: number | null
