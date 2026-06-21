@@ -510,6 +510,7 @@ export default function VirtualBesichtigung() {
                 roomType={selectedRoom}
                 onFilesSelected={handleFilesSelected}
                 isUploading={isUploading}
+                maxSizeMB={10}
                 primaryColor={primaryColor}
               />
 

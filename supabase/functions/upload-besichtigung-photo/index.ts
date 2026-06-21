@@ -60,6 +60,23 @@ serve(async (req) => {
       );
     }
 
+    // Validate file type + size BEFORE writing to storage
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
+
+    if (!file.type || !ALLOWED_TYPES.includes(file.type)) {
+      return new Response(
+        JSON.stringify({ error: "Nicht unterstützter Dateityp (JPEG, PNG, WebP, HEIC)" }),
+        { status: 415, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (file.size > MAX_SIZE) {
+      return new Response(
+        JSON.stringify({ error: "Datei zu gross (max. 10 MB)" }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Upload file to storage
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");

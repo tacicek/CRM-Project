@@ -14,16 +14,15 @@ interface UploadZoneProps {
   primaryColor?: string;
 }
 
-const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
-const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
-const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
+// Server (upload-besichtigung-photo) ile birebir: yalnız görsel, video yok.
+const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
 
 export function UploadZone({
   roomType,
   onFilesSelected,
   isUploading = false,
   maxFiles = 20,
-  maxSizeMB = 50,
+  maxSizeMB = 10,
   primaryColor,
 }: UploadZoneProps) {
   const [isDragActive, setIsDragActive] = useState(false);
@@ -42,8 +41,8 @@ export function UploadZone({
       const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
       for (const file of files) {
-        if (!ACCEPTED_TYPES.includes(file.type)) {
-          toast.error(`${file.name}: Ungültiges Format. Nur Bilder und Videos erlaubt.`);
+        if (!file.type || !ACCEPTED_TYPES.includes(file.type)) {
+          toast.error(`${file.name}: Ungültiges Format. Nur JPG, PNG, WebP, HEIC.`);
           continue;
         }
         if (file.size > maxSizeBytes) {
@@ -200,7 +199,7 @@ export function UploadZone({
       <div className="text-center">
         <p className="font-medium text-gray-700 mb-1">{statusText}</p>
         <p className="text-sm text-gray-500 hidden sm:block">
-          Bilder oder Videos hierher ziehen oder{" "}
+          Bilder hierher ziehen oder{" "}
           <span
             className="text-primary underline"
             style={primaryColor ? { color: primaryColor } : undefined}
@@ -209,7 +208,7 @@ export function UploadZone({
           </span>
         </p>
         <p className="text-xs text-gray-400 mt-2">
-          JPG, PNG, HEIC, MP4 • Max. {maxSizeMB}MB pro Datei
+          JPG, PNG, WebP, HEIC • Max. {maxSizeMB}MB pro Datei
         </p>
       </div>
 
