@@ -4,7 +4,7 @@ import { getSenderEmail } from "../_shared/envConfig.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
-import { buildInvoiceEmailHtml, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
+import { buildInvoiceEmailHtml, buildInvoiceEmailSubject, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -204,7 +204,7 @@ serve(async (req) => {
     const { data: emailData, error: emailErr } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
       to: [r.customer_email],
-      subject: `Ihre Rechnung von ${company.company_name} – ${r.rechnung_nr}`,
+      subject: buildInvoiceEmailSubject({ documentTitle: "Rechnung", documentNumber: r.rechnung_nr, companyName: company.company_name }),
       html: buildCustomerEmail(r, brand),
       attachments,
     });

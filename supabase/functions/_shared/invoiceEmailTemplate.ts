@@ -133,3 +133,12 @@ export function buildInvoiceEmailHtml(data: InvoiceEmailData): string {
 
   return wrapEmailDocument(inner);
 }
+
+/** Müşteri e-postası konu satırı: "Ihre {Quittung|Rechnung} von {Firma} – {Nr}". */
+export function buildInvoiceEmailSubject(params: {
+  documentTitle: string;
+  documentNumber: string;
+  companyName: string;
+}): string {
+  return `Ihre ${params.documentTitle} von ${params.companyName} – ${params.documentNumber}`;
+}
