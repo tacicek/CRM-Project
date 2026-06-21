@@ -66,6 +66,8 @@ export interface OfferData {
     priceModel?: 'pauschal' | 'stundenansatz' | 'kostendach';
     hourlyRate?: number | null;
     kostendachMax?: number | null;
+    /** Zuschläge — zwischen Zwischensumme und MwSt gerendert. */
+    surcharges?: { label: string; amount: number }[];
     /** Populated for blind offerte with time estimate — max of the range */
     maxSubtotal?: number | null;
     maxMwstAmount?: number | null;

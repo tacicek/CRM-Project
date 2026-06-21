@@ -72,6 +72,19 @@ export const withComputedAmounts = (
     amount: computeSurchargeAmount(s, itemsSubtotal, distanceKm),
   }));
 
+/** DB jsonb → OfferSurcharge[] (güvenli sınır dönüşümü, read yüzeyleri için). */
+export const parseSurcharges = (raw: unknown): OfferSurcharge[] => {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (s): s is OfferSurcharge =>
+      !!s && typeof s === "object" && typeof (s as OfferSurcharge).label === "string",
+  );
+};
+
+/** Saklanmış (snapshot) surcharge tutarlarının toplamı. */
+export const sumSurchargeAmounts = (surcharges: OfferSurcharge[] | null | undefined): number =>
+  round2((surcharges ?? []).reduce((sum, s) => sum + (Number.isFinite(s.amount) ? s.amount : 0), 0));
+
 export interface OfferTotals {
   /** Σ kalemler (offer_items.total). */
   itemsSubtotal: number;

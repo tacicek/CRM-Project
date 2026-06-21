@@ -68,6 +68,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
+import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -125,6 +126,7 @@ interface Offer {
   agb_version: string | null;
   payment_terms: string | null;
   price_model: 'pauschal' | 'stundenansatz' | 'kostendach' | null;
+  surcharges?: unknown;
   hourly_rate: number | null;
   kostendach_max: number | null;
   service_start_time: string | null;
@@ -840,16 +842,22 @@ const FirmaOfferteDetail = () => {
                   <Separator className="my-3" />
 
                   <div className="space-y-2 text-sm">
-                    {(() => { const range = getBlindRange(); return (
+                    {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = Number(offer.subtotal) - sumSurchargeAmounts(surchargeList); return (
                       <>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Zwischensumme</span>
                           {range ? (
-                            <span className="text-amber-700 font-medium">{formatCurrency(Number(offer.subtotal))} – {formatCurrency(range.maxSubtotal)}</span>
+                            <span className="text-amber-700 font-medium">{formatCurrency(itemsSub)} – {formatCurrency(range.maxSubtotal)}</span>
                           ) : (
-                            <span>{formatCurrency(Number(offer.subtotal))}</span>
+                            <span>{formatCurrency(itemsSub)}</span>
                           )}
                         </div>
+                        {surchargeList.map((s, i) => (
+                          <div key={i} className="flex justify-between">
+                            <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
+                            <span>{formatCurrency(s.amount)}</span>
+                          </div>
+                        ))}
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">MwSt. ({offer.vat_rate}%)</span>
                           {range ? (
@@ -912,16 +920,22 @@ const FirmaOfferteDetail = () => {
 
                   <div className="flex justify-end">
                     <div className="w-72 space-y-2">
-                      {(() => { const range = getBlindRange(); return (
+                      {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = Number(offer.subtotal) - sumSurchargeAmounts(surchargeList); return (
                         <>
                           <div className="flex justify-between text-sm">
                             <span>Zwischensumme</span>
                             {range ? (
-                              <span className="text-amber-700 font-medium">{formatCurrency(Number(offer.subtotal))} – {formatCurrency(range.maxSubtotal)}</span>
+                              <span className="text-amber-700 font-medium">{formatCurrency(itemsSub)} – {formatCurrency(range.maxSubtotal)}</span>
                             ) : (
-                              <span>{formatCurrency(Number(offer.subtotal))}</span>
+                              <span>{formatCurrency(itemsSub)}</span>
                             )}
                           </div>
+                          {surchargeList.map((s, i) => (
+                            <div key={i} className="flex justify-between text-sm">
+                              <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
+                              <span>{formatCurrency(s.amount)}</span>
+                            </div>
+                          ))}
                           <div className="flex justify-between text-sm">
                             <span>MwSt. ({offer.vat_rate}%)</span>
                             {range ? (
@@ -1327,6 +1341,7 @@ const FirmaOfferteDetail = () => {
                 vat_rate: offer.vat_rate,
                 vat_amount: offer.vat_amount,
                 total: offer.total,
+                surcharges: parseSurcharges(offer.surcharges).map((s) => ({ label: s.label, amount: s.amount })),
                 created_at: offer.created_at,
                 items: items.map((item) => ({
                   position: item.position,

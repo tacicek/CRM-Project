@@ -685,12 +685,21 @@ const handler = async (req: Request): Promise<Response> => {
           ${(() => {
             const hasItemTE = items?.some(i => i.time_estimate && i.time_estimate.maxHours > 0 && i.time_estimate.hourlyRate > 0);
             if (!hasItemTE) {
+              // Zuschläge: offer.subtotal = steuerbare Basis (Positionen + Zuschläge).
+              const surchargeArr = Array.isArray(offer.surcharges) ? offer.surcharges : [];
+              const surchargesSum = surchargeArr.reduce((sum, x) => sum + (Number(x?.amount) || 0), 0);
+              const itemsSub = Number(offer.subtotal) - surchargesSum;
+              const surchargeRows = surchargeArr.map((x) => `
+            <div style="margin-bottom: 8px;">
+              <span style="color: #6b7280;">${x?.label || "Zuschlag"}:</span>
+              <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(x?.amount) || 0)}</span>
+            </div>`).join("");
               return `
           <div style="text-align: right; margin: 24px 0;">
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">Zwischensumme:</span>
-              <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(offer.subtotal))}</span>
-            </div>
+              <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(itemsSub)}</span>
+            </div>${surchargeRows}
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">MwSt. (${offer.vat_rate}%):</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(offer.vat_amount || 0))}</span>

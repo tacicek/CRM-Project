@@ -35,6 +35,7 @@ export interface LegacyOfferData {
   customer_salutation?: string | null;
   offer_number?: number | null;
   offerte_type?: 'normal' | 'blind' | null;
+  surcharges?: { label: string; amount: number }[] | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
 }
 
@@ -282,17 +283,23 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       let maxSubtotal: number | null = null;
       let maxMwstAmount: number | null = null;
       let maxTotal: number | null = null;
+      // Zuschläge: offer.subtotal = steuerbare Basis (Positionen + Zuschläge).
+      // Anzeige: Positionen-Zwischensumme = subtotal − Σ Zuschläge; Zuschlagszeilen separat.
+      const surcharges = (offer.surcharges ?? []).map((s) => ({ label: s.label, amount: s.amount }));
+      const surchargesSum = surcharges.reduce((sum, s) => sum + (Number.isFinite(s.amount) ? s.amount : 0), 0);
+      const itemsSubtotal = offer.subtotal - surchargesSum;
       if (hasItemTe) {
         maxSubtotal = offer.items.reduce((sum, item) => {
           const te = item.time_estimate;
           if (te && te.maxHours && te.hourlyRate) return sum + te.maxHours * te.hourlyRate;
           return sum + item.quantity * item.unit_price;
         }, 0);
-        maxMwstAmount = maxSubtotal * (offer.vat_rate / 100);
-        maxTotal = maxSubtotal + maxMwstAmount;
+        maxMwstAmount = (maxSubtotal + surchargesSum) * (offer.vat_rate / 100);
+        maxTotal = maxSubtotal + surchargesSum + maxMwstAmount;
       }
       return {
-        subtotal: offer.subtotal,
+        subtotal: itemsSubtotal,
+        surcharges,
         mwstRate: offer.vat_rate,
         mwstAmount: offer.vat_amount,
         total: offer.total,

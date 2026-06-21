@@ -385,6 +385,14 @@ export const ServiceTable = ({
               </View>
             )}
 
+            {/* Zuschläge — zwischen Zwischensumme und MwSt */}
+            {(data.pricing.surcharges ?? []).map((s, i) => (
+              <View key={i} style={styles.totalRow}>
+                <Text style={styles.totalLabel}>{s.label || "Zuschlag"}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(s.amount)}</Text>
+              </View>
+            ))}
+
             <View style={styles.totalDivider} />
 
             {/* MwSt */}
