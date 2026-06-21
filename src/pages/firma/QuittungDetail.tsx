@@ -11,7 +11,7 @@ import {
   ArrowLeft, Save, Send, Loader2, Download,
   Plus, Trash2, CheckCircle, FileText, Link2, X,
 } from "lucide-react";
-import { PDFDownloadLink } from "@react-pdf/renderer";
+import { PDFDownloadLink, pdf } from "@react-pdf/renderer";
 import { QuittungPDF } from "@/components/quittung/QuittungPDF";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -92,6 +92,15 @@ interface FromAuftragPrefill {
   extraServices?: AuftragPrefillItem[];
 }
 
+/** Blob → base64 (data: ön eki olmadan), e-posta eki için. */
+const blobToBase64 = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(",")[1] ?? "");
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
 export default function QuittungDetail() {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === "neu";
@@ -136,6 +145,34 @@ export default function QuittungDetail() {
   const teamSignRef = useRef<SignaturePadRef>(null);
 
   const totals = calculateTotals(positionen, mwstSatz, rabatt);
+
+  // Tek kaynak: PDF indirme, önizleme ve e-posta eki aynı veriyi kullanır (drift önler).
+  const buildQuittungData = (): Quittung => ({
+    id: quittungId || "",
+    company_id: company?.id ?? "",
+    offer_id: linkedOfferId,
+    quittung_nr: quittungNr,
+    datum,
+    customer_name: customerName,
+    customer_address: customerAddress,
+    customer_destination: customerDestination,
+    customer_email: customerEmail,
+    customer_phone: customerPhone,
+    positionen,
+    mwst_satz: mwstSatz,
+    rabatt,
+    betrag_noch_offen: betragNochOffen,
+    notiz,
+    status,
+    ...totals,
+    kunde_unterschrift: kundeSignatur,
+    teamchef_unterschrift: teamchefSignatur,
+    kunde_signed_at: kundeSignedAt,
+    teamchef_signed_at: teamchefSignedAt,
+    pdf_url: null,
+    created_at: "",
+    updated_at: "",
+  });
 
   // Load company + pre-fetch logo as base64 so @react-pdf/renderer can embed it (bypasses CORS)
   useEffect(() => {
@@ -377,14 +414,23 @@ export default function QuittungDetail() {
     if (!savedId || !company) return;
     setIsSendingEmail(true);
     try {
+      // PDF client-tarafında üret (react-pdf) → base64 → send-quittung'a ek olarak gönder.
+      const blob = await pdf(
+        <QuittungPDF
+          quittung={buildQuittungData()}
+          company={{ ...company, logo_url: logoBase64 ?? company.logo_url }}
+        />
+      ).toBlob();
+      const quittungPdfBase64 = await blobToBase64(blob);
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Nicht angemeldet");
       const { error } = await supabase.functions.invoke("send-quittung", {
         headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { quittungId: savedId },
+        body: { quittungId: savedId, quittungPdfBase64 },
       });
       if (error) throw error;
-      await supabase.from("quittungen").update({ status: "sent" }).eq("id", savedId);
+      // Status'u send-quittung server'da 'sent' yapar — burada yalnız yerel UI güncellenir.
       setStatus("sent");
       toast({ title: "Quittung versendet!", description: `E-Mail an ${customerEmail} gesendet.` });
     } catch (e) {
@@ -460,17 +506,7 @@ export default function QuittungDetail() {
           {/* PDF Preview */}
           {showPdfPreview && company && (
             <QuittungPDFPreview
-              quittung={{
-                id: quittungId || "", company_id: company.id, offer_id: null,
-                quittung_nr: quittungNr, datum, customer_name: customerName,
-                customer_address: customerAddress, customer_destination: customerDestination,
-                customer_email: customerEmail, customer_phone: customerPhone,
-                positionen, mwst_satz: mwstSatz, rabatt, betrag_noch_offen: betragNochOffen,
-                notiz, status, ...totals,
-                kunde_unterschrift: kundeSignatur, teamchef_unterschrift: teamchefSignatur,
-                kunde_signed_at: kundeSignedAt, teamchef_signed_at: teamchefSignedAt,
-                pdf_url: null, created_at: "", updated_at: "",
-              }}
+              quittung={buildQuittungData()}
               company={{ ...company, logo_url: logoBase64 ?? company.logo_url }}
             />
           )}
@@ -819,17 +855,7 @@ export default function QuittungDetail() {
               <PDFDownloadLink
                 document={
                   <QuittungPDF
-                    quittung={{
-                      id: quittungId || "", company_id: company.id, offer_id: linkedOfferId,
-                      quittung_nr: quittungNr, datum, customer_name: customerName,
-                      customer_address: customerAddress, customer_destination: customerDestination,
-                      customer_email: customerEmail, customer_phone: customerPhone,
-                      positionen, mwst_satz: mwstSatz, rabatt, betrag_noch_offen: betragNochOffen,
-                      notiz, status, ...totals,
-                      kunde_unterschrift: kundeSignatur, teamchef_unterschrift: teamchefSignatur,
-                      kunde_signed_at: kundeSignedAt, teamchef_signed_at: teamchefSignedAt,
-                      pdf_url: null, created_at: "", updated_at: "",
-                    }}
+                    quittung={buildQuittungData()}
                     company={{ ...company, logo_url: logoBase64 ?? company.logo_url }}
                   />
                 }
