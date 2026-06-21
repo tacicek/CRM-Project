@@ -52,6 +52,8 @@ import { sendOffer } from "@/lib/sendOffer";
 import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
 import { OfferteItemRow, type OfferItem } from "@/components/offerte/OfferteItemRow";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
+import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
+import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -280,6 +282,7 @@ const FirmaOfferteErstellen = () => {
   const [priceModel, setPriceModel] = useState<'pauschal' | 'stundenansatz' | 'kostendach'>('pauschal');
   const [hourlyRate, setHourlyRate] = useState<string>('');
   const [kostendachMax, setKostendachMax] = useState<string>('');
+  const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
   const [offerteType, setOfferteType] = useState<'normal' | 'blind'>('normal');
 
@@ -805,25 +808,30 @@ const FirmaOfferteErstellen = () => {
     }, 0);
   };
 
+  // Steuerbare Basis = Positionen + Zuschläge. Entspricht offers.subtotal →
+  // GENERATED vat_amount/total (subtotal * vat_rate / 100). Vorschau = gespeicherte Offerte.
+  const calculateTaxableBase = () =>
+    calculateSubtotal() + surchargesTotal(surcharges, calculateSubtotal(), lead?.distance_km ?? null);
+
   const calculateVat = () => {
     if (!mwstEnabled) return 0;
-    // MwSt-Basis = voller steuerbarer Zwischensumme. Entspricht exakt der DB-Generated-
-    // Column (subtotal * vat_rate / 100), damit Vorschau = gespeicherte/versendete Offerte.
-    return calculateSubtotal() * (vatRate / 100);
+    return calculateTaxableBase() * (vatRate / 100);
   };
 
   const calculateMaxVat = (): number | null => {
     const maxSub = calculateMaxSubtotal();
     if (maxSub === null || !mwstEnabled) return null;
-    return maxSub * (vatRate / 100);
+    const maxBase = maxSub + surchargesTotal(surcharges, maxSub, lead?.distance_km ?? null);
+    return maxBase * (vatRate / 100);
   };
 
-  const calculateTotal = () => calculateSubtotal() + calculateVat();
+  const calculateTotal = () => calculateTaxableBase() + calculateVat();
 
   const calculateMaxTotal = (): number | null => {
     const maxSub = calculateMaxSubtotal();
     if (maxSub === null) return null;
-    return maxSub + (calculateMaxVat() ?? 0);
+    const maxBase = maxSub + surchargesTotal(surcharges, maxSub, lead?.distance_km ?? null);
+    return maxBase + (calculateMaxVat() ?? 0);
   };
 
   const formatCurrency = (amount: number) => {
@@ -988,7 +996,11 @@ const FirmaOfferteErstellen = () => {
     setIsSaving(true);
 
     try {
-      const subtotal = calculateSubtotal();
+      const itemsSubtotal = calculateSubtotal();
+      const distanceKm = lead?.distance_km ?? null;
+      const computedSurcharges = withComputedAmounts(surcharges, itemsSubtotal, distanceKm);
+      // subtotal = steuerbare Basis (Positionen + Zuschläge) → GENERATED vat_amount/total korrekt
+      const subtotal = itemsSubtotal + surchargesTotal(surcharges, itemsSubtotal, distanceKm);
 
       // Create offer (vat_amount and total are generated columns, so we don't include them)
       // Core fields that exist in the original schema
@@ -1006,6 +1018,7 @@ const FirmaOfferteErstellen = () => {
         service_date: serviceDate || null,
         valid_until: validUntil || null,
         subtotal,
+        surcharges: computedSurcharges,
         vat_rate: mwstEnabled ? vatRate : 0,
         status: "draft",
         sent_at: null,
@@ -1685,6 +1698,18 @@ const FirmaOfferteErstellen = () => {
                 </CardContent>
               </Card>
 
+              {/* Zuschläge */}
+              <Card>
+                <CardContent className="px-3 sm:px-6 py-3 sm:py-4">
+                  <SurchargeEditor
+                    surcharges={surcharges}
+                    onChange={setSurcharges}
+                    itemsSubtotal={calculateSubtotal()}
+                    distanceKm={lead?.distance_km ?? null}
+                  />
+                </CardContent>
+              </Card>
+
               {/* Offerte-Art: Normal / Blind */}
               <Card>
                 <CardContent className="px-3 sm:px-6 py-3 sm:py-4 space-y-3">
@@ -1871,6 +1896,13 @@ const FirmaOfferteErstellen = () => {
                           <span>{formatCurrency(calculateSubtotal())}</span>
                         )}
                       </div>
+                      {/* Zuschläge (zwischen Zwischensumme und MwSt) */}
+                      {surcharges.map((s, i) => (
+                        <div key={i} className="flex justify-between items-center text-xs sm:text-sm text-slate-600">
+                          <span className="shrink-0 truncate">{s.label || "Zuschlag"}</span>
+                          <span>{formatCurrency(computeSurchargeAmount(s, calculateSubtotal(), lead?.distance_km ?? null))}</span>
+                        </div>
+                      ))}
                       {/* MwSt row */}
                       <div className="flex justify-between items-start text-xs sm:text-sm gap-2">
                         <div className="flex items-center gap-2 shrink-0">

@@ -25,6 +25,10 @@ import {
   GripVertical,
 } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
+import {
+  computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
+} from "@/lib/offerSurcharges";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
@@ -129,6 +133,8 @@ const FirmaOfferteBearbeiten = () => {
 
   // Price model state
   const [priceModel, setPriceModel] = useState<PriceModel>('pauschal');
+  const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [hourlyRate, setHourlyRate] = useState<string>('');
   const [kostendachMax, setKostendachMax] = useState<string>('');
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
@@ -224,6 +230,8 @@ const FirmaOfferteBearbeiten = () => {
         setBriefLayout(offerData.brief_layout ?? false);
         const ot = offerData.offerte_type;
         setOfferteType(ot === 'blind' ? 'blind' : 'normal');
+        setSurcharges(Array.isArray(offerData.surcharges) ? (offerData.surcharges as unknown as OfferSurcharge[]) : []);
+        setDistanceKm(offerData.moving_distance_km ?? null);
 
         // Get offer items
         const { data: itemsData, error: itemsError } = await supabase
@@ -328,23 +336,29 @@ const FirmaOfferteBearbeiten = () => {
     }, 0);
   };
 
+  // Steuerbare Basis = Positionen + Zuschläge → offers.subtotal (GENERATED vat/total).
+  const calculateTaxableBase = () =>
+    calculateSubtotal() + surchargesTotal(surcharges, calculateSubtotal(), distanceKm);
+
   const calculateVat = () => {
     if (!mwstEnabled) return 0;
-    return calculateSubtotal() * (vatRate / 100);
+    return calculateTaxableBase() * (vatRate / 100);
   };
 
   const calculateMaxVat = (): number | null => {
     const maxSub = calculateMaxSubtotal();
     if (maxSub === null || !mwstEnabled) return null;
-    return maxSub * (vatRate / 100);
+    const maxBase = maxSub + surchargesTotal(surcharges, maxSub, distanceKm);
+    return maxBase * (vatRate / 100);
   };
 
-  const calculateTotal = () => calculateSubtotal() + calculateVat();
+  const calculateTotal = () => calculateTaxableBase() + calculateVat();
 
   const calculateMaxTotal = (): number | null => {
     const maxSub = calculateMaxSubtotal();
     if (maxSub === null) return null;
-    return maxSub + (calculateMaxVat() ?? 0);
+    const maxBase = maxSub + surchargesTotal(surcharges, maxSub, distanceKm);
+    return maxBase + (calculateMaxVat() ?? 0);
   };
 
   const formatCurrency = (amount: number) => {
@@ -482,7 +496,10 @@ const FirmaOfferteBearbeiten = () => {
     setIsSaving(true);
 
     try {
-      const subtotal = calculateSubtotal();
+      const itemsSubtotal = calculateSubtotal();
+      const computedSurcharges = withComputedAmounts(surcharges, itemsSubtotal, distanceKm);
+      // subtotal = steuerbare Basis (Positionen + Zuschläge) → GENERATED vat_amount/total
+      const subtotal = itemsSubtotal + surchargesTotal(surcharges, itemsSubtotal, distanceKm);
 
       // Update offer
       const { error: offerError } = await supabase
@@ -497,6 +514,7 @@ const FirmaOfferteBearbeiten = () => {
           service_date: serviceDate || null,
           valid_until: validUntil || null,
           subtotal,
+          surcharges: computedSurcharges,
           vat_rate: mwstEnabled ? vatRate : 0,
           // status/sent_at NICHT hier setzen — die "sent"-Transition gehört
           // ausschliesslich der send-offer Edge Function (nur bei erfolgreichem Versand).
@@ -835,6 +853,18 @@ const FirmaOfferteBearbeiten = () => {
                 </CardContent>
               </Card>
 
+              {/* Zuschläge */}
+              <Card>
+                <CardContent className="px-3 sm:px-6 py-3 sm:py-4">
+                  <SurchargeEditor
+                    surcharges={surcharges}
+                    onChange={setSurcharges}
+                    itemsSubtotal={calculateSubtotal()}
+                    distanceKm={distanceKm}
+                  />
+                </CardContent>
+              </Card>
+
               {/* Offerte-Art: Normal / Blind */}
               <Card>
                 <CardContent className="px-3 sm:px-6 py-3 sm:py-4 space-y-3">
@@ -1161,6 +1191,14 @@ const FirmaOfferteBearbeiten = () => {
                         <span>{formatCurrency(calculateSubtotal())}</span>
                       )}
                     </div>
+
+                    {/* Zuschläge (zwischen Zwischensumme und MwSt) */}
+                    {surcharges.map((s, i) => (
+                      <div key={i} className="flex justify-between items-center text-xs sm:text-sm text-muted-foreground">
+                        <span className="shrink-0 truncate">{s.label || "Zuschlag"}</span>
+                        <span>{formatCurrency(computeSurchargeAmount(s, calculateSubtotal(), distanceKm))}</span>
+                      </div>
+                    ))}
 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
