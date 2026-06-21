@@ -40,32 +40,48 @@ const FOLK_STATUS: Record<QuittungStatus, { label: string; color: string; bg: st
   paid:   { label: "Bezahlt",       color: "text-folk-mint",  bg: "bg-folk-mint-bg" },
 };
 
+interface QuittungCompany {
+  id: string;
+  company_name: string;
+  email: string;
+  logo_url?: string | null;
+  primary_color?: string | null;
+  phone?: string | null;
+  street?: string | null;
+  plz?: string | null;
+  city?: string | null;
+  mwst_number?: string | null;
+  iban?: string | null;
+  bank_name?: string | null;
+  bewertungs_url?: string | null;
+}
+
 export default function FirmaQuittungen() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { company } = useCachedCompany(
+  const { company } = useCachedCompany<QuittungCompany>(
     "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, crm_enabled"
   );
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
-  const companyLogoUrl = (company as { logo_url?: string | null } | null)?.logo_url;
+  const companyLogoUrl = company?.logo_url;
   useEffect(() => {
     logoToBase64(companyLogoUrl).then(b64 => { if (b64) setLogoBase64(b64); });
   }, [company, companyLogoUrl]);
 
   const companyForPdf = company ? {
-    company_name: (company as { company_name: string }).company_name,
-    logo_url: logoBase64 ?? (company as { logo_url?: string | null }).logo_url,
-    primary_color: (company as { primary_color?: string | null }).primary_color,
-    email: (company as { email: string }).email,
-    phone: (company as { phone?: string | null }).phone,
-    street: (company as { street?: string | null }).street,
-    plz: (company as { plz?: string | null }).plz,
-    city: (company as { city?: string | null }).city,
-    mwst_number: (company as { mwst_number?: string | null }).mwst_number,
-    iban: (company as { iban?: string | null }).iban,
-    bank_name: (company as { bank_name?: string | null }).bank_name,
-    bewertungs_url: (company as { bewertungs_url?: string | null }).bewertungs_url,
+    company_name: company.company_name,
+    logo_url: logoBase64 ?? company.logo_url,
+    primary_color: company.primary_color,
+    email: company.email,
+    phone: company.phone,
+    street: company.street,
+    plz: company.plz,
+    city: company.city,
+    mwst_number: company.mwst_number,
+    iban: company.iban,
+    bank_name: company.bank_name,
+    bewertungs_url: company.bewertungs_url,
   } : null;
 
   const [quittungen, setQuittungen] = useState<Quittung[]>([]);
@@ -79,15 +95,14 @@ export default function FirmaQuittungen() {
     if (!company?.id) return;
     setIsLoading(true);
     const { data, error } = await supabase
-      .from("quittungen" as never)
+      .from("quittungen")
       .select("*")
       .eq("company_id", company.id)
       .order("created_at", { ascending: false });
     if (error) {
-      console.error("Quittungen load error:", error);
       toast({ title: "Fehler beim Laden", description: error.message, variant: "destructive" });
     } else if (data) {
-      setQuittungen(data as unknown as Quittung[]);
+      setQuittungen(data);
     }
     setIsLoading(false);
   }, [company?.id, toast]);
