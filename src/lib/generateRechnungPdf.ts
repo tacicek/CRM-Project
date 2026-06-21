@@ -251,7 +251,9 @@ const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
   const payload = buildQrPayload(input);
   const qrPng = await renderQrPng(payload);
 
-  // Çerçeve: üst makas çizgisi + dikey ayraç (norm: kesme çizgileri)
+  // Norm: kesme uyarısı + makas çizgisi + dikey ayraç
+  setFont(doc, 8, "normal");
+  doc.text("Vor der Einzahlung abzutrennen", A4_W / 2, PP_TOP - 2, { align: "center" });
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.1);
   doc.line(0, PP_TOP, A4_W, PP_TOP);
@@ -263,15 +265,38 @@ const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
 
 // ── Fatura gövdesi (üst kısım) ───────────────────────────────────────────────
 
-const drawInvoiceBody = (doc: jsPDF, data: RechnungData): void => {
-  const c = data.company;
-  let y = MARGIN;
+const LOGO_MAX_W = 55;
+const LOGO_MAX_H = 20;
 
-  // Firma başlığı (sol üst)
-  setFont(doc, 16, "bold");
-  doc.text(c.company_name, MARGIN, y + 4);
+const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | null): void => {
+  const c = data.company;
+
+  // Firma başlığı (sol üst): logo varsa görsel, yoksa firma adı text (fallback)
+  let headerBottom = MARGIN + 8;
+  let logoDrawn = false;
+  if (logoBase64) {
+    try {
+      const props = doc.getImageProperties(logoBase64);
+      const scale = Math.min(LOGO_MAX_W / props.width, LOGO_MAX_H / props.height);
+      const w = props.width * scale;
+      const h = props.height * scale;
+      doc.addImage(logoBase64, "PNG", MARGIN, MARGIN, w, h);
+      headerBottom = MARGIN + h;
+      logoDrawn = true;
+    } catch {
+      logoDrawn = false; // sessiz fallback → text
+    }
+  }
+  if (!logoDrawn) {
+    setFont(doc, 16, "bold");
+    doc.text(c.company_name, MARGIN, MARGIN + 4);
+    headerBottom = MARGIN + 8;
+  }
+
+  // Firma iletişim bilgileri (sağ üst)
   setFont(doc, 8, "normal");
   const headerInfo = [
+    logoDrawn ? c.company_name : "",
     [c.street, c.house_number].filter(Boolean).join(" "),
     `${c.plz} ${c.city}`,
     c.phone ? `Tel: ${c.phone}` : "",
@@ -284,7 +309,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData): void => {
     infoY += 4;
   }
 
-  y += 18;
+  let y = Math.max(headerBottom, infoY) + 8;
   // Başlık + numara
   setFont(doc, 14, "bold");
   doc.text("RECHNUNG", MARGIN, y);
@@ -363,16 +388,25 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData): void => {
 
 // ── Genel API ────────────────────────────────────────────────────────────────
 
-/** Fatura PDF'ini kurar ve jsPDF doc'unu döner (download veya base64 için). */
-export const buildRechnungDoc = async (data: RechnungData): Promise<jsPDF> => {
+/**
+ * Fatura PDF'ini kurar ve jsPDF doc'unu döner (download veya base64 için).
+ * logoBase64 (PNG data URL) UI katmanında çözülür — Katman 3 DB/storage bilmez.
+ */
+export const buildRechnungDoc = async (
+  data: RechnungData,
+  logoBase64: string | null = null,
+): Promise<jsPDF> => {
   const doc = new jsPDF(); // mm, A4 portrait
-  drawInvoiceBody(doc, data);
+  drawInvoiceBody(doc, data, logoBase64);
   await drawQrBill(doc, data);
   return doc;
 };
 
 /** Fatura PDF'ini tarayıcıda indirir. */
-export const downloadRechnungPdf = async (data: RechnungData): Promise<void> => {
-  const doc = await buildRechnungDoc(data);
+export const downloadRechnungPdf = async (
+  data: RechnungData,
+  logoBase64: string | null = null,
+): Promise<void> => {
+  const doc = await buildRechnungDoc(data, logoBase64);
   doc.save(`${data.rechnung_nr}.pdf`);
 };

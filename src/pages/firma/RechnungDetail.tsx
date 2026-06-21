@@ -19,6 +19,7 @@ import {
   buildRechnungDoc, downloadRechnungPdf, type RechnungCompany, type RechnungData, type RechnungPosition,
 } from "@/lib/generateRechnungPdf";
 import { computeQrReference, type NeueRechnung } from "@/lib/erstelleRechnung";
+import { logoToBase64 } from "@/lib/logoToBase64";
 import {
   RECHNUNG_STATUS_LABELS, RECHNUNG_STATUS_COLORS, allowedRechnungTargets,
   isRechnungStatus, type RechnungStatus,
@@ -37,6 +38,7 @@ interface CompanyInfo {
   website: string | null;
   mwst_number: string | null;
   iban: string | null;
+  logo_url: string | null;
 }
 
 type EditPosition = RechnungPosition & { _key: string };
@@ -110,7 +112,7 @@ export default function RechnungDetail() {
     fetchSingleCompanyForUser<CompanyInfo>({
       userId: user.id,
       userEmail: user.email,
-      select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban",
+      select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url",
     }).then((c) => {
       if (c) setCompany(c);
     });
@@ -315,7 +317,8 @@ export default function RechnungDetail() {
       return;
     }
     try {
-      await downloadRechnungPdf(data);
+      const logo = company?.logo_url ? await logoToBase64(company.logo_url) : null;
+      await downloadRechnungPdf(data, logo);
     } catch (e) {
       toast({ title: "PDF-Fehler", description: (e as Error).message, variant: "destructive" });
     }
@@ -337,7 +340,8 @@ export default function RechnungDetail() {
     setIsSendingEmail(true);
     try {
       // PDF client-seitig erzeugen (jsPDF QR-Bill) → base64 an Edge Function
-      const doc = await buildRechnungDoc(data);
+      const logo = company?.logo_url ? await logoToBase64(company.logo_url) : null;
+      const doc = await buildRechnungDoc(data, logo);
       const pdfBase64 = doc.output("datauristring").split(",")[1] ?? "";
       const { data: sessionData } = await supabase.auth.getSession();
       const session = sessionData.session;
@@ -400,7 +404,13 @@ export default function RechnungDetail() {
                 </div>
                 <div>
                   <Label className="text-xs">Adresse</Label>
-                  <Input value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} placeholder="Strasse Nr, PLZ Ort" className="mt-1 h-9 text-sm" />
+                  <Textarea
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    placeholder={"Strasse Nr.\nPLZ Ort"}
+                    rows={2}
+                    className="mt-1 text-sm resize-none"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>

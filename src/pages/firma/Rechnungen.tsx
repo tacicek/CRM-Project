@@ -15,6 +15,7 @@ import { de } from "date-fns/locale";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { useRechnungen, rechnungToPdfData, type Rechnung } from "@/hooks/useRechnungen";
 import { downloadRechnungPdf, type RechnungCompany } from "@/lib/generateRechnungPdf";
+import { logoToBase64 } from "@/lib/logoToBase64";
 import { useToast } from "@/hooks/use-toast";
 import {
   RECHNUNG_STATUS_LABELS, RECHNUNG_STATUS_COLORS, isRechnungStatus, type RechnungStatus,
@@ -41,13 +42,14 @@ interface CompanyRow {
   website: string | null;
   mwst_number: string | null;
   iban: string | null;
+  logo_url: string | null;
 }
 
 export default function FirmaRechnungen() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { company } = useCachedCompany(
-    "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban",
+    "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url",
   );
   const c = company as CompanyRow | null;
 
@@ -80,7 +82,8 @@ export default function FirmaRechnungen() {
     }
     setDownloadingId(r.id);
     try {
-      await downloadRechnungPdf(rechnungToPdfData(r, pdfCompany));
+      const logo = c?.logo_url ? await logoToBase64(c.logo_url) : null;
+      await downloadRechnungPdf(rechnungToPdfData(r, pdfCompany), logo);
     } catch (e) {
       toast({ title: "PDF-Fehler", description: (e as Error).message, variant: "destructive" });
     } finally {
