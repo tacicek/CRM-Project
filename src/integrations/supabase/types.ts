@@ -3809,6 +3809,129 @@ export type Database = {
         }
         Relationships: []
       }
+      rechnungen: {
+        Row: {
+          auftrag_id: string | null
+          company_id: string
+          created_at: string
+          customer_address: string | null
+          customer_destination: string | null
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          datum: string
+          faellig_am: string
+          gesamttotal: number
+          id: string
+          mwst_betrag: number
+          mwst_satz: number
+          notiz: string | null
+          offer_id: string | null
+          pdf_url: string | null
+          positionen: Json
+          qr_iban: string | null
+          qr_referenz: string | null
+          rabatt: number
+          rechnung_nr: string | null
+          status: string
+          total: number
+          updated_at: string
+          zwischensumme: number
+        }
+        Insert: {
+          auftrag_id?: string | null
+          company_id: string
+          created_at?: string
+          customer_address?: string | null
+          customer_destination?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          datum?: string
+          faellig_am: string
+          gesamttotal?: number
+          id?: string
+          mwst_betrag?: number
+          mwst_satz?: number
+          notiz?: string | null
+          offer_id?: string | null
+          pdf_url?: string | null
+          positionen?: Json
+          qr_iban?: string | null
+          qr_referenz?: string | null
+          rabatt?: number
+          rechnung_nr?: string | null
+          status?: string
+          total?: number
+          updated_at?: string
+          zwischensumme?: number
+        }
+        Update: {
+          auftrag_id?: string | null
+          company_id?: string
+          created_at?: string
+          customer_address?: string | null
+          customer_destination?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          datum?: string
+          faellig_am?: string
+          gesamttotal?: number
+          id?: string
+          mwst_betrag?: number
+          mwst_satz?: number
+          notiz?: string | null
+          offer_id?: string | null
+          pdf_url?: string | null
+          positionen?: Json
+          qr_iban?: string | null
+          qr_referenz?: string | null
+          rabatt?: number
+          rechnung_nr?: string | null
+          status?: string
+          total?: number
+          updated_at?: string
+          zwischensumme?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rechnungen_auftrag_id_fkey"
+            columns: ["auftrag_id"]
+            isOneToOne: true
+            referencedRelation: "auftraege"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rechnungen_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rechnungen_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offer_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rechnungen_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offer_moving_details"
+            referencedColumns: ["offer_id"]
+          },
+          {
+            foreignKeyName: "rechnungen_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_acquisition_costs: {
         Row: {
           conversion_rate: number
