@@ -10,13 +10,13 @@ import {
   MoreHorizontal, Loader2, CheckCircle, Clock,
   X, Trash2,
 } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
 import { QuittungPDF } from "@/components/quittung/QuittungPDF";
 import { logoToBase64 } from "@/lib/logoToBase64";
-import { supabase } from "@/integrations/supabase/client";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
+import { useQuittungen } from "@/hooks/useQuittungen";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -84,40 +84,16 @@ export default function FirmaQuittungen() {
     bewertungs_url: company.bewertungs_url,
   } : null;
 
-  const [quittungen, setQuittungen] = useState<Quittung[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { quittungen, loading: isLoading, updateQuittung, deleteQuittung } = useQuittungen(company?.id);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | QuittungStatus>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!company?.id) return;
-    setIsLoading(true);
-    const { data, error } = await supabase
-      .from("quittungen")
-      .select("*")
-      .eq("company_id", company.id)
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast({ title: "Fehler beim Laden", description: error.message, variant: "destructive" });
-    } else if (data) {
-      setQuittungen(data);
-    }
-    setIsLoading(false);
-  }, [company?.id, toast]);
-
-  useEffect(() => { load(); }, [load]);
-
   const handleDelete = async (id: string) => {
     setDeletingId(id);
-    const { error } = await supabase.from("quittungen").delete().eq("id", id);
-    if (error) {
-      toast({ title: "Fehler", description: error.message, variant: "destructive" });
-    } else {
-      setQuittungen(q => q.filter(x => x.id !== id));
-      toast({ title: "Quittung gelöscht" });
-    }
+    const ok = await deleteQuittung(id);
+    if (ok) toast({ title: "Quittung gelöscht" });
     setDeletingId(null);
   };
 
@@ -142,14 +118,8 @@ export default function FirmaQuittungen() {
   };
 
   const handleMarkPaid = async (id: string) => {
-    const { error } = await supabase
-      .from("quittungen")
-      .update({ status: "paid" })
-      .eq("id", id);
-    if (!error) {
-      setQuittungen(q => q.map(x => x.id === id ? { ...x, status: "paid" as QuittungStatus } : x));
-      toast({ title: "Als bezahlt markiert" });
-    }
+    const updated = await updateQuittung(id, { status: "paid" });
+    if (updated) toast({ title: "Als bezahlt markiert" });
   };
 
   const filtered = quittungen.filter(q => {
