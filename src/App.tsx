@@ -59,6 +59,8 @@ const firmaImports = {
   Preisgestaltung: () => import("./pages/firma/Preisgestaltung"),
   Quittungen: () => import("./pages/firma/Quittungen"),
   QuittungDetail: () => import("./pages/firma/QuittungDetail"),
+  Rechnungen: () => import("./pages/firma/Rechnungen"),
+  RechnungDetail: () => import("./pages/firma/RechnungDetail"),
 };
 
 const FirmaDashboard = lazy(firmaImports.Dashboard);
@@ -80,6 +82,8 @@ const FirmaDatenarchiv = lazy(firmaImports.Datenarchiv);
 const FirmaPreisgestaltung = lazy(firmaImports.Preisgestaltung);
 const FirmaQuittungen = lazy(firmaImports.Quittungen);
 const FirmaQuittungDetail = lazy(firmaImports.QuittungDetail);
+const FirmaRechnungen = lazy(firmaImports.Rechnungen);
+const FirmaRechnungDetail = lazy(firmaImports.RechnungDetail);
 
 // Layout wrapper
 const FirmaLayout = lazy(() => import("./components/firma/FirmaLayout"));
@@ -144,6 +148,9 @@ const App = () => (
                   <Route path="/firma/quittungen/neu" element={<FirmaQuittungDetail />} />
                   <Route path="/firma/quittungen/:id" element={<FirmaQuittungDetail />} />
                   <Route path="/firma/quittungen/:id/bearbeiten" element={<FirmaQuittungDetail />} />
+                  <Route path="/firma/rechnungen" element={<FirmaRechnungen />} />
+                  <Route path="/firma/rechnungen/neu" element={<FirmaRechnungDetail />} />
+                  <Route path="/firma/rechnungen/:id" element={<FirmaRechnungDetail />} />
                   <Route path="/firma/kalender" element={<FirmaKalender />} />
                   <Route path="/firma/auftraege" element={<FirmaAuftraege />} />
                   <Route path="/firma/besichtigungen" element={<FirmaBesichtigungen />} />

@@ -37,6 +37,7 @@ import {
   Download,
   Package,
   FileText,
+  Receipt,
   XCircle,
   RotateCcw,
 } from "lucide-react";
@@ -53,6 +54,7 @@ import { AuftragAbschlussDialog } from "@/components/firma/AuftragAbschlussDialo
 import { SahaExtrasModal } from "@/components/firma/SahaExtrasModal";
 import { generateAuftragPdf } from "@/lib/generateAuftragPdf";
 import { canTransitionAuftrag } from "@/lib/auftragStatus";
+import { erstelleRechnungAusAuftrag, type OfferItemInput } from "@/lib/erstelleRechnung";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -444,6 +446,59 @@ const FirmaAuftraege = () => {
     });
   };
 
+  // Auftrag → Rechnung: erstelleRechnungAusAuftrag (saf map) → /firma/rechnungen/neu (state.fromRechnung).
+  // Kalem kaynağı auftrag.items + extra_services (sipariş snapshot'ı — Quittung akışıyla aynı).
+  const handleCreateRechnung = async (auftrag: Auftrag) => {
+    if (!companyId) return;
+    const { data: comp } = await supabase
+      .from("companies").select("iban").eq("id", companyId).single();
+    const iban = comp?.iban ?? "";
+    if (!iban) {
+      toast({
+        title: "IBAN fehlt",
+        description: "Bitte IBAN in den Einstellungen hinterlegen, bevor Sie eine QR-Rechnung erstellen.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const getTotal = (it: OfferItem | ExtraService): number | null =>
+      "total" in it && typeof it.total === "number" ? it.total : null;
+
+    const offerItems: OfferItemInput[] = [
+      ...(auftrag.items ?? []),
+      ...(auftrag.extra_services ?? []),
+    ].map((it) => ({
+      description: it.description,
+      quantity: it.quantity ?? 1,
+      unit: it.unit ?? null,
+      unit_price: it.unit_price ?? 0,
+      total: getTotal(it),
+    }));
+
+    try {
+      const neueRechnung = erstelleRechnungAusAuftrag(
+        {
+          id: auftrag.id,
+          company_id: companyId,
+          offer_id: auftrag.offer_id,
+          status: auftrag.status,
+          customer_name: auftrag.customer_name,
+          customer_email: auftrag.customer_email,
+          customer_phone: auftrag.customer_phone,
+          from_address: auftrag.from_address,
+          to_address: auftrag.to_address,
+          vat_rate: auftrag.vat_rate ?? null,
+        },
+        offerItems,
+        { iban },
+      );
+      navigate("/firma/rechnungen/neu", { state: { fromRechnung: neueRechnung } });
+    } catch (e) {
+      toast({ title: "Fehler", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
   const getStatusChip = (status: string) => {
     const meta = STATUS_META[status] ?? { label: status, color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
     return (
@@ -764,6 +819,15 @@ const FirmaAuftraege = () => {
                                 <FileText className="mr-2 h-4 w-4" />
                                 Quittung erstellen
                               </DropdownMenuItem>
+                              {auftrag.status === "abgeschlossen" && (
+                                <DropdownMenuItem
+                                  onClick={() => handleCreateRechnung(auftrag)}
+                                  className="text-folk-coral"
+                                >
+                                  <Receipt className="mr-2 h-4 w-4" />
+                                  Rechnung erstellen
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               {canTransitionAuftrag(auftrag.status, "bestaetigt") && (
                                 <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "bestaetigt")}>

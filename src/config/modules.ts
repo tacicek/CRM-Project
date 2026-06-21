@@ -17,6 +17,7 @@ export const MODULES = {
   inspections: true,   // Besichtigungen
   movingBoxes: true,   // Umzugsboxen
   receipts: true,      // Quittungen
+  invoices: true,      // Rechnungen (QR-Bill)
   manualImport: true,
   archive: true,
   settings: true,

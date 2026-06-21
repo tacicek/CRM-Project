@@ -338,6 +338,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     "/firma/einstellungen": firmaImports.Einstellungen,
     "/firma/offerten": firmaImports.Offerten,
     "/firma/quittungen": firmaImports.Quittungen,
+    "/firma/rechnungen": firmaImports.Rechnungen,
     "/firma/kalender": firmaImports.Kalender,
     "/firma/auftraege": firmaImports.Auftraege,
     "/firma/umzugsboxen": firmaImports.Umzugsboxen,
@@ -386,6 +387,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
         { title: "Offerten", url: "/firma/offerten", emoji: "📄", moduleKey: "offers" },
         { title: "Aufträge", url: "/firma/auftraege", emoji: "✅", moduleKey: "orders" },
         { title: "Quittungen", url: "/firma/quittungen", emoji: "🧾", moduleKey: "receipts" },
+        { title: "Rechnungen", url: "/firma/rechnungen", emoji: "💳", moduleKey: "invoices" },
       ],
     },
     {
