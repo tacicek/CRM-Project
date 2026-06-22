@@ -416,21 +416,20 @@ export const ServiceTable = ({
             )}
 
             {/* GESAMTBETRAG — dark box */}
-            <View style={styles.grandTotalBox}>
+            <View style={[styles.grandTotalBox, { backgroundColor: accent }]}>
               <Text style={styles.grandTotalLabel}>GESAMTBETRAG</Text>
               <View style={styles.grandTotalValueRow}>
-                <Text style={styles.grandTotalCurrency}>CHF</Text>
                 {data.pricing.maxTotal !== null ? (
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[styles.grandTotalValue, { color: accent }]}>
+                    <Text style={[styles.grandTotalValue, { color: "#FFFFFF" }]}>
                       {formatCurrency(data.pricing.total)}
                     </Text>
-                    <Text style={{ fontSize: FONT_SIZES.xs, color: "#A0A0B0" }}>
+                    <Text style={{ fontSize: FONT_SIZES.xs, color: "#F1F5F9" }}>
                       {"\u2013"} {formatCurrency(data.pricing.maxTotal)}
                     </Text>
                   </View>
                 ) : (
-                  <Text style={[styles.grandTotalValue, { color: accent }]}>
+                  <Text style={[styles.grandTotalValue, { color: "#FFFFFF" }]}>
                     {formatCurrency(data.pricing.total)}
                   </Text>
                 )}

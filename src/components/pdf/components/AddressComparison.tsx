@@ -61,8 +61,9 @@ const styles = StyleSheet.create({
     paddingTop: 22, // align with body text area (below header)
   },
   arrowText: {
-    fontSize: 14,
-    color: COLORS.gray[300],
+    fontSize: 18,
+    fontWeight: 700,
+    color: COLORS.gray[300], // inline'da accent ile override
   },
   // Vertical divider between address section and meta section
   verticalDivider: {
@@ -172,7 +173,7 @@ export const AddressComparison = ({ data }: AddressComparisonProps) => {
         {/* Arrow — only when both addresses exist */}
         {showRoute ? (
           <View style={styles.arrowDivider}>
-            <Text style={styles.arrowText}>→</Text>
+            <Text style={[styles.arrowText, { color: accent }]}>→</Text>
           </View>
         ) : null}
 

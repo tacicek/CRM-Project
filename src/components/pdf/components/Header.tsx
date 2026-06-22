@@ -2,18 +2,20 @@ import { Image, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { FONT_SIZES } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
 
-const DARK = "#1C1C27";
 const ACCENT = "#F97316"; // orange — overridden by company.primaryColor if set
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: DARK,
-    paddingVertical: 18,
+    backgroundColor: "#FFFFFF",
+    paddingTop: 24,
+    paddingBottom: 14,
     paddingHorizontal: 24,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginHorizontal: -24, // bleed to page edges
+    borderBottomWidth: 3,
+    borderBottomColor: ACCENT, // inline'da company accent ile override edilir
   },
   leftCol: {
     flex: 1,
@@ -30,12 +32,12 @@ const styles = StyleSheet.create({
   companyName: {
     fontSize: FONT_SIZES["2xl"],
     fontWeight: 700,
-    color: "#FFFFFF",
+    color: "#111827",
     letterSpacing: 1,
   },
   tagline: {
     fontSize: FONT_SIZES.xs,
-    color: "#A0A0B0",
+    color: "#6B7280",
     marginTop: 2,
     letterSpacing: 0.5,
   },
@@ -50,7 +52,7 @@ const styles = StyleSheet.create({
   titleMain: {
     fontSize: 30,
     fontWeight: 700,
-    color: "#FFFFFF",
+    color: "#111827",
     letterSpacing: 3,
   },
   titleAccent: {
@@ -60,13 +62,13 @@ const styles = StyleSheet.create({
   },
   offerNumber: {
     fontSize: FONT_SIZES.sm,
-    color: "#D0D0D8",
+    color: "#6B7280",
     textAlign: "right",
     marginTop: 4,
   },
   dateText: {
     fontSize: FONT_SIZES.xs,
-    color: "#A0A0B0",
+    color: "#6B7280",
     textAlign: "right",
     marginTop: 1,
   },
@@ -98,7 +100,7 @@ export const Header = ({ data }: HeaderProps) => {
   const titleEnd = "TE";
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, { borderBottomColor: accent }]}>
       {/* LEFT — logo or company name */}
       <View style={styles.leftCol}>
         {hasValidLogo ? (

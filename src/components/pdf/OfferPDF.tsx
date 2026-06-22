@@ -1,4 +1,4 @@
-import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { Header } from "./components/Header";
 import { CustomerSection } from "./components/CustomerSection";
 import { AddressComparison } from "./components/AddressComparison";
@@ -80,23 +80,9 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     marginTop: 2,
   },
-  // ── Page 2 (signature) ────────────────────────────────────────────────────
-  pageTwoHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: SPACING.base,
-    marginBottom: SPACING.lg,
-    alignItems: "center",
-  },
-  pageTwoLogo: {
-    width: 120,
-    height: 30,
-    objectFit: "contain",
-  },
-  pageTwoCity: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.text.secondary,
-    textAlign: "right",
+  // ── Signature block (offerte'den sonra akar) ──────────────────────────────
+  signatureFlow: {
+    marginTop: SPACING.xl,
   },
   // ── Description / extra info ──────────────────────────────────────────────
   descBox: {
@@ -221,27 +207,20 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
             />
 
             {isLastChunk ? (
-              <BottomSection data={data} accent={accent} />
+              <>
+                <BottomSection data={data} accent={accent} />
+                {/* İmza/onay bloğu akışta — kısa offerte'de aynı sayfayı doldurur,
+                    taşarsa wrap={false} ile bütün halde sonraki sayfaya geçer. */}
+                <View style={styles.signatureFlow} wrap={false}>
+                  <SignaturePage data={data} />
+                </View>
+              </>
             ) : null}
 
             <Footer data={data} />
           </Page>
         );
       })}
-
-      {/* Signature page */}
-      <Page size="A4" style={styles.page}>
-        <View style={styles.pageTwoHeader}>
-          {data.company.logo ? (
-            <Image style={styles.pageTwoLogo} src={data.company.logo} />
-          ) : (
-            <Text style={{ fontSize: FONT_SIZES.lg, fontWeight: 700 }}>{data.company.name}</Text>
-          )}
-          <Text style={styles.pageTwoCity}>{`${data.company.zip} ${data.company.city}`}</Text>
-        </View>
-        <SignaturePage data={data} />
-        <Footer data={data} />
-      </Page>
     </Document>
   );
 };
