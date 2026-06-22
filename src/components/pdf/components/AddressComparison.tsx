@@ -5,7 +5,6 @@ import { getServiceLayout } from "../utils/serviceLayout";
 import { formatDate } from "../utils/formatters";
 
 const ORANGE = "#F97316";
-const GREEN = "#059669";
 
 const styles = StyleSheet.create({
   container: {
@@ -180,7 +179,7 @@ export const AddressComparison = ({ data }: AddressComparisonProps) => {
         {/* TO address — only when both exist */}
         {showRoute ? (
           <View style={styles.addrCol}>
-            <View style={[styles.addrHeader, { backgroundColor: GREEN }]}>
+            <View style={[styles.addrHeader, { backgroundColor: accent }]}>
               <Text style={styles.addrHeaderText}>
                 {layout.secondaryAddressLabel.toUpperCase()}
               </Text>

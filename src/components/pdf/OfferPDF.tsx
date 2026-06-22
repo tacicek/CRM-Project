@@ -41,8 +41,8 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
     borderRadius: 3,
     borderWidth: 1,
-    borderColor: "#FED7AA",
-    backgroundColor: "#FFF7ED",
+    borderColor: COLORS.gray[200],
+    backgroundColor: COLORS.gray[50],
   },
   infoBoxAccent: {
     width: 3,
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   infoBoxTitle: {
     fontSize: FONT_SIZES.xs,
     fontWeight: 700,
-    color: "#92400E",
+    color: COLORS.text.secondary,
     letterSpacing: 0.5,
     marginBottom: 3,
   },
@@ -132,7 +132,7 @@ const BottomSection = ({ data, accent }: BottomSectionProps) => {
         <View style={styles.infoBox}>
           <View style={[styles.infoBoxAccent, { backgroundColor: accent }]} />
           <View style={styles.infoBoxContent}>
-            <Text style={[styles.infoBoxTitle, { color: "#92400E" }]}>ZAHLUNG</Text>
+            <Text style={[styles.infoBoxTitle, { color: COLORS.text.secondary }]}>ZAHLUNG</Text>
             <Text style={styles.infoBoxText}>{paymentText}</Text>
           </View>
         </View>
@@ -140,9 +140,9 @@ const BottomSection = ({ data, accent }: BottomSectionProps) => {
 
       {insuranceText ? (
         <View style={styles.infoBox}>
-          <View style={[styles.infoBoxAccent, { backgroundColor: "#D97706" }]} />
+          <View style={[styles.infoBoxAccent, { backgroundColor: accent }]} />
           <View style={styles.infoBoxContent}>
-            <Text style={[styles.infoBoxTitle, { color: "#92400E" }]}>VERSICHERUNG</Text>
+            <Text style={[styles.infoBoxTitle, { color: COLORS.text.secondary }]}>VERSICHERUNG</Text>
             <Text style={styles.infoBoxText}>{insuranceText}</Text>
           </View>
         </View>

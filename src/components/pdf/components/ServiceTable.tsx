@@ -321,7 +321,7 @@ export const ServiceTable = ({
   return (
     <View style={styles.container}>
       {/* Header row */}
-      <View style={styles.headerRow} wrap={false}>
+      <View style={[styles.headerRow, { backgroundColor: accent }]} wrap={false}>
         <Text style={[styles.headerCell, styles.colPos]}>POS.</Text>
         <Text style={[styles.headerCell, styles.colDesc]}>BESCHREIBUNG</Text>
         <Text style={[styles.headerCell, styles.colQty]}>MENGE</Text>
