@@ -8,67 +8,97 @@ const styles = StyleSheet.create({
   titleText: {
     fontSize: FONT_SIZES["2xl"],
     fontWeight: 700,
-    textAlign: "center",
-    marginBottom: SPACING.base,
-  },
-  // Compact two-column acceptance row
-  acceptanceRow: {
-    marginTop: SPACING.base,
-    borderWidth: 1,
-    borderColor: COLORS.gray[300],
-    borderRadius: 4,
-    padding: SPACING.base,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.base,
-  },
-  acceptanceLeft: {
-    flex: 1,
-    alignItems: "center",
-  },
-  acceptanceRight: {
-    alignItems: "center",
-  },
-  button: {
-    backgroundColor: COLORS.primary,
-    color: COLORS.text.white,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 5,
-    fontSize: FONT_SIZES.sm,
-    fontWeight: 700,
-    textAlign: "center",
+    color: COLORS.text.primary,
     marginBottom: SPACING.sm,
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray[200],
   },
-  buttonNote: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.text.secondary,
-    lineHeight: 1.4,
-    textAlign: "center",
+  // ── Two-column: left = text + signatures, right = QR card ──
+  mainRow: {
+    marginTop: SPACING.base,
+    flexDirection: "row",
+    gap: SPACING.lg,
+    alignItems: "flex-start",
   },
-  qr: {
-    width: 80,
-    height: 80,
-  },
-  qrCaption: {
-    fontSize: 7,
-    color: COLORS.text.secondary,
-    marginTop: 3,
-    textAlign: "center",
-    maxWidth: 85,
+  leftCol: {
+    flex: 1,
   },
   legalText: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.text.primary,
     lineHeight: 1.5,
-    marginTop: SPACING.base,
   },
+  signatureRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: SPACING["2xl"],
+  },
+  signatureCol: {
+    width: "48%",
+  },
+  signatureLine: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray[700],
+    marginTop: 30,
+    marginBottom: 4,
+  },
+  signatureLabel: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.text.secondary,
+    lineHeight: 1.35,
+  },
+  // ── QR acceptance card (right) ──
+  qrCard: {
+    width: 190,
+    borderWidth: 1,
+    borderColor: COLORS.gray[300],
+    borderRadius: 6,
+    padding: SPACING.base,
+    alignItems: "center",
+  },
+  qrCardTitle: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: 700,
+    letterSpacing: 1,
+    textAlign: "center",
+    marginBottom: SPACING.sm,
+  },
+  qr: {
+    width: 120,
+    height: 120,
+  },
+  qrScan: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: 700,
+    color: COLORS.text.primary,
+    textAlign: "center",
+    marginTop: SPACING.sm,
+  },
+  qrCaption: {
+    fontSize: 7,
+    color: COLORS.text.secondary,
+    textAlign: "center",
+    marginTop: 2,
+    marginBottom: SPACING.sm,
+  },
+  button: {
+    color: COLORS.text.white,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: 700,
+    textAlign: "center",
+    width: "100%",
+  },
+  // ── Summary ──
   summaryBox: {
     borderWidth: 1,
     borderColor: COLORS.gray[300],
     backgroundColor: COLORS.gray[50],
     padding: SPACING.base,
-    marginTop: SPACING.base,
+    marginTop: SPACING.lg,
     borderRadius: 4,
   },
   summaryTitle: {
@@ -84,24 +114,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.lg,
     fontWeight: 700,
     marginTop: SPACING.xs,
-  },
-  signatureRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: SPACING.xl,
-  },
-  signatureCol: {
-    width: "45%",
-  },
-  signatureLine: {
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray[700],
-    marginTop: 36,
-    marginBottom: 5,
-  },
-  signatureLabel: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.text.secondary,
   },
 });
 
@@ -120,41 +132,52 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
 
   return (
     <View>
-      <Text style={[styles.titleText, { color: primary }]}>Auftragsbestätigung</Text>
+      <Text style={styles.titleText}>Auftragsbestätigung</Text>
 
-      <View style={styles.acceptanceRow}>
-        {/* Left: button + note */}
-        <View style={styles.acceptanceLeft}>
-          {data.acceptanceUrl ? (
-            <Link src={data.acceptanceUrl} style={[styles.button, { backgroundColor: primary }]}>
-              Online Offerte annehmen
-            </Link>
-          ) : (
-            <Text style={[styles.button, { backgroundColor: primary }]}>Online Offerte annehmen</Text>
-          )}
-          <Text style={styles.buttonNote}>
-            Klicken Sie auf den Link oder scannen Sie den QR-Code mit Ihrem Handy um die Offerte
-            online anzunehmen — oder unterschreiben Sie weiter unten.
+      <View style={styles.mainRow}>
+        {/* Left: confirmation text + signature grid */}
+        <View style={styles.leftCol}>
+          <Text style={styles.legalText}>
+            Hiermit erteile ich der Firma {data.company.name} den in dieser Offerte (Nr. {data.offerNumber})
+            beschriebenen Auftrag.
+            {"\n\n"}
+            Ich bestätige, dass ich die Offerte sowie die allgemeinen Geschäftsbedingungen gelesen und verstanden
+            habe und mit allen Punkten einverstanden bin.
           </Text>
+
+          <View style={styles.signatureRow}>
+            <View style={styles.signatureCol}>
+              <View style={styles.signatureLine} />
+              <Text style={styles.signatureLabel}>Ort, Datum</Text>
+              <View style={styles.signatureLine} />
+              <Text style={styles.signatureLabel}>{`Unterschrift Auftraggeber · ${data.customer.name}`}</Text>
+            </View>
+            <View style={styles.signatureCol}>
+              <View style={styles.signatureLine} />
+              <Text style={styles.signatureLabel}>Ort, Datum</Text>
+              <View style={styles.signatureLine} />
+              <Text style={styles.signatureLabel}>{`Unterschrift Auftragnehmer · ${data.company.name}`}</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Right: compact QR */}
+        {/* Right: QR acceptance card */}
         {data.qrCodeUrl ? (
-          <View style={styles.acceptanceRight}>
+          <View style={styles.qrCard}>
+            <Text style={[styles.qrCardTitle, { color: primary }]}>ONLINE OFFERTE ANNEHMEN</Text>
             <Image style={styles.qr} src={data.qrCodeUrl} />
+            <Text style={styles.qrScan}>Mit Handy scannen</Text>
             {shortUrl ? <Text style={styles.qrCaption}>{shortUrl}</Text> : null}
+            {data.acceptanceUrl ? (
+              <Link src={data.acceptanceUrl} style={[styles.button, { backgroundColor: primary }]}>
+                Online Offerte annehmen
+              </Link>
+            ) : null}
           </View>
         ) : null}
       </View>
 
-      <Text style={styles.legalText}>
-        Hiermit erteile ich der Firma {data.company.name} den in dieser Offerte (Nr. {data.offerNumber})
-        beschriebenen Auftrag.
-        {"\n\n"}
-        Ich bestätige, dass ich die Offerte sowie die allgemeinen Geschäftsbedingungen gelesen und verstanden
-        habe und mit allen Punkten einverstanden bin.
-      </Text>
-
+      {/* Summary */}
       <View style={[styles.summaryBox, { borderColor: primary, backgroundColor: primaryLight }]}>
         <Text style={styles.summaryTitle}>Zusammenfassung</Text>
         <Text style={styles.summaryLine}>{`${data.service.type}${route ? ` ${route}` : ""}`}</Text>
@@ -166,21 +189,6 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
           <Text style={styles.summaryLine}>Ausführungsdatum: {formatDate(data.executionDate)}</Text>
         ) : null}
         <Text style={styles.summaryTotal}>Gesamtbetrag: {formatCurrency(data.pricing.total)}</Text>
-      </View>
-
-      <View style={styles.signatureRow}>
-        <View style={styles.signatureCol}>
-          <Text>Ort, Datum:</Text>
-          <View style={styles.signatureLine} />
-          <Text style={styles.signatureLabel}>Unterschrift Auftraggeber</Text>
-          <Text style={styles.signatureLabel}>({data.customer.name})</Text>
-        </View>
-        <View style={styles.signatureCol}>
-          <Text>Ort, Datum:</Text>
-          <View style={styles.signatureLine} />
-          <Text style={styles.signatureLabel}>Unterschrift Auftragnehmer</Text>
-          <Text style={styles.signatureLabel}>({data.company.name})</Text>
-        </View>
       </View>
     </View>
   );
