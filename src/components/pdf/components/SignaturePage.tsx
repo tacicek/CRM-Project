@@ -24,7 +24,7 @@ const styles = StyleSheet.create({
   },
   acceptanceLeft: {
     flex: 1,
-    alignItems: "flex-start",
+    alignItems: "center",
   },
   acceptanceRight: {
     alignItems: "center",
@@ -44,6 +44,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
     color: COLORS.text.secondary,
     lineHeight: 1.4,
+    textAlign: "center",
   },
   qr: {
     width: 80,
