@@ -533,6 +533,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Generate offer view URL
     const offerViewUrl = `${getDashAppUrl()}/offerte/${offer.access_token}`;
+    // Marka rengi (company.primary_color) — e-posta header/CTA/tablo başlığı için
+    const accent = offer.company?.primary_color || "#4f46e5";
 
     // Build items HTML (mobile-safe stacked layout)
     const fmtCHF = (n: number) => 'CHF ' + n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -636,7 +638,7 @@ const handler = async (req: Request): Promise<Response> => {
           <td align="center" style="padding: 16px 14px;">
       <div class="container" style="width: 100%; max-width: 100%; margin: 0 auto; background-color: #ffffff;">
         <!-- Header -->
-        <div class="header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 24px 20px; text-align: center;">
+        <div class="header" style="background: ${accent}; padding: 24px 20px; text-align: center;">
           <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Ihre Offerte</h1>
           <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">von ${escapeHtml(offer.company?.company_name)}</p>
         </div>
@@ -673,7 +675,7 @@ const handler = async (req: Request): Promise<Response> => {
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; margin: 24px 0; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px;">
             <thead>
               <tr>
-                <th style="padding: 12px 14px; text-align: left; background-color: #6366f1; color: #ffffff; font-size: 14px;">Leistungspositionen</th>
+                <th style="padding: 12px 14px; text-align: left; background-color: ${accent}; color: #ffffff; font-size: 14px;">Leistungspositionen</th>
               </tr>
             </thead>
             <tbody>
@@ -798,13 +800,13 @@ const handler = async (req: Request): Promise<Response> => {
 
           <!-- CTA Button -->
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${offerViewUrl}" class="cta" style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+            <a href="${offerViewUrl}" class="cta" style="display: inline-block; background: ${accent}; color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
               Offerte ansehen & beantworten
             </a>
           </div>
 
           <p class="mobile-break" style="color: #6b7280; font-size: 14px; text-align: center; word-break: break-all;">
-            oder kopieren Sie diesen Link: <a href="${offerViewUrl}" style="color: #6366f1;">${offerViewUrl}</a>
+            oder kopieren Sie diesen Link: <a href="${offerViewUrl}" style="color: ${accent};">${offerViewUrl}</a>
           </p>
           
           <!-- Leistungsübersicht Section (if available) -->
