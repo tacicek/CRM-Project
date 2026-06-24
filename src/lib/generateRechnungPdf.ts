@@ -10,7 +10,7 @@
  */
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { buildQrPayload, renderQrPng, type QrBillInput, type QrCurrency } from "@/lib/swiss-qr/core";
+import { buildQrPayload, renderQrPng, isQRIBAN, type QrBillInput, type QrBillAddress, type QrCurrency } from "@/lib/swiss-qr/core";
 
 export interface RechnungCompany {
   company_name: string;
@@ -66,10 +66,45 @@ const MARGIN = 20;
 // ── Biçimlendirme yardımcıları ───────────────────────────────────────────────
 
 /** "1 234.50" — binlik ayraç boşluk, 2 ondalık (QR-Bill normu). */
-const formatAmount = (n: number): string => {
+// QR-Bill ödeme kısmı binlik ayracı NORM gereği BOŞLUK ister (formatAmount).
+// Fatura gövdesi İsviçre konvansiyonu apostrof kullanır (formatAmountCH) —
+// uygulamanın geri kalanıyla ("CHF 3'234.35") tutarlı.
+const groupAmount = (n: number, sep: string): string => {
   const [int, dec] = Math.abs(n).toFixed(2).split(".");
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, sep);
   return `${n < 0 ? "-" : ""}${grouped}.${dec}`;
+};
+const formatAmount = (n: number): string => groupAmount(n, " ");
+const formatAmountCH = (n: number): string => groupAmount(n, "'");
+
+/**
+ * Serbest "customer_address" (tek/çok satır) → QR-Bill structured debtor.
+ * İsviçre formatı: "<sokak no> <PLZ 4 hane> <Ort>". Parse edilemezse undefined
+ * → debtor hiç eklenmez (geçersiz QR yerine boş borçlu; norm buna izin verir).
+ */
+const parseDebtor = (name: string, address?: string | null): QrBillAddress | undefined => {
+  const flat = (address ?? "").replace(/\s+/g, " ").trim();
+  if (!name.trim() || !flat) return undefined;
+  const m = flat.match(/^(.+?)[, ]+(\d{4})\s+(.+)$/);
+  if (!m) return undefined;
+  return {
+    name: name.trim(),
+    street: m[1].trim(),
+    buildingNumber: "",
+    postalCode: m[2],
+    town: m[3].trim(),
+    country: "CH",
+  };
+};
+
+/** "Zahlbar durch" satırları: debtor varsa isim+adres, yoksa sadece isim. */
+const debtorLines = (data: RechnungData, debtor?: QrBillAddress): string[] => {
+  if (!debtor) return [data.customer_name];
+  const lines = [debtor.name];
+  const st = [debtor.street, debtor.buildingNumber].filter(Boolean).join(" ").trim();
+  if (st) lines.push(st);
+  lines.push(`${debtor.postalCode} ${debtor.town}`);
+  return lines;
 };
 
 const formatDateCH = (iso: string): string => {
@@ -122,7 +157,7 @@ const drawSwissCross = (doc: jsPDF): void => {
   doc.setFillColor(0, 0, 0);
 };
 
-const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference: string): void => {
+const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference: string, debtor?: QrBillAddress): void => {
   let y = PP_TOP + 7;
   setFont(doc, 11, "bold");
   doc.text("Empfangsschein", RECEIPT_X, y);
@@ -154,7 +189,10 @@ const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference:
   doc.text("Zahlbar durch", RECEIPT_X, y);
   y += 3;
   setFont(doc, 8, "normal");
-  doc.text(data.customer_name, RECEIPT_X, y);
+  for (const line of debtorLines(data, debtor)) {
+    doc.text(line, RECEIPT_X, y);
+    y += 3;
+  }
 
   // Währung / Betrag (alt blok)
   const amountY = PP_TOP + 80;
@@ -170,7 +208,7 @@ const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference:
   doc.text("Annahmestelle", SEP_X - 5, PP_TOP + 92, { align: "right" });
 };
 
-const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: string, reference: string): void => {
+const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: string, reference: string, debtor?: QrBillAddress): void => {
   // Başlık
   setFont(doc, 11, "bold");
   doc.text("Zahlteil", ZAHLTEIL_X, PP_TOP + 7);
@@ -224,13 +262,18 @@ const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: st
   doc.text("Zahlbar durch", INFO_X, y);
   y += 4;
   setFont(doc, 10, "normal");
-  doc.text(data.customer_name, INFO_X, y);
+  for (const line of debtorLines(data, debtor)) {
+    doc.text(line, INFO_X, y);
+    y += 4;
+  }
 };
 
 const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
   const iban = data.qr_iban || data.company.iban;
   const reference = data.qr_referenz?.replace(/\s+/g, "") ?? "";
-  const refType = reference ? (/^RF/i.test(reference) ? "SCOR" : "QRR") : "NON";
+  // QRR yalnız QR-IBAN ile geçerli; düz IBAN + QRR → buildQrPayload hata verir.
+  const refType = !reference ? "NON" : /^RF/i.test(reference) ? "SCOR" : isQRIBAN(iban) ? "QRR" : "NON";
+  const debtor = parseDebtor(data.customer_name, data.customer_address);
 
   const input: QrBillInput = {
     creditor: {
@@ -242,6 +285,7 @@ const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
       town: data.company.city,
       country: "CH",
     },
+    debtor,
     amount: data.total > 0 ? data.total : undefined,
     currency: data.currency ?? "CHF",
     message: data.message?.trim() || `Rechnung ${data.rechnung_nr}`,
@@ -259,8 +303,8 @@ const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
   doc.line(0, PP_TOP, A4_W, PP_TOP);
   doc.line(SEP_X, PP_TOP, SEP_X, A4_H);
 
-  drawReceipt(doc, data, refType, reference);
-  drawZahlteil(doc, data, qrPng, refType, reference);
+  drawReceipt(doc, data, refType, reference, debtor);
+  drawZahlteil(doc, data, qrPng, refType, reference, debtor);
 };
 
 // ── Fatura gövdesi (üst kısım) ───────────────────────────────────────────────
@@ -301,7 +345,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     `${c.plz} ${c.city}`,
     c.phone ? `Tel: ${c.phone}` : "",
     c.email ?? "",
-    c.mwst_number ? `MwSt: ${c.mwst_number}` : "",
+    c.mwst_number ? `MwSt: ${/mwst/i.test(c.mwst_number) ? c.mwst_number : `${c.mwst_number} MWST`}` : "",
   ].filter((l) => l && l.trim().length > 0);
   let infoY = MARGIN;
   for (const line of headerInfo) {
@@ -349,8 +393,8 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     body: data.positionen.map((p) => [
       p.beschreibung,
       typeof p.menge === "number" ? `${p.menge}${p.einheit ? " " + p.einheit : ""}` : "",
-      typeof p.einzelpreis === "number" ? formatAmount(p.einzelpreis) : "",
-      formatAmount(p.betrag),
+      typeof p.einzelpreis === "number" ? formatAmountCH(p.einzelpreis) : "",
+      formatAmountCH(p.betrag),
     ]),
     styles: { font: FONT, fontSize: 9, cellPadding: 2 },
     headStyles: { fillColor: [40, 40, 40], textColor: 255, halign: "left" },
@@ -373,14 +417,21 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     doc.text(value, valX, ty, { align: "right" });
     ty += 5;
   };
-  totalRow("Zwischensumme", `${data.currency ?? "CHF"} ${formatAmount(data.zwischensumme)}`);
-  totalRow(`MwSt ${data.mwst_satz}%`, `${data.currency ?? "CHF"} ${formatAmount(data.mwst_betrag)}`);
-  totalRow("Total", `${data.currency ?? "CHF"} ${formatAmount(data.total)}`, true);
+  totalRow("Zwischensumme", `${data.currency ?? "CHF"} ${formatAmountCH(data.zwischensumme)}`);
+  totalRow(`MwSt ${data.mwst_satz}%`, `${data.currency ?? "CHF"} ${formatAmountCH(data.mwst_betrag)}`);
+  totalRow("Total", `${data.currency ?? "CHF"} ${formatAmountCH(data.total)}`, true);
 
   ty += 4;
   setFont(doc, 9, "normal");
+  // Gün sayısı sabit değil — datum↔faellig gerçek farkından (yoksa "30 Tagen" yazıp
+  // 29 günlük tarih basmak gibi kendi içinde çelişkili olur).
+  const dueDays = Math.round(
+    (new Date(data.faellig_am + "T00:00:00").getTime() - new Date(data.datum + "T00:00:00").getTime()) / 86_400_000,
+  );
   doc.text(
-    `Zahlbar innert 30 Tagen, bis ${formatDateCH(data.faellig_am)}.`,
+    dueDays > 0
+      ? `Zahlbar innert ${dueDays} Tagen, bis ${formatDateCH(data.faellig_am)}.`
+      : `Zahlbar bis ${formatDateCH(data.faellig_am)}.`,
     MARGIN,
     ty,
   );
