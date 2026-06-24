@@ -36,7 +36,7 @@ export function getDashAppUrl(): string {
     Deno.env.get("APP_URL")?.trim().replace(/\/$/, "") ||
     // Son çare: prod app domain'i. Env (DASH_APP_URL vb.) set ise o öncelikli.
     // Boş string dönerse e-posta linkleri relative (/offerte/…) olup kırılıyordu.
-    "https://crm.swiss-server.cloud"
+    "https://crm-hirschen.ch"
   );
 }
 
