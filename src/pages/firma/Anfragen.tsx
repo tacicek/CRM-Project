@@ -26,6 +26,7 @@ import {
   Trash2,
   Eye,
   RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
 import { getServiceLabel } from "@/lib/serviceLabels";
 import { useToast } from "@/hooks/use-toast";
@@ -112,6 +113,8 @@ export default function FirmaAnfragen() {
   const [serviceFilter, setServiceFilter] = useState("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  // lead_id → mevcut offer (rozet + "Offerte ansehen" için)
+  const [leadOffers, setLeadOffers] = useState<Record<string, { id: string; offer_number: number | null; status: string }>>({});
 
   const fetchLeads = useCallback(async () => {
     if (!companyId) return;
@@ -124,7 +127,27 @@ export default function FirmaAnfragen() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setLeads((data as Lead[]) || []);
+      const rows = (data as Lead[]) || [];
+      setLeads(rows);
+
+      // Bu lead'lere ait offer'ları çek → her lead için en güncel offer'ı eşle
+      const leadIds = rows.map((l) => l.id);
+      if (leadIds.length > 0) {
+        const { data: offers } = await supabase
+          .from("offers")
+          .select("id, lead_id, offer_number, status, created_at")
+          .in("lead_id", leadIds)
+          .order("created_at", { ascending: false });
+        const map: Record<string, { id: string; offer_number: number | null; status: string }> = {};
+        for (const o of offers ?? []) {
+          if (o.lead_id && !map[o.lead_id]) {
+            map[o.lead_id] = { id: o.id, offer_number: o.offer_number, status: o.status };
+          }
+        }
+        setLeadOffers(map);
+      } else {
+        setLeadOffers({});
+      }
     } catch (err) {
       console.error("Error fetching leads:", err);
       toast({
@@ -319,7 +342,8 @@ export default function FirmaAnfragen() {
           <div className="space-y-2">
             {filtered.map((lead) => {
               const group = getServiceGroup(lead.service_type);
-              const isNew = lead.status === "new" || lead.status === "sent" || !lead.status;
+              const offer = leadOffers[lead.id];
+              const isNew = (lead.status === "new" || lead.status === "sent" || !lead.status) && !offer;
               return (
                 <article
                   key={lead.id}
@@ -348,6 +372,12 @@ export default function FirmaAnfragen() {
                             <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">
                               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-folk-coral" />
                               Neu
+                            </span>
+                          )}
+                          {offer && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-2 py-0.5 text-[13px] font-semibold text-folk-mint">
+                              <CheckCircle2 className="h-3 w-3" />
+                              {offer.offer_number ? `Offerte Nr. ${offer.offer_number}` : "Offerte erstellt"}
                             </span>
                           )}
                         </div>
@@ -407,14 +437,36 @@ export default function FirmaAnfragen() {
 
                     {/* Actions */}
                     <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                      <Button
-                        size="sm"
-                        onClick={() => handleCreateOffer(lead)}
-                        className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-white hover:bg-folk-ink2"
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        Offerte erstellen
-                      </Button>
+                      {offer ? (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => navigate(`/firma/offerten/${offer.id}`)}
+                            className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-white hover:bg-folk-ink2"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            Offerte ansehen
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCreateOffer(lead)}
+                            className="h-8 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Neue Offerte
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleCreateOffer(lead)}
+                          className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-white hover:bg-folk-ink2"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Offerte erstellen
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
