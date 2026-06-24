@@ -207,21 +207,29 @@ export default function FirmaAnfragen() {
     );
   });
 
+  // Offer'ı olan lead'ler servis sekmelerinden çıkıp ayrı "Offeriert" sekmesinde toplanır
+  const openLeads = searched.filter((lead) => !leadOffers[lead.id]);
+  const offeredCount = searched.length - openLeads.length;
+
   const filtered = searched.filter((lead) => {
+    const hasOffer = !!leadOffers[lead.id];
+    if (serviceFilter === "offered") return hasOffer;
+    if (hasOffer) return false; // açık sekmelerde offer'lı lead gösterilmez
     if (serviceFilter === "all") return true;
     return getServiceGroup(lead.service_type).key === serviceFilter;
   });
 
   const groupCounts: Record<string, number> = {};
-  for (const lead of searched) {
+  for (const lead of openLeads) {
     const k = getServiceGroup(lead.service_type).key;
     groupCounts[k] = (groupCounts[k] || 0) + 1;
   }
 
   const presentGroups = SERVICE_GROUPS.filter((g) => (groupCounts[g.key] || 0) > 0);
   const tabs = [
-    { key: "all", label: "Alle", emoji: "·", count: searched.length },
+    { key: "all", label: "Alle", emoji: "·", count: openLeads.length },
     ...presentGroups.map((g) => ({ key: g.key, label: g.label, emoji: g.emoji, count: groupCounts[g.key] || 0 })),
+    ...(offeredCount > 0 ? [{ key: "offered", label: "Offeriert", emoji: "✓", count: offeredCount }] : []),
   ];
 
   if (!user) return null;
@@ -307,8 +315,8 @@ export default function FirmaAnfragen() {
               onClick={() => setServiceFilter("all")}
               className="inline-flex items-center gap-1.5 rounded-md border border-folk-line bg-folk-card px-2.5 py-1.5 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
             >
-              <span>{getServiceGroup(serviceFilter).emoji}</span>
-              <span>{getServiceGroup(serviceFilter).label}</span>
+              <span>{tabs.find((t) => t.key === serviceFilter)?.emoji ?? getServiceGroup(serviceFilter).emoji}</span>
+              <span>{tabs.find((t) => t.key === serviceFilter)?.label ?? getServiceGroup(serviceFilter).label}</span>
               <span className="text-folk-ink4">×</span>
             </button>
           )}
