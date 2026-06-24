@@ -76,7 +76,9 @@ export default function FirmaRechnungen() {
 
   const handleDownloadPdf = async (r: Rechnung) => {
     if (!pdfCompany) return;
-    if (!pdfCompany.iban) {
+    // PDF, faturanın kendi qr_iban snapshot'ını (yoksa company.iban) kullanır —
+    // guard da aynı mantığı izlemeli, yoksa qr_iban dolu olsa bile boşuna bloklar.
+    if (!(r.qr_iban || pdfCompany.iban)) {
       toast({ title: "IBAN fehlt", description: "Bitte IBAN in den Einstellungen hinterlegen.", variant: "destructive" });
       return;
     }
