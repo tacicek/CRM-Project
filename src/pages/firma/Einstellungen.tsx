@@ -356,7 +356,7 @@ const FirmaEinstellungen = () => {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: {
           company_id: company.id,
-          to_email: company.notification_email || company.email,
+          to_email: company.notification_email || company.resend_from_email || company.email,
         }
       });
 
@@ -368,7 +368,7 @@ const FirmaEinstellungen = () => {
 
       toast({
         title: "Test erfolgreich!",
-        description: `Eine Test-E-Mail wurde an ${company.notification_email || company.email} gesendet.`,
+        description: `Eine Test-E-Mail wurde an ${company.notification_email || company.resend_from_email || company.email} gesendet.`,
       });
     } catch (error: unknown) {
       console.error("Error testing Resend email:", error);
@@ -818,7 +818,7 @@ const FirmaEinstellungen = () => {
                             <div>
                               <p className="font-medium">E-Mail-Konfiguration testen</p>
                               <p className="text-sm text-muted-foreground">
-                                Eine Test-E-Mail an {company.notification_email || company.email} senden
+                                Eine Test-E-Mail an {company.notification_email || company.resend_from_email || company.email} senden
                               </p>
                             </div>
                             <Button 
