@@ -46,8 +46,10 @@ type EditPosition = RechnungPosition & { _key: string };
 const todayIso = (): string => new Date().toISOString().split("T")[0];
 
 const addDaysIso = (iso: string, days: number): string => {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + days);
+  // UTC üzerinden hesapla: local parse + UTC format takvim gününü kaydırıyordu
+  // (CH UTC+2'de "datum + 30" sonucu 29 güne düşüyordu).
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().split("T")[0];
 };
 
@@ -86,6 +88,8 @@ export default function RechnungDetail() {
   // Form state
   const [datum, setDatum] = useState(todayIso());
   const [faelligAm, setFaelligAm] = useState(addDaysIso(todayIso(), 30));
+  // Kullanıcı faellig'i elle değiştirdi mi? false ise datum değişince datum+30 takip eder.
+  const [faelligTouched, setFaelligTouched] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerDestination, setCustomerDestination] = useState("");
@@ -133,6 +137,7 @@ export default function RechnungDetail() {
     }
     setDatum(data.datum);
     setFaelligAm(data.faellig_am);
+    setFaelligTouched(true); // kayıtlı değer korunur (datum değişse de override edilmez)
     setCustomerName(data.customer_name || "");
     setCustomerAddress(data.customer_address || "");
     setCustomerDestination(data.customer_destination || "");
@@ -429,11 +434,15 @@ export default function RechnungDetail() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label className="text-xs">Datum</Label>
-                    <Input type="date" value={datum} onChange={(e) => setDatum(e.target.value)} className="mt-1 h-9 text-sm" />
+                    <Input type="date" value={datum} onChange={(e) => {
+                      const v = e.target.value;
+                      setDatum(v);
+                      if (!faelligTouched && v) setFaelligAm(addDaysIso(v, 30));
+                    }} className="mt-1 h-9 text-sm" />
                   </div>
                   <div>
                     <Label className="text-xs">Fällig am</Label>
-                    <Input type="date" value={faelligAm} onChange={(e) => setFaelligAm(e.target.value)} className="mt-1 h-9 text-sm" />
+                    <Input type="date" value={faelligAm} onChange={(e) => { setFaelligAm(e.target.value); setFaelligTouched(true); }} className="mt-1 h-9 text-sm" />
                   </div>
                 </div>
                 {rechnungNr && (
