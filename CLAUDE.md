@@ -66,6 +66,27 @@ Bir bug'ı düzeltmeden **önce**:
 Tek satırlık trivial fix'lerde (typo, import path) kısa tut — gereksiz tören yaratma.
 5+ dosyaya yayılan değişikliklerde uygulamadan önce kullanıcı onayı al.
 
+### Kök neden zorunluluğu (no-patch kuralı)
+
+"Yama yasak" (§2) ve "Bug fix akışı"nı somutlaştırır — semptom örtmek çözüm değildir:
+
+- **Semptomu bastırarak "çözüldü" sayma.** Önce **sebebi** bul, sonra sebebi gider.
+  Semptomu gizlemek (toast, `try/catch` yutma, guard, default değer, retry) yalnızca
+  kök neden **anlaşıldıktan sonra** ve **ek bir savunma katmanı** olarak kabul edilir —
+  kök nedenin yerine geçmez.
+- **Her düzeltmeden önce şu soruyu çıktında açıkça yanıtla:** "Bu davranış neden oluştu?
+  Hangi koşul tetikledi?" Cevap *"bilmiyorum ama bu kontrol hatayı susturuyor"* ise →
+  **DURMA**, kök nedeni araştırmaya devam et.
+- **Veri/durum tutarsızlığında** (ör. DB'de alan dolu ama runtime'da boş geliyor): yükleme
+  sırası, auth/RLS, cache/stale state, build-time env (`VITE_*`), deploy penceresi gibi olası
+  kaynakları ele. **Tahminle kapatma — reprodüksiyonla doğrula.**
+- **Guard/erken-return eklediğinde** çıktıda açıkça belirt: bu **kök neden düzeltmesi mi**,
+  yoksa **kök neden ayrı mı** (ve ayrıysa hâlâ açık olduğu). "Yama yaptım, asıl sebep şu, o
+  ayrıca çözülmeli" demek dürüst; **sessizce guard'la kapatıp "düzeltildi" demek YASAK.**
+- **Geçici workaround zorunluysa** (kök neden hemen çözülemiyorsa): kodda
+  `// TODO(root-cause): <sebep henüz bilinmiyor / şu doğrulanmalı>` notu bırak ve
+  kullanıcıya takip adımını söyle.
+
 ---
 
 ## 3. Klasör Yapısı (Hızlı Harita)
