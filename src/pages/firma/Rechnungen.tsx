@@ -82,6 +82,12 @@ export default function FirmaRechnungen() {
       toast({ title: "IBAN fehlt", description: "Bitte IBAN in den Einstellungen hinterlegen.", variant: "destructive" });
       return;
     }
+    // QR-Bill creditor structured adres ister — eksikse kriptik "PLZ zorunlu" yerine net uyarı.
+    const missingAddr = [!pdfCompany.street?.trim() && "Strasse", !pdfCompany.plz?.trim() && "PLZ", !pdfCompany.city?.trim() && "Ort"].filter(Boolean) as string[];
+    if (missingAddr.length > 0) {
+      toast({ title: "Firmen-Adresse unvollständig", description: `Bitte ${missingAddr.join(", ")} in den Einstellungen hinterlegen.`, variant: "destructive" });
+      return;
+    }
     setDownloadingId(r.id);
     try {
       const logo = c?.logo_url ? await logoToBase64(c.logo_url) : null;

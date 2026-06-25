@@ -321,6 +321,12 @@ export default function RechnungDetail() {
       toast({ title: "IBAN fehlt", description: "Bitte IBAN in den Einstellungen hinterlegen.", variant: "destructive" });
       return;
     }
+    // QR-Bill creditor structured adres ister — eksikse kriptik "PLZ zorunlu" yerine net uyarı.
+    const missingAddr = [!data.company.street?.trim() && "Strasse", !data.company.plz?.trim() && "PLZ", !data.company.city?.trim() && "Ort"].filter(Boolean) as string[];
+    if (missingAddr.length > 0) {
+      toast({ title: "Firmen-Adresse unvollständig", description: `Bitte ${missingAddr.join(", ")} in den Einstellungen hinterlegen.`, variant: "destructive" });
+      return;
+    }
     try {
       const logo = company?.logo_url ? await logoToBase64(company.logo_url) : null;
       await downloadRechnungPdf(data, logo);
@@ -340,6 +346,11 @@ export default function RechnungDetail() {
     if (!data) return;
     if (!data.company.iban) {
       toast({ title: "IBAN fehlt", description: "Bitte IBAN in den Einstellungen hinterlegen.", variant: "destructive" });
+      return;
+    }
+    const missingAddr = [!data.company.street?.trim() && "Strasse", !data.company.plz?.trim() && "PLZ", !data.company.city?.trim() && "Ort"].filter(Boolean) as string[];
+    if (missingAddr.length > 0) {
+      toast({ title: "Firmen-Adresse unvollständig", description: `Bitte ${missingAddr.join(", ")} in den Einstellungen hinterlegen.`, variant: "destructive" });
       return;
     }
     setIsSendingEmail(true);
