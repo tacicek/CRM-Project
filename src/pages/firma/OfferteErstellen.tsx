@@ -54,6 +54,7 @@ import { OfferteItemRow, type OfferItem } from "@/components/offerte/OfferteItem
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
+import { computeItemsSubtotal, type SubtotalItem } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -787,25 +788,27 @@ const FirmaOfferteErstellen = () => {
     setItems(reorderedItems.map((item, i) => ({ ...item, position: i + 1 })));
   };
 
-  const calculateSubtotal = () =>
-    items.reduce((sum, item) => {
-      if (item.priceType === "inkl" || item.priceType === "optional") return sum;
-      const te = item.timeEstimate;
-      if (te && te.minHours && te.hourlyRate)
-        return sum + parseFloat(te.minHours) * parseFloat(te.hourlyRate);
-      return sum + item.quantity * item.unit_price;
-    }, 0);
+  // Form item şeklini (timeEstimate string) helper'ın SubtotalItem'ına çevir (parse map'te).
+  const toSubtotalItems = (): SubtotalItem[] =>
+    items.map((item) => ({
+      priceType: item.priceType,
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unit_price),
+      timeEstimate: item.timeEstimate
+        ? {
+            minHours: parseFloat(item.timeEstimate.minHours),
+            maxHours: parseFloat(item.timeEstimate.maxHours),
+            hourlyRate: parseFloat(item.timeEstimate.hourlyRate),
+          }
+        : null,
+    }));
+
+  const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
 
   const calculateMaxSubtotal = (): number | null => {
     const hasAny = items.some(i => i.timeEstimate && i.timeEstimate.maxHours && i.timeEstimate.hourlyRate);
     if (!hasAny) return null;
-    return items.reduce((sum, item) => {
-      if (item.priceType === "inkl" || item.priceType === "optional") return sum;
-      const te = item.timeEstimate;
-      if (te && te.maxHours && te.hourlyRate)
-        return sum + parseFloat(te.maxHours) * parseFloat(te.hourlyRate);
-      return sum + item.quantity * item.unit_price;
-    }, 0);
+    return computeItemsSubtotal(toSubtotalItems(), "max");
   };
 
   // Steuerbare Basis = Positionen + Zuschläge. Entspricht offers.subtotal →

@@ -29,6 +29,7 @@ import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
+import { computeItemsSubtotal, type SubtotalItem } from "@/lib/offerPricing";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
@@ -315,25 +316,28 @@ const FirmaOfferteBearbeiten = () => {
     setItems(reorderedItems.map((item, i) => ({ ...item, position: i + 1 })));
   };
 
-  const calculateSubtotal = () =>
-    items.reduce((sum, item) => {
-      if (item.unit === "inkl.") return sum;
-      const te = item.timeEstimate;
-      if (te && te.minHours && te.hourlyRate)
-        return sum + parseFloat(te.minHours) * parseFloat(te.hourlyRate);
-      return sum + item.quantity * item.unit_price;
-    }, 0);
+  // Form item şeklini helper'ın SubtotalItem'ına çevir. Hariç-tutma artık SEMANTİK
+  // price_type ile (eski unit==="inkl." string guard'ı kaldırıldı → optional da hariç).
+  const toSubtotalItems = (): SubtotalItem[] =>
+    items.map((item) => ({
+      priceType: item.price_type ?? "",
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unit_price),
+      timeEstimate: item.timeEstimate
+        ? {
+            minHours: parseFloat(item.timeEstimate.minHours),
+            maxHours: parseFloat(item.timeEstimate.maxHours),
+            hourlyRate: parseFloat(item.timeEstimate.hourlyRate),
+          }
+        : null,
+    }));
+
+  const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
 
   const calculateMaxSubtotal = (): number | null => {
     const hasAny = items.some(i => i.timeEstimate && i.timeEstimate.maxHours && i.timeEstimate.hourlyRate);
     if (!hasAny) return null;
-    return items.reduce((sum, item) => {
-      if (item.unit === "inkl.") return sum;
-      const te = item.timeEstimate;
-      if (te && te.maxHours && te.hourlyRate)
-        return sum + parseFloat(te.maxHours) * parseFloat(te.hourlyRate);
-      return sum + item.quantity * item.unit_price;
-    }, 0);
+    return computeItemsSubtotal(toSubtotalItems(), "max");
   };
 
   // Steuerbare Basis = Positionen + Zuschläge → offers.subtotal (GENERATED vat/total).
