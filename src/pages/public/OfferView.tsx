@@ -48,6 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
+import { hourlyRange, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
 
 interface OfferItem {
   id: string;
@@ -57,6 +58,7 @@ interface OfferItem {
   unit: string;
   unit_price: number;
   total: number;
+  time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
 }
 
 interface Offer {
@@ -90,6 +92,7 @@ interface Offer {
   price_model?: 'pauschal' | 'stundenansatz' | 'kostendach' | null;
   hourly_rate?: number | null;
   kostendach_max?: number | null;
+  offerte_type?: 'normal' | 'blind' | null;
   payment_terms?: string | null;
   // Lead address fields (from get_offer_by_token RPC join)
   from_street?: string | null;
@@ -251,7 +254,9 @@ const PublicOfferView = () => {
         const { data: itemsData } = await supabase
           .rpc("get_offer_items_by_token", { p_access_token: token });
 
-        setItems(itemsData || []);
+        // RPC time_estimate: Json döndürür; OfferItem yapısal tip beklediği için cast.
+        // hourlyRange defensive (bozuk şekil → null), render runtime'da güvenli.
+        setItems((itemsData as OfferItem[]) || []);
 
         // Get lead to determine service type and address
         if (offerData.lead_id && companyData && companyData.length > 0) {
@@ -746,25 +751,55 @@ const PublicOfferView = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map((item) => (
+                    {items.map((item) => {
+                      const r = hourlyRange(item.time_estimate);
+                      return (
                       <TableRow key={item.id}>
                         <TableCell className="text-center">{item.position}</TableCell>
                         <TableCell>{item.description}</TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell>{item.unit}</TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(Number(item.unit_price))}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(Number(item.total))}
-                        </TableCell>
+                        {r ? (
+                          <>
+                            <TableCell className="text-right">
+                              {item.time_estimate!.minHours}–{item.time_estimate!.maxHours} Std.
+                            </TableCell>
+                            <TableCell>Std.</TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(Number(item.time_estimate!.hourlyRate))}/Std.
+                            </TableCell>
+                            <TableCell className="text-right font-medium text-amber-700">
+                              {formatCurrency(r.min)} – {formatCurrency(r.max)}
+                            </TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell className="text-right">{item.quantity}</TableCell>
+                            <TableCell>{item.unit}</TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(Number(item.unit_price))}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(Number(item.total))}
+                            </TableCell>
+                          </>
+                        )}
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
 
               <Separator className="my-6" />
+
+              {/* Blind-Offerte Hinweis (nur bei offerte_type='blind') */}
+              {offer.offerte_type === 'blind' && (
+                <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
+                  <p className="font-semibold uppercase tracking-wide text-xs text-amber-700 mb-1">
+                    {BLIND_DISCLAIMER_LABEL}
+                  </p>
+                  <p>{BLIND_DISCLAIMER_TEXT}</p>
+                </div>
+              )}
 
               {/* Price model info block */}
               {offer.price_model === 'stundenansatz' && offer.hourly_rate !== null && offer.hourly_rate !== undefined && (

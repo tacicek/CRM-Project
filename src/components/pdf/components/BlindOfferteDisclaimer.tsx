@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "@react-pdf/renderer";
 import { FONT_SIZES, SPACING } from "../styles/constants";
+import { BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
 
 const styles = StyleSheet.create({
   wrapper: {
@@ -29,11 +30,7 @@ const styles = StyleSheet.create({
 
 export const BlindOfferteDisclaimer = () => (
   <View style={styles.wrapper} wrap={false}>
-    <Text style={styles.label}>Wichtiger Hinweis</Text>
-    <Text style={styles.text}>
-      Diese Offerte wurde ohne persönliche Besichtigung erstellt und basiert ausschliesslich auf den
-      Angaben des Kunden. Die aufgeführten Preise sind Schätzungen. Allfällige Anpassungen werden vor
-      Auftragserteilung in Absprache mit dem Kunden vorgenommen.
-    </Text>
+    <Text style={styles.label}>{BLIND_DISCLAIMER_LABEL}</Text>
+    <Text style={styles.text}>{BLIND_DISCLAIMER_TEXT}</Text>
   </View>
 );

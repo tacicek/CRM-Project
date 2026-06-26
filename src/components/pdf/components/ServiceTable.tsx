@@ -3,6 +3,7 @@ import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
 import { formatCurrency, formatTime } from "../utils/formatters";
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
+import { hourlyRange } from "@/lib/offerPricing";
 
 const DARK = "#1C1C27";
 const SECTION_BG = "#F9FAFB";
@@ -251,7 +252,7 @@ interface RowProps {
 
 const ItemRow = ({ item, posLabel, alt }: RowProps) => {
   const te = item.timeEstimate;
-  const hasTE = te && te.minHours > 0 && te.hourlyRate > 0;
+  const r = hourlyRange(te);
 
   return (
     <View style={[styles.row, alt ? styles.rowAlt : {}]} wrap={false}>
@@ -267,16 +268,16 @@ const ItemRow = ({ item, posLabel, alt }: RowProps) => {
           );
         })}
       </View>
-      {hasTE ? (
+      {r ? (
         <>
           <Text style={styles.colQty}>{`${te!.minHours}–${te!.maxHours} Std.`}</Text>
           <Text style={styles.colUnit}>{`${formatCurrency(te!.hourlyRate)}/Std.`}</Text>
           <View style={[styles.colTotal, { alignItems: "flex-end" }]}>
             <Text style={{ fontSize: FONT_SIZES.sm, fontWeight: 700, color: "#B45309" }}>
-              {formatCurrency(te!.minHours * te!.hourlyRate)}
+              {formatCurrency(r.min)}
             </Text>
             <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-              {"\u2013"} {formatCurrency(te!.maxHours * te!.hourlyRate)}
+              {"\u2013"} {formatCurrency(r.max)}
             </Text>
           </View>
         </>
