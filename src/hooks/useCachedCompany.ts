@@ -40,15 +40,14 @@ export const setCachedCompany = (company: CachedCompanyData | null) => {
  * Legacy-compatible hook: reads from CompanyContext instead of fetching independently.
  * This ensures the companyId returned here matches the one selected in the sidebar picker.
  */
-export const useCachedCompany = <T extends CachedCompanyData>(
-  _select: string = "id"
-) => {
+export const useCachedCompany = (_select: string = "id") => {
   const { activeCompany, companyId, loading, refresh } = useCompanyContext();
 
-  const company = (activeCompany as unknown as T) ?? null;
-
+  // activeCompany YALNIZ CompanyData içerir (id, company_name, logo_url, is_verified).
+  // Daha fazla alan (plz, iban, street, ...) gerekiyorsa fetchSingleCompanyForUser ile
+  // taze çek — `as unknown as T` ile var gibi göstermek (sessiz undefined) YASAK.
   return {
-    company,
+    company: activeCompany,
     companyId,
     loading,
     setCompany: () => refresh(),

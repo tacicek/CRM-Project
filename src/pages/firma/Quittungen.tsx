@@ -16,6 +16,8 @@ import { pdf } from "@react-pdf/renderer";
 import { QuittungPDF } from "@/components/quittung/QuittungPDF";
 import { logoToBase64 } from "@/lib/logoToBase64";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
+import { useAuth } from "@/hooks/useAuth";
+import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useQuittungen } from "@/hooks/useQuittungen";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -59,9 +61,18 @@ interface QuittungCompany {
 export default function FirmaQuittungen() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { company } = useCachedCompany<QuittungCompany>(
-    "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, crm_enabled"
-  );
+  const { user } = useAuth();
+  const { companyId } = useCachedCompany();
+  // Tam firma kaydı (adres/iban/bank dahil) — useCachedCompany select'i yok sayıyor → taze fetch.
+  const [company, setCompany] = useState<QuittungCompany | null>(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchSingleCompanyForUser<QuittungCompany>({
+      userId: user.id,
+      userEmail: user.email,
+      select: "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, crm_enabled",
+    }).then((row) => { if (row) setCompany(row); });
+  }, [user?.id, user?.email]);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   const companyLogoUrl = company?.logo_url;
@@ -84,7 +95,7 @@ export default function FirmaQuittungen() {
     bewertungs_url: company.bewertungs_url,
   } : null;
 
-  const { quittungen, loading: isLoading, updateQuittung, deleteQuittung } = useQuittungen(company?.id);
+  const { quittungen, loading: isLoading, updateQuittung, deleteQuittung } = useQuittungen(companyId);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | QuittungStatus>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);

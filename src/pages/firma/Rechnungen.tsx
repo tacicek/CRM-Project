@@ -8,11 +8,13 @@ import {
 import {
   Plus, Search, Eye, Download, MoreHorizontal, Loader2, X, Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
+import { useAuth } from "@/hooks/useAuth";
+import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useRechnungen, rechnungToPdfData, type Rechnung } from "@/hooks/useRechnungen";
 import { downloadRechnungPdf, type RechnungCompany } from "@/lib/generateRechnungPdf";
 import { logoToBase64 } from "@/lib/logoToBase64";
@@ -48,12 +50,21 @@ interface CompanyRow {
 export default function FirmaRechnungen() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { company } = useCachedCompany(
-    "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url",
-  );
-  const c = company as CompanyRow | null;
+  const { user } = useAuth();
+  const { companyId } = useCachedCompany();
+  // Tam firma kaydı (plz/iban dahil) — useCachedCompany select'i yok sayıp yalnız
+  // activeCompany'yi (id/name/logo) döndürüyor; QR-Bill creditor adres alanları şart → taze fetch.
+  const [c, setC] = useState<CompanyRow | null>(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchSingleCompanyForUser<CompanyRow>({
+      userId: user.id,
+      userEmail: user.email,
+      select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url",
+    }).then((row) => { if (row) setC(row); });
+  }, [user?.id, user?.email]);
 
-  const { rechnungen, loading, deleteRechnung } = useRechnungen(c?.id);
+  const { rechnungen, loading, deleteRechnung } = useRechnungen(companyId);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | RechnungStatus>("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
