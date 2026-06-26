@@ -75,6 +75,23 @@ export const computeItemsSubtotal = (
     return sum + item.quantity * item.unitPrice;
   }, 0);
 
+/**
+ * itemsSubtotal + (sabit) surcharge toplamı → taxableBase → VAT → total.
+ * Blind aralığın ÜST sınırı için PDF (mapOfferData) ve OfferView aynı zinciri kullanır.
+ * surchargesSum SABİT (kayıtlı tutarlar) — percent yeniden hesaplanmaz (offers.surcharges
+ * zaten hesaplanmış amount taşır). min taraf DB'nin GENERATED değerlerinden gelir; bu fn
+ * yalnız üst-sınır (max) için. vatRate 0 → vatAmount 0.
+ */
+export const computeTotalsFromSubtotal = (
+  itemsSubtotal: number,
+  surchargesSum: number,
+  vatRate: number,
+): { taxableBase: number; vatAmount: number; total: number } => {
+  const taxableBase = itemsSubtotal + surchargesSum;
+  const vatAmount = (taxableBase * (vatRate > 0 ? vatRate : 0)) / 100;
+  return { taxableBase, vatAmount, total: taxableBase + vatAmount };
+};
+
 // Blind teklif uyarısı — PDF (BlindOfferteDisclaimer) + OfferView (DOM) aynı metni kullanır.
 export const BLIND_DISCLAIMER_LABEL = "Wichtiger Hinweis";
 export const BLIND_DISCLAIMER_TEXT =
