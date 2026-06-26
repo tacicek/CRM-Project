@@ -5805,9 +5805,13 @@ export type Database = {
           from_house_number: string
           from_plz: string
           from_street: string
+          hourly_rate: number
           id: string
           is_expired: boolean
+          kostendach_max: number
           lead_id: string
+          offerte_type: string
+          price_model: string
           rejected_at: string
           sent_at: string
           service_date: string
@@ -5840,6 +5844,7 @@ export type Database = {
           position: number
           price_type: string
           quantity: number
+          time_estimate: Json
           total: number
           unit: string
           unit_price: number
