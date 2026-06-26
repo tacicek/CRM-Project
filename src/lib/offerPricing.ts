@@ -39,6 +39,42 @@ export const hourlyRange = (
   };
 };
 
+// ---------------------------------------------------------------------------
+// Offer subtotal — TEK KAYNAK (create + edit aynı formülü buradan alır).
+//
+// Lesson #8 (referans): subtotal/VAT birden fazla yerde hesaplanırsa diverge eder.
+// Önceki durum: create price_type'a göre (optional+inkl hariç), edit unit==="inkl."
+// string'ine göre (optional'ı kaçırıyordu) → edit+save sonrası DB total kayıyordu.
+// Çözüm: tek pure fn; hariç-tutma SEMANTİK price_type ile, unit string'iyle değil.
+// ---------------------------------------------------------------------------
+
+export interface SubtotalItem {
+  priceType: string; // 'pauschale' | 'per_unit' | 'per_hour' | 'optional' | 'inkl'
+  quantity: number;
+  unitPrice: number;
+  timeEstimate: TimeEstimate | null;
+}
+
+// subtotal'a girmeyen kalem tipleri (gösterilir ama toplanmaz): optional, inkl.
+const EXCLUDED_FROM_SUBTOTAL = new Set(["optional", "inkl"]);
+
+/**
+ * Kalem listesinin subtotal'ını hesaplar (saf — parse etmez, number bekler).
+ * - priceType ∈ {optional, inkl} → atlanır.
+ * - timeEstimate geçerliyse (hourlyRange) → mode 'min' alt, 'max' üst sınır.
+ * - aksi halde quantity * unitPrice.
+ */
+export const computeItemsSubtotal = (
+  items: SubtotalItem[],
+  mode: "min" | "max" = "min",
+): number =>
+  items.reduce((sum, item) => {
+    if (EXCLUDED_FROM_SUBTOTAL.has(item.priceType)) return sum;
+    const r = hourlyRange(item.timeEstimate);
+    if (r) return sum + (mode === "min" ? r.min : r.max);
+    return sum + item.quantity * item.unitPrice;
+  }, 0);
+
 // Blind teklif uyarısı — PDF (BlindOfferteDisclaimer) + OfferView (DOM) aynı metni kullanır.
 export const BLIND_DISCLAIMER_LABEL = "Wichtiger Hinweis";
 export const BLIND_DISCLAIMER_TEXT =
