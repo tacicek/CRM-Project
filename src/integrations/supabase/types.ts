@@ -3076,6 +3076,7 @@ export type Database = {
           position: number
           price_type: string | null
           quantity: number
+          service_type: string | null
           time_estimate: Json | null
           total: number | null
           unit: string | null
@@ -3091,6 +3092,7 @@ export type Database = {
           position?: number
           price_type?: string | null
           quantity?: number
+          service_type?: string | null
           time_estimate?: Json | null
           total?: number | null
           unit?: string | null
@@ -3106,6 +3108,7 @@ export type Database = {
           position?: number
           price_type?: string | null
           quantity?: number
+          service_type?: string | null
           time_estimate?: Json | null
           total?: number | null
           unit?: string | null
@@ -5844,6 +5847,7 @@ export type Database = {
           position: number
           price_type: string
           quantity: number
+          service_type: string
           time_estimate: Json
           total: number
           unit: string
