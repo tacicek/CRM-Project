@@ -289,6 +289,12 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       const surchargesSum = surcharges.reduce((sum, s) => sum + (Number.isFinite(s.amount) ? s.amount : 0), 0);
       const itemsSubtotal = offer.subtotal - surchargesSum;
       if (hasItemTe) {
+        // TODO(3b): max subtotal computeItemsSubtotal'a bağlanmalı. Şu an optional/inkl HARİÇ
+        // TUTMUYOR (quantity*unit_price ile katıyor) → OfferView max'ı (optional hariç) ile
+        // blind+optional kenar durumunda ayrışır. Kanıtlı örnek: blind te{19,25,100} + optional 500
+        // → PDF max 3000, OfferView max 2500 (500 CHF fark). Gerekli: LegacyOfferItem + tüm PDF
+        // çağıranlarına (buildOfferEmailAttachments, OfferteDetail, OfferView-PDF, PdfPreviewDialog)
+        // price_type plumbing (~5 dosya). Latent: canlı veride optional/inkl = 0 satır. Lesson #8/#11.
         maxSubtotal = offer.items.reduce((sum, item) => {
           const te = item.time_estimate;
           if (te && te.maxHours && te.hourlyRate) return sum + te.maxHours * te.hourlyRate;

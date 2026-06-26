@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hourlyRange,
   computeItemsSubtotal,
+  computeTotalsFromSubtotal,
   type SubtotalItem,
   BLIND_DISCLAIMER_LABEL,
   BLIND_DISCLAIMER_TEXT,
@@ -91,6 +92,46 @@ describe("computeItemsSubtotal", () => {
     const vatRate = 8.1;
     const total = subtotal + (subtotal * vatRate) / 100; // DB generated formülü
     expect(Number(total.toFixed(2))).toBe(1297.2);
+  });
+});
+
+describe("computeTotalsFromSubtotal", () => {
+  it("surcharge 0, VAT 8.1: 1000 → total 1081", () => {
+    expect(computeTotalsFromSubtotal(1000, 0, 8.1)).toEqual({
+      taxableBase: 1000,
+      vatAmount: 81,
+      total: 1081,
+    });
+  });
+
+  it("sabit surcharge 100, VAT 8.1: taxableBase 1100, total 1189.1", () => {
+    const r = computeTotalsFromSubtotal(1000, 100, 8.1);
+    expect(r.taxableBase).toBe(1100);
+    expect(Number(r.vatAmount.toFixed(2))).toBe(89.1);
+    expect(Number(r.total.toFixed(2))).toBe(1189.1);
+  });
+
+  it("VAT 0 → vatAmount 0, total = base", () => {
+    expect(computeTotalsFromSubtotal(1200, 0, 0)).toEqual({
+      taxableBase: 1200,
+      vatAmount: 0,
+      total: 1200,
+    });
+  });
+
+  it("BLIND RANGE — optional HER İKİ tarafta hariç + total aralığı", () => {
+    const items: SubtotalItem[] = [
+      { priceType: "pauschale", quantity: 1, unitPrice: 1000, timeEstimate: null },
+      { priceType: "optional", quantity: 1, unitPrice: 300, timeEstimate: null },
+      { priceType: "pauschale", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 2, maxHours: 4, hourlyRate: 100 } },
+    ];
+    const minItems = computeItemsSubtotal(items, "min"); // 1000 + 200 = 1200 (optional hariç)
+    const maxItems = computeItemsSubtotal(items, "max"); // 1000 + 400 = 1400 (optional hariç)
+    expect(minItems).toBe(1200);
+    expect(maxItems).toBe(1400);
+    // VAT 0, surcharge 0 → total aralığı 1200 – 1400
+    expect(computeTotalsFromSubtotal(minItems, 0, 0).total).toBe(1200);
+    expect(computeTotalsFromSubtotal(maxItems, 0, 0).total).toBe(1400);
   });
 });
 

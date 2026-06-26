@@ -48,7 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { hourlyRange, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
+import { hourlyRange, computeItemsSubtotal, computeTotalsFromSubtotal, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
 
 interface OfferItem {
   id: string;
@@ -58,6 +58,7 @@ interface OfferItem {
   unit: string;
   unit_price: number;
   total: number;
+  price_type?: string | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
 }
 
@@ -828,12 +829,30 @@ const PublicOfferView = () => {
                 <div className="w-72 space-y-3">
                   {(() => {
                     const surchargeList = parseSurcharges(offer.surcharges);
-                    const itemsSub = Number(offer.subtotal) - sumSurchargeAmounts(surchargeList);
+                    const surchargesSum = sumSurchargeAmounts(surchargeList);
+                    const minItemsSub = Number(offer.subtotal) - surchargesSum;
+                    // Üst sınır: blind item'ların maxHours'ından — optional/inkl hariç (tek kaynak).
+                    const maxItemsSub = computeItemsSubtotal(
+                      items.map((it): SubtotalItem => ({
+                        priceType: it.price_type ?? "",
+                        quantity: Number(it.quantity),
+                        unitPrice: Number(it.unit_price),
+                        timeEstimate: it.time_estimate ?? null,
+                      })),
+                      "max",
+                    );
+                    // Sabit surcharge toplamı (PDF max'ıyla aynı kaynak — yeniden percent hesaplanmaz).
+                    const maxTotals = computeTotalsFromSubtotal(maxItemsSub, surchargesSum, Number(offer.vat_rate));
+                    const isRange = offer.offerte_type === "blind" && maxItemsSub !== minItemsSub;
                     return (
                       <>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Zwischensumme</span>
-                          <span>{formatCurrency(itemsSub)}</span>
+                          <span>
+                            {isRange
+                              ? `${formatCurrency(minItemsSub)} – ${formatCurrency(maxItemsSub)}`
+                              : formatCurrency(minItemsSub)}
+                          </span>
                         </div>
                         {surchargeList.map((s, i) => (
                           <div key={i} className="flex justify-between">
@@ -843,16 +862,24 @@ const PublicOfferView = () => {
                         ))}
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">MwSt. ({offer.vat_rate}%)</span>
-                          <span>{formatCurrency(Number(offer.vat_amount))}</span>
+                          <span>
+                            {isRange
+                              ? `${formatCurrency(Number(offer.vat_amount))} – ${formatCurrency(maxTotals.vatAmount)}`
+                              : formatCurrency(Number(offer.vat_amount))}
+                          </span>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between text-xl font-bold">
+                          <span>Total</span>
+                          <span className="text-secondary">
+                            {isRange
+                              ? `${formatCurrency(Number(offer.total))} – ${formatCurrency(maxTotals.total)}`
+                              : formatCurrency(Number(offer.total))}
+                          </span>
                         </div>
                       </>
                     );
                   })()}
-                  <Separator />
-                  <div className="flex justify-between text-xl font-bold">
-                    <span>Total</span>
-                    <span className="text-secondary">{formatCurrency(Number(offer.total))}</span>
-                  </div>
                 </div>
               </div>
             </CardContent>
