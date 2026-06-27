@@ -41,7 +41,8 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { groupItemsByService } from "@/lib/offerServiceType";
 import { supabase } from "@/integrations/supabase/client";
 import { useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +60,7 @@ interface OfferItem {
   unit_price: number;
   total: number;
   price_type?: string | null;
+  service_type?: string | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
 }
 
@@ -752,40 +754,55 @@ const PublicOfferView = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map((item) => {
-                      const r = hourlyRange(item.time_estimate);
-                      return (
-                      <TableRow key={item.id}>
-                        <TableCell className="text-center">{item.position}</TableCell>
-                        <TableCell>{item.description}</TableCell>
-                        {r ? (
-                          <>
-                            <TableCell className="text-right">
-                              {item.time_estimate!.minHours}–{item.time_estimate!.maxHours} Std.
-                            </TableCell>
-                            <TableCell>Std.</TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(Number(item.time_estimate!.hourlyRate))}/Std.
-                            </TableCell>
-                            <TableCell className="text-right font-medium text-amber-700">
-                              {formatCurrency(r.min)} – {formatCurrency(r.max)}
-                            </TableCell>
-                          </>
-                        ) : (
-                          <>
-                            <TableCell className="text-right">{item.quantity}</TableCell>
-                            <TableCell>{item.unit}</TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(Number(item.unit_price))}
-                            </TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatCurrency(Number(item.total))}
-                            </TableCell>
-                          </>
-                        )}
-                      </TableRow>
-                      );
-                    })}
+                    {(() => {
+                      const groups = groupItemsByService(items);
+                      const multi = groups.length > 1;
+                      return groups.map((group) => (
+                        <Fragment key={group.serviceType ?? "allgemein"}>
+                          {multi && (
+                            <TableRow className="bg-muted/40 hover:bg-muted/40">
+                              <TableCell colSpan={6} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground py-2">
+                                {group.label}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {group.items.map((item) => {
+                            const r = hourlyRange(item.time_estimate);
+                            return (
+                            <TableRow key={item.id}>
+                              <TableCell className="text-center">{item.position}</TableCell>
+                              <TableCell>{item.description}</TableCell>
+                              {r ? (
+                                <>
+                                  <TableCell className="text-right">
+                                    {item.time_estimate!.minHours}–{item.time_estimate!.maxHours} Std.
+                                  </TableCell>
+                                  <TableCell>Std.</TableCell>
+                                  <TableCell className="text-right">
+                                    {formatCurrency(Number(item.time_estimate!.hourlyRate))}/Std.
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium text-amber-700">
+                                    {formatCurrency(r.min)} – {formatCurrency(r.max)}
+                                  </TableCell>
+                                </>
+                              ) : (
+                                <>
+                                  <TableCell className="text-right">{item.quantity}</TableCell>
+                                  <TableCell>{item.unit}</TableCell>
+                                  <TableCell className="text-right">
+                                    {formatCurrency(Number(item.unit_price))}
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {formatCurrency(Number(item.total))}
+                                  </TableCell>
+                                </>
+                              )}
+                            </TableRow>
+                            );
+                          })}
+                        </Fragment>
+                      ));
+                    })()}
                   </TableBody>
                 </Table>
               </div>

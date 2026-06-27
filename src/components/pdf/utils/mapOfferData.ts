@@ -46,6 +46,7 @@ export interface LegacyOfferItem {
   unit_price: number;
   total: number;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
+  service_type?: string | null;
 }
 
 export interface LegacyCompanyInfo {
@@ -217,14 +218,6 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
     const parts = item.description.split("\n").map((line) => line.trim()).filter(Boolean);
     const te = item.time_estimate;
     const mainDesc = parts[0] || item.description;
-    // Detect section header: price=0, total=0, no time estimate, description is all-caps
-    const isSectionHeader =
-      !te &&
-      item.unit_price === 0 &&
-      item.total === 0 &&
-      mainDesc.trim().length > 0 &&
-      mainDesc.trim() === mainDesc.trim().toUpperCase() &&
-      mainDesc.trim().length <= 40;
     return {
       description: mainDesc,
       details: parts.length > 1 ? parts.slice(1) : undefined,
@@ -233,7 +226,7 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       price: item.unit_price,
       total: item.total || item.quantity * item.unit_price,
       timeEstimate: te ?? null,
-      isSectionHeader,
+      serviceType: item.service_type ?? null,
     };
   });
 

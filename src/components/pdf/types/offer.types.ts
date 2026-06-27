@@ -45,8 +45,8 @@ export interface OfferData {
     total: number;
     /** Per-item time estimate for Blind Offerte */
     timeEstimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
-    /** True when this item is a section/category header (price=0, separator row) */
-    isSectionHeader?: boolean;
+    /** Multi-service grouping key (clean base or null=Allgemein) */
+    serviceType?: string | null;
   }>;
   breakdown?: {
     volume?: number;
