@@ -45,6 +45,8 @@ import { useCompanyPricing } from "@/hooks/useCompanyPricing";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
+import { normalizeToCatalogBase } from "@/lib/offerServiceType";
+import type { ServiceItem } from "@/types/leistungskatalog";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -185,6 +187,7 @@ const createEmptyItem = (position: number): OfferItem => ({
   priceType: "pauschale",
   highlighted: false,
   details: [],
+  serviceType: null, // default Allgemein; gerçek primary-base 2.3'te addItem'da set edilir
 });
 
 /** Gültig bis kürzer als 7 Tage ab heute — nur Hinweis im Formular */
@@ -541,8 +544,11 @@ const FirmaOfferteErstellen = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [items, title]);
 
+  // Multi-service: teklifin birincil base'i (lead'den). Kaynaksız yollar buna stamp'lenir (D-C).
+  const primaryBase = normalizeToCatalogBase(lead?.service_type ?? null);
+
   const addItem = () => {
-    setItems([...items, createEmptyItem(items.length + 1)]);
+    setItems([...items, { ...createEmptyItem(items.length + 1), serviceType: primaryBase }]);
   };
 
   // Handle AI Besichtigung items → inject as offer positions
@@ -557,9 +563,11 @@ const FirmaOfferteErstellen = () => {
       priceType: "pauschale" as const,
       highlighted: false,
       details: ai.note ? [ai.note] : [],
+      // D-B: AI category varsa clean base'e indir, tanınmazsa primary.
+      serviceType: ai.category ? (normalizeToCatalogBase(ai.category) ?? primaryBase) : primaryBase,
     }));
     setItems(prev => [...prev, ...newItems]);
-  }, [items.length]);
+  }, [items.length, primaryBase]);
 
   // Handle Moving Calculator result - convert to offer items
   const handleCalculatorResult = (result: CalculationResult) => {
@@ -597,6 +605,7 @@ const FirmaOfferteErstellen = () => {
       quantity: 1, unit: "Pauschale",
       unit_price: result.costBreakdown.laborCost + result.costBreakdown.vehicleCost,
       priceType: "pauschale", highlighted: true, details: [],
+      serviceType: primaryBase,
     });
 
     if (result.costBreakdown.distanceSurcharge > 0) {
@@ -605,13 +614,14 @@ const FirmaOfferteErstellen = () => {
         description: `Distanz-Zuschlag (${result.movingDetails.distanceKm} km)`,
         quantity: 1, unit: "Pauschale", unit_price: result.costBreakdown.distanceSurcharge,
         priceType: "pauschale", highlighted: false, details: [],
+        serviceType: primaryBase,
       });
     }
-    if (result.extraServices.packingService) newItems.push({ id: generateItemId(), position: ++position, description: "Verpackungsservice", quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.packingServiceRate ?? 50), priceType: "pauschale", highlighted: false, details: ["Professionelles Verpacken Ihres Umzugsguts"] });
-    if (result.extraServices.externalLift) newItems.push({ id: generateItemId(), position: ++position, description: "Außenlift / Möbellift", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.externalLiftCost ?? 600, priceType: "pauschale", highlighted: false, details: [] });
-    if (result.extraServices.disposal) newItems.push({ id: generateItemId(), position: ++position, description: "Entsorgung / Sperrgut", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.disposalCost ?? 300, priceType: "pauschale", highlighted: false, details: [] });
-    if (result.extraServices.pianoTransport) newItems.push({ id: generateItemId(), position: ++position, description: "Klaviertransport", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.pianoTransportCost ?? 400, priceType: "pauschale", highlighted: false, details: ["Spezialtransport für Klavier/Flügel"] });
-    if (result.extraServices.storage) newItems.push({ id: generateItemId(), position: ++position, description: `Zwischenlagerung (${result.netVolume.toFixed(1)} m³)`, quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.storageCostPerM3 ?? 80), priceType: "pauschale", highlighted: false, details: ["Sichere Lagerung Ihres Umzugsguts"] });
+    if (result.extraServices.packingService) newItems.push({ id: generateItemId(), position: ++position, description: "Verpackungsservice", quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.packingServiceRate ?? 50), priceType: "pauschale", highlighted: false, details: ["Professionelles Verpacken Ihres Umzugsguts"], serviceType: primaryBase });
+    if (result.extraServices.externalLift) newItems.push({ id: generateItemId(), position: ++position, description: "Außenlift / Möbellift", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.externalLiftCost ?? 600, priceType: "pauschale", highlighted: false, details: [], serviceType: "umzug" });
+    if (result.extraServices.disposal) newItems.push({ id: generateItemId(), position: ++position, description: "Entsorgung / Sperrgut", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.disposalCost ?? 300, priceType: "pauschale", highlighted: false, details: [], serviceType: "entsorgung" });
+    if (result.extraServices.pianoTransport) newItems.push({ id: generateItemId(), position: ++position, description: "Klaviertransport", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.pianoTransportCost ?? 400, priceType: "pauschale", highlighted: false, details: ["Spezialtransport für Klavier/Flügel"], serviceType: "transport" });
+    if (result.extraServices.storage) newItems.push({ id: generateItemId(), position: ++position, description: `Zwischenlagerung (${result.netVolume.toFixed(1)} m³)`, quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.storageCostPerM3 ?? 80), priceType: "pauschale", highlighted: false, details: ["Sichere Lagerung Ihres Umzugsguts"], serviceType: "lagerung" });
 
     setItems(replace ? newItems : [...items, ...newItems]);
     setCalculatorResult(result);
@@ -632,7 +642,7 @@ const FirmaOfferteErstellen = () => {
   };
 
   // Add services from catalog selector
-  const handleCatalogServicesSelected = (services: Array<{ id: string; name: string; unit_price: number; unit: string }>) => {
+  const handleCatalogServicesSelected = (services: ServiceItem[]) => {
     if (services.length === 0) return;
 
     const newItems: OfferItem[] = services.map((service, index) => ({
@@ -645,6 +655,8 @@ const FirmaOfferteErstellen = () => {
       priceType: service.unit === "Inklusiv" ? "inkl" : (service.default_price === 0 ? "inkl" : "pauschale"),
       highlighted: false,
       details: [],
+      // Catalog satırının service_type'ı RAW olabilir → clean base'e indir (Lesson #2); yoksa primary.
+      serviceType: normalizeToCatalogBase(service.service_type) ?? primaryBase,
     }));
 
     setItems([...items, ...newItems]);
@@ -710,6 +722,8 @@ const FirmaOfferteErstellen = () => {
       priceType: item.unit === "Inklusiv" ? "inkl" : (item.default_price === 0 ? "inkl" : "pauschale"),
       highlighted: false,
       details: [],
+      // Optional katalog item'ının service_type'ı RAW olabilir → clean base (Lesson #2); yoksa primary.
+      serviceType: normalizeToCatalogBase(item.service_type) ?? primaryBase,
     }));
 
     setItems([...items, ...newItems]);
@@ -1103,6 +1117,7 @@ const FirmaOfferteErstellen = () => {
           time_estimate: teValid
             ? { minHours: parseFloat(te!.minHours), maxHours: parseFloat(te!.maxHours), hourlyRate: parseFloat(te!.hourlyRate) }
             : null,
+          service_type: item.serviceType ?? null,
         };
       });
 
