@@ -18,10 +18,13 @@ import {
   Package,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { ServiceItem } from "@/types/leistungskatalog";
-import { getCategoryLabel } from "@/constants/service-catalog";
+import { getCategoryLabel, getServiceTypeLabel } from "@/constants/service-catalog";
+import { SERVICE_ORDER } from "@/lib/offerServiceType";
 
 interface CatalogServiceSelectorProps {
   open: boolean;
@@ -69,6 +72,7 @@ export function CatalogServiceSelector({
   const [loading, setLoading]         = useState(true);
   const [searchTerm, setSearchTerm]   = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [openServices, setOpenServices] = useState<Set<string>>(new Set()); // açık (expanded) service-section'lar
 
   const serviceTypeCandidates = useMemo(() => getServiceTypeCandidates(serviceType), [serviceType]);
   const excludedIdSet = useMemo(() => new Set(excludeServiceIds), [excludeServiceIds]);
@@ -77,11 +81,13 @@ export function CatalogServiceSelector({
     if (!companyId) return;
     setLoading(true);
     try {
+      // Multi-service: tüm şirket kataloğunu yükle (service_type filtresi YOK).
+      // serviceType prop artık filtre değil → primary tespiti + default-open için.
       const { data, error } = await supabase
         .from("company_service_items")
         .select("*")
         .eq("company_id", companyId)
-        .in("service_type", serviceTypeCandidates.length > 0 ? serviceTypeCandidates : [serviceType])
+        .order("service_type")
         .order("category")
         .order("display_order");
       if (error) throw error;
@@ -91,7 +97,7 @@ export function CatalogServiceSelector({
     } finally {
       setLoading(false);
     }
-  }, [companyId, serviceType, serviceTypeCandidates]);
+  }, [companyId]);
 
   useEffect(() => {
     if (open) {
@@ -127,20 +133,66 @@ export function CatalogServiceSelector({
     };
   }, [services, searchTerm, excludedIdSet]);
 
-  // Group available by category
-  const grouped = useMemo(() =>
-    available.reduce((acc, s) => {
-      if (!acc[s.category]) acc[s.category] = [];
-      acc[s.category].push(s);
-      return acc;
-    }, {} as Record<string, ServiceItem[]>),
-    [available]
-  );
+  // 2-seviye gruplama: service_type (üst) → category (alt). Katalog RAW service_type'ı kullanılır
+  // (klaviertransport/moebellift kendi bölümü). Item'lar zaten kendi service_type'ını taşır.
+  const groupedByService = useMemo(() => {
+    const acc: Record<string, Record<string, ServiceItem[]>> = {};
+    for (const s of available) {
+      if (!acc[s.service_type]) acc[s.service_type] = {};
+      if (!acc[s.service_type][s.category]) acc[s.service_type][s.category] = [];
+      acc[s.service_type][s.category].push(s);
+    }
+    return acc;
+  }, [available]);
 
-  const selectAll = () => {
+  // Primary servis = lead'in service_type'ı (candidates'tan, katalogda mevcut olan).
+  const primaryServiceType = useMemo(() => {
+    const candSet = new Set(serviceTypeCandidates);
+    return Object.keys(groupedByService).find(k => candSet.has(k)) ?? null;
+  }, [groupedByService, serviceTypeCandidates]);
+
+  // Sıra: primary önce, sonra SERVICE_ORDER, sonra diğerleri (ilk-görülme).
+  const orderedServiceKeys = useMemo(() => {
+    const keys = Object.keys(groupedByService);
+    const rank = (k: string) => {
+      if (k === primaryServiceType) return -1;
+      const i = SERVICE_ORDER.indexOf(k as (typeof SERVICE_ORDER)[number]);
+      return i === -1 ? SERVICE_ORDER.length + keys.indexOf(k) : i;
+    };
+    return [...keys].sort((a, b) => rank(a) - rank(b));
+  }, [groupedByService, primaryServiceType]);
+
+  // Default: primary açık, diğerleri kapalı (dialog her açıldığında).
+  useEffect(() => {
+    if (open && primaryServiceType) setOpenServices(new Set([primaryServiceType]));
+  }, [open, primaryServiceType]);
+
+  const toggleService = (st: string) => {
+    setOpenServices(prev => {
+      const next = new Set(prev);
+      if (next.has(st)) { next.delete(st); } else { next.add(st); }
+      return next;
+    });
+  };
+
+  const searchActive = searchTerm.trim().length > 0;
+
+  // Bir servisin (o an görünen — arama filtreli) seçilebilir item'ları.
+  const serviceItemsOf = (st: string): ServiceItem[] =>
+    Object.values(groupedByService[st] ?? {}).flat();
+
+  const allSelectedInService = (st: string): boolean => {
+    const its = serviceItemsOf(st);
+    return its.length > 0 && its.every(s => selectedIds.has(s.id));
+  };
+
+  // Per-service select-all / aufheben (arama aktifken sadece eşleşenleri etkiler — görünen set).
+  const toggleSelectService = (st: string) => {
+    const its = serviceItemsOf(st);
+    const allSel = its.length > 0 && its.every(s => selectedIds.has(s.id));
     setSelectedIds(prev => {
       const next = new Set(prev);
-      available.forEach(s => next.add(s.id));
+      its.forEach(s => { if (allSel) next.delete(s.id); else next.add(s.id); });
       return next;
     });
   };
@@ -204,21 +256,54 @@ export function CatalogServiceSelector({
           ) : (
             <div className="divide-y">
 
-              {/* Available services grouped by category */}
-              {Object.entries(grouped).map(([category, items]) => (
-                <div key={category}>
-                  {/* Category header */}
-                  <div className="px-4 py-2 bg-muted flex items-center justify-between sticky top-0 z-10 border-b">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {getCategoryLabel(category)}
-                    </span>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {items.length}
-                    </Badge>
+              {/* Available — service_type (collapsible) → category → items */}
+              {orderedServiceKeys.map((st) => {
+                const categories = groupedByService[st];
+                const serviceCount = Object.values(categories).reduce((n, arr) => n + arr.length, 0);
+                // Arama aktifken eşleşen servisler otomatik açık (manuel openServices BOZULMAZ — render override).
+                const isServiceOpen = searchActive || openServices.has(st);
+                const allSel = allSelectedInService(st);
+                return (
+                <div key={st}>
+                  {/* Service-section header: sol=collapse toggle, sağ=per-service select-all (nested button YOK) */}
+                  <div className="w-full px-4 py-2.5 bg-secondary/10 flex items-center justify-between gap-2 sticky top-0 z-20 border-b">
+                    <button
+                      type="button"
+                      onClick={() => toggleService(st)}
+                      disabled={searchActive}
+                      className="flex items-center gap-2 text-sm font-semibold flex-1 min-w-0 text-left hover:opacity-80 disabled:opacity-100 disabled:cursor-default"
+                    >
+                      {isServiceOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+                      <span className="truncate">{getServiceTypeLabel(st)}</span>
+                      {st === primaryServiceType && (
+                        <Badge variant="secondary" className="text-[10px] shrink-0">Anfrage</Badge>
+                      )}
+                      <Badge variant="outline" className="text-[10px] shrink-0">{serviceCount}</Badge>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleSelectService(st)}
+                      className="text-xs text-secondary hover:text-secondary/80 underline shrink-0"
+                    >
+                      {allSel ? "Auswahl aufheben" : `Alle (${serviceCount})`}
+                    </button>
                   </div>
 
-                  {/* Items */}
-                  {items.map(service => {
+                  {/* Categories within this service (only when expanded) */}
+                  {isServiceOpen && Object.entries(categories).map(([category, items]) => (
+                    <div key={category}>
+                      {/* Category header */}
+                      <div className="px-4 py-2 bg-muted flex items-center justify-between border-b">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          {getCategoryLabel(category)}
+                        </span>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {items.length}
+                        </Badge>
+                      </div>
+
+                      {/* Items */}
+                      {items.map(service => {
                     const isSelected = selectedIds.has(service.id);
                     return (
                       <button
@@ -268,8 +353,11 @@ export function CatalogServiceSelector({
                       </button>
                     );
                   })}
+                    </div>
+                  ))}
                 </div>
-              ))}
+                );
+              })}
 
               {/* Already added section — at the bottom, clearly separated */}
               {alreadyAdded.length > 0 && (
@@ -303,7 +391,7 @@ export function CatalogServiceSelector({
         {/* ── Footer ── */}
         <DialogFooter className="px-4 py-3 border-t bg-background">
           <div className="flex items-center justify-between w-full gap-3">
-            {/* Select all / clear */}
+            {/* Global clear (servis-başına seçim service-header'larında) */}
             <div className="flex items-center gap-2">
               {selectedIds.size > 0 ? (
                 <button
@@ -311,15 +399,7 @@ export function CatalogServiceSelector({
                   onClick={clearAll}
                   className="text-xs text-muted-foreground hover:text-foreground underline"
                 >
-                  Auswahl aufheben
-                </button>
-              ) : available.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={selectAll}
-                  className="text-xs text-secondary hover:text-secondary/80 underline"
-                >
-                  Alle auswählen ({available.length})
+                  Auswahl aufheben ({selectedIds.size})
                 </button>
               ) : null}
             </div>
