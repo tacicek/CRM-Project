@@ -196,3 +196,18 @@ describe("groupItemsByService", () => {
     expect(g[0].serviceType).toBe("umzug");
   });
 });
+
+describe("SERVICE_OPTIONS (per-item dropdown)", () => {
+  it("7 öğe: 6 base SERVICE_ORDER sırasında + allgemein son", async () => {
+    const { SERVICE_OPTIONS } = await import("@/lib/offerServiceType");
+    expect(SERVICE_OPTIONS.map((o) => o.value)).toEqual([
+      "umzug", "reinigung", "raeumung", "entsorgung", "transport", "lagerung", "allgemein",
+    ]);
+  });
+  it("label'lar LABEL_MAP'ten + Allgemein", async () => {
+    const { SERVICE_OPTIONS } = await import("@/lib/offerServiceType");
+    expect(SERVICE_OPTIONS.find((o) => o.value === "umzug")?.label).toBe("Umzug");
+    expect(SERVICE_OPTIONS.find((o) => o.value === "raeumung")?.label).toBe("Räumung");
+    expect(SERVICE_OPTIONS.find((o) => o.value === "allgemein")?.label).toBe("Allgemein");
+  });
+});

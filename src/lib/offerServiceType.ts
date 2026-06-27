@@ -134,6 +134,13 @@ export const LABEL_MAP: Record<string, string> = {
   lagerung: "Lagerung",
 };
 
+// Per-item servis dropdown'ı için seçenekler (create + edit aynı kaynaktan — divergence önle).
+// 'allgemein' = null sentinel (Radix Select string ister; yazarken null'a çevrilir).
+export const SERVICE_OPTIONS: { value: string; label: string }[] = [
+  ...SERVICE_ORDER.map((base) => ({ value: base as string, label: LABEL_MAP[base] })),
+  { value: "allgemein", label: "Allgemein" },
+];
+
 export interface ServiceGroup<T> {
   serviceType: string | null; // stored key (trim+lowercase); null/boş → null (Allgemein)
   label: string;
