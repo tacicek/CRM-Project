@@ -60,7 +60,8 @@ import {
   CalendarCheck,
   ClipboardList,
 } from "lucide-react";
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Fragment, Suspense, lazy, useEffect, useState } from "react";
+import { groupItemsByService } from "@/lib/offerServiceType";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -92,6 +93,7 @@ interface OfferItem {
   unit: string;
   unit_price: number;
   total: number;
+  service_type?: string | null;
 }
 
 const PdfPreviewDialog = lazy(async () => {
@@ -824,20 +826,33 @@ const FirmaOfferteDetail = () => {
                   <CardTitle className="text-base">Positionen</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {items.map((item) => (
-                    <div key={item.id} className="border rounded-lg p-3 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="shrink-0 text-xs">{item.position}</Badge>
-                          <span className="font-medium text-sm">{item.description}</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>{item.quantity} {item.unit} × {formatCurrency(Number(item.unit_price))}</span>
-                        <span className="font-semibold text-foreground">{formatCurrency(Number(item.total))}</span>
-                      </div>
-                    </div>
-                  ))}
+                  {(() => {
+                    const groups = groupItemsByService(items);
+                    const multi = groups.length > 1;
+                    return groups.map((group) => (
+                      <Fragment key={group.serviceType ?? "allgemein"}>
+                        {multi && (
+                          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+                            {group.label}
+                          </div>
+                        )}
+                        {group.items.map((item) => (
+                          <div key={item.id} className="border rounded-lg p-3 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="shrink-0 text-xs">{item.position}</Badge>
+                                <span className="font-medium text-sm">{item.description}</span>
+                              </div>
+                            </div>
+                            <div className="flex justify-between text-sm text-muted-foreground">
+                              <span>{item.quantity} {item.unit} × {formatCurrency(Number(item.unit_price))}</span>
+                              <span className="font-semibold text-foreground">{formatCurrency(Number(item.total))}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </Fragment>
+                    ));
+                  })()}
 
                   <Separator className="my-3" />
 
@@ -899,20 +914,35 @@ const FirmaOfferteDetail = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {items.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="text-center">{item.position}</TableCell>
-                          <TableCell>{item.description}</TableCell>
-                          <TableCell className="text-right">{item.quantity}</TableCell>
-                          <TableCell>{item.unit}</TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(Number(item.unit_price))}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(Number(item.total))}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {(() => {
+                        const groups = groupItemsByService(items);
+                        const multi = groups.length > 1;
+                        return groups.map((group) => (
+                          <Fragment key={group.serviceType ?? "allgemein"}>
+                            {multi && (
+                              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                                <TableCell colSpan={6} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground py-2">
+                                  {group.label}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {group.items.map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell className="text-center">{item.position}</TableCell>
+                                <TableCell>{item.description}</TableCell>
+                                <TableCell className="text-right">{item.quantity}</TableCell>
+                                <TableCell>{item.unit}</TableCell>
+                                <TableCell className="text-right">
+                                  {formatCurrency(Number(item.unit_price))}
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {formatCurrency(Number(item.total))}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </Fragment>
+                        ));
+                      })()}
                     </TableBody>
                   </Table>
 

@@ -4,6 +4,7 @@ import { OfferData } from "../types/offer.types";
 import { formatCurrency, formatTime } from "../utils/formatters";
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
 import { hourlyRange } from "@/lib/offerPricing";
+import { groupItemsByService } from "@/lib/offerServiceType";
 
 const DARK = "#1C1C27";
 const SECTION_BG = "#F9FAFB";
@@ -192,38 +193,9 @@ const styles = StyleSheet.create({
   },
 });
 
-// ─── Category grouping ────────────────────────────────────────────────────────
-
-interface ItemGroup {
-  header: string | null;
-  headerTotal: number;
-  items: { item: OfferData["items"][number]; localIdx: number }[];
-  groupIdx: number;
-}
-
-function groupItems(items: OfferData["items"]): ItemGroup[] {
-  const groups: ItemGroup[] = [];
-  let current: ItemGroup = { header: null, headerTotal: 0, items: [], groupIdx: 0 };
-
-  for (const item of items) {
-    if (item.isSectionHeader) {
-      if (current.items.length > 0 || current.header !== null) {
-        current.headerTotal = current.items.reduce((sum, { item: it }) => sum + (it.total || 0), 0);
-        groups.push(current);
-      }
-      current = { header: item.description, headerTotal: 0, items: [], groupIdx: groups.length };
-    } else {
-      current.items.push({ item, localIdx: current.items.length });
-    }
-  }
-
-  current.headerTotal = current.items.reduce((sum, { item: it }) => sum + (it.total || 0), 0);
-  if (current.items.length > 0 || current.header !== null) {
-    groups.push(current);
-  }
-
-  return groups;
-}
+// ─── Service grouping (Faz 3) ───────────────────────────────────────────────
+// Gruplama artık offer_items.service_type üzerinden (groupItemsByService, Faz 0).
+// Eski isSectionHeader-heuristiği emekli edildi (canlı veride hiç kullanılmamıştı).
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -313,11 +285,13 @@ export const ServiceTable = ({
   const breakdownLines = buildBreakdownLines(data);
   const accent = data.company.primaryColor || "#F97316";
 
-  const groups = groupItems(items);
-  const hasCategories = groups.some((g) => g.header !== null);
+  // Multi-service gruplama: stored base'e göre. PdfItem.serviceType → grouper'ın beklediği
+  // service_type'a map'le. Tek grup → başlık yok (backward compat).
+  const groups = groupItemsByService(items.map((it) => ({ ...it, service_type: it.serviceType })));
+  const multi = groups.length > 1;
 
-  // Global row counter for flat numbering (when no categories)
-  let flatIdx = positionOffset;
+  // Global sürekli pozisyon numarası (grup sınırında sıfırlanmaz — D2).
+  let rowNo = positionOffset;
 
   return (
     <View style={styles.container}>
@@ -330,34 +304,32 @@ export const ServiceTable = ({
         <Text style={[styles.headerCell, styles.colTotal]}>TOTAL CHF</Text>
       </View>
 
-      {/* Rows */}
+      {/* Rows — service'e göre gruplu (multi ise başlık; orphan: başlık+ilk satır atomik) */}
       {groups.map((group, gi) => (
         <View key={`group-${gi}`}>
-          {/* Category header row (if this group has a header) */}
-          {group.header ? (
-            <View style={styles.categoryRow} wrap={false}>
-              <View style={[styles.categoryBullet, { backgroundColor: accent }]} />
-              <Text style={styles.categoryName}>{group.header}</Text>
-              {group.headerTotal > 0 ? (
-                <Text style={styles.categoryTotal}>{formatCurrency(group.headerTotal)}</Text>
-              ) : null}
-            </View>
-          ) : null}
-
-          {/* Items in this group */}
-          {group.items.map(({ item, localIdx }) => {
-            const posLabel = hasCategories
-              ? `${gi + 1}.${localIdx + 1}`
-              : String(++flatIdx);
-
-            return (
+          {group.items.map((item, idx) => {
+            rowNo += 1;
+            const row = (
               <ItemRow
-                key={`${item.description}-${posLabel}`}
+                key={`${item.description}-${rowNo}`}
                 item={item}
-                posLabel={posLabel}
-                alt={localIdx % 2 === 1}
+                posLabel={String(rowNo)}
+                alt={rowNo % 2 === 0}
               />
             );
+            // D3 orphan: çok-grup'ta başlık + ilk satır aynı wrap={false} View'da → yetim başlık olmaz.
+            if (multi && idx === 0) {
+              return (
+                <View key={`gh-${gi}`} wrap={false}>
+                  <View style={styles.categoryRow}>
+                    <View style={[styles.categoryBullet, { backgroundColor: accent }]} />
+                    <Text style={styles.categoryName}>{group.label}</Text>
+                  </View>
+                  {row}
+                </View>
+              );
+            }
+            return row;
           })}
         </View>
       ))}
