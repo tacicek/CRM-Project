@@ -62,6 +62,7 @@ interface OfferItem {
   is_highlighted?: boolean;
   is_optional?: boolean;
   timeEstimate?: ItemTimeEstimate | null;
+  serviceType?: string | null; // multi-service clean base; null = Allgemein
 }
 
 // Common unit options for offer items
@@ -257,6 +258,8 @@ const FirmaOfferteBearbeiten = () => {
               timeEstimate: item.time_estimate
                 ? { minHours: String(item.time_estimate.minHours), maxHours: String(item.time_estimate.maxHours), hourlyRate: String(item.time_estimate.hourlyRate) }
                 : null,
+              // PRESERVE: yüklenen item kendi stamp'ını korur (eski/null item'lar Allgemein kalır)
+              serviceType: item.service_type ?? null,
             }))
           );
         }
@@ -285,6 +288,8 @@ const FirmaOfferteBearbeiten = () => {
         quantity: 1,
         unit: "Pauschal",
         unit_price: 0,
+        // Edit'te lead/primary service_type erişimi yok → null (Allgemein). Faz 4 picker ile çözülecek.
+        serviceType: null,
       },
     ]);
   };
@@ -553,6 +558,7 @@ const FirmaOfferteBearbeiten = () => {
           time_estimate: teValid
             ? { minHours: parseFloat(te!.minHours), maxHours: parseFloat(te!.maxHours), hourlyRate: parseFloat(te!.hourlyRate) }
             : null,
+          service_type: item.serviceType ?? null,
         };
       });
 
