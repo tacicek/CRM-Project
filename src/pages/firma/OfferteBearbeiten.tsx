@@ -30,6 +30,7 @@ import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
 import { computeItemsSubtotal, type SubtotalItem } from "@/lib/offerPricing";
+import { SERVICE_OPTIONS } from "@/lib/offerServiceType";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
@@ -1045,6 +1046,27 @@ const FirmaOfferteBearbeiten = () => {
                                           )}
                                         </div>
                                       </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <Label className="text-xs sm:text-sm">Service (Gruppierung)</Label>
+                                      <Select
+                                        value={item.serviceType ?? "allgemein"}
+                                        onValueChange={(v) =>
+                                          updateItem(index, "serviceType", v === "allgemein" ? null : v)
+                                        }
+                                      >
+                                        <SelectTrigger className="h-8 sm:h-10 text-sm">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {SERVICE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                              {option.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
                                     </div>
 
                                     {/* Blind Offerte — per-item Zeitschätzung */}

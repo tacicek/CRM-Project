@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { SERVICE_OPTIONS } from "@/lib/offerServiceType";
 import { useState, useEffect, useRef } from "react";
 
 export interface ItemTimeEstimate {
@@ -174,6 +175,24 @@ export const OfferteItemRow = ({
                     </SelectTrigger>
                     <SelectContent>
                       {priceTypeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] sm:text-xs text-muted-foreground">Service (Gruppierung)</Label>
+                  <Select
+                    value={item.serviceType ?? "allgemein"}
+                    onValueChange={(v) => onUpdate(index, "serviceType", v === "allgemein" ? null : v)}
+                  >
+                    <SelectTrigger className="h-9 sm:h-10 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SERVICE_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
