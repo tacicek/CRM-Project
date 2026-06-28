@@ -1,4 +1,8 @@
-import { Draggable } from "@hello-pangea/dnd";
+import {
+  Draggable,
+  type DraggableProvided,
+  type DraggableStateSnapshot,
+} from "@hello-pangea/dnd";
 import { GripVertical, Trash2, Highlighter, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +72,12 @@ interface OfferteItemRowProps {
   canRemove: boolean;
   formatCurrency: (amount: number) => string;
   offerteType?: 'normal' | 'blind';
+  /**
+   * DnD kabuğu. true (default) → <Draggable> sarmalı (Droppable içinde kullanılır).
+   * false → Draggable'sız düz <div> (gruplu görünüm; Droppable/DragDropContext gerektirmez).
+   * İç içerik iki dalda BİREBİR aynı (tek rowInner).
+   */
+  draggable?: boolean;
 }
 
 export const OfferteItemRow = ({
@@ -81,6 +91,7 @@ export const OfferteItemRow = ({
   canRemove,
   formatCurrency,
   offerteType,
+  draggable = true,
 }: OfferteItemRowProps) => {
   const te = item.timeEstimate;
   const teValid = te && te.minHours && te.maxHours && te.hourlyRate;
@@ -115,29 +126,32 @@ export const OfferteItemRow = ({
   const currentPriceType = priceTypeOptions.find(o => o.value === item.priceType);
   const unitIsFixed = currentPriceType?.fixedUnit ?? true;
 
-  return (
-    <Draggable draggableId={item.id} index={index}>
-      {(provided, snapshot) => (
+  // İç içerik — DnD kabuğundan bağımsız tek kaynak. drag=null → Draggable'sız düz div.
+  const rowInner = (
+    drag: { provided: DraggableProvided; snapshot: DraggableStateSnapshot } | null,
+  ) => (
         <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
+          ref={drag?.provided.innerRef}
+          {...(drag ? drag.provided.draggableProps : {})}
           className={cn(
             "p-2.5 sm:p-4 rounded-lg border transition-all",
             item.highlighted
               ? "bg-yellow-50 border-yellow-300"
               : "bg-muted/30 border-border",
-            snapshot.isDragging && "shadow-lg ring-2 ring-secondary"
+            drag?.snapshot.isDragging && "shadow-lg ring-2 ring-secondary"
           )}
         >
           {/* Mobile Header - Collapsible */}
           <div className="flex gap-2 sm:gap-3 items-start">
-            {/* Drag Handle */}
-            <div
-              {...provided.dragHandleProps}
-              className="mt-1.5 sm:mt-2 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
-            >
-              <GripVertical className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
+            {/* Drag Handle — yalnız draggable dalında */}
+            {drag && (
+              <div
+                {...drag.provided.dragHandleProps}
+                className="mt-1.5 sm:mt-2 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+              >
+                <GripVertical className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            )}
 
             {/* Position Number */}
             <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-secondary/10 flex items-center justify-center text-xs sm:text-sm font-medium shrink-0">
@@ -440,7 +454,13 @@ export const OfferteItemRow = ({
             </div>
           </div>
         </div>
-      )}
+  );
+
+  return draggable ? (
+    <Draggable draggableId={item.id} index={index}>
+      {(provided, snapshot) => rowInner({ provided, snapshot })}
     </Draggable>
+  ) : (
+    rowInner(null)
   );
 };

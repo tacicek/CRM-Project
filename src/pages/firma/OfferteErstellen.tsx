@@ -40,23 +40,23 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { MovingCalculatorWithLead, CalculationResult, formatCHF as formatCalculatorCHF, formatTime } from "@/components/offers/moving-calculator";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import { useCompanyPricing } from "@/hooks/useCompanyPricing";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
-import { normalizeToCatalogBase } from "@/lib/offerServiceType";
+import { normalizeToCatalogBase, groupItemsByService } from "@/lib/offerServiceType";
 import type { ServiceItem } from "@/types/leistungskatalog";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { sendOffer } from "@/lib/sendOffer";
-import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
 import { OfferteItemRow, type OfferItem } from "@/components/offerte/OfferteItemRow";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
-import { computeItemsSubtotal, type SubtotalItem } from "@/lib/offerPricing";
+import { computeItemsSubtotal, isFreeItem, derivePriceTypeFromCatalog, type SubtotalItem } from "@/lib/offerPricing";
+import { ItemChip } from "@/components/offerte/ItemChip";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -652,7 +652,7 @@ const FirmaOfferteErstellen = () => {
       quantity: 1,
       unit: service.unit || "Pauschale",
       unit_price: service.default_price || 0,
-      priceType: service.unit === "Inklusiv" ? "inkl" : (service.default_price === 0 ? "inkl" : "pauschale"),
+      priceType: derivePriceTypeFromCatalog(service),
       highlighted: false,
       details: [],
       // Catalog satırının service_type'ı RAW olabilir → clean base'e indir (Lesson #2); yoksa primary.
@@ -719,7 +719,7 @@ const FirmaOfferteErstellen = () => {
       quantity: 1,
       unit: item.unit || "Pauschale",
       unit_price: item.default_price || 0,
-      priceType: item.unit === "Inklusiv" ? "inkl" : (item.default_price === 0 ? "inkl" : "pauschale"),
+      priceType: derivePriceTypeFromCatalog(item),
       highlighted: false,
       details: [],
       // Optional katalog item'ının service_type'ı RAW olabilir → clean base (Lesson #2); yoksa primary.
@@ -789,17 +789,6 @@ const FirmaOfferteErstellen = () => {
       newItems[itemIndex] = { ...newItems[itemIndex], details: newDetails };
       return newItems;
     });
-  };
-
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-
-    const reorderedItems = Array.from(items);
-    const [removed] = reorderedItems.splice(result.source.index, 1);
-    reorderedItems.splice(result.destination.index, 0, removed);
-
-    // Update positions
-    setItems(reorderedItems.map((item, i) => ({ ...item, position: i + 1 })));
   };
 
   // Form item şeklini (timeEstimate string) helper'ın SubtotalItem'ına çevir (parse map'te).
@@ -1260,7 +1249,7 @@ const FirmaOfferteErstellen = () => {
                 <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">Offerte erstellen</h1>
               </div>
               <p className="mt-1 text-[15px] text-folk-ink2">
-                Für <span className="font-semibold text-folk-ink">{lead.customer_first_name} {lead.customer_last_name}</span> — Pozisyon ekle, Versand-Kanal seç, gönder.
+                Für <span className="font-semibold text-folk-ink">{lead.customer_first_name} {lead.customer_last_name}</span> — Positionen hinzufügen, Versandkanal wählen, senden.
               </p>
             </div>
           </div>
@@ -1825,34 +1814,73 @@ const FirmaOfferteErstellen = () => {
                     </div>
                   ) : (
                     <>
-                      <DragDropContext onDragEnd={handleDragEnd}>
-                        <Droppable droppableId="offer-items">
-                          {(provided) => (
-                            <div
-                              {...provided.droppableProps}
-                              ref={provided.innerRef}
-                              className="space-y-3 sm:space-y-4"
-                            >
-                              {items.map((item, index) => (
-                                <OfferteItemRow
-                                  key={item.id}
-                                  item={item}
-                                  index={index}
-                                  onUpdate={updateItem}
-                                  onRemove={removeItem}
-                                  onAddDetail={addDetail}
-                                  onUpdateDetail={updateDetail}
-                                  onRemoveDetail={removeDetail}
-                                  canRemove={true}
-                                  formatCurrency={formatCurrency}
-                                  offerteType={offerteType}
-                                />
-                              ))}
-                              {provided.placeholder}
-                            </div>
-                          )}
-                        </Droppable>
-                      </DragDropContext>
+                      {(() => {
+                        // Gruplama: create camelCase serviceType → grouper snake service_type;
+                        // _originalIndex = orijinal items index'i (onUpdate/onRemove için gerçek index).
+                        const groups = groupItemsByService(
+                          items.map((it, idx) => ({
+                            ...it,
+                            service_type: it.serviceType,
+                            _originalIndex: idx,
+                          })),
+                        );
+
+                        // Her zaman gruplu render (DnD yok — Aşama 2'de grup-içi DnD ile döner).
+                        // Tek grup → başlıksız ama gruplu+çipli; çok grup → servis başlıklı.
+                        const multi = groups.length > 1;
+                        return (
+                          <div className="space-y-3 sm:space-y-4">
+                            {groups.map((group) => {
+                              // Her grup içinde: ücretli (kutu) üstte, ücretsiz (çip) şeridi altta.
+                              // _originalIndex KORUNUR — filter'ın kendi index'i değil.
+                              const billable = group.items.filter((it) => !isFreeItem(it.priceType));
+                              const free = group.items.filter((it) => isFreeItem(it.priceType));
+                              return (
+                                <Fragment key={group.serviceType ?? "allgemein"}>
+                                  {multi && (
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2 pb-1 border-b border-border/60">
+                                      {group.label}
+                                    </div>
+                                  )}
+                                  {billable.map((git) => (
+                                    <OfferteItemRow
+                                      key={git.id}
+                                      item={items[git._originalIndex]}
+                                      index={git._originalIndex}
+                                      draggable={false}
+                                      onUpdate={updateItem}
+                                      onRemove={removeItem}
+                                      onAddDetail={addDetail}
+                                      onUpdateDetail={updateDetail}
+                                      onRemoveDetail={removeDetail}
+                                      canRemove={true}
+                                      formatCurrency={formatCurrency}
+                                      offerteType={offerteType}
+                                    />
+                                  ))}
+                                  {free.length > 0 && (
+                                    <div className="space-y-1.5">
+                                      <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                        Inklusive / auf Anfrage
+                                      </p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {free.map((git) => (
+                                          <ItemChip
+                                            key={git.id}
+                                            item={items[git._originalIndex]}
+                                            onRemove={() => removeItem(git._originalIndex)}
+                                            onPromote={() => updateItem(git._originalIndex, "priceType", "pauschale")}
+                                          />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </Fragment>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
 
                       {/* Add Position Buttons - At Bottom */}
                       <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-dashed">

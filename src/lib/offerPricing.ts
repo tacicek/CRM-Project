@@ -59,8 +59,50 @@ export interface SubtotalItem {
 const EXCLUDED_FROM_SUBTOTAL = new Set(["optional", "inkl"]);
 
 /**
+ * Bir kalem "ücretsiz" mi (subtotal'a girmez → UI'da çip)? priceType ∈ {inkl, optional} → true.
+ * Ücretli (pauschale/per_unit/per_hour → kutu) → false.
+ *
+ * ⚠️ TEK KAYNAK: subtotal/VAT'ı belirleyen EXCLUDED_FROM_SUBTOTAL ile aynı sabitten türer —
+ * "ücretsiz = subtotal'a girmeyen" semantiği bölünmez (Lesson #8). Ayrı {inkl,optional}
+ * listesi tanımlanmaz; çip/kutu ayrımı ile finansal ayrım her zaman aynı kalır.
+ */
+export const isFreeItem = (priceType: string | null | undefined): boolean =>
+  EXCLUDED_FROM_SUBTOTAL.has(priceType ?? "");
+
+// OfferItem.priceType ile aynı küme (OfferteItemRow). Katalog → offer item köprüsü için.
+export type OfferPriceType = "pauschale" | "per_unit" | "per_hour" | "inkl" | "optional";
+
+/**
+ * A catalog item's price type, derived from its semantic flags — SINGLE SOURCE for both
+ * catalog-add paths in OfferteErstellen (no inline copies that can diverge).
+ *
+ * Priority (semantic flags first, unit only as fallback):
+ *   1. is_default_included → "inkl"      (included → chip)
+ *   2. is_optional         → "optional"  (on request → chip)
+ *   3. unit "Inklusiv"     → "inkl"      (legacy, still honoured)
+ *   4. unit-based paid type → per_hour / per_unit / pauschale (→ box)
+ *
+ * NOTE: default_price is intentionally NOT consulted — a CHF 0 optional item must stay
+ * "optional", not silently become "inkl". The flags decide, never the price.
+ */
+export const derivePriceTypeFromCatalog = (item: {
+  is_default_included?: boolean;
+  is_optional?: boolean;
+  unit?: string | null;
+}): OfferPriceType => {
+  if (item.is_default_included) return "inkl";
+  if (item.is_optional) return "optional";
+  if (item.unit === "Inklusiv") return "inkl";
+  const u = (item.unit ?? "").trim().toLowerCase();
+  if (u.includes("stunde") || u.includes("std")) return "per_hour";
+  if (["stück", "stk", "stk.", "m3", "m³", "m2", "m²", "kg", "lfm", "tag", "fahrt", "person", "stockwerk"].includes(u))
+    return "per_unit";
+  return "pauschale";
+};
+
+/**
  * Kalem listesinin subtotal'ını hesaplar (saf — parse etmez, number bekler).
- * - priceType ∈ {optional, inkl} → atlanır.
+ * - priceType ∈ {optional, inkl} → atlanır (isFreeItem).
  * - timeEstimate geçerliyse (hourlyRange) → mode 'min' alt, 'max' üst sınır.
  * - aksi halde quantity * unitPrice.
  */
@@ -69,7 +111,7 @@ export const computeItemsSubtotal = (
   mode: "min" | "max" = "min",
 ): number =>
   items.reduce((sum, item) => {
-    if (EXCLUDED_FROM_SUBTOTAL.has(item.priceType)) return sum;
+    if (isFreeItem(item.priceType)) return sum;
     const r = hourlyRange(item.timeEstimate);
     if (r) return sum + (mode === "min" ? r.min : r.max);
     return sum + item.quantity * item.unitPrice;

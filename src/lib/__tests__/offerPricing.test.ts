@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   hourlyRange,
+  isFreeItem,
   computeItemsSubtotal,
   computeTotalsFromSubtotal,
   type SubtotalItem,
@@ -33,6 +34,25 @@ describe("hourlyRange", () => {
       hourlyRange({ minHours: "2", maxHours: "4", hourlyRate: "100" } as unknown as Parameters<typeof hourlyRange>[0]),
     ).toBeNull();
     expect(hourlyRange({} as unknown as Parameters<typeof hourlyRange>[0])).toBeNull();
+  });
+});
+
+describe("isFreeItem", () => {
+  it("ücretsiz (çip) tipleri → true", () => {
+    expect(isFreeItem("inkl")).toBe(true);
+    expect(isFreeItem("optional")).toBe(true);
+  });
+
+  it("ücretli (kutu) tipleri → false", () => {
+    expect(isFreeItem("pauschale")).toBe(false);
+    expect(isFreeItem("per_unit")).toBe(false);
+    expect(isFreeItem("per_hour")).toBe(false);
+  });
+
+  it("null/undefined/boş → false (defensive)", () => {
+    expect(isFreeItem(null)).toBe(false);
+    expect(isFreeItem(undefined)).toBe(false);
+    expect(isFreeItem("")).toBe(false);
   });
 });
 
