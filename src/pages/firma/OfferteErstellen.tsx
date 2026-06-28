@@ -56,7 +56,7 @@ import { OfferteItemRow, type OfferItem } from "@/components/offerte/OfferteItem
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
-import { computeItemsSubtotal, type SubtotalItem } from "@/lib/offerPricing";
+import { computeItemsSubtotal, derivePriceTypeFromCatalog, type SubtotalItem } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -652,7 +652,7 @@ const FirmaOfferteErstellen = () => {
       quantity: 1,
       unit: service.unit || "Pauschale",
       unit_price: service.default_price || 0,
-      priceType: service.unit === "Inklusiv" ? "inkl" : (service.default_price === 0 ? "inkl" : "pauschale"),
+      priceType: derivePriceTypeFromCatalog(service),
       highlighted: false,
       details: [],
       // Catalog satırının service_type'ı RAW olabilir → clean base'e indir (Lesson #2); yoksa primary.
@@ -719,7 +719,7 @@ const FirmaOfferteErstellen = () => {
       quantity: 1,
       unit: item.unit || "Pauschale",
       unit_price: item.default_price || 0,
-      priceType: item.unit === "Inklusiv" ? "inkl" : (item.default_price === 0 ? "inkl" : "pauschale"),
+      priceType: derivePriceTypeFromCatalog(item),
       highlighted: false,
       details: [],
       // Optional katalog item'ının service_type'ı RAW olabilir → clean base (Lesson #2); yoksa primary.
