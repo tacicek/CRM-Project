@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   hourlyRange,
+  isFreeItem,
+  derivePriceTypeFromCatalog,
   computeItemsSubtotal,
   computeTotalsFromSubtotal,
   type SubtotalItem,
@@ -33,6 +35,61 @@ describe("hourlyRange", () => {
       hourlyRange({ minHours: "2", maxHours: "4", hourlyRate: "100" } as unknown as Parameters<typeof hourlyRange>[0]),
     ).toBeNull();
     expect(hourlyRange({} as unknown as Parameters<typeof hourlyRange>[0])).toBeNull();
+  });
+});
+
+describe("isFreeItem", () => {
+  it("ücretsiz (çip) tipleri → true", () => {
+    expect(isFreeItem("inkl")).toBe(true);
+    expect(isFreeItem("optional")).toBe(true);
+  });
+
+  it("ücretli (kutu) tipleri → false", () => {
+    expect(isFreeItem("pauschale")).toBe(false);
+    expect(isFreeItem("per_unit")).toBe(false);
+    expect(isFreeItem("per_hour")).toBe(false);
+  });
+
+  it("null/undefined/boş → false (defensive)", () => {
+    expect(isFreeItem(null)).toBe(false);
+    expect(isFreeItem(undefined)).toBe(false);
+    expect(isFreeItem("")).toBe(false);
+  });
+});
+
+describe("derivePriceTypeFromCatalog", () => {
+  it("is_default_included → inkl (flag öncelikli, fiyattan bağımsız)", () => {
+    expect(derivePriceTypeFromCatalog({ is_default_included: true, unit: "Stunde" })).toBe("inkl");
+  });
+
+  it("is_optional → optional (CHF 0 olsa bile inkl'e DÖNMEZ)", () => {
+    expect(derivePriceTypeFromCatalog({ is_optional: true, unit: "Pauschale" })).toBe("optional");
+    expect(derivePriceTypeFromCatalog({ is_optional: true, unit: "" })).toBe("optional");
+  });
+
+  it("flag yoksa unit 'Inklusiv' → inkl (legacy)", () => {
+    expect(derivePriceTypeFromCatalog({ unit: "Inklusiv" })).toBe("inkl");
+  });
+
+  it("unit saat içeriyor → per_hour", () => {
+    expect(derivePriceTypeFromCatalog({ unit: "Stunde" })).toBe("per_hour");
+    expect(derivePriceTypeFromCatalog({ unit: "Std." })).toBe("per_hour");
+  });
+
+  it("birim-bazlı unit → per_unit", () => {
+    expect(derivePriceTypeFromCatalog({ unit: "Stück" })).toBe("per_unit");
+    expect(derivePriceTypeFromCatalog({ unit: "m³" })).toBe("per_unit");
+    expect(derivePriceTypeFromCatalog({ unit: "Tag" })).toBe("per_unit");
+  });
+
+  it("tanınmayan / boş unit → pauschale", () => {
+    expect(derivePriceTypeFromCatalog({ unit: "Pauschale" })).toBe("pauschale");
+    expect(derivePriceTypeFromCatalog({ unit: null })).toBe("pauschale");
+    expect(derivePriceTypeFromCatalog({})).toBe("pauschale");
+  });
+
+  it("öncelik: is_default_included, is_optional'dan önce gelir", () => {
+    expect(derivePriceTypeFromCatalog({ is_default_included: true, is_optional: true })).toBe("inkl");
   });
 });
 
