@@ -18,13 +18,13 @@ import {
   Package,
   Check,
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
+  X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { ServiceItem } from "@/types/leistungskatalog";
-import { getCategoryLabel, getServiceTypeLabel } from "@/constants/service-catalog";
+import { getServiceTypeLabel } from "@/constants/service-catalog";
 import { SERVICE_ORDER } from "@/lib/offerServiceType";
+import { derivePriceTypeFromCatalog } from "@/lib/offerPricing";
 
 interface CatalogServiceSelectorProps {
   open: boolean;
@@ -72,7 +72,7 @@ export function CatalogServiceSelector({
   const [loading, setLoading]         = useState(true);
   const [searchTerm, setSearchTerm]   = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [openServices, setOpenServices] = useState<Set<string>>(new Set()); // açık (expanded) service-section'lar
+  const [hiddenServices, setHiddenServices] = useState<Set<string>>(new Set()); // × ile gizlenen servisler (Faz 2: dropdown ile geri eklenir)
 
   const serviceTypeCandidates = useMemo(() => getServiceTypeCandidates(serviceType), [serviceType]);
   const excludedIdSet = useMemo(() => new Set(excludeServiceIds), [excludeServiceIds]);
@@ -104,6 +104,7 @@ export function CatalogServiceSelector({
       loadServices();
       setSelectedIds(new Set());
       setSearchTerm("");
+      setHiddenServices(new Set());
     }
   }, [open, loadServices]);
 
@@ -162,24 +163,20 @@ export function CatalogServiceSelector({
     return [...keys].sort((a, b) => rank(a) - rank(b));
   }, [groupedByService, primaryServiceType]);
 
-  // Default: primary açık, diğerleri kapalı (dialog her açıldığında).
-  useEffect(() => {
-    if (open && primaryServiceType) setOpenServices(new Set([primaryServiceType]));
-  }, [open, primaryServiceType]);
-
-  const toggleService = (st: string) => {
-    setOpenServices(prev => {
-      const next = new Set(prev);
-      if (next.has(st)) { next.delete(st); } else { next.add(st); }
-      return next;
-    });
-  };
-
-  const searchActive = searchTerm.trim().length > 0;
-
   // Bir servisin (o an görünen — arama filtreli) seçilebilir item'ları.
   const serviceItemsOf = (st: string): ServiceItem[] =>
     Object.values(groupedByService[st] ?? {}).flat();
+
+  // × → servisi gizle. Gizlenen servisin seçimleri de iptal (görünmeyen kalem yanlışlıkla eklenmesin).
+  const hideService = (st: string) => {
+    const ids = new Set(serviceItemsOf(st).map(s => s.id));
+    setHiddenServices(prev => new Set(prev).add(st));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+  };
 
   const allSelectedInService = (st: string): boolean => {
     const its = serviceItemsOf(st);
@@ -256,105 +253,89 @@ export function CatalogServiceSelector({
           ) : (
             <div className="divide-y">
 
-              {/* Available — service_type (collapsible) → category → items */}
-              {orderedServiceKeys.map((st) => {
+              {/* Available — service_type başlığı → düz 3-sütun item grid (offerio.png). × ile gizlenenler atlanır. */}
+              {orderedServiceKeys.filter(st => !hiddenServices.has(st)).map((st) => {
                 const categories = groupedByService[st];
                 const serviceCount = Object.values(categories).reduce((n, arr) => n + arr.length, 0);
-                // Arama aktifken eşleşen servisler otomatik açık (manuel openServices BOZULMAZ — render override).
-                const isServiceOpen = searchActive || openServices.has(st);
                 const allSel = allSelectedInService(st);
                 return (
                 <div key={st}>
-                  {/* Service-section header: sol=collapse toggle, sağ=per-service select-all (nested button YOK) */}
+                  {/* Service-section header (offerio.png): Label + Anzahl-Badge | select-all + ×.
+                      Status (auf Anfrage/inklusive) ist PER-ITEM im Grid (Katalog ist pro Service gemischt). */}
                   <div className="w-full px-4 py-2.5 bg-secondary/10 flex items-center justify-between gap-2 sticky top-0 z-20 border-b">
-                    <button
-                      type="button"
-                      onClick={() => toggleService(st)}
-                      disabled={searchActive}
-                      className="flex items-center gap-2 text-sm font-semibold flex-1 min-w-0 text-left hover:opacity-80 disabled:opacity-100 disabled:cursor-default"
-                    >
-                      {isServiceOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
-                      <span className="truncate">{getServiceTypeLabel(st)}</span>
-                      {st === primaryServiceType && (
-                        <Badge variant="secondary" className="text-[10px] shrink-0">Anfrage</Badge>
-                      )}
-                      <Badge variant="outline" className="text-[10px] shrink-0">{serviceCount}</Badge>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleSelectService(st)}
-                      className="text-xs text-secondary hover:text-secondary/80 underline shrink-0"
-                    >
-                      {allSel ? "Auswahl aufheben" : `Alle (${serviceCount})`}
-                    </button>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-sm font-semibold truncate">{getServiceTypeLabel(st)}</span>
+                      <Badge className="text-[10px] shrink-0 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">{serviceCount}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleSelectService(st)}
+                        className="text-xs text-secondary hover:text-secondary/80 underline"
+                      >
+                        {allSel ? "Auswahl aufheben" : `Alle (${serviceCount})`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => hideService(st)}
+                        aria-label="Dienstleistung ausblenden"
+                        className="text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Categories within this service (only when expanded) */}
-                  {isServiceOpen && Object.entries(categories).map(([category, items]) => (
-                    <div key={category}>
-                      {/* Category header */}
-                      <div className="px-4 py-2 bg-muted flex items-center justify-between border-b">
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                          {getCategoryLabel(category)}
-                        </span>
-                        <Badge variant="secondary" className="text-[10px]">
-                          {items.length}
-                        </Badge>
-                      </div>
+                  {/* Items — flat 3-column grid (offerio.png). Category subheader entfernt;
+                      Kategorie-Daten fliessen weiter via handleCatalogServicesSelected →
+                      selectedLeistungen (kein Datenverlust, nur visuell). */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 p-3">
+                      {serviceItemsOf(st).map(service => {
+                        const isSelected = selectedIds.has(service.id);
+                        // Per-item Status (derivePriceTypeFromCatalog tek kaynak): optional→auf Anfrage,
+                        // inkl→inklusive, ücretli→küçük fiyat. Başlık tek-tip rozeti yerine (karışık katalog).
+                        const pt = derivePriceTypeFromCatalog(service);
+                        const itemStatus =
+                          pt === "optional" ? { text: "auf Anfrage", cls: "text-emerald-600" }
+                          : pt === "inkl"   ? { text: "inklusive", cls: "text-sky-600" }
+                          : service.default_price > 0
+                            ? { text: `CHF ${service.default_price.toFixed(0)}`, cls: "text-muted-foreground" }
+                            : null;
+                        return (
+                          <button
+                            key={service.id}
+                            type="button"
+                            onClick={() => toggle(service.id)}
+                            className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors ${
+                              isSelected
+                                ? "bg-emerald-50 border-emerald-300"
+                                : "border-border hover:bg-muted/40"
+                            }`}
+                          >
+                            {/* Checkbox visual (emerald) */}
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                              isSelected
+                                ? "bg-emerald-500 border-emerald-500 text-white"
+                                : "border-border"
+                            }`}>
+                              {isSelected && <Check className="w-2.5 h-2.5" strokeWidth={3} />}
+                            </div>
 
-                      {/* Items */}
-                      {items.map(service => {
-                    const isSelected = selectedIds.has(service.id);
-                    return (
-                      <button
-                        key={service.id}
-                        type="button"
-                        onClick={() => toggle(service.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                          isSelected
-                            ? "bg-emerald-50"
-                            : "hover:bg-muted/30"
-                        }`}
-                      >
-                        {/* Checkbox visual */}
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                          isSelected
-                            ? "bg-emerald-500 border-emerald-500 text-white"
-                            : "border-border"
-                        }`}>
-                          {isSelected && <Check className="w-3 h-3" strokeWidth={3} />}
-                        </div>
-
-                        {/* Name + description */}
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium leading-tight ${isSelected ? "text-emerald-800" : ""}`}>
-                            {service.name}
-                          </p>
-                          {service.description && (
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                              {service.description}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Price */}
-                        <div className="text-right shrink-0">
-                          {service.default_price > 0 ? (
-                            <>
-                              <p className={`text-sm font-semibold ${isSelected ? "text-emerald-700" : ""}`}>
-                                CHF {service.default_price.toFixed(2)}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">{service.unit}</p>
-                            </>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">{service.unit || "—"}</p>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
+                            {/* Name + per-item Status-Label (klein, unter dem Namen, kompakt) */}
+                            <span className="flex-1 min-w-0">
+                              <span className={`block text-xs font-medium leading-tight ${isSelected ? "text-emerald-800" : ""}`}>
+                                {service.name}
+                              </span>
+                              {itemStatus && (
+                                <span className={`block text-[10px] leading-tight truncate ${itemStatus.cls}`}>
+                                  {itemStatus.text}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))}
                 </div>
                 );
               })}
