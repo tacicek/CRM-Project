@@ -13,8 +13,28 @@ const corsHeaders = {
 
 interface SendRechnungRequest {
   rechnungId: string;
-  /** Vom Frontend (jsPDF buildRechnungDoc) erzeugtes PDF als base64. */
-  pdfBase64?: string;
+  /**
+   * "prepare" → erzeugt eine signierte Upload-URL (service_role) und gibt {path, token}
+   * zurück; der Client lädt das PDF damit hoch (uploadToSignedUrl). Default/"send" → lädt
+   * das PDF aus Storage, versendet es und löscht es danach.
+   * Grund: der self-hosted storage-Dienst führt Upload-INSERTs nicht als Rolle
+   * 'authenticated' aus → RLS-Policies greifen nicht. Signierte URL (service_role) umgeht das.
+   */
+  mode?: "prepare" | "send";
+}
+
+/**
+ * Uint8Array → base64 in 8KB-Chunks.
+ * String.fromCharCode(...bytes) auf dem ganzen Array sprengt bei großen PDFs den
+ * Call-Stack ("Maximum call stack size exceeded"); chunked ist der sichere Weg.
+ */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x2000; // 8KB
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }
 
 interface RechnungPositionRow {
@@ -130,7 +150,7 @@ serve(async (req) => {
     }
 
     const body: SendRechnungRequest = await req.json();
-    const { rechnungId, pdfBase64 } = body;
+    const { rechnungId, mode } = body;
     if (!rechnungId) {
       return new Response(JSON.stringify({ error: "rechnungId fehlt" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -180,6 +200,27 @@ serve(async (req) => {
     const r = rechnung as unknown as RechnungRow;
     const company = r.companies;
     if (!company) throw new Error("Firma nicht gefunden");
+
+    // Anhang-Pfad serverseitig aus der (autorisierten) Rechnung ableiten — KEIN
+    // client-gelieferter Pfad (IDOR-Schutz).
+    const pdfPath = `${company.id}/rechnung/${rechnungId}.pdf`;
+
+    // mode "prepare": signierte Upload-URL (service_role, umgeht RLS) erzeugen und zurückgeben.
+    if (mode === "prepare") {
+      try { await supabase.storage.from("document-pdfs").remove([pdfPath]); } catch (_e) { /* evtl. nicht vorhanden */ }
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("document-pdfs")
+        .createSignedUploadUrl(pdfPath);
+      if (signErr || !signed) {
+        return new Response(JSON.stringify({ error: "Upload-URL konnte nicht erstellt werden" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ path: signed.path, token: signed.token }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!r.customer_email) {
       return new Response(JSON.stringify({ error: "Keine Kunden-E-Mail hinterlegt" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -197,9 +238,17 @@ serve(async (req) => {
 
     const resend = new Resend(resendApiKey);
 
-    const attachments = pdfBase64
-      ? [{ filename: `Rechnung-${r.rechnung_nr}.pdf`, content: pdfBase64 }]
-      : undefined;
+    // PDF-Anhang per service_role aus Storage laden (Pfad oben abgeleitet).
+    const { data: pdfBlob, error: dlErr } = await supabase.storage
+      .from("document-pdfs")
+      .download(pdfPath);
+    if (dlErr || !pdfBlob) {
+      return new Response(JSON.stringify({ error: "PDF-Anhang nicht gefunden" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const pdfBase64 = bytesToBase64(new Uint8Array(await pdfBlob.arrayBuffer()));
+    const attachments = [{ filename: `Rechnung-${r.rechnung_nr}.pdf`, content: pdfBase64 }];
 
     const { data: emailData, error: emailErr } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
@@ -218,6 +267,14 @@ serve(async (req) => {
       companyId: company.id,
       metadata: { rechnung_id: rechnungId, resend_id: emailData?.id },
     });
+
+    // Cleanup: PDF aus Storage entfernen — erst NACHDEM Resend die Daten erhalten hat.
+    // Best-effort: ein Fehler hier darf den (bereits erfolgten) Versand nicht beeinflussen.
+    try {
+      await supabase.storage.from("document-pdfs").remove([pdfPath]);
+    } catch (cleanupErr) {
+      console.error("document-pdfs cleanup failed:", pdfPath, cleanupErr);
+    }
 
     if (emailErr) {
       return new Response(

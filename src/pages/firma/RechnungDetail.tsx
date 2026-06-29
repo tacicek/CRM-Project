@@ -360,18 +360,41 @@ export default function RechnungDetail() {
       toast({ title: "Firmen-Adresse unvollständig", description: `Bitte ${missingAddr.join(", ")} in den Einstellungen hinterlegen.`, variant: "destructive" });
       return;
     }
+    if (!company?.id) {
+      toast({ title: "Firma nicht geladen", variant: "destructive" });
+      return;
+    }
     setIsSendingEmail(true);
     try {
-      // PDF client-seitig erzeugen (jsPDF QR-Bill) → base64 an Edge Function
-      const logo = company?.logo_url ? await logoToBase64(company.logo_url) : null;
-      const doc = await buildRechnungDoc(data, logo);
-      const pdfBase64 = doc.output("datauristring").split(",")[1] ?? "";
       const { data: sessionData } = await supabase.auth.getSession();
       const session = sessionData.session;
       if (!session) throw new Error("Nicht angemeldet");
+
+      // 1) Signierte Upload-URL von der Edge Function holen (service_role erstellt sie,
+      //    leitet den Pfad selbst aus der Rechnung ab → IDOR-Schutz). PDF geht NICHT als
+      //    base64 im Body (self-hosted edge-runtime bricht große Bodies ab → 502) und der
+      //    Upload läuft über die signierte URL (umgeht die Storage-RLS, die hier client-
+      //    seitig nicht greift, weil storage Uploads nicht als Rolle 'authenticated' ausführt).
+      const { data: prep, error: prepErr } = await supabase.functions.invoke("send-rechnung-email", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { rechnungId: saved.id, mode: "prepare" },
+      });
+      if (prepErr) throw prepErr;
+      const { path: uploadPath, token: uploadToken } = prep as { path: string; token: string };
+
+      // 2) PDF erzeugen und über die signierte URL hochladen.
+      const logo = company.logo_url ? await logoToBase64(company.logo_url) : null;
+      const doc = await buildRechnungDoc(data, logo);
+      const pdfBlob = doc.output("blob");
+      const { error: uploadErr } = await supabase.storage
+        .from("document-pdfs")
+        .uploadToSignedUrl(uploadPath, uploadToken, pdfBlob, { contentType: "application/pdf" });
+      if (uploadErr) throw new Error(`Anhang-Upload fehlgeschlagen: ${uploadErr.message}`);
+
+      // 3) Versand auslösen — Edge lädt das PDF, hängt es an, sendet und löscht es.
       const { error } = await supabase.functions.invoke("send-rechnung-email", {
         headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { rechnungId: saved.id, pdfBase64 },
+        body: { rechnungId: saved.id },
       });
       if (error) throw error;
       setStatus("versendet");
