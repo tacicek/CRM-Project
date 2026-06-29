@@ -224,7 +224,7 @@ const FirmaOfferteErstellen = () => {
   const [serviceDate, setServiceDate] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [vatRate, setVatRate] = useState(8.1);
-  const [mwstEnabled, setMwstEnabled] = useState(true);
+  const [mwstEnabled, setMwstEnabled] = useState(false);
   const [paymentTerms, setPaymentTerms] = useState("Barzahlung nach der Ausführung");
   const [termsAndConditions, setTermsAndConditions] = useState("");
   const [items, setItems] = useState<OfferItem[]>([]);
