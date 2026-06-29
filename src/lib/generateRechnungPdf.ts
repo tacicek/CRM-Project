@@ -418,7 +418,10 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     ty += 5;
   };
   totalRow("Zwischensumme", `${data.currency ?? "CHF"} ${formatAmountCH(data.zwischensumme)}`);
-  totalRow(`MwSt ${data.mwst_satz}%`, `${data.currency ?? "CHF"} ${formatAmountCH(data.mwst_betrag)}`);
+  // MwSt-Zeile nur bei aktiver Steuer (Satz > 0); ohne MwSt = Zwischensumme entspricht Total.
+  if (data.mwst_satz > 0) {
+    totalRow(`MwSt ${data.mwst_satz}%`, `${data.currency ?? "CHF"} ${formatAmountCH(data.mwst_betrag)}`);
+  }
   totalRow("Total", `${data.currency ?? "CHF"} ${formatAmountCH(data.total)}`, true);
 
   ty += 4;

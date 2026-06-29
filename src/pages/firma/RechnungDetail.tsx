@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -97,6 +98,7 @@ export default function RechnungDetail() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [positionen, setPositionen] = useState<EditPosition[]>([newRow()]);
   const [mwstSatz, setMwstSatz] = useState(8.1);
+  const [mwstEnabled, setMwstEnabled] = useState(false);
   const [notiz, setNotiz] = useState("");
   const [status, setStatus] = useState<RechnungStatus>("entwurf");
   const [rechnungNr, setRechnungNr] = useState("");
@@ -107,7 +109,7 @@ export default function RechnungDetail() {
 
   // Totals (live)
   const zwischensumme = round2(positionen.reduce((s, p) => s + (p.betrag || 0), 0));
-  const mwstBetrag = round2((zwischensumme * mwstSatz) / 100);
+  const mwstBetrag = mwstEnabled ? round2((zwischensumme * mwstSatz) / 100) : 0;
   const total = round2(zwischensumme + mwstBetrag);
 
   // Load company
@@ -144,7 +146,8 @@ export default function RechnungDetail() {
     setCustomerEmail(data.customer_email || "");
     setCustomerPhone(data.customer_phone || "");
     setPositionen(withKeys((data.positionen as unknown as RechnungPosition[]) ?? []));
-    setMwstSatz(data.mwst_satz);
+    setMwstSatz(data.mwst_satz > 0 ? data.mwst_satz : 8.1);
+    setMwstEnabled(data.mwst_satz > 0);
     setNotiz(data.notiz || "");
     setStatus(isRechnungStatus(data.status) ? data.status : "entwurf");
     setRechnungNr(data.rechnung_nr || "");
@@ -169,7 +172,8 @@ export default function RechnungDetail() {
     if (fr.customer_destination) setCustomerDestination(fr.customer_destination);
     if (fr.customer_email) setCustomerEmail(fr.customer_email);
     if (fr.customer_phone) setCustomerPhone(fr.customer_phone);
-    setMwstSatz(fr.mwst_satz);
+    setMwstSatz(fr.mwst_satz > 0 ? fr.mwst_satz : 8.1);
+    setMwstEnabled(fr.mwst_satz > 0);
     setQrIban(fr.qr_iban);
     setLinkedOfferId(fr.offer_id);
     setLinkedAuftragId(fr.auftrag_id);
@@ -223,7 +227,7 @@ export default function RechnungDetail() {
       customer_email: customerEmail || null,
       positionen: positionen.map(stripKey),
       zwischensumme,
-      mwst_satz: mwstSatz,
+      mwst_satz: mwstEnabled ? mwstSatz : 0,
       mwst_betrag: mwstBetrag,
       total,
       currency: "CHF",
@@ -248,7 +252,7 @@ export default function RechnungDetail() {
       customer_phone: customerPhone || null,
       positionen: positionenToJson(positionen.map(stripKey)),
       zwischensumme,
-      mwst_satz: mwstSatz,
+      mwst_satz: mwstEnabled ? mwstSatz : 0,
       mwst_betrag: mwstBetrag,
       total,
       rabatt: 0,
@@ -553,9 +557,14 @@ export default function RechnungDetail() {
                 </div>
                 <div className="flex justify-between text-sm text-slate-600">
                   <div className="flex items-center gap-2">
+                    <Switch checked={mwstEnabled} onCheckedChange={setMwstEnabled} />
                     <span>MwSt.</span>
-                    <Input type="number" min="0" step="0.1" value={mwstSatz} onChange={(e) => setMwstSatz(parseFloat(e.target.value) || 0)} className="h-6 w-16 text-xs text-right py-0 px-1.5" />
-                    <span>%</span>
+                    {mwstEnabled && (
+                      <div className="flex items-center gap-1">
+                        <Input type="number" min="0" step="0.1" value={mwstSatz} onChange={(e) => setMwstSatz(parseFloat(e.target.value) || 0)} className="h-6 w-16 text-xs text-right py-0 px-1.5" />
+                        <span>%</span>
+                      </div>
+                    )}
                   </div>
                   <span>{formatChf(mwstBetrag)}</span>
                 </div>
