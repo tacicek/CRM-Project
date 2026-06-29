@@ -211,11 +211,11 @@ export default function RechnungDetail() {
         }
       : null;
 
-  const buildPdfData = (): RechnungData | null => {
+  const buildPdfData = (override?: { rechnungNr?: string; qrReferenz?: string | null }): RechnungData | null => {
     const c = pdfCompany();
     if (!c) return null;
     return {
-      rechnung_nr: rechnungNr || "ENTWURF",
+      rechnung_nr: override?.rechnungNr || rechnungNr || "ENTWURF",
       datum,
       faellig_am: faelligAm,
       customer_name: customerName,
@@ -227,7 +227,7 @@ export default function RechnungDetail() {
       mwst_betrag: mwstBetrag,
       total,
       currency: "CHF",
-      qr_referenz: qrReferenz,
+      qr_referenz: override ? override.qrReferenz ?? null : qrReferenz,
       qr_iban: qrIban || company?.iban || null,
       company: c,
     };
@@ -259,7 +259,7 @@ export default function RechnungDetail() {
     };
   };
 
-  const save = async (): Promise<string | null> => {
+  const save = async (): Promise<{ id: string; rechnungNr: string; qrReferenz: string | null } | null> => {
     const payload = buildPayload();
     if (!payload || !company) {
       toast({ title: "Firma nicht geladen", variant: "destructive" });
@@ -273,7 +273,8 @@ export default function RechnungDetail() {
     try {
       if (rechnungId) {
         const updated = await updateRechnung(rechnungId, payload);
-        return updated ? rechnungId : null;
+        // Yüklenmiş kayıt: rechnung_nr/qr_referenz state'i zaten güncel (loadRechnung)
+        return updated ? { id: rechnungId, rechnungNr, qrReferenz } : null;
       }
       const created = await createRechnung(payload);
       if (!created) return null;
@@ -281,21 +282,24 @@ export default function RechnungDetail() {
       setRechnungNr(created.rechnung_nr ?? "");
       // QR referansını gerçek rechnung_nr ile üret (QR-IBAN → QRR)
       const ref = computeQrReference(created.rechnung_nr ?? "", created.qr_iban ?? "");
+      let finalRef = created.qr_referenz;
       if (ref && ref !== created.qr_referenz) {
         await updateRechnung(created.id, { qr_referenz: ref });
         setQrReferenz(ref);
+        finalRef = ref;
       } else {
         setQrReferenz(created.qr_referenz);
       }
-      return created.id;
+      // setState asenkron → buildPdfData state'ten eski değeri okur; dönüş değeriyle taze numarayı geçir
+      return { id: created.id, rechnungNr: created.rechnung_nr ?? "", qrReferenz: finalRef };
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleSave = async () => {
-    const savedId = await save();
-    if (savedId) toast({ title: "Rechnung gespeichert" });
+    const saved = await save();
+    if (saved) toast({ title: "Rechnung gespeichert" });
   };
 
   const handleStatusChange = async (next: string) => {
@@ -312,7 +316,10 @@ export default function RechnungDetail() {
   };
 
   const handleDownload = async () => {
-    const data = buildPdfData();
+    // save-first: rechnung_nr DB trigger'ında INSERT'te üretilir; numarayı dönüş değerinden al
+    const saved = await save();
+    if (!saved) return;
+    const data = buildPdfData({ rechnungNr: saved.rechnungNr, qrReferenz: saved.qrReferenz });
     if (!data) {
       toast({ title: "Firma nicht geladen", variant: "destructive" });
       return;
@@ -340,9 +347,9 @@ export default function RechnungDetail() {
       toast({ title: "Keine Kunden-E-Mail", variant: "destructive" });
       return;
     }
-    const savedId = await save();
-    if (!savedId) return;
-    const data = buildPdfData();
+    const saved = await save();
+    if (!saved) return;
+    const data = buildPdfData({ rechnungNr: saved.rechnungNr, qrReferenz: saved.qrReferenz });
     if (!data) return;
     if (!data.company.iban) {
       toast({ title: "IBAN fehlt", description: "Bitte IBAN in den Einstellungen hinterlegen.", variant: "destructive" });
@@ -364,7 +371,7 @@ export default function RechnungDetail() {
       if (!session) throw new Error("Nicht angemeldet");
       const { error } = await supabase.functions.invoke("send-rechnung-email", {
         headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { rechnungId: savedId, pdfBase64 },
+        body: { rechnungId: saved.id, pdfBase64 },
       });
       if (error) throw error;
       setStatus("versendet");
