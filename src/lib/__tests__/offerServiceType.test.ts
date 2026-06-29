@@ -53,12 +53,12 @@ describe("D2 — klavier → transport", () => {
   });
 });
 
-describe("D3 — moebellift → umzug", () => {
-  it("moebellift → umzug", () => {
-    expect(normalizeToCatalogBase("moebellift")).toBe("umzug");
+describe("D3 — moebellift → moebellift (ayrı base)", () => {
+  it("moebellift → moebellift", () => {
+    expect(normalizeToCatalogBase("moebellift")).toBe("moebellift");
   });
-  it("moebellift_einzug → umzug (prefix)", () => {
-    expect(normalizeToCatalogBase("moebellift_einzug")).toBe("umzug");
+  it("moebellift_einzug → moebellift (prefix)", () => {
+    expect(normalizeToCatalogBase("moebellift_einzug")).toBe("moebellift");
   });
 });
 
@@ -143,6 +143,16 @@ describe("groupItemsByService", () => {
     expect(keys).toEqual(["umzug", "reinigung", "transport", null]);
   });
 
+  it("moebellift, umzug'dan HEMEN SONRA gelir (SERVICE_ORDER)", () => {
+    const items: TestItem[] = [
+      { id: "r", service_type: "reinigung" },
+      { id: "m", service_type: "moebellift" },
+      { id: "u", service_type: "umzug" },
+    ];
+    const keys = groupItemsByService(items).map((g) => g.serviceType);
+    expect(keys).toEqual(["umzug", "moebellift", "reinigung"]);
+  });
+
   it("position grup İÇİNDE korunuyor (3,1,2 → 1,2,3)", () => {
     const items: TestItem[] = [
       { id: "c", service_type: "umzug", position: 3 },
@@ -198,15 +208,16 @@ describe("groupItemsByService", () => {
 });
 
 describe("SERVICE_OPTIONS (per-item dropdown)", () => {
-  it("7 öğe: 6 base SERVICE_ORDER sırasında + allgemein son", async () => {
+  it("8 öğe: 7 base SERVICE_ORDER sırasında + allgemein son", async () => {
     const { SERVICE_OPTIONS } = await import("@/lib/offerServiceType");
     expect(SERVICE_OPTIONS.map((o) => o.value)).toEqual([
-      "umzug", "reinigung", "raeumung", "entsorgung", "transport", "lagerung", "allgemein",
+      "umzug", "moebellift", "reinigung", "raeumung", "entsorgung", "transport", "lagerung", "allgemein",
     ]);
   });
   it("label'lar LABEL_MAP'ten + Allgemein", async () => {
     const { SERVICE_OPTIONS } = await import("@/lib/offerServiceType");
     expect(SERVICE_OPTIONS.find((o) => o.value === "umzug")?.label).toBe("Umzug");
+    expect(SERVICE_OPTIONS.find((o) => o.value === "moebellift")?.label).toBe("Möbellift");
     expect(SERVICE_OPTIONS.find((o) => o.value === "raeumung")?.label).toBe("Räumung");
     expect(SERVICE_OPTIONS.find((o) => o.value === "allgemein")?.label).toBe("Allgemein");
   });
