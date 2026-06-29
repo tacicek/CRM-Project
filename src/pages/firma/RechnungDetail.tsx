@@ -40,7 +40,15 @@ interface CompanyInfo {
   mwst_number: string | null;
   iban: string | null;
   logo_url: string | null;
+  primary_color: string | null;
+  legal_name: string | null;
+  default_payment_terms: string | null;
 }
+
+// Standardtexte für neue Rechnungen (rechnungsbezogen editierbar, siehe Formular).
+const DEFAULT_EINLEITUNG =
+  "Für die Erledigung der von Ihnen beauftragten Tätigkeiten berechnen wir Ihnen wie folgt:";
+const DEFAULT_SCHLUSSTEXT = "Besten Dank für Ihren Auftrag.";
 
 type EditPosition = RechnungPosition & { _key: string };
 
@@ -100,6 +108,11 @@ export default function RechnungDetail() {
   const [mwstSatz, setMwstSatz] = useState(8.1);
   const [mwstEnabled, setMwstEnabled] = useState(false);
   const [notiz, setNotiz] = useState("");
+  // PDF-Redesign Textfelder (rechnungsbezogen, editierbar)
+  const [anrede, setAnrede] = useState<string>("");
+  const [einleitung, setEinleitung] = useState(DEFAULT_EINLEITUNG);
+  const [schlusstext, setSchlusstext] = useState(DEFAULT_SCHLUSSTEXT);
+  const [zahlungskonditionen, setZahlungskonditionen] = useState("");
   const [status, setStatus] = useState<RechnungStatus>("entwurf");
   const [rechnungNr, setRechnungNr] = useState("");
   const [qrReferenz, setQrReferenz] = useState<string | null>(null);
@@ -118,11 +131,15 @@ export default function RechnungDetail() {
     fetchSingleCompanyForUser<CompanyInfo>({
       userId: user.id,
       userEmail: user.email,
-      select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url",
+      select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url, primary_color, legal_name, default_payment_terms",
     }).then((c) => {
-      if (c) setCompany(c);
+      if (c) {
+        setCompany(c);
+        // Neue Rechnung: Zahlungskonditionen aus Firmen-Default vorbelegen (falls noch leer).
+        if (isNew) setZahlungskonditionen((prev) => prev || c.default_payment_terms || "");
+      }
     });
-  }, [user?.id, user?.email]);
+  }, [user?.id, user?.email, isNew]);
 
   // Load existing rechnung
   const loadRechnung = useCallback(async () => {
@@ -149,6 +166,11 @@ export default function RechnungDetail() {
     setMwstSatz(data.mwst_satz > 0 ? data.mwst_satz : 8.1);
     setMwstEnabled(data.mwst_satz > 0);
     setNotiz(data.notiz || "");
+    // NULL (Bestandsrechnungen) → Standardtext, damit Formular/PDF konsistent gefüllt sind.
+    setAnrede(data.anrede ?? "");
+    setEinleitung(data.einleitung ?? DEFAULT_EINLEITUNG);
+    setSchlusstext(data.schlusstext ?? DEFAULT_SCHLUSSTEXT);
+    setZahlungskonditionen(data.zahlungskonditionen ?? "");
     setStatus(isRechnungStatus(data.status) ? data.status : "entwurf");
     setRechnungNr(data.rechnung_nr || "");
     setQrReferenz(data.qr_referenz);
@@ -212,6 +234,8 @@ export default function RechnungDetail() {
           website: company.website,
           mwst_number: company.mwst_number,
           iban: qrIban || company.iban || "",
+          primary_color: company.primary_color,
+          legal_name: company.legal_name,
         }
       : null;
 
@@ -233,6 +257,10 @@ export default function RechnungDetail() {
       currency: "CHF",
       qr_referenz: override ? override.qrReferenz ?? null : qrReferenz,
       qr_iban: qrIban || company?.iban || null,
+      anrede: anrede || null,
+      einleitung: einleitung || null,
+      schlusstext: schlusstext || null,
+      zahlungskonditionen: zahlungskonditionen || null,
       company: c,
     };
   };
@@ -259,6 +287,10 @@ export default function RechnungDetail() {
       gesamttotal: total,
       qr_iban: qrIban || company.iban,
       qr_referenz: qrReferenz,
+      anrede: anrede || null,
+      einleitung: einleitung || null,
+      schlusstext: schlusstext || null,
+      zahlungskonditionen: zahlungskonditionen || null,
       status,
     };
   };
@@ -449,6 +481,17 @@ export default function RechnungDetail() {
               <div className="space-y-3">
                 <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Kundendaten</h3>
                 <div>
+                  <Label className="text-xs">Anrede</Label>
+                  <Select value={anrede || "none"} onValueChange={(v) => setAnrede(v === "none" ? "" : v)}>
+                    <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      <SelectItem value="Herr">Herr</SelectItem>
+                      <SelectItem value="Frau">Frau</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label className="text-xs">Name *</Label>
                   <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Vor- und Nachname" className="mt-1 h-9 text-sm" />
                 </div>
@@ -573,6 +616,25 @@ export default function RechnungDetail() {
                   <span className="text-folk-coral">{formatChf(total)}</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Anschreiben & Konditionen (PDF-Texte) */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Anschreiben &amp; Konditionen</h3>
+          <div>
+            <Label className="text-xs">Einleitungstext</Label>
+            <Textarea value={einleitung} onChange={(e) => setEinleitung(e.target.value)} rows={2} className="mt-1 text-sm resize-none" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Zahlungskonditionen</Label>
+              <Input value={zahlungskonditionen} onChange={(e) => setZahlungskonditionen(e.target.value)} placeholder="z. B. 5 Tage netto" className="mt-1 h-9 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">Schlusstext</Label>
+              <Input value={schlusstext} onChange={(e) => setSchlusstext(e.target.value)} className="mt-1 h-9 text-sm" />
             </div>
           </div>
         </div>

@@ -3838,6 +3838,10 @@ export type Database = {
           qr_iban: string | null
           qr_referenz: string | null
           rabatt: number
+          anrede: string | null
+          einleitung: string | null
+          schlusstext: string | null
+          zahlungskonditionen: string | null
           rechnung_nr: string | null
           status: string
           total: number
@@ -3866,6 +3870,10 @@ export type Database = {
           qr_iban?: string | null
           qr_referenz?: string | null
           rabatt?: number
+          anrede?: string | null
+          einleitung?: string | null
+          schlusstext?: string | null
+          zahlungskonditionen?: string | null
           rechnung_nr?: string | null
           status?: string
           total?: number
@@ -3894,6 +3902,10 @@ export type Database = {
           qr_iban?: string | null
           qr_referenz?: string | null
           rabatt?: number
+          anrede?: string | null
+          einleitung?: string | null
+          schlusstext?: string | null
+          zahlungskonditionen?: string | null
           rechnung_nr?: string | null
           status?: string
           total?: number

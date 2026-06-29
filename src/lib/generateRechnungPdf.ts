@@ -24,6 +24,9 @@ export interface RechnungCompany {
   mwst_number?: string | null;
   /** QR-Bill için zorunlu — yoksa buildQrPayload hata fırlatır. */
   iban: string;
+  /** PDF-Redesign (Parça 2): Akzentfarbe + Unterschrift/Ansprechpartner. */
+  primary_color?: string | null;
+  legal_name?: string | null;
 }
 
 export interface RechnungPosition {
@@ -55,6 +58,12 @@ export interface RechnungData {
   qr_iban?: string | null;
   /** QR-Bill "Zusätzliche Informationen" (Ustrd). Yoksa "Rechnung <nr>". */
   message?: string | null;
+  /** PDF-Redesign (Parça 2): rechnungsbezogene Texte. Werden hier NUR getragen,
+   *  noch nicht gerendert (drawInvoiceBody bleibt unverändert). */
+  anrede?: string | null;
+  einleitung?: string | null;
+  schlusstext?: string | null;
+  zahlungskonditionen?: string | null;
   company: RechnungCompany;
 }
 
