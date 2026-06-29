@@ -8,7 +8,7 @@
 // Onaylanan taksonomi (D1-D6):
 //   D1 transport_moebel / moebel_transport → transport
 //   D2 klaviertransport / *klavier*        → transport
-//   D3 moebellift / moebellift_*           → umzug
+//   D3 moebellift / moebellift_*           → moebellift (ayrı base — umzug'dan ayrıldı)
 //   D4 malerarbeit / renovation            → null (katalogda base yok → Allgemein)
 //   D5 lagerung_*                          → lagerung
 //   D6 entrümpelung / entruempelung (ü+ue) → raeumung
@@ -16,6 +16,7 @@
 
 export type CatalogBase =
   | "umzug"
+  | "moebellift"
   | "reinigung"
   | "raeumung"
   | "entsorgung"
@@ -32,7 +33,7 @@ const EXACT = new Map<string, CatalogBase | null>([
   ["umzug_international", "umzug"],
   ["privatumzug", "umzug"],
   ["firmenumzug", "umzug"],
-  ["moebellift", "umzug"], // D3
+  ["moebellift", "moebellift"], // D3 (ayrı base)
   // reinigung
   ["reinigung", "reinigung"],
   ["endreinigung", "reinigung"],
@@ -73,7 +74,7 @@ const EXACT = new Map<string, CatalogBase | null>([
 
 // Prefix kuralları (exact'ten sonra). moebellift_ önce — umzug_ ile çakışmaz ama niyet net.
 const PREFIX: [string, CatalogBase][] = [
-  ["moebellift_", "umzug"], // D3
+  ["moebellift_", "moebellift"], // D3 (ayrı base)
   ["umzug_", "umzug"],
   ["reinigung_", "reinigung"],
   ["raeumung_", "raeumung"],
@@ -83,7 +84,7 @@ const PREFIX: [string, CatalogBase][] = [
 ];
 
 /**
- * Bir lead/servis tipini 6 kanonik base'den birine indirger; katalogda karşılığı yoksa null.
+ * Bir lead/servis tipini 7 kanonik base'den birine indirger; katalogda karşılığı yoksa null.
  * exact → prefix → content → null sırası (referans §3).
  * DEFENSIVE: null/boş → null; trim + lowercase ile normalize.
  */
@@ -117,6 +118,7 @@ export const normalizeToCatalogBase = (t: string | null): CatalogBase | null => 
 // Gruplar arası sıralama. Bu listede olmayan bilinen base'ler sonra, null (Allgemein) en sonda.
 export const SERVICE_ORDER: CatalogBase[] = [
   "umzug",
+  "moebellift",
   "reinigung",
   "raeumung",
   "entsorgung",
@@ -127,6 +129,7 @@ export const SERVICE_ORDER: CatalogBase[] = [
 // Base → UI başlığı. SERVICE_ORDER dışı/tanınmayan base'ler raw (capitalize) görünür (Lesson #2).
 export const LABEL_MAP: Record<string, string> = {
   umzug: "Umzug",
+  moebellift: "Möbellift",
   reinigung: "Reinigung",
   raeumung: "Räumung",
   entsorgung: "Entsorgung",
