@@ -3065,6 +3065,114 @@ export type Database = {
           },
         ]
       }
+      offer_item_area_meta: {
+        Row: {
+          abgabe: string | null
+          abnahmegarantie: boolean
+          area_m2: number | null
+          object_type: string | null
+          offer_item_id: string
+        }
+        Insert: {
+          abgabe?: string | null
+          abnahmegarantie?: boolean
+          area_m2?: number | null
+          object_type?: string | null
+          offer_item_id: string
+        }
+        Update: {
+          abgabe?: string | null
+          abnahmegarantie?: boolean
+          area_m2?: number | null
+          object_type?: string | null
+          offer_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_item_area_meta_offer_item_id_fkey"
+            columns: ["offer_item_id"]
+            isOneToOne: true
+            referencedRelation: "offer_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offer_item_effort_meta: {
+        Row: {
+          aufwand_max_h: number | null
+          aufwand_min_h: number | null
+          crew: number | null
+          hourly_rate: number | null
+          offer_item_id: string
+          vehicle_type: string | null
+          vehicles: number | null
+        }
+        Insert: {
+          aufwand_max_h?: number | null
+          aufwand_min_h?: number | null
+          crew?: number | null
+          hourly_rate?: number | null
+          offer_item_id: string
+          vehicle_type?: string | null
+          vehicles?: number | null
+        }
+        Update: {
+          aufwand_max_h?: number | null
+          aufwand_min_h?: number | null
+          crew?: number | null
+          hourly_rate?: number | null
+          offer_item_id?: string
+          vehicle_type?: string | null
+          vehicles?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_item_effort_meta_offer_item_id_fkey"
+            columns: ["offer_item_id"]
+            isOneToOne: true
+            referencedRelation: "offer_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offer_item_volume_meta: {
+        Row: {
+          location: string | null
+          offer_item_id: string
+          rate: number | null
+          rate_unit: string | null
+          volume_m3: number | null
+          volume_max_m3: number | null
+          volume_min_m3: number | null
+        }
+        Insert: {
+          location?: string | null
+          offer_item_id: string
+          rate?: number | null
+          rate_unit?: string | null
+          volume_m3?: number | null
+          volume_max_m3?: number | null
+          volume_min_m3?: number | null
+        }
+        Update: {
+          location?: string | null
+          offer_item_id?: string
+          rate?: number | null
+          rate_unit?: string | null
+          volume_m3?: number | null
+          volume_max_m3?: number | null
+          volume_min_m3?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_item_volume_meta_offer_item_id_fkey"
+            columns: ["offer_item_id"]
+            isOneToOne: true
+            referencedRelation: "offer_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offer_items: {
         Row: {
           created_at: string
