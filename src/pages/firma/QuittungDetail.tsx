@@ -126,7 +126,7 @@ export default function QuittungDetail() {
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [positionen, setPositionen] = useState<QuittungPosition[]>(buildDefaultPositionen);
-  const [mwstSatz] = useState(8.1);
+  const [mwstSatz, setMwstSatz] = useState(8.1);
   const [rabatt, setRabatt] = useState(0);
   const [betragNochOffen, setBetragNochOffen] = useState(false);
   const [notiz, setNotiz] = useState("");
@@ -260,6 +260,9 @@ export default function QuittungDetail() {
       ? q.positionen
       : buildDefaultPositionen());
     setRabatt(q.rabatt || 0);
+    // Restore the stored VAT rate; only new receipts default to 8.1 (pre-2024 receipts
+    // may carry 7.7 or 0 — recomputing at 8.1 would silently rewrite a signed receipt).
+    setMwstSatz(q.mwst_satz ?? 8.1);
     setBetragNochOffen(q.betrag_noch_offen || false);
     setNotiz(q.notiz || "");
     setStatus(q.status);
