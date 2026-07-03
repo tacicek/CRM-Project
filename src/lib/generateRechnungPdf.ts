@@ -1,12 +1,12 @@
 /**
- * Rechnung PDF üretimi — Katman 3 (Swiss QR-Bill, Faz 3 / S3).
+ * Rechnung PDF generation — Layer 3 (Swiss QR-Bill, Phase 3 / S3).
  *
- * Gövde tasarımı serbest (Offerio markası); alttaki 105mm ödeme dilimi SIX
- * "Swiss Implementation Guidelines QR-bill" normuna göre koordinat-bazlı çizilir
- * (Empfangsschein 62mm + Zahlteil 148mm, QR 46×46mm, İsviçre çaprazı 7×7mm).
+ * Body design is free (Offerio branding); the 105mm payment part below is drawn
+ * coordinate-based per the SIX "Swiss Implementation Guidelines QR-bill" norm
+ * (Empfangsschein 62mm + Zahlteil 148mm, QR 46×46mm, Swiss cross 7×7mm).
  *
- * Katman 2 (saf çekirdek) ile bağ: buildQrPayload + renderQrPng. DB/React bilmez;
- * düz RechnungData alır. Numara/referans üretimi S4'te (erstelleRechnung) yapılır.
+ * Link to Layer 2 (pure core): buildQrPayload + renderQrPng. Knows no DB/React;
+ * takes plain RechnungData. Number/reference generation happens in S4 (erstelleRechnung).
  */
 import jsPDF from "jspdf";
 import autoTable, { type CellHookData } from "jspdf-autotable";
@@ -22,9 +22,9 @@ export interface RechnungCompany {
   email?: string | null;
   website?: string | null;
   mwst_number?: string | null;
-  /** QR-Bill için zorunlu — yoksa buildQrPayload hata fırlatır. */
+  /** Mandatory for QR-Bill — if missing, buildQrPayload throws. */
   iban: string;
-  /** PDF-Redesign (Parça 2): Akzentfarbe + Unterschrift/Ansprechpartner. */
+  /** PDF-Redesign (Part 2): Akzentfarbe + Unterschrift/Ansprechpartner. */
   primary_color?: string | null;
   legal_name?: string | null;
 }
@@ -39,11 +39,11 @@ export interface RechnungPosition {
 
 export interface RechnungData {
   rechnung_nr: string;
-  /** ISO tarih (YYYY-MM-DD). */
+  /** ISO date (YYYY-MM-DD). */
   datum: string;
   faellig_am: string;
   customer_name: string;
-  /** Tek satır/çok satır serbest adres (offer/auftrag'dan). QR-Bill debtor'ı MVP'de boş. */
+  /** Single-/multi-line free address (from offer/auftrag). QR-Bill debtor empty in MVP. */
   customer_address?: string | null;
   customer_email?: string | null;
   positionen: RechnungPosition[];
@@ -52,13 +52,13 @@ export interface RechnungData {
   mwst_betrag: number;
   total: number;
   currency?: QrCurrency;
-  /** QRR (27 hane) veya SCOR (RF…). Yoksa referanssız (NON) QR-Bill. */
+  /** QRR (27 digits) or SCOR (RF…). If missing, reference-less (NON) QR-Bill. */
   qr_referenz?: string | null;
-  /** Üretim anı IBAN snapshot; yoksa company.iban kullanılır. */
+  /** IBAN snapshot at generation time; if missing, company.iban is used. */
   qr_iban?: string | null;
-  /** QR-Bill "Zusätzliche Informationen" (Ustrd). Yoksa "Rechnung <nr>". */
+  /** QR-Bill "Zusätzliche Informationen" (Ustrd). If missing, "Rechnung <nr>". */
   message?: string | null;
-  /** PDF-Redesign (Parça 2): rechnungsbezogene Texte. Werden hier NUR getragen,
+  /** PDF-Redesign (Part 2): rechnungsbezogene Texte. Werden hier NUR getragen,
    *  noch nicht gerendert (drawInvoiceBody bleibt unverändert). */
   anrede?: string | null;
   einleitung?: string | null;
@@ -89,12 +89,12 @@ const hexToRgb = (hex: string | null | undefined, fallback: Rgb): Rgb => {
 };
 const setText = (doc: jsPDF, [r, g, b]: Rgb): void => doc.setTextColor(r, g, b);
 
-// ── Biçimlendirme yardımcıları ───────────────────────────────────────────────
+// ── Formatting helpers ───────────────────────────────────────────────────────
 
-/** "1 234.50" — binlik ayraç boşluk, 2 ondalık (QR-Bill normu). */
-// QR-Bill ödeme kısmı binlik ayracı NORM gereği BOŞLUK ister (formatAmount).
-// Fatura gövdesi İsviçre konvansiyonu apostrof kullanır (formatAmountCH) —
-// uygulamanın geri kalanıyla ("CHF 3'234.35") tutarlı.
+/** "1 234.50" — thousands separator space, 2 decimals (QR-Bill norm). */
+// The QR-Bill payment part requires a SPACE as thousands separator per NORM (formatAmount).
+// The invoice body uses the Swiss convention apostrophe (formatAmountCH) —
+// consistent with the rest of the app ("CHF 3'234.35").
 const groupAmount = (n: number, sep: string): string => {
   const [int, dec] = Math.abs(n).toFixed(2).split(".");
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, sep);
@@ -104,9 +104,9 @@ const formatAmount = (n: number): string => groupAmount(n, " ");
 const formatAmountCH = (n: number): string => groupAmount(n, "'");
 
 /**
- * Serbest "customer_address" (tek/çok satır) → QR-Bill structured debtor.
- * İsviçre formatı: "<sokak no> <PLZ 4 hane> <Ort>". Parse edilemezse undefined
- * → debtor hiç eklenmez (geçersiz QR yerine boş borçlu; norm buna izin verir).
+ * Free "customer_address" (single/multi-line) → QR-Bill structured debtor.
+ * Swiss format: "<street no> <PLZ 4 digits> <Ort>". If it cannot be parsed, undefined
+ * → debtor is not added at all (empty debtor instead of invalid QR; the norm allows this).
  */
 const parseDebtor = (name: string, address?: string | null): QrBillAddress | undefined => {
   const flat = (address ?? "").replace(/\s+/g, " ").trim();
@@ -123,7 +123,7 @@ const parseDebtor = (name: string, address?: string | null): QrBillAddress | und
   };
 };
 
-/** "Zahlbar durch" satırları: debtor varsa isim+adres, yoksa sadece isim. */
+/** "Zahlbar durch" lines: name+address if debtor exists, otherwise only name. */
 const debtorLines = (data: RechnungData, debtor?: QrBillAddress): string[] => {
   if (!debtor) return [data.customer_name];
   const lines = [debtor.name];
@@ -139,7 +139,7 @@ const formatDateCH = (iso: string): string => {
   return d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 
-/** Referansı görüntü için gruplar (QRR: 5'li, SCOR/RF: 4'lü). */
+/** Groups the reference for display (QRR: in 5s, SCOR/RF: in 4s). */
 const formatReferenceDisplay = (ref: string): string => {
   const r = ref.replace(/\s+/g, "");
   if (/^RF/i.test(r)) return r.replace(/(.{4})/g, "$1 ").trim();
@@ -151,23 +151,23 @@ const creditorLines = (c: RechnungCompany): string[] => {
   return [c.company_name, streetLine, `${c.plz} ${c.city}`.trim()].filter((l) => l.length > 0);
 };
 
-// ── QR-Bill ödeme dilimi (alttaki 105mm) ─────────────────────────────────────
+// ── QR-Bill payment part (bottom 105mm) ──────────────────────────────────────
 
-const PP_TOP = A4_H - 105; // 192 — ödeme dilimi üst kenarı
+const PP_TOP = A4_H - 105; // 192 — payment part top edge
 const RECEIPT_X = 5;
-const SEP_X = 62; // Empfangsschein / Zahlteil ayracı
-const ZAHLTEIL_X = SEP_X + 5; // 67 — Zahlteil sol içerik
-const INFO_X = 118; // Zahlteil sağ bilgi sütunu
+const SEP_X = 62; // Empfangsschein / Zahlteil separator
+const ZAHLTEIL_X = SEP_X + 5; // 67 — Zahlteil left content
+const INFO_X = 118; // Zahlteil right info column
 const QR_SIZE = 46;
 const QR_X = ZAHLTEIL_X;
-const QR_Y = PP_TOP + 17; // başlık altında
+const QR_Y = PP_TOP + 17; // below the heading
 
 const setFont = (doc: jsPDF, size: number, style: "normal" | "bold"): void => {
   doc.setFont(FONT, style);
   doc.setFontSize(size);
 };
 
-/** QR ortasına İsviçre çaprazı (7×7mm siyah kare + beyaz haç). */
+/** Swiss cross in the center of the QR (7×7mm black square + white cross). */
 const drawSwissCross = (doc: jsPDF): void => {
   const c = 7;
   const cx = QR_X + QR_SIZE / 2;
@@ -175,7 +175,7 @@ const drawSwissCross = (doc: jsPDF): void => {
   doc.setFillColor(0, 0, 0);
   doc.rect(cx - c / 2, cy - c / 2, c, c, "F");
   doc.setFillColor(255, 255, 255);
-  // beyaz haç (dikey + yatay kollar)
+  // white cross (vertical + horizontal arms)
   const armLong = 4.4;
   const armShort = 1.2;
   doc.rect(cx - armShort / 2, cy - armLong / 2, armShort, armLong, "F");
@@ -220,7 +220,7 @@ const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference:
     y += 3;
   }
 
-  // Währung / Betrag (alt blok)
+  // Währung / Betrag (bottom block)
   const amountY = PP_TOP + 80;
   setFont(doc, 6, "bold");
   doc.text("Währung", RECEIPT_X, amountY);
@@ -229,21 +229,21 @@ const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference:
   doc.text(data.currency ?? "CHF", RECEIPT_X, amountY + 4);
   doc.text(formatAmount(data.total), RECEIPT_X + 16, amountY + 4);
 
-  // Annahmestelle (sağ alt)
+  // Annahmestelle (bottom right)
   setFont(doc, 6, "bold");
   doc.text("Annahmestelle", SEP_X - 5, PP_TOP + 92, { align: "right" });
 };
 
 const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: string, reference: string, debtor?: QrBillAddress): void => {
-  // Başlık
+  // Heading
   setFont(doc, 11, "bold");
   doc.text("Zahlteil", ZAHLTEIL_X, PP_TOP + 7);
 
-  // QR + İsviçre çaprazı
+  // QR + Swiss cross
   doc.addImage(qrPng, "PNG", QR_X, QR_Y, QR_SIZE, QR_SIZE);
   drawSwissCross(doc);
 
-  // Währung / Betrag (QR altında)
+  // Währung / Betrag (below the QR)
   const amountY = QR_Y + QR_SIZE + 6;
   setFont(doc, 8, "bold");
   doc.text("Währung", ZAHLTEIL_X, amountY);
@@ -252,7 +252,7 @@ const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: st
   doc.text(data.currency ?? "CHF", ZAHLTEIL_X, amountY + 5);
   doc.text(formatAmount(data.total), ZAHLTEIL_X + 18, amountY + 5);
 
-  // Sağ bilgi sütunu
+  // Right info column
   let y = PP_TOP + 7;
   setFont(doc, 8, "bold");
   doc.text("Konto / Zahlbar an", INFO_X, y);
@@ -297,7 +297,7 @@ const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: st
 const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
   const iban = data.qr_iban || data.company.iban;
   const reference = data.qr_referenz?.replace(/\s+/g, "") ?? "";
-  // QRR yalnız QR-IBAN ile geçerli; düz IBAN + QRR → buildQrPayload hata verir.
+  // QRR is only valid with a QR-IBAN; plain IBAN + QRR → buildQrPayload errors.
   const refType = !reference ? "NON" : /^RF/i.test(reference) ? "SCOR" : isQRIBAN(iban) ? "QRR" : "NON";
   const debtor = parseDebtor(data.customer_name, data.customer_address);
 
@@ -321,7 +321,7 @@ const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
   const payload = buildQrPayload(input);
   const qrPng = await renderQrPng(payload);
 
-  // Norm: kesme uyarısı + makas çizgisi + dikey ayraç
+  // Norm: cut-off notice + scissors line + vertical separator
   setFont(doc, 8, "normal");
   doc.text("Vor der Einzahlung abzutrennen", A4_W / 2, PP_TOP - 2, { align: "center" });
   doc.setDrawColor(0, 0, 0);
@@ -333,7 +333,7 @@ const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
   drawZahlteil(doc, data, qrPng, refType, reference, debtor);
 };
 
-// ── Fatura gövdesi (üst kısım) ───────────────────────────────────────────────
+// ── Invoice body (upper part) ────────────────────────────────────────────────
 
 const LOGO_MAX_W = 55;
 const LOGO_MAX_H = 20;
@@ -342,12 +342,12 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   const c = data.company;
   const accent = hexToRgb(c.primary_color, DEFAULT_ACCENT);
 
-  // ── BLOK 1: Akzent-Streifen + Header ──
-  // Üst aksan şeridi (tam genişlik, primary_color || teal-Fallback)
+  // ── BLOCK 1: Akzent-Streifen + Header ──
+  // Top accent stripe (full width, primary_color || teal-Fallback)
   doc.setFillColor(accent[0], accent[1], accent[2]);
   doc.rect(0, 0, A4_W, 4, "F");
 
-  // Header sol: Logo (varsa) ya da Firmenname (fallback)
+  // Header left: Logo (if present) or Firmenname (fallback)
   let logoBottom = MARGIN;
   let logoDrawn = false;
   if (logoBase64) {
@@ -360,7 +360,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
       logoBottom = MARGIN + h;
       logoDrawn = true;
     } catch {
-      logoDrawn = false; // sessiz fallback → text
+      logoDrawn = false; // silent fallback → text
     }
   }
 
@@ -383,7 +383,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     lx += 4;
   }
 
-  // Header sağ: "RECHNUNG" (harf aralıklı, gri) + große, dunkle Rechnungsnummer
+  // Header right: "RECHNUNG" (letter-spaced, gray) + große, dunkle Rechnungsnummer
   // Sperrung über Leerzeichen statt charSpace: bei align:"right" rechnet jsPDF die
   // charSpace-Breite nicht in die Ausrichtung ein → rechte Kante verschiebt sich.
   // Mit echten Leerzeichen liefert getTextWidth die korrekte Breite → bündige rechte Kante.
@@ -399,10 +399,10 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
 
   let y = Math.max(lx, MARGIN + 20) + 10;
 
-  // ── BLOK 2: RECHNUNG AN (links) + Meta-Box (rechts) ──
+  // ── BLOCK 2: RECHNUNG AN (links) + Meta-Box (rechts) ──
   const blockTop = y;
 
-  // Sol: "RECHNUNG AN" + Kunde
+  // Left: "RECHNUNG AN" + Kunde
   setText(doc, COL_LABEL);
   setFont(doc, 7, "bold");
   doc.text("RECHNUNG AN", MARGIN, blockTop, { charSpace: 1 });
@@ -419,7 +419,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     }
   }
 
-  // Sağ: Meta-Box (yuvarlak köşe, açık gri zemin + ince kenar)
+  // Right: Meta-Box (rounded corner, light gray background + thin border)
   const boxX = 118;
   const boxW = A4_W - MARGIN - boxX; // 72 → rechter Rand = A4_W - MARGIN
   const boxY = blockTop - 4;
@@ -445,14 +445,14 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     mrY += 8;
   }
 
-  // Renk/çizgi reset → alttaki (henüz eski) bloklar siyah/ince kalsın
+  // Color/line reset → so the blocks below (still old) stay black/thin
   doc.setTextColor(0, 0, 0);
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.1);
 
   y = Math.max(custY, boxY + boxH) + 6;
 
-  // ── BLOK 3: Briefanrede + Einleitungstext ──
+  // ── BLOCK 3: Briefanrede + Einleitungstext ──
   setText(doc, COL_DARK);
   setFont(doc, 11, "bold");
   const gruss =
@@ -474,8 +474,12 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   doc.setTextColor(0, 0, 0);
   y += 2;
 
-  // Kalem tablosu
-  // ── BLOK 4: Positionstabelle (POS-Badge, helle Kopfzeile, einheitliche halign) ──
+  // ── BLOCK 4: positions table (POS badge, light header, uniform halign) ──
+  // M6: keep the table out of the Swiss-QR payment zone (y ≥ PP_TOP). Reserve space below
+  // the table for the totals/signature band; a longer table paginates instead of drawing
+  // rows over the QR slip (which would make the payment part unscannable).
+  const TOTALS_RESERVE = 40; // mm reserved between the table end and PP_TOP for the totals band
+  const pagesBefore = doc.getNumberOfPages();
   autoTable(doc, {
     startY: y,
     head: [["POS", "BEZEICHNUNG", "ANZAHL", "EINZELPREIS", "BETRAG"]],
@@ -497,7 +501,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
       3: { halign: "right", cellWidth: 30 },
       4: { halign: "right", cellWidth: 30, fontStyle: "bold", textColor: COL_DARK },
     },
-    margin: { left: MARGIN, right: MARGIN },
+    margin: { left: MARGIN, right: MARGIN, bottom: A4_H - (PP_TOP - TOTALS_RESERVE) },
     didParseCell: (hook: CellHookData) => {
       // Kopf UND Body pro Spalte identisch ausrichten — autoTable wendet die
       // halign-Kaskade für head/body uneinheitlich an; hier deterministisch erzwingen.
@@ -534,12 +538,12 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     },
   });
 
-  // Tablo sonrası renk/çizgi reset → alttaki (henüz eski) total bloğu siyah/ince kalsın
+  // After the table, color/line reset → so the total block below (still old) stays black/thin
   doc.setTextColor(0, 0, 0);
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.1);
 
-  // ── BLOK 5: Summen (rechts) + Konditionen/Schluss/Unterschrift (links) ──
+  // ── BLOCK 5: Summen (rechts) + Konditionen/Schluss/Unterschrift (links) ──
   const finalY = doc.lastAutoTable.finalY;
 
   // Rechts: Zwischensumme + MwSt (nur Satz>0), rechtsbündig auf 190 (wie Tabelle).
@@ -604,10 +608,14 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   setText(doc, COL_DARK);
   doc.text(c.legal_name || c.company_name, MARGIN, ly);
 
-  // Taşma guard — içerik Zahlteil bölgesine (y≥192) girmemeli (sessiz değil, görünür uyarı).
-  // TODO(root-cause): mehrseitiges Layout mit QR-Bill nur auf der letzten Seite = separater Task.
+  // Overflow guard — content must not enter the Zahlteil zone (y ≥ PP_TOP). Fires a visible
+  // warning both when the totals band crosses PP_TOP AND when the table itself paginated
+  // (rows spilled onto a second page). The bottom margin above already stops rows from
+  // overprinting the QR slip; this makes the overflow explicit instead of silent.
+  // TODO(root-cause): proper multi-page layout with the QR-bill only on the last page = separate task.
   const bandBottom = Math.max(ly, boxY2 + boxH2);
-  if (bandBottom > PP_TOP - 4) {
+  const tablePaginated = doc.getNumberOfPages() > pagesBefore;
+  if (tablePaginated || bandBottom > PP_TOP - 4) {
     setFont(doc, 8, "bold");
     doc.setTextColor(220, 38, 38);
     doc.text("ACHTUNG: Rechnung zu lang für eine Seite — Positionen reduzieren (mehrseitig: TODO).", MARGIN, PP_TOP - 6);
@@ -618,11 +626,11 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   doc.setLineWidth(0.1);
 };
 
-// ── Genel API ────────────────────────────────────────────────────────────────
+// ── General API ──────────────────────────────────────────────────────────────
 
 /**
- * Fatura PDF'ini kurar ve jsPDF doc'unu döner (download veya base64 için).
- * logoBase64 (PNG data URL) UI katmanında çözülür — Katman 3 DB/storage bilmez.
+ * Builds the invoice PDF and returns the jsPDF doc (for download or base64).
+ * logoBase64 (PNG data URL) is resolved in the UI layer — Layer 3 knows no DB/storage.
  */
 export const buildRechnungDoc = async (
   data: RechnungData,
@@ -634,7 +642,7 @@ export const buildRechnungDoc = async (
   return doc;
 };
 
-/** Fatura PDF'ini tarayıcıda indirir. */
+/** Downloads the invoice PDF in the browser. */
 export const downloadRechnungPdf = async (
   data: RechnungData,
   logoBase64: string | null = null,
