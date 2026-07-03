@@ -34,8 +34,8 @@ export function getDashAppUrl(): string {
     Deno.env.get("FIRMA_APP_URL")?.trim().replace(/\/$/, "") ||
     Deno.env.get("SITE_URL")?.trim().replace(/\/$/, "") ||
     Deno.env.get("APP_URL")?.trim().replace(/\/$/, "") ||
-    // Son çare: prod app domain'i. Env (DASH_APP_URL vb.) set ise o öncelikli.
-    // Boş string dönerse e-posta linkleri relative (/offerte/…) olup kırılıyordu.
+    // Last resort: prod app domain. If env (DASH_APP_URL etc.) is set, that takes priority.
+    // An empty string would make email links relative (/offerte/…) and break them.
     "https://crm-hirschen.ch"
   );
 }

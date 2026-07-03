@@ -39,8 +39,8 @@ serve(async (req) => {
       );
     }
 
-    // Server-side expiry enforcement — expires_at geçtiyse veri döndürme.
-    // 410 Gone: süresi dolmuş kaynak için semantik olarak doğru HTTP kodu.
+    // Server-side expiry enforcement — don't return data if expires_at has passed.
+    // 410 Gone: semantically correct HTTP code for an expired resource.
     if (session.expires_at && new Date(session.expires_at) < new Date()) {
       return new Response(
         JSON.stringify({ error: "Session abgelaufen" }),

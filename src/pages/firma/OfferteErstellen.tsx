@@ -187,7 +187,7 @@ const createEmptyItem = (position: number): OfferItem => ({
   priceType: "pauschale",
   highlighted: false,
   details: [],
-  serviceType: null, // default Allgemein; gerçek primary-base 2.3'te addItem'da set edilir
+  serviceType: null, // default Allgemein; the real primary-base is set in addItem in 2.3
 });
 
 /** Gültig bis kürzer als 7 Tage ab heute — nur Hinweis im Formular */
@@ -286,7 +286,7 @@ const FirmaOfferteErstellen = () => {
   const [priceModel, setPriceModel] = useState<'pauschal' | 'stundenansatz' | 'kostendach'>('pauschal');
   const [hourlyRate, setHourlyRate] = useState<string>('');
   const [kostendachMax, setKostendachMax] = useState<string>('');
-  // Teklif-seviyesi Rabatt (%). F1a: sadece yakalanır+kaydedilir; totals entegrasyonu F3.
+  // Offer-level Rabatt (%). F1a: only captured+saved; totals integration is F3.
   const [discountPercent, setDiscountPercent] = useState<string>('');
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
@@ -546,7 +546,7 @@ const FirmaOfferteErstellen = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [items, title]);
 
-  // Multi-service: teklifin birincil base'i (lead'den). Kaynaksız yollar buna stamp'lenir (D-C).
+  // Multi-service: the offer's primary base (from the lead). Sourceless paths are stamped with it (D-C).
   const primaryBase = normalizeToCatalogBase(lead?.service_type ?? null);
 
   const addItem = () => {
@@ -565,7 +565,7 @@ const FirmaOfferteErstellen = () => {
       priceType: "pauschale" as const,
       highlighted: false,
       details: ai.note ? [ai.note] : [],
-      // D-B: AI category varsa clean base'e indir, tanınmazsa primary.
+      // D-B: if there is an AI category, reduce to the clean base; if unrecognized, use primary.
       serviceType: ai.category ? (normalizeToCatalogBase(ai.category) ?? primaryBase) : primaryBase,
     }));
     setItems(prev => [...prev, ...newItems]);
@@ -657,7 +657,7 @@ const FirmaOfferteErstellen = () => {
       priceType: derivePriceTypeFromCatalog(service),
       highlighted: false,
       details: [],
-      // Catalog satırının service_type'ı RAW olabilir → clean base'e indir (Lesson #2); yoksa primary.
+      // A catalog row's service_type may be RAW → reduce to the clean base (Lesson #2); otherwise primary.
       serviceType: normalizeToCatalogBase(service.service_type) ?? primaryBase,
     }));
 
@@ -724,7 +724,7 @@ const FirmaOfferteErstellen = () => {
       priceType: derivePriceTypeFromCatalog(item),
       highlighted: false,
       details: [],
-      // Optional katalog item'ının service_type'ı RAW olabilir → clean base (Lesson #2); yoksa primary.
+      // An optional catalog item's service_type may be RAW → clean base (Lesson #2); otherwise primary.
       serviceType: normalizeToCatalogBase(item.service_type) ?? primaryBase,
     }));
 
@@ -804,7 +804,7 @@ const FirmaOfferteErstellen = () => {
     setItems(reorderedItems.map((item, i) => ({ ...item, position: i + 1 })));
   };
 
-  // Form item şeklini (timeEstimate string) helper'ın SubtotalItem'ına çevir (parse map'te).
+  // Convert the form item shape (timeEstimate string) into the helper's SubtotalItem (in the parse map).
   const toSubtotalItems = (): SubtotalItem[] =>
     items.map((item) => ({
       priceType: item.priceType,
@@ -1032,7 +1032,7 @@ const FirmaOfferteErstellen = () => {
         customer_last_name: lead.customer_last_name,
         customer_email: lead.customer_email,
         customer_phone: lead.customer_phone,
-        // Katman 2a: adresi teklife DONDUR (create-time) — lead silinse de korunur, backfill'e bağımlı değil.
+        // Layer 2a: FREEZE the address into the offer (create-time) — preserved even if the lead is deleted, not dependent on backfill.
         frozen_from_street: lead.from_street ?? null,
         frozen_from_house_number: lead.from_house_number ?? null,
         frozen_from_plz: lead.from_plz ?? null,
@@ -1135,7 +1135,7 @@ const FirmaOfferteErstellen = () => {
         .insert(itemsToInsert);
 
       if (itemsError) {
-        // D12: offer_items INSERT başarısız — offer kaydını temizle (cleanup güvenli yapıldı)
+        // D12: offer_items INSERT failed — clean up the offer record (cleanup done safely)
         try {
           const { error: deleteError } = await supabase
             .from("offers")
@@ -1170,7 +1170,7 @@ const FirmaOfferteErstellen = () => {
           });
 
         if (leistungError) {
-          // D12: leistung hatası non-fatal — offer + items zaten kaydedildi, sadece logla
+          // D12: leistung error is non-fatal — offer + items already saved, just log it
           console.error("Error saving Leistungsübersicht (non-fatal, offer already saved):", leistungError);
         }
       }
@@ -1723,7 +1723,7 @@ const FirmaOfferteErstellen = () => {
                     </div>
                   )}
 
-                  {/* Teklif-seviyesi Rabatt (%) — F1a: yakalanır+kaydedilir, totals entegrasyonu F3 */}
+                  {/* Offer-level Rabatt (%) — F1a: captured+saved, totals integration is F3 */}
                   <div className="space-y-1 pt-1 sm:max-w-[50%]">
                     <Label className="text-xs sm:text-sm">Rabatt gesamt (%)</Label>
                     <Input

@@ -321,14 +321,14 @@ serve(async (req) => {
         const ai = await callClaudeValidator(detInput, apiKey);
         if (ai) {
           logStep("AI result", { is_valid: ai.is_valid, score: ai.quality_score });
-          // AI ve deterministik skorların ortalamasını al, sinyalleri birleştir
+          // Average the AI and deterministic scores, merge the signals
           finalScore = Math.round((detResult.qualityScore + ai.quality_score) / 2);
           finalSignals = Array.from(new Set([...finalSignals, ...ai.spam_signals]));
           finalValid = ai.is_valid;
           finalReason = ai.rejection_reason ?? finalReason;
         } else {
           logStep("AI unavailable, using deterministic only");
-          // AI fail → deterministik karara bırak (ambiguous ise güvenli taraf: opt-in)
+          // AI fail → fall back to the deterministic decision (if ambiguous, the safe side: opt-in)
           finalValid = detResult.qualityScore >= 40;
         }
       } else {

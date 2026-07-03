@@ -301,17 +301,17 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
       <Card className="overflow-hidden">
         <CardHeader className="pb-2 px-3 sm:px-6">
           <div className="flex items-center gap-2">
-            {/* Başlık — sadece sm ve üstünde göster */}
+            {/* Title — only show on sm and above */}
             <div className="hidden sm:flex items-center gap-2 shrink-0">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <CardTitle className="text-sm sm:text-base whitespace-nowrap">Team-Wochenübersicht</CardTitle>
             </div>
-            {/* Mobilde sadece ikon */}
+            {/* Icon only on mobile */}
             <div className="flex sm:hidden items-center shrink-0">
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </div>
 
-            {/* Hafta navigasyonu — ml-auto ile sağa yasla */}
+            {/* Week navigation — align right with ml-auto */}
             <div className="flex items-center gap-1.5 ml-auto">
               <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigateWeek("prev")} aria-label="Vorherige Woche">
                 <ChevronLeft className="h-4 w-4" />

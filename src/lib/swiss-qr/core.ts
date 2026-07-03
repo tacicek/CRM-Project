@@ -1,14 +1,14 @@
 /**
- * Swiss QR-Bill çekirdeği — SAF katman (Katman 2).
+ * Swiss QR-Bill core — PURE layer (Layer 2).
  *
- * Bu dosya DB (Supabase) ya da UI (React) bilmez; düz veri alır, düz string/PNG üretir.
- * Yukarıyı veya aşağıyı import etmez → tam taşınabilir ve test edilebilir.
+ * This file does not know about DB (Supabase) or UI (React); it takes plain data, produces plain string/PNG.
+ * It does not import up or down → fully portable and testable.
  *
  * Norm: SIX "Swiss Implementation Guidelines QR-bill" v2.x, SPC payload v0200.
- * Referans tipleri:
- *   - QR-IBAN (IID 30000–31999) → QRR (27 hane, Modulo-10 rekursiv) ZORUNLU.
- *   - Normal IBAN → SCOR (ISO 11649, RF + Modulo-97) veya NON (referanssız).
- * Yanlış eşleşme bankada ödeme reddine yol açar → buildQrPayload bunu guard'lar.
+ * Reference types:
+ *   - QR-IBAN (IID 30000–31999) → QRR (27 digits, Modulo-10 recursive) MANDATORY.
+ *   - Normal IBAN → SCOR (ISO 11649, RF + Modulo-97) or NON (no reference).
+ * A wrong match leads to the bank rejecting the payment → buildQrPayload guards against this.
  */
 import QRCode from "qrcode";
 
@@ -21,39 +21,39 @@ export interface QrBillAddress {
   buildingNumber: string;
   postalCode: string;
   town: string;
-  /** ISO 3166-1 alpha-2, ör. "CH" */
+  /** ISO 3166-1 alpha-2, e.g. "CH" */
   country: string;
 }
 
 export interface QrBillInput {
   creditor: QrBillAddress & { iban: string };
-  /** Swiss QR normu debtor'ı opsiyonel kılar (MVP'de boş bırakılabilir). */
+  /** The Swiss QR norm makes the debtor optional (can be left empty in the MVP). */
   debtor?: QrBillAddress;
-  /** Pozitif tutar, ör. 250.00. Atlanırsa boş Amount alanı (açık tutarlı fatura). */
+  /** Positive amount, e.g. 250.00. If omitted, an empty Amount field (open-amount invoice). */
   amount?: number;
   currency: QrCurrency;
-  /** Yapılandırılmamış mesaj, ör. "Rechnung RE-2026-0001". */
+  /** Unstructured message, e.g. "Rechnung RE-2026-0001". */
   message?: string;
   /**
-   * Hazır referans. Verilirse formatından tip türetilir (RF… → SCOR, salt rakam → QRR).
-   * Verilmezse referanssız (NON) — ancak QR-IBAN ile NON yasaktır (guard fırlatır).
+   * Ready-made reference. If provided, the type is derived from its format (RF… → SCOR, digits-only → QRR).
+   * If not provided, no reference (NON) — but NON with a QR-IBAN is forbidden (the guard throws).
    */
   reference?: string;
 }
 
 const CRLF = "\r\n";
 
-/** Boşlukları kaldırır, büyük harfe çevirir. */
+/** Removes whitespace, converts to uppercase. */
 export const cleanIBAN = (iban: string): string =>
   iban.replace(/\s+/g, "").toUpperCase();
 
 /**
- * ISO 7064 Mod-97-10 (ISO 13616). İlk 4 karakteri sona taşı, harfleri sayıya çevir,
- * mod 97 === 1 ise geçerli. Yalnızca CH/LI IBAN'ları Swiss QR-Bill'de kabul edilir.
+ * ISO 7064 Mod-97-10 (ISO 13616). Move the first 4 characters to the end, convert letters to numbers,
+ * valid if mod 97 === 1. Only CH/LI IBANs are accepted in a Swiss QR-Bill.
  */
 export const validateSwissIBAN = (iban: string): boolean => {
   const c = cleanIBAN(iban);
-  if (!/^(CH|LI)[0-9A-Z]{19}$/.test(c)) return false; // CH/LI IBAN = 21 karakter
+  if (!/^(CH|LI)[0-9A-Z]{19}$/.test(c)) return false; // CH/LI IBAN = 21 characters
   const rearranged = c.slice(4) + c.slice(0, 4);
   const numeric = rearranged
     .split("")
@@ -66,7 +66,7 @@ export const validateSwissIBAN = (iban: string): boolean => {
   return mod97(numeric) === 1;
 };
 
-/** Büyük sayıyı parça parça mod 97 (string, çünkü 53 bit'i aşar). */
+/** Large number mod 97 piece by piece (string, because it exceeds 53 bits). */
 const mod97 = (numeric: string): number => {
   let remainder = 0;
   for (const digit of numeric) {
@@ -76,7 +76,7 @@ const mod97 = (numeric: string): number => {
 };
 
 /**
- * QR-IBAN mı? IID (banka kodu) IBAN'ın 5.–9. haneleri (index 4–8), aralık 30000–31999.
+ * Is it a QR-IBAN? The IID (bank code) is IBAN digits 5–9 (index 4–8), range 30000–31999.
  */
 export const isQRIBAN = (iban: string): boolean => {
   const c = cleanIBAN(iban);
@@ -86,8 +86,8 @@ export const isQRIBAN = (iban: string): boolean => {
 };
 
 /**
- * Modulo-10 rekursiv (Swiss ESR/QRR çek hanesi).
- * Giriş: yalnızca rakam içeren string. Çıkış: tek haneli çek rakamı (0–9).
+ * Modulo-10 recursive (Swiss ESR/QRR check digit).
+ * Input: a digits-only string. Output: a single check digit (0–9).
  */
 export const mod10Recursive = (digits: string): number => {
   const table = [0, 9, 4, 6, 8, 2, 7, 1, 3, 5];
@@ -100,8 +100,8 @@ export const mod10Recursive = (digits: string): number => {
 };
 
 /**
- * QRR referansı üretir: 27 hane (26 hane sağ-hizalı sıfır dolgulu taban + 1 çek hanesi).
- * @param raw Fatura türevi sayısal taban (ör. fatura no'dan üretilmiş). Rakam dışı atılır.
+ * Generates a QRR reference: 27 digits (26-digit right-aligned zero-padded base + 1 check digit).
+ * @param raw Invoice-derived numeric base (e.g. produced from the invoice number). Non-digits are dropped.
  */
 export const generateQRRReference = (raw: string): string => {
   const base = raw.replace(/\D/g, "");
@@ -111,7 +111,7 @@ export const generateQRRReference = (raw: string): string => {
   return padded + String(mod10Recursive(padded));
 };
 
-/** Verilen 27 haneli QRR referansının çek hanesi doğru mu? */
+/** Is the check digit of the given 27-digit QRR reference correct? */
 export const isValidQRRReference = (ref: string): boolean => {
   const c = ref.replace(/\s+/g, "");
   if (!/^\d{27}$/.test(c)) return false;
@@ -119,9 +119,9 @@ export const isValidQRRReference = (ref: string): boolean => {
 };
 
 /**
- * SCOR / Creditor Reference (ISO 11649): "RF" + 2 haneli çek + alfanümerik taban.
- * Mod-97: taban + "RF00" üzerinden hesaplanır, çek = 98 - (mod 97).
- * @param raw Alfanümerik taban (max 21 karakter). Boşluklar atılır, büyük harfe çevrilir.
+ * SCOR / Creditor Reference (ISO 11649): "RF" + 2-digit check + alphanumeric base.
+ * Mod-97: computed over base + "RF00", check = 98 - (mod 97).
+ * @param raw Alphanumeric base (max 21 characters). Whitespace is dropped, converted to uppercase.
  */
 export const generateSCORReference = (raw: string): string => {
   const base = raw.replace(/\s+/g, "").toUpperCase();
@@ -138,11 +138,11 @@ export const generateSCORReference = (raw: string): string => {
   return "RF" + String(check).padStart(2, "0") + base;
 };
 
-/** IBAN tipinden zorunlu referans tipini türetir (referans tabanı yoksa NON). */
+/** Derives the mandatory reference type from the IBAN type (NON if there is no reference base). */
 export const referenceTypeForIban = (iban: string): ReferenceType =>
   isQRIBAN(iban) ? "QRR" : "NON";
 
-/** Verilen referans string'inin tipini formatından çıkarır. */
+/** Infers the type of the given reference string from its format. */
 const detectReferenceType = (reference: string): ReferenceType => {
   const r = reference.replace(/\s+/g, "");
   if (/^RF/i.test(r)) return "SCOR";
@@ -150,7 +150,7 @@ const detectReferenceType = (reference: string): ReferenceType => {
   return "NON";
 };
 
-/** Swiss QR-Bill için tutar formatı: 2 ondalık, ayraçsız (ör. "250.00"). */
+/** Amount format for the Swiss QR-Bill: 2 decimals, no separator (e.g. "250.00"). */
 const formatAmount = (amount: number): string => {
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Ungültiger Betrag");
   if (amount > 999_999_999.99) throw new Error("Betrag überschreitet die Obergrenze");
@@ -165,13 +165,13 @@ const requireAddress = (a: QrBillAddress, label: string): void => {
 };
 
 /**
- * 31 alanlık SPC (Swiss Payments Code) payload string'ini kurar (CRLF ile birleştirilir).
- * Structured adres (AdrTp "S") kullanır. UltimateCreditor v0200'de rezerve → boş.
+ * Builds the 31-field SPC (Swiss Payments Code) payload string (joined with CRLF).
+ * Uses a structured address (AdrTp "S"). UltimateCreditor is reserved in v0200 → empty.
  *
- * Guard'lar (CLAUDE.md §5 Kural 1 — sessiz fallback yok, kök neden):
- *   - IBAN yoksa/geçersizse → hata.
- *   - QR-IBAN + (QRR olmayan referans) → hata (banka reddi).
- *   - Normal IBAN + QRR referans → hata.
+ * Guards (CLAUDE.md §5 Rule 1 — no silent fallback, root cause):
+ *   - IBAN missing/invalid → error.
+ *   - QR-IBAN + (non-QRR reference) → error (bank rejection).
+ *   - Normal IBAN + QRR reference → error.
  */
 export const buildQrPayload = (input: QrBillInput): string => {
   const iban = cleanIBAN(input.creditor.iban ?? "");
@@ -183,7 +183,7 @@ export const buildQrPayload = (input: QrBillInput): string => {
     ? detectReferenceType(input.reference)
     : "NON";
 
-  // İsviçre normu: referans tipi IBAN tipiyle uyumlu olmalı.
+  // Swiss norm: the reference type must match the IBAN type.
   if (isQRIBAN(iban) && refType !== "QRR") {
     throw new Error("Für QR-IBAN ist eine QRR-Referenz erforderlich (die Bank weist die Zahlung sonst zurück)");
   }
@@ -210,7 +210,7 @@ export const buildQrPayload = (input: QrBillInput): string => {
     input.creditor.postalCode.trim(),
     input.creditor.town.trim(),
     input.creditor.country.toUpperCase(),
-    // UltmtCdtr (rezerve — boş)
+    // UltmtCdtr (reserved — empty)
     "", "", "", "", "", "", "",
     // CcyAmt
     input.amount === undefined ? "" : formatAmount(input.amount),
@@ -235,8 +235,8 @@ export const buildQrPayload = (input: QrBillInput): string => {
 };
 
 /**
- * SPC payload → QR PNG data URL. errorCorrectionLevel "M" (norm gereği), margin 0.
- * İsviçre çapraz işareti (7×7mm) burada DEĞİL, PDF render katmanında (Katman 3) basılır.
+ * SPC payload → QR PNG data URL. errorCorrectionLevel "M" (as the norm requires), margin 0.
+ * The Swiss cross mark (7×7mm) is NOT printed here, but in the PDF render layer (Layer 3).
  */
 export const renderQrPng = async (payload: string): Promise<string> =>
   QRCode.toDataURL(payload, { errorCorrectionLevel: "M", margin: 0, width: 1024 });

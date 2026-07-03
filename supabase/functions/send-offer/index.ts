@@ -14,7 +14,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// BUG-8: PII maskeleme yardımcıları — loglar DSG/DSGVO uyumlu
+// BUG-8: PII masking helpers — logs are DSG/DSGVO compliant
 const maskEmail = (e: string) => e.replace(/(?<=.{2}).+(?=@)/, "***");
 
 /** Escape user-supplied strings before interpolating into HTML email templates. */
@@ -279,7 +279,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Terminal statüdeki teklifler gönderilemez — status regression engellemek için
+    // Offers in a terminal status cannot be sent — to prevent status regression
     const TERMINAL_STATUSES = ["accepted", "rejected"];
     if (TERMINAL_STATUSES.includes(offer.status)) {
       logStep("Cannot resend — offer is in terminal status", { offerId, status: offer.status });
@@ -289,7 +289,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Çift gönderim koruması — offer zaten "sent" veya "viewed" ise force_resend gerek
+    // Duplicate-send guard — if the offer is already "sent" or "viewed", force_resend is required
     if (["sent", "viewed"].includes(offer.status) && !forceResendFromBody) {
       logStep("Offer already sent/viewed, skipping duplicate", { offerId, status: offer.status });
       return new Response(
@@ -524,7 +524,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Generate offer view URL
     const offerViewUrl = `${getDashAppUrl()}/offerte/${offer.access_token}`;
-    // Marka rengi (company.primary_color) — e-posta header/CTA/tablo başlığı için
+    // Brand color (company.primary_color) — for email header/CTA/table heading
     const accent = offer.company?.primary_color || "#4f46e5";
 
     // Build items HTML (mobile-safe stacked layout)
@@ -958,7 +958,7 @@ const handler = async (req: Request): Promise<Response> => {
       // Release the claim so the offer can be retried (revert "sending" → its previous status).
       await supabase.from("offers").update({ status: originalStatus }).eq("id", offerId);
 
-      // BUG-5: 422 Unprocessable — e-posta gönderilemedi (frontend sendError ile yakalar)
+      // BUG-5: 422 Unprocessable — email could not be sent (frontend catches it via sendError)
       return new Response(
         JSON.stringify({ error: userFriendlyError, details: emailError, from_email: fromEmail }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1046,7 +1046,7 @@ const handler = async (req: Request): Promise<Response> => {
     const errorStack = error instanceof Error ? error.stack : undefined;
     logStep("Error processing request", { error: errorMessage, stack: errorStack });
     
-    // BUG-5: 500 — beklenmedik hata (frontend sendError ile yakalar)
+    // BUG-5: 500 — unexpected error (frontend catches it via sendError)
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

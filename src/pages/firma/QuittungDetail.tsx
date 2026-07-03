@@ -92,7 +92,7 @@ interface FromAuftragPrefill {
   extraServices?: AuftragPrefillItem[];
 }
 
-/** Blob → base64 (data: ön eki olmadan), e-posta eki için. */
+/** Blob → base64 (without the data: prefix), for the email attachment. */
 const blobToBase64 = (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -146,7 +146,7 @@ export default function QuittungDetail() {
 
   const totals = calculateTotals(positionen, mwstSatz, rabatt);
 
-  // Tek kaynak: PDF indirme, önizleme ve e-posta eki aynı veriyi kullanır (drift önler).
+  // Single source: PDF download, preview and email attachment all use the same data (prevents drift).
   const buildQuittungData = (): Quittung => ({
     id: quittungId || "",
     company_id: company?.id ?? "",
@@ -417,7 +417,7 @@ export default function QuittungDetail() {
     if (!savedId || !company) return;
     setIsSendingEmail(true);
     try {
-      // PDF client-tarafında üret (react-pdf) → base64 → send-quittung'a ek olarak gönder.
+      // Generate the PDF client-side (react-pdf) → base64 → send it as an attachment to send-quittung.
       const blob = await pdf(
         <QuittungPDF
           quittung={buildQuittungData()}
@@ -433,7 +433,7 @@ export default function QuittungDetail() {
         body: { quittungId: savedId, quittungPdfBase64 },
       });
       if (error) throw error;
-      // Status'u send-quittung server'da 'sent' yapar — burada yalnız yerel UI güncellenir.
+      // send-quittung sets the status to 'sent' on the server — here only the local UI is updated.
       setStatus("sent");
       toast({ title: "Quittung versendet!", description: `E-Mail an ${customerEmail} gesendet.` });
     } catch (e) {

@@ -21,27 +21,27 @@ const data: RechnungData = {
     house_number: "1268",
     plz: "2501",
     city: "Biel",
-    iban: "CH9300762011623852957", // normal IBAN → NON referans
+    iban: "CH9300762011623852957", // normal IBAN → NON reference
   },
 };
 
 describe("buildRechnungDoc", () => {
-  it("geçerli bir PDF üretir (throw etmez, anlamlı boyut)", async () => {
+  it("produces a valid PDF (does not throw, meaningful size)", async () => {
     const doc = await buildRechnungDoc(data);
     const out = doc.output("arraybuffer");
     expect(out.byteLength).toBeGreaterThan(2000);
   });
 
-  it("QRR referanslı QR-IBAN faturasını üretir", async () => {
+  it("produces a QR-IBAN invoice with QRR reference", async () => {
     const doc = await buildRechnungDoc({
       ...data,
       company: { ...data.company, iban: "CH4431999123000889012" }, // QR-IBAN
-      qr_referenz: "210000000003139471430009017", // geçerli QRR
+      qr_referenz: "210000000003139471430009017", // valid QRR
     });
     expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2000);
   });
 
-  it("QR-IBAN + referanssız → buildQrPayload guard'ı hata fırlatır", async () => {
+  it("QR-IBAN + no reference → the buildQrPayload guard throws", async () => {
     await expect(
       buildRechnungDoc({ ...data, company: { ...data.company, iban: "CH4431999123000889012" } })
     ).rejects.toThrow();

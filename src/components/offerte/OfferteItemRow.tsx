@@ -31,7 +31,7 @@ export interface OfferItem {
   highlighted: boolean;
   details: string[];
   timeEstimate?: ItemTimeEstimate | null;
-  serviceType?: string | null; // clean base (normalizeToCatalogBase çıktısı), null = Allgemein
+  serviceType?: string | null; // clean base (output of normalizeToCatalogBase), null = Allgemein
 }
 
 // Price type options with their auto-derived units

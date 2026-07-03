@@ -1,9 +1,9 @@
-// Offer fiyat-modeli için paylaşılan saf yardımcılar.
-// Tek kaynak: PDF (ServiceTable) + public OfferView aynı mantığı buradan alır — inline kopya yok.
+// Shared pure helpers for the offer pricing model.
+// Single source: PDF (ServiceTable) + public OfferView derive the same logic from here — no inline copies.
 //
-// NOT: mapOfferData (maxHours guard) ve OfferteItemRow (min&&max guard) hâlâ kendi inline
-// guard'larını kullanıyor; guard birleştirmesi = 3b kapsamı (CLAUDE.md kök-neden: yama değil,
-// ayrı ve bilinçli bir adımda birleştirilecek).
+// NOTE: mapOfferData (maxHours guard) and OfferteItemRow (min&&max guard) still use their own inline
+// guards; guard consolidation = scope of 3b (CLAUDE.md root-cause: not a patch, to be merged in a
+// separate, deliberate step).
 
 export interface TimeEstimate {
   minHours: number;
@@ -12,14 +12,14 @@ export interface TimeEstimate {
 }
 
 /**
- * Blind/stundenbasiert kalemin fiyat aralığını döndürür.
+ * Returns the price range of a blind/stundenbasiert (hourly) item.
  *
- * Guard ServiceTable (ItemRow) ile BİREBİR: `te` yoksa veya
- * `!(minHours > 0 && hourlyRate > 0)` ise null (PDF davranışı korunur).
+ * Guard is IDENTICAL to ServiceTable (ItemRow): if `te` is missing or
+ * `!(minHours > 0 && hourlyRate > 0)` then null (PDF behaviour is preserved).
  *
- * DEFENSIVE: DB jsonb beklenmedik şekil taşıyabilir ve çağıran taraf `as Offer`/`as OfferItem`
- * cast'i kullanıyor (TS uyarmaz). Bu yüzden TİPE değil DEĞERE güveniyoruz — alanlar gerçek
- * number değilse null döner, patlamaz.
+ * DEFENSIVE: DB jsonb may carry an unexpected shape and the caller uses `as Offer`/`as OfferItem`
+ * casts (TS does not warn). So we trust the VALUE, not the TYPE — if the fields are not real
+ * numbers it returns null instead of blowing up.
  */
 export const hourlyRange = (
   te: TimeEstimate | null | undefined,
@@ -40,12 +40,12 @@ export const hourlyRange = (
 };
 
 // ---------------------------------------------------------------------------
-// Offer subtotal — TEK KAYNAK (create + edit aynı formülü buradan alır).
+// Offer subtotal — SINGLE SOURCE (create + edit derive the same formula from here).
 //
-// Lesson #8 (referans): subtotal/VAT birden fazla yerde hesaplanırsa diverge eder.
-// Önceki durum: create price_type'a göre (optional+inkl hariç), edit unit==="inkl."
-// string'ine göre (optional'ı kaçırıyordu) → edit+save sonrası DB total kayıyordu.
-// Çözüm: tek pure fn; hariç-tutma SEMANTİK price_type ile, unit string'iyle değil.
+// Lesson #8 (reference): if subtotal/VAT is computed in multiple places it diverges.
+// Previous state: create excluded by price_type (optional+inkl excluded), edit excluded by the
+// unit==="inkl." string (which missed optional) → after edit+save the DB total drifted.
+// Solution: a single pure fn; exclusion by SEMANTIC price_type, not by the unit string.
 // ---------------------------------------------------------------------------
 
 export interface SubtotalItem {
@@ -55,21 +55,21 @@ export interface SubtotalItem {
   timeEstimate: TimeEstimate | null;
 }
 
-// subtotal'a girmeyen kalem tipleri (gösterilir ama toplanmaz): optional, inkl.
+// Item types not included in the subtotal (shown but not summed): optional, inkl.
 const EXCLUDED_FROM_SUBTOTAL = new Set(["optional", "inkl"]);
 
 /**
- * Bir kalem "ücretsiz" mi (subtotal'a girmez → UI'da çip)? priceType ∈ {inkl, optional} → true.
- * Ücretli (pauschale/per_unit/per_hour → kutu) → false.
+ * Is an item "free" (not in the subtotal → chip in the UI)? priceType ∈ {inkl, optional} → true.
+ * Paid (pauschale/per_unit/per_hour → box) → false.
  *
- * ⚠️ TEK KAYNAK: subtotal/VAT'ı belirleyen EXCLUDED_FROM_SUBTOTAL ile aynı sabitten türer —
- * "ücretsiz = subtotal'a girmeyen" semantiği bölünmez (Lesson #8). Ayrı {inkl,optional}
- * listesi tanımlanmaz; çip/kutu ayrımı ile finansal ayrım her zaman aynı kalır.
+ * ⚠️ SINGLE SOURCE: derives from the same constant EXCLUDED_FROM_SUBTOTAL that determines
+ * subtotal/VAT — the "free = not in the subtotal" semantics are not split (Lesson #8). No separate
+ * {inkl,optional} list is defined; the chip/box distinction and the financial distinction always stay in sync.
  */
 export const isFreeItem = (priceType: string | null | undefined): boolean =>
   EXCLUDED_FROM_SUBTOTAL.has(priceType ?? "");
 
-// OfferItem.priceType ile aynı küme (OfferteItemRow). Katalog → offer item köprüsü için.
+// Same set as OfferItem.priceType (OfferteItemRow). For the catalog → offer item bridge.
 export type OfferPriceType = "pauschale" | "per_unit" | "per_hour" | "inkl" | "optional";
 
 /**
@@ -101,10 +101,10 @@ export const derivePriceTypeFromCatalog = (item: {
 };
 
 /**
- * Kalem listesinin subtotal'ını hesaplar (saf — parse etmez, number bekler).
- * - priceType ∈ {optional, inkl} → atlanır (isFreeItem).
- * - timeEstimate geçerliyse (hourlyRange) → mode 'min' alt, 'max' üst sınır.
- * - aksi halde quantity * unitPrice.
+ * Computes the subtotal of an item list (pure — does not parse, expects numbers).
+ * - priceType ∈ {optional, inkl} → skipped (isFreeItem).
+ * - if timeEstimate is valid (hourlyRange) → mode 'min' lower bound, 'max' upper bound.
+ * - otherwise quantity * unitPrice.
  */
 export const computeItemsSubtotal = (
   items: SubtotalItem[],
@@ -118,11 +118,11 @@ export const computeItemsSubtotal = (
   }, 0);
 
 /**
- * itemsSubtotal + (sabit) surcharge toplamı → taxableBase → VAT → total.
- * Blind aralığın ÜST sınırı için PDF (mapOfferData) ve OfferView aynı zinciri kullanır.
- * surchargesSum SABİT (kayıtlı tutarlar) — percent yeniden hesaplanmaz (offers.surcharges
- * zaten hesaplanmış amount taşır). min taraf DB'nin GENERATED değerlerinden gelir; bu fn
- * yalnız üst-sınır (max) için. vatRate 0 → vatAmount 0.
+ * itemsSubtotal + (fixed) surcharge sum → taxableBase → VAT → total.
+ * For the UPPER bound of the blind range, the PDF (mapOfferData) and OfferView use the same chain.
+ * surchargesSum is FIXED (stored amounts) — percent is not recomputed (offers.surcharges already
+ * carries a computed amount). The min side comes from the DB's GENERATED values; this fn is only
+ * for the upper bound (max). vatRate 0 → vatAmount 0.
  */
 export const computeTotalsFromSubtotal = (
   itemsSubtotal: number,
@@ -134,7 +134,7 @@ export const computeTotalsFromSubtotal = (
   return { taxableBase, vatAmount, total: taxableBase + vatAmount };
 };
 
-// Blind teklif uyarısı — PDF (BlindOfferteDisclaimer) + OfferView (DOM) aynı metni kullanır.
+// Blind offer disclaimer — PDF (BlindOfferteDisclaimer) + OfferView (DOM) use the same text.
 export const BLIND_DISCLAIMER_LABEL = "Wichtiger Hinweis";
 export const BLIND_DISCLAIMER_TEXT =
   "Diese Offerte wurde ohne persönliche Besichtigung erstellt und basiert ausschliesslich auf den " +

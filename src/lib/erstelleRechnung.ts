@@ -1,13 +1,13 @@
 /**
- * Auftrag → Rechnung map — Katman 4 (saf, test edilebilir; Faz 4a / S4).
+ * Auftrag → Rechnung map — Layer 4 (pure, testable; Phase 4a / S4).
  *
- * Guard: yalnızca status='abgeschlossen' Auftrag fakturalanır.
- * Kalem kaynağı offer_items (Soll/Ist yok — doküman kararı; faturada manuel düzeltilebilir).
- * Pozisyonlar RechnungPosition şeklinde → generateRechnungPdf doğrudan tüketir.
+ * Guard: only an Auftrag with status='abgeschlossen' is invoiced.
+ * Item source is offer_items (no Soll/Ist — documented decision; can be corrected manually on the invoice).
+ * Positions are shaped as RechnungPosition → generateRechnungPdf consumes them directly.
  *
- * DB/React bilmez: düz veri alır, düz NeueRechnung döner. rechnung_nr + faellig_am
- * DB trigger'ında üretilir; qr_referenz insert sonrası gerçek rechnung_nr ile
- * computeQrReference ile hesaplanır.
+ * Does not know about DB/React: takes plain data, returns a plain NeueRechnung. rechnung_nr + faellig_am
+ * are produced by a DB trigger; qr_referenz is computed after insert with the real rechnung_nr via
+ * computeQrReference.
  */
 import { isQRIBAN, generateQRRReference } from "@/lib/swiss-qr/core";
 import { isFreeItem } from "@/lib/offerPricing";
@@ -118,14 +118,14 @@ export const erstelleRechnungAusAuftrag = (
     rabatt: 0,
     gesamttotal: total,
     qr_iban: company.iban.trim(),
-    qr_referenz: null, // insert sonrası gerçek rechnung_nr ile hesaplanır
+    qr_referenz: null, // computed after insert with the real rechnung_nr
     status: "entwurf",
   };
 };
 
 /**
- * Insert sonrası gerçek rechnung_nr ile QR referansı üretir.
- * QR-IBAN → QRR (zorunlu). Normal IBAN → NON (null) — SCOR opsiyonel, MVP'de kullanılmaz.
+ * Generates the QR reference after insert with the real rechnung_nr.
+ * QR-IBAN → QRR (mandatory). Normal IBAN → NON (null) — SCOR is optional, not used in the MVP.
  */
 export const computeQrReference = (rechnungNr: string, iban: string): string | null => {
   if (!isQRIBAN(iban)) return null;

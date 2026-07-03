@@ -257,8 +257,8 @@ const PublicOfferView = () => {
         const { data: itemsData } = await supabase
           .rpc("get_offer_items_by_token", { p_access_token: token });
 
-        // RPC time_estimate: Json döndürür; OfferItem yapısal tip beklediği için cast.
-        // hourlyRange defensive (bozuk şekil → null), render runtime'da güvenli.
+        // RPC time_estimate: returns Json; cast because OfferItem expects a structural type.
+        // hourlyRange is defensive (malformed shape → null), safe at render runtime.
         setItems((itemsData as OfferItem[]) || []);
 
         // Get lead to determine service type and address
@@ -848,7 +848,7 @@ const PublicOfferView = () => {
                     const surchargeList = parseSurcharges(offer.surcharges);
                     const surchargesSum = sumSurchargeAmounts(surchargeList);
                     const minItemsSub = Number(offer.subtotal) - surchargesSum;
-                    // Üst sınır: blind item'ların maxHours'ından — optional/inkl hariç (tek kaynak).
+                    // Upper bound: from the maxHours of blind items — optional/inkl excluded (single source).
                     const maxItemsSub = computeItemsSubtotal(
                       items.map((it): SubtotalItem => ({
                         priceType: it.price_type ?? "",
@@ -858,7 +858,7 @@ const PublicOfferView = () => {
                       })),
                       "max",
                     );
-                    // Sabit surcharge toplamı (PDF max'ıyla aynı kaynak — yeniden percent hesaplanmaz).
+                    // Fixed surcharge total (same source as the PDF max — percent is not recalculated).
                     const maxTotals = computeTotalsFromSubtotal(maxItemsSub, surchargesSum, Number(offer.vat_rate));
                     const isRange = offer.offerte_type === "blind" && maxItemsSub !== minItemsSub;
                     return (

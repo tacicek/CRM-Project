@@ -23,21 +23,21 @@ const auftrag: AuftragInput = {
 const items: OfferItemInput[] = [
   { description: "Umzug 3 Mann", quantity: 6, unit: "Std", unit_price: 90, total: 540 },
   { description: "Transportpauschale", quantity: 1, unit: null, unit_price: 200, total: null },
-  { description: "  ", quantity: 1, unit: null, unit_price: 10, total: 10 }, // boş → atılır
+  { description: "  ", quantity: 1, unit: null, unit_price: 10, total: 10 }, // empty → dropped
 ];
 
 const company = { iban: "CH9300762011623852957" }; // normal IBAN
 
 describe("erstelleRechnungAusAuftrag", () => {
-  it("abgeschlossen olmayan Auftrag'ı reddeder", () => {
+  it("rejects an Auftrag that is not abgeschlossen", () => {
     expect(() => erstelleRechnungAusAuftrag({ ...auftrag, status: "in_bearbeitung" }, items, company)).toThrow();
   });
 
-  it("IBAN yoksa hata fırlatır", () => {
+  it("throws if IBAN is missing", () => {
     expect(() => erstelleRechnungAusAuftrag(auftrag, items, { iban: "" })).toThrow();
   });
 
-  it("offer_items'ı positionen'e map eder (boş açıklamalı atılır)", () => {
+  it("maps offer_items to positionen (empty description dropped)", () => {
     const r = erstelleRechnungAusAuftrag(auftrag, items, company);
     expect(r.positionen).toHaveLength(2);
     expect(r.positionen[0]).toEqual({
@@ -47,11 +47,11 @@ describe("erstelleRechnungAusAuftrag", () => {
       einzelpreis: 90,
       betrag: 540,
     });
-    // total yoksa menge*einzelpreis
+    // if no total, menge*einzelpreis
     expect(r.positionen[1].betrag).toBe(200);
   });
 
-  it("toplamları MwSt 8.1% ile hesaplar", () => {
+  it("computes totals with MwSt 8.1%", () => {
     const r = erstelleRechnungAusAuftrag(auftrag, items, company);
     expect(r.zwischensumme).toBe(740);
     expect(r.mwst_satz).toBe(8.1);
@@ -61,13 +61,13 @@ describe("erstelleRechnungAusAuftrag", () => {
     expect(r.rabatt).toBe(0);
   });
 
-  it("auftrag.vat_rate verilirse onu kullanır", () => {
+  it("uses auftrag.vat_rate if provided", () => {
     const r = erstelleRechnungAusAuftrag({ ...auftrag, vat_rate: 2.6 }, items, company);
     expect(r.mwst_satz).toBe(2.6);
     expect(r.mwst_betrag).toBe(19.24);
   });
 
-  it("customer + zincir alanlarını snapshot'lar", () => {
+  it("snapshots customer + chain fields", () => {
     const r = erstelleRechnungAusAuftrag(auftrag, items, company);
     expect(r.auftrag_id).toBe("auf-1");
     expect(r.offer_id).toBe("off-1");
@@ -93,7 +93,7 @@ describe("erstelleRechnungAusAuftrag", () => {
 });
 
 describe("computeQrReference", () => {
-  it("QR-IBAN → rechnung_nr'dan geçerli QRR üretir", () => {
+  it("QR-IBAN → generates a valid QRR from rechnung_nr", () => {
     const ref = computeQrReference("RE-2026-0001", "CH4431999123000889012");
     expect(ref).not.toBeNull();
     expect(isValidQRRReference(ref as string)).toBe(true);

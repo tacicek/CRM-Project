@@ -7,11 +7,11 @@ import type { Quittung } from "@/types/quittung.types";
 export type QuittungUpdate = Database["public"]["Tables"]["quittungen"]["Update"];
 
 /**
- * Quittungen veri katmanı — supabase.from + useState/useEffect (useRechnungen deseni,
- * React Query yok). companyId değişince otomatik yeniden yükler.
+ * Quittungen data layer — supabase.from + useState/useEffect (useRechnungen pattern,
+ * no React Query). Reloads automatically when companyId changes.
  *
- * Dönüş tipi hand-maintained Quittung (status union + QuittungPosition[]); sayfa
- * bu daha dar tipe bağımlı (FOLK_STATUS[q.status]). Payload generated Update tipi.
+ * Return type is the hand-maintained Quittung (status union + QuittungPosition[]); the page
+ * depends on this narrower type (FOLK_STATUS[q.status]). Payload is the generated Update type.
  */
 export const useQuittungen = (companyId: string | undefined) => {
   const { toast } = useToast();

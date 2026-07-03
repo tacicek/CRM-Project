@@ -63,7 +63,7 @@ export default function FirmaQuittungen() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { companyId } = useCachedCompany();
-  // Tam firma kaydı (adres/iban/bank dahil) — useCachedCompany select'i yok sayıyor → taze fetch.
+  // Full company record (incl. address/iban/bank) — useCachedCompany ignores the select → fresh fetch.
   const [company, setCompany] = useState<QuittungCompany | null>(null);
   useEffect(() => {
     if (!user?.id) return;

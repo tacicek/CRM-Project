@@ -452,7 +452,7 @@ const FirmaAuftraege = () => {
   };
 
   // Auftrag → Rechnung: erstelleRechnungAusAuftrag (saf map) → /firma/rechnungen/neu (state.fromRechnung).
-  // Kalem kaynağı auftrag.items + extra_services (sipariş snapshot'ı — Quittung akışıyla aynı).
+  // Line-item source is auftrag.items + extra_services (order snapshot — same as the Quittung flow).
   const handleCreateRechnung = async (auftrag: Auftrag) => {
     if (!companyId) return;
     const { data: comp } = await supabase

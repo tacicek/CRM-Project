@@ -52,8 +52,8 @@ export default function FirmaRechnungen() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { companyId } = useCachedCompany();
-  // Tam firma kaydı (plz/iban dahil) — useCachedCompany select'i yok sayıp yalnız
-  // activeCompany'yi (id/name/logo) döndürüyor; QR-Bill creditor adres alanları şart → taze fetch.
+  // Full company record (incl. plz/iban) — useCachedCompany ignores the select and only
+  // returns activeCompany (id/name/logo); QR-Bill creditor address fields are required → fresh fetch.
   const [c, setC] = useState<CompanyRow | null>(null);
   useEffect(() => {
     if (!user?.id) return;
@@ -87,13 +87,13 @@ export default function FirmaRechnungen() {
 
   const handleDownloadPdf = async (r: Rechnung) => {
     if (!pdfCompany) return;
-    // PDF, faturanın kendi qr_iban snapshot'ını (yoksa company.iban) kullanır —
-    // guard da aynı mantığı izlemeli, yoksa qr_iban dolu olsa bile boşuna bloklar.
+    // The PDF uses the invoice's own qr_iban snapshot (or company.iban if absent) —
+    // the guard must follow the same logic, otherwise it blocks needlessly even when qr_iban is filled.
     if (!(r.qr_iban || pdfCompany.iban)) {
       toast({ title: "IBAN fehlt", description: "Bitte IBAN in den Einstellungen hinterlegen.", variant: "destructive" });
       return;
     }
-    // QR-Bill creditor structured adres ister — eksikse kriptik "PLZ zorunlu" yerine net uyarı.
+    // The QR-Bill creditor requires a structured address — if missing, show a clear warning instead of the cryptic "PLZ required".
     const missingAddr = [!pdfCompany.street?.trim() && "Strasse", !pdfCompany.plz?.trim() && "PLZ", !pdfCompany.city?.trim() && "Ort"].filter(Boolean) as string[];
     if (missingAddr.length > 0) {
       toast({ title: "Firmen-Adresse unvollständig", description: `Bitte ${missingAddr.join(", ")} in den Einstellungen hinterlegen.`, variant: "destructive" });

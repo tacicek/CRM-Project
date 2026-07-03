@@ -25,7 +25,7 @@ const zonedWallClockToUtc = (dateStr: string, timeStr: string, timeZone = APP_TI
   return new Date(naiveAsUtc.getTime() - offsetMs);
 };
 
-// BUG-8: PII maskeleme yardımcıları — loglar DSG/DSGVO uyumlu
+// BUG-8: PII masking helpers — logs are DSG/DSGVO compliant
 const maskEmail = (e: string) => e.replace(/(?<=.{2}).+(?=@)/, "***");
 const maskPhone = (p: string) => p.slice(0, 4) + "***";
 

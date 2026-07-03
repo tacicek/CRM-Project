@@ -15,7 +15,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginHorizontal: -24, // bleed to page edges
     borderBottomWidth: 3,
-    borderBottomColor: ACCENT, // inline'da company accent ile override edilir
+    borderBottomColor: ACCENT, // overridden inline with the company accent
   },
   leftCol: {
     flex: 1,

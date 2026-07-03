@@ -140,7 +140,7 @@ interface Offer {
   customer_salutation?: string | null;
   offerte_type?: "normal" | "blind" | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
-  // Katman 2a: dondurulmuş adres (lead silinse de korunur). Okuma önceliği frozen > lead.
+  // Layer 2a: frozen address (preserved even if the lead is deleted). Read priority frozen > lead.
   frozen_from_street?: string | null;
   frozen_from_house_number?: string | null;
   frozen_from_plz?: string | null;
@@ -503,8 +503,8 @@ const FirmaOfferteDetail = () => {
                 primary_color: company.primary_color || undefined,
                 iban: company.iban || undefined,
               },
-      // Adres önceliği: dondurulmuş (offer.frozen_*) > lead (fallback). Böylece lead silinse de
-      // teklif adresini korur; 16/16 zaten frozen dolu olduğundan görünür fark yok.
+      // Address priority: frozen (offer.frozen_*) > lead (fallback). This preserves the offer
+      // address even if the lead is deleted; no visible difference since 16/16 already have frozen filled.
       customer_address: (offer.frozen_from_street || offer.frozen_from_plz || offer.frozen_from_city || leadAddress) ? {
         street: offer.frozen_from_street ?? leadAddress?.from_street ?? undefined,
         house_number: offer.frozen_from_house_number ?? leadAddress?.from_house_number ?? undefined,
