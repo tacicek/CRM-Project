@@ -90,7 +90,9 @@ Deno.serve(async (req) => {
       if (leadsError) throw leadsError;
 
       if (leads && leads.length > 0) {
-        // Store in archive_snapshots
+        const leadIds = leads.map((l) => l.id);
+        // Store the snapshot FIRST — only delete if it succeeded, otherwise we would destroy
+        // rows with no archived copy.
         const { error: snapshotError } = await supabase
           .from("archive_snapshots")
           .insert({
@@ -101,25 +103,31 @@ Deno.serve(async (req) => {
           });
 
         if (snapshotError) {
-          console.warn("Snapshot error:", snapshotError);
+          console.error("Leads snapshot failed — skipping delete:", snapshotError);
+          results.push({
+            type: "leads",
+            records_archived: 0,
+            records_deleted: 0,
+            success: false,
+            error: `Snapshot failed: ${snapshotError.message}`,
+          });
+        } else {
+          // Delete only the exact rows that were snapshotted (also closes the select→delete TOCTOU).
+          const { error: deleteError } = await supabase
+            .from("leads")
+            .delete()
+            .in("id", leadIds);
+
+          results.push({
+            type: "leads",
+            records_archived: leads.length,
+            records_deleted: deleteError ? 0 : leads.length,
+            success: !deleteError,
+            error: deleteError?.message,
+          });
+
+          console.log(`✅ Leads archived: ${leads.length}`);
         }
-
-        // Delete archived leads
-        const { error: deleteError } = await supabase
-          .from("leads")
-          .delete()
-          .lt("created_at", leadsCutoff.toISOString())
-          .in("status", ["completed", "cancelled", "expired", "rejected"]);
-
-        results.push({
-          type: "leads",
-          records_archived: leads.length,
-          records_deleted: deleteError ? 0 : leads.length,
-          success: !deleteError,
-          error: deleteError?.message,
-        });
-
-        console.log(`✅ Leads archived: ${leads.length}`);
       } else {
         results.push({
           type: "leads",
@@ -154,8 +162,9 @@ Deno.serve(async (req) => {
       if (emailsError) throw emailsError;
 
       if (emails && emails.length > 0) {
-        // Store snapshot
-        await supabase
+        const emailIds = emails.map((e) => e.id);
+        // Snapshot first; abort the delete if it fails.
+        const { error: snapshotError } = await supabase
           .from("archive_snapshots")
           .insert({
             data: emails,
@@ -163,21 +172,31 @@ Deno.serve(async (req) => {
             checksum: generateChecksum(JSON.stringify(emails)),
           });
 
-        // Delete
-        const { error: deleteError } = await supabase
-          .from("email_logs")
-          .delete()
-          .lt("created_at", emailCutoff.toISOString());
+        if (snapshotError) {
+          console.error("Email logs snapshot failed — skipping delete:", snapshotError);
+          results.push({
+            type: "email_logs",
+            records_archived: 0,
+            records_deleted: 0,
+            success: false,
+            error: `Snapshot failed: ${snapshotError.message}`,
+          });
+        } else {
+          const { error: deleteError } = await supabase
+            .from("email_logs")
+            .delete()
+            .in("id", emailIds);
 
-        results.push({
-          type: "email_logs",
-          records_archived: emails.length,
-          records_deleted: deleteError ? 0 : emails.length,
-          success: !deleteError,
-          error: deleteError?.message,
-        });
+          results.push({
+            type: "email_logs",
+            records_archived: emails.length,
+            records_deleted: deleteError ? 0 : emails.length,
+            success: !deleteError,
+            error: deleteError?.message,
+          });
 
-        console.log(`✅ Email logs archived: ${emails.length}`);
+          console.log(`✅ Email logs archived: ${emails.length}`);
+        }
       } else {
         results.push({
           type: "email_logs",
@@ -213,8 +232,9 @@ Deno.serve(async (req) => {
       if (notifError) throw notifError;
 
       if (notifications && notifications.length > 0) {
-        // Store snapshot
-        await supabase
+        const notifIds = notifications.map((n) => n.id);
+        // Snapshot first; abort the delete if it fails.
+        const { error: snapshotError } = await supabase
           .from("archive_snapshots")
           .insert({
             data: notifications,
@@ -222,12 +242,21 @@ Deno.serve(async (req) => {
             checksum: generateChecksum(JSON.stringify(notifications)),
           });
 
-        // Delete
+        if (snapshotError) {
+          console.error("Notifications snapshot failed — skipping delete:", snapshotError);
+          results.push({
+            type: "notifications",
+            records_archived: 0,
+            records_deleted: 0,
+            success: false,
+            error: `Snapshot failed: ${snapshotError.message}`,
+          });
+        } else {
+        // Delete only the exact rows that were snapshotted.
         const { error: deleteError } = await supabase
           .from("notifications")
           .delete()
-          .lt("created_at", notifCutoff.toISOString())
-          .eq("read", true);
+          .in("id", notifIds);
 
         results.push({
           type: "notifications",
@@ -238,6 +267,7 @@ Deno.serve(async (req) => {
         });
 
         console.log(`✅ Notifications archived: ${notifications.length}`);
+        }
       } else {
         results.push({
           type: "notifications",
