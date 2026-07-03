@@ -3397,6 +3397,7 @@ export type Database = {
           customer_salutation: string | null
           description: string | null
           destination_building_info: Json | null
+          discount_percent: number | null
           frozen_address_at: string | null
           frozen_checklist_at: string | null
           frozen_from_city: string | null
@@ -3494,6 +3495,7 @@ export type Database = {
           customer_salutation?: string | null
           description?: string | null
           destination_building_info?: Json | null
+          discount_percent?: number | null
           frozen_address_at?: string | null
           frozen_checklist_at?: string | null
           frozen_from_city?: string | null
@@ -3591,6 +3593,7 @@ export type Database = {
           customer_salutation?: string | null
           description?: string | null
           destination_building_info?: Json | null
+          discount_percent?: number | null
           frozen_address_at?: string | null
           frozen_checklist_at?: string | null
           frozen_from_city?: string | null
