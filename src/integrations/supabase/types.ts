@@ -3097,6 +3097,41 @@ export type Database = {
           },
         ]
       }
+      offer_item_breakdown: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          offer_item_id: string
+          position: number
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          offer_item_id: string
+          position?: number
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          offer_item_id?: string
+          position?: number
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_item_breakdown_offer_item_id_fkey"
+            columns: ["offer_item_id"]
+            isOneToOne: false
+            referencedRelation: "offer_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offer_item_effort_meta: {
         Row: {
           aufwand_max_h: number | null
@@ -3130,6 +3165,38 @@ export type Database = {
             foreignKeyName: "offer_item_effort_meta_offer_item_id_fkey"
             columns: ["offer_item_id"]
             isOneToOne: true
+            referencedRelation: "offer_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offer_item_leistung: {
+        Row: {
+          created_at: string
+          id: string
+          offer_item_id: string
+          position: number
+          text: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          offer_item_id: string
+          position?: number
+          text: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          offer_item_id?: string
+          position?: number
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_item_leistung_offer_item_id_fkey"
+            columns: ["offer_item_id"]
+            isOneToOne: false
             referencedRelation: "offer_items"
             referencedColumns: ["id"]
           },
