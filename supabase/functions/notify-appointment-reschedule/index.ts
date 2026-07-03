@@ -82,6 +82,25 @@ const handler = async (req: Request): Promise<Response> => {
     const confirmUrl = `${siteUrl}/termin/${appointmentId}/antwort?action=confirm&date=${proposedDate}&time=${proposedTime}&token=${responseToken}`;
     const rejectUrl = `${siteUrl}/termin/${appointmentId}/antwort?action=reject&date=${proposedDate}&time=${proposedTime}&token=${responseToken}`;
 
+    // Persist the token so handle-reschedule-response can validate the firma's click.
+    // 30-day window: a reschedule request older than that must be re-initiated.
+    const tokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { error: tokenError } = await supabase
+      .from("appointments")
+      .update({
+        reschedule_token: responseToken,
+        reschedule_token_expires_at: tokenExpiresAt,
+      })
+      .eq("id", appointmentId);
+
+    if (tokenError) {
+      console.error("[notify-appointment-reschedule] Failed to persist reschedule token:", tokenError);
+      return new Response(
+        JSON.stringify({ error: "Terminverschiebung konnte nicht vorbereitet werden" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Send email to company with action buttons
     const companyEmailHtml = `
       <!DOCTYPE html>
