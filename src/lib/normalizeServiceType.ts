@@ -16,13 +16,15 @@ export const normalizeServiceTypeForAgb = (serviceType: string): string => {
     'privatumzug': 'umzug',
     'firmenumzug': 'umzug',
 
-    // Reinigung variants → reinigung
+    // Reinigung variants → reinigung (incl. the lead-form enum values reinigung_end / reinigung_grund)
     'endreinigung': 'reinigung',
     'grundreinigung': 'reinigung',
     'umzugsreinigung': 'reinigung',
     'reinigung_umzug': 'reinigung',
     'reinigung_bau': 'reinigung',
     'reinigung_buero': 'reinigung',
+    'reinigung_end': 'reinigung',
+    'reinigung_grund': 'reinigung',
 
     // Räumung variants → raeumung (NOT entsorgung)
     'raeumung_wohnung': 'raeumung',
@@ -34,10 +36,10 @@ export const normalizeServiceTypeForAgb = (serviceType: string): string => {
     'entsorgung_moebel': 'entsorgung',
     'entsorgung_sperrgut': 'entsorgung',
 
-    // Transport variants → transport
-    'moebel_transport': 'transport',
-    'usm_transport': 'transport',
-    'wasserbett_transport': 'transport',
+    // NOTE: usm_transport, wasserbett_transport, klaviertransport, moebellift and malerarbeit
+    // are themselves template keys (see SERVICE_TYPES in constants/service-catalog.ts). They must
+    // NOT be collapsed to a 'transport' base — no such template key exists, so the collapse made
+    // their AGB/checklist templates unfindable. Left unmapped, they fall through to themselves.
   };
 
   return mappings[serviceType.toLowerCase()] || serviceType;
