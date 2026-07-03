@@ -72,9 +72,6 @@ verify_jwt = false
 verify_jwt = false
 # Auth is handled inside the function via supabaseClient.auth.getUser(token)
 
-[functions.send-purchase-confirmation]
-verify_jwt = false
-
 [functions.admin-create-user]
 verify_jwt = false
 
