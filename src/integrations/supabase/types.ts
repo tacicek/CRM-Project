@@ -3244,9 +3244,12 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          discount_amount: number | null
+          discount_percent: number | null
           id: string
           is_highlighted: boolean | null
           is_optional: boolean | null
+          list_price: number | null
           offer_id: string
           position: number
           price_type: string | null
@@ -3260,9 +3263,12 @@ export type Database = {
         Insert: {
           created_at?: string
           description: string
+          discount_amount?: number | null
+          discount_percent?: number | null
           id?: string
           is_highlighted?: boolean | null
           is_optional?: boolean | null
+          list_price?: number | null
           offer_id: string
           position?: number
           price_type?: string | null
@@ -3276,9 +3282,12 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string
+          discount_amount?: number | null
+          discount_percent?: number | null
           id?: string
           is_highlighted?: boolean | null
           is_optional?: boolean | null
+          list_price?: number | null
           offer_id?: string
           position?: number
           price_type?: string | null
