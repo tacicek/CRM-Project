@@ -24,13 +24,17 @@ serve(async (req: Request) => {
   }
 
   const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  if (cronSecret) {
-    const providedSecret = req.headers.get("x-internal-secret");
-    if (providedSecret !== cronSecret) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { "Content-Type": "application/json" },
-      });
-    }
+  if (!cronSecret) {
+    console.error("INTERNAL_CRON_SECRET not configured — refusing to run (fail closed)");
+    return new Response(JSON.stringify({ error: "Server misconfigured" }), {
+      status: 500, headers: { "Content-Type": "application/json" },
+    });
+  }
+  const providedSecret = req.headers.get("x-internal-secret");
+  if (providedSecret !== cronSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    });
   }
 
   try {
