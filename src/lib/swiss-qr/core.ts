@@ -93,7 +93,7 @@ export const mod10Recursive = (digits: string): number => {
   const table = [0, 9, 4, 6, 8, 2, 7, 1, 3, 5];
   let carry = 0;
   for (const d of digits) {
-    if (d < "0" || d > "9") throw new Error(`mod10Recursive: rakam değil: ${d}`);
+    if (d < "0" || d > "9") throw new Error(`mod10Recursive: keine Ziffer: ${d}`);
     carry = table[(carry + Number(d)) % 10];
   }
   return (10 - carry) % 10;
@@ -105,8 +105,8 @@ export const mod10Recursive = (digits: string): number => {
  */
 export const generateQRRReference = (raw: string): string => {
   const base = raw.replace(/\D/g, "");
-  if (base.length === 0) throw new Error("generateQRRReference: boş referans tabanı");
-  if (base.length > 26) throw new Error("generateQRRReference: taban 26 haneyi aşıyor");
+  if (base.length === 0) throw new Error("generateQRRReference: leere Referenzbasis");
+  if (base.length > 26) throw new Error("generateQRRReference: Basis überschreitet 26 Stellen");
   const padded = base.padStart(26, "0");
   return padded + String(mod10Recursive(padded));
 };
@@ -125,8 +125,8 @@ export const isValidQRRReference = (ref: string): boolean => {
  */
 export const generateSCORReference = (raw: string): string => {
   const base = raw.replace(/\s+/g, "").toUpperCase();
-  if (base.length === 0) throw new Error("generateSCORReference: boş referans tabanı");
-  if (!/^[0-9A-Z]{1,21}$/.test(base)) throw new Error("generateSCORReference: geçersiz karakter");
+  if (base.length === 0) throw new Error("generateSCORReference: leere Referenzbasis");
+  if (!/^[0-9A-Z]{1,21}$/.test(base)) throw new Error("generateSCORReference: ungültiges Zeichen");
   const numeric = (base + "RF00")
     .split("")
     .map((ch) => {
@@ -152,16 +152,16 @@ const detectReferenceType = (reference: string): ReferenceType => {
 
 /** Swiss QR-Bill için tutar formatı: 2 ondalık, ayraçsız (ör. "250.00"). */
 const formatAmount = (amount: number): string => {
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Geçersiz tutar");
-  if (amount > 999_999_999.99) throw new Error("Tutar üst sınırı aşıyor");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Ungültiger Betrag");
+  if (amount > 999_999_999.99) throw new Error("Betrag überschreitet die Obergrenze");
   return amount.toFixed(2);
 };
 
 const requireAddress = (a: QrBillAddress, label: string): void => {
-  if (!a.name?.trim()) throw new Error(`${label}: Name zorunlu`);
-  if (!a.postalCode?.trim()) throw new Error(`${label}: PLZ zorunlu (structured adres)`);
-  if (!a.town?.trim()) throw new Error(`${label}: Ort zorunlu (structured adres)`);
-  if (!/^[A-Z]{2}$/.test(a.country ?? "")) throw new Error(`${label}: ülke ISO alpha-2 olmalı`);
+  if (!a.name?.trim()) throw new Error(`${label}: Name erforderlich`);
+  if (!a.postalCode?.trim()) throw new Error(`${label}: PLZ erforderlich (strukturierte Adresse)`);
+  if (!a.town?.trim()) throw new Error(`${label}: Ort erforderlich (strukturierte Adresse)`);
+  if (!/^[A-Z]{2}$/.test(a.country ?? "")) throw new Error(`${label}: Land muss ISO alpha-2 sein`);
 };
 
 /**
@@ -175,8 +175,8 @@ const requireAddress = (a: QrBillAddress, label: string): void => {
  */
 export const buildQrPayload = (input: QrBillInput): string => {
   const iban = cleanIBAN(input.creditor.iban ?? "");
-  if (!iban) throw new Error("buildQrPayload: creditor IBAN zorunlu");
-  if (!validateSwissIBAN(iban)) throw new Error(`buildQrPayload: geçersiz CH/LI IBAN: ${iban}`);
+  if (!iban) throw new Error("buildQrPayload: Gläubiger-IBAN erforderlich");
+  if (!validateSwissIBAN(iban)) throw new Error(`buildQrPayload: ungültige CH/LI IBAN: ${iban}`);
   requireAddress(input.creditor, "creditor");
 
   const refType: ReferenceType = input.reference
@@ -185,10 +185,10 @@ export const buildQrPayload = (input: QrBillInput): string => {
 
   // İsviçre normu: referans tipi IBAN tipiyle uyumlu olmalı.
   if (isQRIBAN(iban) && refType !== "QRR") {
-    throw new Error("QR-IBAN için QRR referans zorunlu (banka aksi halde ödemeyi reddeder)");
+    throw new Error("Für QR-IBAN ist eine QRR-Referenz erforderlich (die Bank weist die Zahlung sonst zurück)");
   }
   if (!isQRIBAN(iban) && refType === "QRR") {
-    throw new Error("QRR referans yalnızca QR-IBAN ile kullanılır; normal IBAN için SCOR/NON");
+    throw new Error("QRR-Referenz ist nur mit QR-IBAN zulässig; für normale IBAN SCOR/NON verwenden");
   }
 
   const reference = input.reference?.replace(/\s+/g, "") ?? "";
