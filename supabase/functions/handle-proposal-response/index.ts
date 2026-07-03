@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { getDefaultFrom, getAppName } from "../_shared/envConfig.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -215,7 +216,7 @@ serve(async (req: Request) => {
             </div>
             <div style="padding: 30px; background: #ffffff;">
               <p style="font-size: 16px; color: #333;">Gute Nachrichten!</p>
-              <p style="font-size: 16px; color: #333;"><strong>${customerName}</strong> hat einen Besichtigungstermin bestätigt.</p>
+              <p style="font-size: 16px; color: #333;"><strong>${escapeHtml(customerName)}</strong> hat einen Besichtigungstermin bestätigt.</p>
               
               <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
                 <h3 style="margin: 0 0 15px 0; color: #166534;">Termindetails</h3>
@@ -227,7 +228,7 @@ serve(async (req: Request) => {
               ${customerMessage ? `
               <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p style="margin: 0; font-size: 14px; color: #64748b;"><strong>Nachricht des Kunden:</strong></p>
-                <p style="margin: 10px 0 0 0; color: #333;">${customerMessage}</p>
+                <p style="margin: 10px 0 0 0; color: #333;">${escapeHtml(customerMessage)}</p>
               </div>
               ` : ""}
 
@@ -261,7 +262,7 @@ serve(async (req: Request) => {
               <h1 style="color: white; margin: 0; font-size: 24px;">Termin bestätigt</h1>
             </div>
             <div style="padding: 30px; background: #ffffff;">
-              <p style="font-size: 16px; color: #333;">Guten Tag ${customerName},</p>
+              <p style="font-size: 16px; color: #333;">Guten Tag ${escapeHtml(customerName)},</p>
               <p style="font-size: 16px; color: #333;">Ihr Besichtigungstermin wurde erfolgreich bestätigt.</p>
               
               <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
@@ -348,12 +349,12 @@ serve(async (req: Request) => {
               <h1 style="color: white; margin: 0; font-size: 24px;">Terminvorschläge abgelehnt</h1>
             </div>
             <div style="padding: 30px; background: #ffffff;">
-              <p style="font-size: 16px; color: #333;"><strong>${customerName}</strong> hat die vorgeschlagenen Besichtigungstermine abgelehnt.</p>
+              <p style="font-size: 16px; color: #333;"><strong>${escapeHtml(customerName)}</strong> hat die vorgeschlagenen Besichtigungstermine abgelehnt.</p>
               
               ${customerMessage ? `
               <div style="background: #fff7ed; border-left: 4px solid #f97316; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
                 <p style="margin: 0; font-size: 14px; color: #9a3412;"><strong>Nachricht des Kunden:</strong></p>
-                <p style="margin: 10px 0 0 0; color: #333;">${customerMessage}</p>
+                <p style="margin: 10px 0 0 0; color: #333;">${escapeHtml(customerMessage)}</p>
               </div>
               ` : ""}
 

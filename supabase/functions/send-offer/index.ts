@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { getDefaultFrom, getDashAppUrl, getAppName } from "../_shared/envConfig.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 // jsPDF and QRCode removed - ALL PDFs are now generated on the frontend
 // using @react-pdf/renderer and passed to this edge function as base64.
 // This keeps the edge function lightweight and ensures identical PDFs.
@@ -17,16 +18,6 @@ const corsHeaders = {
 const maskEmail = (e: string) => e.replace(/(?<=.{2}).+(?=@)/, "***");
 
 /** Escape user-supplied strings before interpolating into HTML email templates. */
-const escapeHtml = (s: string | null | undefined): string => {
-  if (!s) return "";
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-};
-
 interface SendOfferRequest {
   offerId: string;
   /** Pre-generated offer PDF as base64 (from frontend @react-pdf/renderer). */
@@ -552,7 +543,7 @@ const handler = async (req: Request): Promise<Response> => {
               <td style="padding: 2px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${item.position}</td>
             </tr>
             <tr>
-              <td colspan="2" style="padding: 6px 0 4px 0; color: #111827; font-size: 14px; word-break: break-word; line-height: 1.5;">${item.description}</td>
+              <td colspan="2" style="padding: 6px 0 4px 0; color: #111827; font-size: 14px; word-break: break-word; line-height: 1.5;">${escapeHtml(item.description)}</td>
             </tr>
             ${hasTE ? `
             <tr>
@@ -693,7 +684,7 @@ const handler = async (req: Request): Promise<Response> => {
               const itemsSub = Number(offer.subtotal) - surchargesSum;
               const surchargeRows = surchargeArr.map((x) => `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">${x?.label || "Zuschlag"}:</span>
+              <span style="color: #6b7280;">${escapeHtml(x?.label) || "Zuschlag"}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(x?.amount) || 0)}</span>
             </div>`).join("");
               return `
@@ -728,7 +719,7 @@ const handler = async (req: Request): Promise<Response> => {
             const rangeSurchargesSum = rangeSurcharges.reduce((sum, x) => sum + (Number(x?.amount) || 0), 0);
             const rangeSurchargeRows = rangeSurcharges.map((x) => `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">${x?.label || 'Zuschlag'}:</span>
+              <span style="color: #6b7280;">${escapeHtml(x?.label) || 'Zuschlag'}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(x?.amount) || 0)}</span>
             </div>`).join("");
             const minVat = (minSub + rangeSurchargesSum) * (Number(offer.vat_rate) / 100);
@@ -794,7 +785,7 @@ const handler = async (req: Request): Promise<Response> => {
           <!-- Zahlungskondition -->
           <div style="margin: 0 0 24px 0; padding: 14px 16px; background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #22c55e; display: flex; align-items: flex-start; gap: 12px;">
             <span style="font-weight: 700; color: #166534; font-size: 14px; white-space: nowrap;">Zahlungskondition:</span>
-            <span style="color: #166534; font-size: 14px;">${paymentTerms}</span>
+            <span style="color: #166534; font-size: 14px;">${escapeHtml(paymentTerms)}</span>
           </div>
           ` : ''}
 

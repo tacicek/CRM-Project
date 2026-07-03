@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -154,14 +155,14 @@ const handler = async (req: Request): Promise<Response> => {
             
             <div class="customer-info">
               <div class="label">👤 Kunde</div>
-              <div class="value">${customerName}</div>
+              <div class="value">${escapeHtml(customerName)}</div>
               <div style="color: #6b7280; font-size: 14px; margin-top: 5px;">${customerEmail}</div>
             </div>
             
             ${customerMessage ? `
             <div class="message-box">
               <div class="label">💬 Nachricht des Kunden</div>
-              <p style="margin: 10px 0 0;">${customerMessage}</p>
+              <p style="margin: 10px 0 0;">${escapeHtml(customerMessage)}</p>
             </div>
             ` : ""}
             
@@ -219,8 +220,8 @@ const handler = async (req: Request): Promise<Response> => {
             <p style="margin: 10px 0 0; opacity: 0.9;">Ihr Verschiebungswunsch wurde übermittelt</p>
           </div>
           <div class="content">
-            <p>Guten Tag ${customerName},</p>
-            <p>Ihr Terminvorschlag wurde erfolgreich an ${companyName} gesendet.</p>
+            <p>Guten Tag ${escapeHtml(customerName)},</p>
+            <p>Ihr Terminvorschlag wurde erfolgreich an ${escapeHtml(companyName)} gesendet.</p>
             
             <div class="info-box">
               <h2 style="margin: 0 0 15px; color: #1f2937;">${appointmentTitle}</h2>
@@ -233,12 +234,12 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
             
             <p>
-              ${companyName} wird sich bei Ihnen melden, um den Termin zu bestätigen oder einen alternativen Vorschlag zu machen.
+              ${escapeHtml(companyName)} wird sich bei Ihnen melden, um den Termin zu bestätigen oder einen alternativen Vorschlag zu machen.
             </p>
             
             <div class="footer">
               <p style="color: #6b7280;">
-                Bei Fragen können Sie sich direkt an ${companyName} wenden.
+                Bei Fragen können Sie sich direkt an ${escapeHtml(companyName)} wenden.
               </p>
             </div>
           </div>
