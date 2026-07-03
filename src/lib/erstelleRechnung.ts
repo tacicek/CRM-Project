@@ -10,6 +10,7 @@
  * computeQrReference ile hesaplanır.
  */
 import { isQRIBAN, generateQRRReference } from "@/lib/swiss-qr/core";
+import { isFreeItem } from "@/lib/offerPricing";
 import type { RechnungPosition } from "@/lib/generateRechnungPdf";
 
 export interface OfferItemInput {
@@ -18,6 +19,10 @@ export interface OfferItemInput {
   unit: string | null;
   unit_price: number;
   total: number | null;
+  // Semantic price type from offer_items. optional/inkl are excluded from the offer
+  // subtotal and must not be billed on the invoice either. Undefined (e.g. extra_services)
+  // is treated as billable.
+  price_type?: string | null;
 }
 
 export interface AuftragInput {
@@ -75,7 +80,10 @@ export const erstelleRechnungAusAuftrag = (
   }
 
   const positionen: RechnungPosition[] = offerItems
-    .filter((it) => (it.description ?? "").trim().length > 0)
+    // Skip empty rows and free items (optional/inkl) — they carry a line total in the DB
+    // (GENERATED quantity*unit_price) but are excluded from the offer subtotal, so billing
+    // them would overcharge the customer versus the accepted offer.
+    .filter((it) => (it.description ?? "").trim().length > 0 && !isFreeItem(it.price_type))
     .map((it) => {
       const menge = it.quantity ?? 1;
       const einzelpreis = it.unit_price ?? 0;

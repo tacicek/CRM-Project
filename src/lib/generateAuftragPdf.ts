@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { isFreeItem } from "./offerPricing";
 
 // =============================================================================
 // INTERFACES
@@ -12,6 +13,7 @@ interface OfferItem {
   unit: string | null;
   unit_price: number;
   total: number | null;
+  price_type?: string | null;
 }
 
 interface CompanyInfo {
@@ -850,9 +852,16 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
       const textY = yPos + ROW_PADDING + 3; // baseline offset
 
       doc.text(descLines[0], col1, textY);
-      doc.text(`${item.quantity} ${item.unit || ""}`,                          col2, textY, { align: "center" });
-      doc.text(formatCurrency(item.unit_price),                                col3, textY, { align: "center" });
-      doc.text(formatCurrency(item.total ?? item.quantity * item.unit_price),  col4, textY, { align: "right"  });
+      doc.text(`${item.quantity} ${item.unit || ""}`, col2, textY, { align: "center" });
+      // Free items (optional/inkl) are excluded from Zwischensumme, so they must not print a
+      // billable line total — otherwise the rows wouldn't add up to the totals block.
+      if (isFreeItem(item.price_type)) {
+        const label = item.price_type === "inkl" ? "inkl." : "auf Anfrage";
+        doc.text(label, col4, textY, { align: "right" });
+      } else {
+        doc.text(formatCurrency(item.unit_price),                               col3, textY, { align: "center" });
+        doc.text(formatCurrency(item.total ?? item.quantity * item.unit_price), col4, textY, { align: "right"  });
+      }
 
       // Wrapped description continuation lines
       let lineY = textY + 4;

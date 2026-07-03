@@ -78,6 +78,18 @@ describe("erstelleRechnungAusAuftrag", () => {
     expect(r.qr_referenz).toBeNull();
     expect(r.status).toBe("entwurf");
   });
+
+  it("schliesst optionale und inklusive Positionen aus (keine Überberechnung)", () => {
+    const mitFreiPositionen: OfferItemInput[] = [
+      { description: "Umzug pauschal", quantity: 1, unit: null, unit_price: 1000, total: 1000, price_type: "pauschale" },
+      { description: "Einpackservice (optional)", quantity: 1, unit: null, unit_price: 300, total: 300, price_type: "optional" },
+      { description: "Kartons inklusive", quantity: 10, unit: "Stk", unit_price: 0, total: 0, price_type: "inkl" },
+    ];
+    const r = erstelleRechnungAusAuftrag(auftrag, mitFreiPositionen, company);
+    expect(r.positionen).toHaveLength(1);
+    expect(r.positionen[0].beschreibung).toBe("Umzug pauschal");
+    expect(r.zwischensumme).toBe(1000);
+  });
 });
 
 describe("computeQrReference", () => {

@@ -78,6 +78,7 @@ interface OfferItem {
   unit: string | null;
   unit_price: number;
   total: number | null;
+  price_type?: string | null;
 }
 
 interface FullOffer {

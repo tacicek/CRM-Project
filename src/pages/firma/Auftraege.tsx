@@ -74,6 +74,7 @@ interface OfferItem {
   unit: string | null;
   unit_price: number;
   total: number | null;
+  price_type?: string | null;
 }
 
 interface ExtraService {
@@ -464,6 +465,9 @@ const FirmaAuftraege = () => {
 
     const getTotal = (it: OfferItem | ExtraService): number | null =>
       "total" in it && typeof it.total === "number" ? it.total : null;
+    // extra_services have no price_type → billable; offer items carry optional/inkl.
+    const getPriceType = (it: OfferItem | ExtraService): string | null =>
+      "price_type" in it && typeof it.price_type === "string" ? it.price_type : null;
 
     const offerItems: OfferItemInput[] = [
       ...(auftrag.items ?? []),
@@ -474,6 +478,7 @@ const FirmaAuftraege = () => {
       unit: it.unit ?? null,
       unit_price: it.unit_price ?? 0,
       total: getTotal(it),
+      price_type: getPriceType(it),
     }));
 
     try {

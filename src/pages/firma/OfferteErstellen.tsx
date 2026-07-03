@@ -1051,6 +1051,9 @@ const FirmaOfferteErstellen = () => {
         service_date: serviceDate || null,
         valid_until: validUntil || null,
         subtotal,
+        // H1: persist the distance so OfferteBearbeiten can recompute per-km surcharges.
+        // Without it, editing an offer recomputes per_km amounts against a null distance → 0.
+        moving_distance_km: distanceKm,
         surcharges: computedSurcharges,
         vat_rate: mwstEnabled ? vatRate : 0,
         // F1a: Kundennummer + teklif-seviyesi Rabatt (totals'a entegrasyon F3'te).
@@ -1125,7 +1128,10 @@ const FirmaOfferteErstellen = () => {
           description: item.details.length > 0
             ? `${item.description}\n${item.details.filter(Boolean).map((d) => `• ${d}`).join("\n")}`
             : item.description,
-          quantity: item.priceType === "inkl" ? 1 : item.quantity,
+          // M2: blind (time-estimate) items are priced as minHours*hourlyRate for the whole
+          // position, so quantity must be 1 — otherwise the GENERATED total (quantity*unit_price)
+          // double-counts. Mirrors the "inkl" handling.
+          quantity: item.priceType === "inkl" || teValid ? 1 : item.quantity,
           unit: item.priceType === "inkl" ? "inkl." : item.unit,
           unit_price: teValid
             ? parseFloat(te!.minHours) * parseFloat(te!.hourlyRate)
