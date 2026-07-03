@@ -1063,11 +1063,7 @@ const FirmaOfferteErstellen = () => {
         sent_at: null,
       };
 
-      // Try to insert with enhanced fields first, fall back to core fields only
-      let offer;
-      let offerError;
-
-      // Enhanced offer fields (only if migration has been applied)
+      // Enhanced offer fields — the live DB has all these columns.
       const enhancedOfferData = {
         ...coreOfferData,
         company_reference: offerDetails.companyReference || null,
@@ -1090,26 +1086,14 @@ const FirmaOfferteErstellen = () => {
         offerte_type: offerteType,
       };
 
-      // First try with enhanced fields
-      const enhancedResult = await supabase
+      // Insert directly. The old "core fields only" fallback was dead code that masked real
+      // insert errors — and coreOfferData itself now carries newer columns than some of the
+      // "enhanced" ones, so the fallback insert would fail identically and never recover.
+      const { data: offer, error: offerError } = await supabase
         .from("offers")
         .insert(enhancedOfferData)
         .select()
         .single();
-
-      if (enhancedResult.error?.message?.includes("column") || enhancedResult.error?.code === "42703") {
-        // Enhanced columns don't exist yet, try with core fields only
-        const coreResult = await supabase
-          .from("offers")
-          .insert(coreOfferData)
-          .select()
-          .single();
-        offer = coreResult.data;
-        offerError = coreResult.error;
-      } else {
-        offer = enhancedResult.data;
-        offerError = enhancedResult.error;
-      }
 
       if (offerError) throw offerError;
 
