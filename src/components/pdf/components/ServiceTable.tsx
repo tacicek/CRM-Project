@@ -368,25 +368,29 @@ export const ServiceTable = ({
 
             <View style={styles.totalDivider} />
 
-            {/* MwSt */}
-            {data.pricing.maxMwstAmount !== null ? (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>{`MwSt ${data.pricing.mwstRate} %`}</Text>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={[styles.totalValue, { color: "#B45309" }]}>
-                    {formatCurrency(data.pricing.mwstAmount)}
-                  </Text>
-                  <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                    {"\u2013"} {formatCurrency(data.pricing.maxMwstAmount)}
-                  </Text>
+            {/* MwSt \u2014 only when a rate is active (Satz > 0); at 0% the row is omitted
+                entirely (Zwischensumme = Gesamtbetrag), mirroring the Rechnung PDF
+                (generateRechnungPdf.ts: `if (data.mwst_satz > 0)`). Amounts are untouched. */}
+            {data.pricing.mwstRate > 0 ? (
+              data.pricing.maxMwstAmount !== null ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>{`MwSt ${data.pricing.mwstRate} %`}</Text>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={[styles.totalValue, { color: "#B45309" }]}>
+                      {formatCurrency(data.pricing.mwstAmount)}
+                    </Text>
+                    <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
+                      {"\u2013"} {formatCurrency(data.pricing.maxMwstAmount)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ) : (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>{`MwSt ${data.pricing.mwstRate} %`}</Text>
-                <Text style={styles.totalValue}>{formatCurrency(data.pricing.mwstAmount)}</Text>
-              </View>
-            )}
+              ) : (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>{`MwSt ${data.pricing.mwstRate} %`}</Text>
+                  <Text style={styles.totalValue}>{formatCurrency(data.pricing.mwstAmount)}</Text>
+                </View>
+              )
+            ) : null}
 
             {/* GESAMTBETRAG — dark box */}
             <View style={[styles.grandTotalBox, { backgroundColor: accent }]}>
