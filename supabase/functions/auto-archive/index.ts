@@ -309,9 +309,7 @@ Deno.serve(async (req) => {
           <p><small>Diese E-Mail wurde automatisch automatisch gesendet.</small></p>
         `;
 
-        // Use Resend or another email service
-import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
-        // For now, just log
+        // Notification email is not implemented yet — log only for now.
         console.log(`📧 Would send notification to: ${settings.notify_email}`);
       } catch (emailError) {
         console.error("Error sending notification:", emailError);
