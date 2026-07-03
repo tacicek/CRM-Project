@@ -52,48 +52,19 @@ Deno.serve(async (req) => {
 
     console.log(`[admin-delete-user] Deleting user: ${userId}`);
 
-    // Step 1: Delete user roles
-    const { error: rolesDeleteError } = await supabaseAdmin
-      .from("user_roles")
-      .delete()
-      .eq("user_id", userId);
-
-    if (rolesDeleteError) {
-      console.error("[admin-delete-user] Error deleting roles:", rolesDeleteError);
-      // Continue anyway, roles might not exist
-    } else {
-      console.log("[admin-delete-user] Deleted user roles");
-    }
-
-    // Step 2: Delete any company associations
-    const { error: companyDeleteError } = await supabaseAdmin
+    // Capture company ids up front: companies.user_id is ON DELETE SET NULL, so once the
+    // auth user is gone we can no longer locate them by user_id.
+    const { data: companyRows } = await supabaseAdmin
       .from("companies")
-      .delete()
+      .select("id")
       .eq("user_id", userId);
+    const companyIds = (companyRows ?? []).map((c) => c.id);
 
-    if (companyDeleteError) {
-      console.error("[admin-delete-user] Error deleting company:", companyDeleteError);
-      // Continue anyway
-    } else {
-      console.log("[admin-delete-user] Deleted company associations");
-    }
-
-    // Step 3: Delete profile
-    const { error: profileDeleteError } = await supabaseAdmin
-      .from("profiles")
-      .delete()
-      .eq("id", userId);
-
-    if (profileDeleteError) {
-      console.error("[admin-delete-user] Error deleting profile:", profileDeleteError);
-      // Continue anyway
-    } else {
-      console.log("[admin-delete-user] Deleted profile");
-    }
-
-    // Step 4: Delete auth user using admin API
+    // Step 1: Delete the AUTH user first. If it fails we abort before destroying any app
+    // data — otherwise a failed auth-delete would leave a still-loginable account whose
+    // company/profile rows were already gone. profiles.id and user_roles.user_id are
+    // ON DELETE CASCADE, so they are removed atomically only when this succeeds.
     const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-
     if (authDeleteError) {
       console.error("[admin-delete-user] Error deleting auth user:", authDeleteError);
       return new Response(
@@ -101,6 +72,20 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Step 2: The auth delete only nulled companies.user_id (SET NULL); remove those rows
+    // by their captured ids. Roles/profile were already cascade-deleted — the extra
+    // user_roles cleanup below is a harmless no-op safety net.
+    if (companyIds.length > 0) {
+      const { error: companyDeleteError } = await supabaseAdmin
+        .from("companies")
+        .delete()
+        .in("id", companyIds);
+      if (companyDeleteError) {
+        console.error("[admin-delete-user] Error deleting company:", companyDeleteError);
+      }
+    }
+    await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
 
     console.log(`[admin-delete-user] Successfully deleted user: ${userId}`);
 
