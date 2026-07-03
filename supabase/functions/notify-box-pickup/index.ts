@@ -247,7 +247,7 @@ serve(async (req: Request) => {
             ` : ""}
             
             <p style="text-align: center; margin: 30px 0 20px;">
-              <a href=`${getDashAppUrl()}/firma/umzugsboxen` 
+              <a href="${getDashAppUrl()}/firma/umzugsboxen"
                  style="display: inline-block; background: ${primaryColor}; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
                 Zur Boxen-Übersicht
               </a>
