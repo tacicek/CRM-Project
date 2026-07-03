@@ -173,6 +173,14 @@ serve(async (req: Request) => {
         .single();
 
       if (appointmentError) {
+        // Unique-violation from uniq_confirmed_besichtigung_per_lead means a concurrent
+        // request already created the confirmed besichtigung — same outcome as the pre-check.
+        if (appointmentError.code === "23505") {
+          return new Response(
+            JSON.stringify({ error: "Termin bereits bestätigt" }),
+            { status: 409, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
         console.error("Error creating appointment:", appointmentError);
         throw appointmentError;
       }

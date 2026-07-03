@@ -233,11 +233,18 @@ const handler = async (req: Request): Promise<Response> => {
           });
 
         if (appointmentError) {
-          logStep("Error creating appointment", { error: appointmentError });
-          throw new Error("Failed to create appointment");
+          // Idempotency: uniq_confirmed_besichtigung_per_offer fired — the besichtigung was
+          // already created by a prior (retried) call. Treat as done instead of a 500.
+          if (appointmentError.code === "23505") {
+            logStep("Besichtigung appointment already exists — skipping insert");
+          } else {
+            logStep("Error creating appointment", { error: appointmentError });
+            throw new Error("Failed to create appointment");
+          }
+        } else {
+          appointmentCreated = true;
+          logStep("Appointment created in calendar");
         }
-        appointmentCreated = true;
-        logStep("Appointment created in calendar");
       }
 
       // Update offer to mark besichtigung as confirmed
