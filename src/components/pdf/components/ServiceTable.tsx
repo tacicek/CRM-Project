@@ -1,9 +1,9 @@
-import { StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Polyline, StyleSheet, Svg, Text, View } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
 import { formatCurrency, formatTime } from "../utils/formatters";
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
-import { hourlyRange } from "@/lib/offerPricing";
+import { hourlyRange, isFreeItem } from "@/lib/offerPricing";
 import { groupItemsByService } from "@/lib/offerServiceType";
 
 const DARK = "#1C1C27";
@@ -225,20 +225,17 @@ interface RowProps {
 const ItemRow = ({ item, posLabel, alt }: RowProps) => {
   const te = item.timeEstimate;
   const r = hourlyRange(te);
+  // Pauschale positions carry no meaningful count — show "Pauschal", not "1 Pauschal".
+  // Other price types keep the existing quantity+unit rendering.
+  const qtyLabel = item.priceType === "pauschale" ? "Pauschal" : formatQuantityUnit(item.quantity, item.unit);
 
   return (
     <View style={[styles.row, alt ? styles.rowAlt : {}]} wrap={false}>
       <Text style={styles.colPos}>{posLabel}</Text>
       <View style={styles.colDesc}>
+        {/* Position name only — details/sub-lines now surface in the grouped
+            Leistungsumfang ✓-list below (see buildLeistungLines). */}
         <Text style={styles.descMain}>{item.description}</Text>
-        {item.details?.map((d, di) => {
-          const clean = d.replace(/^[•·-]\s*/, "").trim();
-          return (
-            <Text key={`${clean}-${di}`} style={styles.descDetail}>
-              {clean}
-            </Text>
-          );
-        })}
       </View>
       {r ? (
         <>
@@ -255,7 +252,7 @@ const ItemRow = ({ item, posLabel, alt }: RowProps) => {
         </>
       ) : (
         <>
-          <Text style={styles.colQty}>{formatQuantityUnit(item.quantity, item.unit)}</Text>
+          <Text style={styles.colQty}>{qtyLabel}</Text>
           <Text style={styles.colUnit}>{formatCurrency(item.price)}</Text>
           <Text style={styles.colTotal}>{formatCurrency(item.total)}</Text>
         </>
@@ -263,6 +260,63 @@ const ItemRow = ({ item, posLabel, alt }: RowProps) => {
     </View>
   );
 };
+
+// ─── Leistungsumfang (✓-list) ───────────────────────────────────────────────────
+// One combined list per service group. Source priority per item:
+//   1. item.leistung (offer_item_leistung rows, position-sorted)
+//   2. else item.details (description-derived sub-lines — existing mechanism)
+//   3. else, for a free (inkl/optional) item, its own description
+// Free items leave the price table entirely (Change 2); this is where they resurface.
+const buildLeistungLines = (groupItems: OfferData["items"]): string[] => {
+  const lines: string[] = [];
+  for (const item of groupItems) {
+    if (item.leistung && item.leistung.length > 0) {
+      for (const l of [...item.leistung].sort((a, b) => a.position - b.position)) {
+        if (l.text && l.text.trim()) lines.push(l.text.trim());
+      }
+    } else if (item.details && item.details.length > 0) {
+      for (const d of item.details) {
+        const clean = d.replace(/^[•·-]\s*/, "").trim();
+        if (clean) lines.push(clean);
+      }
+    } else if (isFreeItem(item.priceType) && item.description && item.description.trim()) {
+      lines.push(item.description.trim());
+    }
+  }
+  return lines;
+};
+
+const leistungStyles = StyleSheet.create({
+  box: { marginTop: 4, marginBottom: 8, paddingHorizontal: SPACING.sm },
+  title: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    color: COLORS.text.secondary,
+    marginBottom: 3,
+  },
+  line: { flexDirection: "row", alignItems: "flex-start", marginBottom: 2 },
+  lineText: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.text.primary, lineHeight: 1.35 },
+});
+
+/** Font-independent vector checkmark (built-in Helvetica has no U+2713 glyph). */
+const CheckMark = ({ color }: { color: string }) => (
+  <Svg width={9} height={9} viewBox="0 0 10 10" style={{ marginRight: 5, marginTop: 2 }}>
+    <Polyline points="1.5,5.5 4,8 8.5,2.2" fill="none" stroke={color} strokeWidth={1.6} />
+  </Svg>
+);
+
+const LeistungsumfangBlock = ({ lines, accent }: { lines: string[]; accent: string }) => (
+  <View style={leistungStyles.box}>
+    <Text style={leistungStyles.title}>LEISTUNGSUMFANG</Text>
+    {lines.map((line, i) => (
+      <View key={`${line}-${i}`} style={leistungStyles.line} wrap={false}>
+        <CheckMark color={accent} />
+        <Text style={leistungStyles.lineText}>{line}</Text>
+      </View>
+    ))}
+  </View>
+);
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -304,35 +358,44 @@ export const ServiceTable = ({
         <Text style={[styles.headerCell, styles.colTotal]}>TOTAL CHF</Text>
       </View>
 
-      {/* Rows — grouped by service (header when multi; orphan: header + first row atomic) */}
-      {groups.map((group, gi) => (
-        <View key={`group-${gi}`}>
-          {group.items.map((item, idx) => {
-            rowNo += 1;
-            const row = (
-              <ItemRow
-                key={`${item.description}-${rowNo}`}
-                item={item}
-                posLabel={String(rowNo)}
-                alt={rowNo % 2 === 0}
-              />
-            );
-            // D3 orphan: in multi-group, header + first row in the same wrap={false} View → no orphaned header.
-            if (multi && idx === 0) {
-              return (
-                <View key={`gh-${gi}`} wrap={false}>
-                  <View style={styles.categoryRow}>
-                    <View style={[styles.categoryBullet, { backgroundColor: accent }]} />
-                    <Text style={styles.categoryName}>{group.label}</Text>
-                  </View>
-                  {row}
-                </View>
+      {/* Rows — grouped by service (header when multi; orphan: header + first row atomic).
+          Only billable items get priced rows + POS numbers; free (inkl/optional) items
+          leave the table and resurface in the Leistungsumfang ✓-list below the group. */}
+      {groups.map((group, gi) => {
+        const billable = group.items.filter((it) => !isFreeItem(it.priceType));
+        const leistungLines = buildLeistungLines(group.items);
+        return (
+          <View key={`group-${gi}`}>
+            {billable.map((item, idx) => {
+              rowNo += 1;
+              const row = (
+                <ItemRow
+                  key={`${item.description}-${rowNo}`}
+                  item={item}
+                  posLabel={String(rowNo)}
+                  alt={rowNo % 2 === 0}
+                />
               );
-            }
-            return row;
-          })}
-        </View>
-      ))}
+              // D3 orphan: in multi-group, header + first row in the same wrap={false} View → no orphaned header.
+              if (multi && idx === 0) {
+                return (
+                  <View key={`gh-${gi}`} wrap={false}>
+                    <View style={styles.categoryRow}>
+                      <View style={[styles.categoryBullet, { backgroundColor: accent }]} />
+                      <Text style={styles.categoryName}>{group.label}</Text>
+                    </View>
+                    {row}
+                  </View>
+                );
+              }
+              return row;
+            })}
+            {leistungLines.length > 0 ? (
+              <LeistungsumfangBlock lines={leistungLines} accent={accent} />
+            ) : null}
+          </View>
+        );
+      })}
 
       {/* Totals block */}
       {showTotalsBlock ? (
