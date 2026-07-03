@@ -71,7 +71,13 @@ export const LogoUpload = ({
           maxWidthOrHeight: 800,
         });
         ext = "webp";
-      } catch {
+      } catch (err) {
+        // Fallback to the original file is intentional, but must be observable (no silent fallback).
+        console.warn("[LogoUpload] WebP-Konvertierung fehlgeschlagen, Original wird verwendet:", err);
+        toast({
+          title: "Bild nicht optimiert",
+          description: "Das Logo konnte nicht verkleinert werden und wird im Original hochgeladen.",
+        });
         fileToUpload = originalFile;
         ext = originalFile.name.split(".").pop()?.toLowerCase() || "png";
       }
