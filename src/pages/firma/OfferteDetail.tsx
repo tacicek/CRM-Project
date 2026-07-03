@@ -70,6 +70,7 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
+import { computeItemsSubtotal, computeTotalsFromSubtotal, hourlyRange } from "@/lib/offerPricing";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -94,6 +95,8 @@ interface OfferItem {
   unit_price: number;
   total: number;
   service_type?: string | null;
+  price_type?: string | null;
+  time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
 }
 
 const PdfPreviewDialog = lazy(async () => {
@@ -383,15 +386,25 @@ const FirmaOfferteDetail = () => {
     }).format(amount);
   };
 
-  /** Returns { maxSubtotal, maxVat, maxTotal } for blind offers with time estimate, or null. */
+  /**
+   * Returns { maxSubtotal, maxVat, maxTotal } for blind offers, computed from the loaded
+   * items' per-item time_estimate — the same source OfferView and the PDF use. (The old
+   * code read offer.time_estimate, an offer-level field that is never written, so the range
+   * was always null and the firm saw only the min total for a blind offer.)
+   */
   const getBlindRange = () => {
-    const te = offer?.time_estimate;
-    if (offer?.offerte_type !== 'blind' || !te) return null;
-    const positionsSum = Number(offer.subtotal) - te.minHours * te.hourlyRate;
-    const maxSubtotal = positionsSum + te.maxHours * te.hourlyRate;
-    const vatRate = Number(offer.vat_rate);
-    const maxVat = maxSubtotal * (vatRate / 100);
-    const maxTotal = maxSubtotal + maxVat;
+    if (offer?.offerte_type !== 'blind') return null;
+    const subtotalItems = items.map((it) => ({
+      priceType: it.price_type ?? 'pauschale',
+      quantity: Number(it.quantity) || 0,
+      unitPrice: Number(it.unit_price) || 0,
+      timeEstimate: it.time_estimate ?? null,
+    }));
+    if (!subtotalItems.some((it) => hourlyRange(it.timeEstimate) !== null)) return null;
+    const surchargesSum = sumSurchargeAmounts(parseSurcharges(offer.surcharges));
+    const maxItemsSubtotal = computeItemsSubtotal(subtotalItems, "max");
+    const { taxableBase: maxSubtotal, vatAmount: maxVat, total: maxTotal } =
+      computeTotalsFromSubtotal(maxItemsSubtotal, surchargesSum, Number(offer.vat_rate));
     return { maxSubtotal, maxVat, maxTotal };
   };
 
@@ -1388,12 +1401,11 @@ const FirmaOfferteDetail = () => {
                 total: offer.total,
                 surcharges: parseSurcharges(offer.surcharges).map((s) => ({ label: s.label, amount: s.amount })),
                 created_at: offer.created_at,
+                // Spread the full item (incl. time_estimate + price_type) so the preview PDF
+                // matches the downloaded/sent PDF — the old explicit field list dropped
+                // time_estimate, hiding the blind min–max range in the preview only.
                 items: items.map((item) => ({
-                  position: item.position,
-                  description: item.description,
-                  quantity: item.quantity,
-                  unit: item.unit,
-                  unit_price: item.unit_price,
+                  ...item,
                   total: Number(item.total),
                 })),
                 company: {
