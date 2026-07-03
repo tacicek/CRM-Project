@@ -33,6 +33,10 @@ export async function runSpellCheck(
   try {
     const { data, error } = await supabase.functions.invoke("spell-check-ai", {
       body: { fields: nonEmpty },
+      // Without the signal the 5s timeout never actually aborted the request, so a hung
+      // edge function would leave the save flow stuck on "Prüfe Rechtschreibung" forever.
+      // On abort, invoke rejects → caught below → returns null (skip modal, save directly).
+      signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
