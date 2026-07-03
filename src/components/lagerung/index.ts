@@ -1,2 +1,0 @@
-export { LagerungWizard } from './LagerungWizard';
-
