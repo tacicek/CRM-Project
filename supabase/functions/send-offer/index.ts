@@ -271,7 +271,7 @@ const handler = async (req: Request): Promise<Response> => {
       logStep("Offer not found", { error: offerError });
       return new Response(
         JSON.stringify({ error: "Offerte nicht gefunden" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -876,7 +876,7 @@ const handler = async (req: Request): Promise<Response> => {
       logStep("No Resend API key available - skipping email send");
       return new Response(
         JSON.stringify({ error: "E-Mail-Dienst nicht konfiguriert. Bitte richten Sie Resend in den Einstellungen ein." }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -898,6 +898,32 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (attachments.length > 0) {
       emailPayload.attachments = attachments;
+    }
+
+    // Atomically claim the send: flip to "sending" only if the offer is still in a claimable
+    // state. This closes the check-then-act race above — a concurrent request (or a double
+    // click) finds "sending" and gets 0 rows back, so the customer never receives duplicates.
+    const originalStatus = offer.status;
+    const { data: claimedRows, error: claimError } = await supabase
+      .from("offers")
+      .update({ status: "sending" })
+      .eq("id", offerId)
+      .in("status", ["draft", "sent", "viewed"])
+      .select("id");
+
+    if (claimError) {
+      logStep("Failed to claim offer for sending", { error: claimError });
+      return new Response(
+        JSON.stringify({ error: "Offerte konnte nicht für den Versand gesperrt werden." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!claimedRows || claimedRows.length === 0) {
+      logStep("Offer already being sent or status changed — duplicate prevented", { offerId });
+      return new Response(
+        JSON.stringify({ error: "Diese Offerte wird bereits gesendet oder wurde bereits gesendet." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { error: emailError } = await resend.emails.send(emailPayload);
@@ -938,6 +964,9 @@ const handler = async (req: Request): Promise<Response> => {
         },
       });
       
+      // Release the claim so the offer can be retried (revert "sending" → its previous status).
+      await supabase.from("offers").update({ status: originalStatus }).eq("id", offerId);
+
       // BUG-5: 422 Unprocessable — e-posta gönderilemedi (frontend sendError ile yakalar)
       return new Response(
         JSON.stringify({ error: userFriendlyError, details: emailError, from_email: fromEmail }),
