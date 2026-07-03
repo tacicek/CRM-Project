@@ -3391,12 +3391,14 @@ export type Database = {
           customer_email: string
           customer_first_name: string
           customer_last_name: string
+          customer_number: string | null
           customer_phone: string | null
           customer_response_note: string | null
           customer_salutation: string | null
           description: string | null
           destination_building_info: Json | null
           frozen_address_at: string | null
+          frozen_checklist_at: string | null
           frozen_from_city: string | null
           frozen_from_distance_to_parking: number | null
           frozen_from_floor: number | null
@@ -3409,6 +3411,12 @@ export type Database = {
           frozen_from_rooms: number | null
           frozen_from_steps_to_entrance: string | null
           frozen_from_street: string | null
+          frozen_has_estrich: boolean | null
+          frozen_has_garage: boolean | null
+          frozen_has_keller: boolean | null
+          frozen_has_klavier: boolean | null
+          frozen_has_lagerung: boolean | null
+          frozen_has_schwer_colli: boolean | null
           frozen_to_city: string | null
           frozen_to_distance_to_parking: number | null
           frozen_to_floor: number | null
@@ -3421,6 +3429,10 @@ export type Database = {
           frozen_to_rooms: number | null
           frozen_to_steps_to_entrance: string | null
           frozen_to_street: string | null
+          frozen_zwischenlager_city: string | null
+          frozen_zwischenlager_house_number: string | null
+          frozen_zwischenlager_plz: string | null
+          frozen_zwischenlager_street: string | null
           highlighted_items: string[] | null
           hourly_rate: number | null
           id: string
@@ -3476,12 +3488,14 @@ export type Database = {
           customer_email: string
           customer_first_name: string
           customer_last_name: string
+          customer_number?: string | null
           customer_phone?: string | null
           customer_response_note?: string | null
           customer_salutation?: string | null
           description?: string | null
           destination_building_info?: Json | null
           frozen_address_at?: string | null
+          frozen_checklist_at?: string | null
           frozen_from_city?: string | null
           frozen_from_distance_to_parking?: number | null
           frozen_from_floor?: number | null
@@ -3494,6 +3508,12 @@ export type Database = {
           frozen_from_rooms?: number | null
           frozen_from_steps_to_entrance?: string | null
           frozen_from_street?: string | null
+          frozen_has_estrich?: boolean | null
+          frozen_has_garage?: boolean | null
+          frozen_has_keller?: boolean | null
+          frozen_has_klavier?: boolean | null
+          frozen_has_lagerung?: boolean | null
+          frozen_has_schwer_colli?: boolean | null
           frozen_to_city?: string | null
           frozen_to_distance_to_parking?: number | null
           frozen_to_floor?: number | null
@@ -3506,6 +3526,10 @@ export type Database = {
           frozen_to_rooms?: number | null
           frozen_to_steps_to_entrance?: string | null
           frozen_to_street?: string | null
+          frozen_zwischenlager_city?: string | null
+          frozen_zwischenlager_house_number?: string | null
+          frozen_zwischenlager_plz?: string | null
+          frozen_zwischenlager_street?: string | null
           highlighted_items?: string[] | null
           hourly_rate?: number | null
           id?: string
@@ -3561,12 +3585,14 @@ export type Database = {
           customer_email?: string
           customer_first_name?: string
           customer_last_name?: string
+          customer_number?: string | null
           customer_phone?: string | null
           customer_response_note?: string | null
           customer_salutation?: string | null
           description?: string | null
           destination_building_info?: Json | null
           frozen_address_at?: string | null
+          frozen_checklist_at?: string | null
           frozen_from_city?: string | null
           frozen_from_distance_to_parking?: number | null
           frozen_from_floor?: number | null
@@ -3579,6 +3605,12 @@ export type Database = {
           frozen_from_rooms?: number | null
           frozen_from_steps_to_entrance?: string | null
           frozen_from_street?: string | null
+          frozen_has_estrich?: boolean | null
+          frozen_has_garage?: boolean | null
+          frozen_has_keller?: boolean | null
+          frozen_has_klavier?: boolean | null
+          frozen_has_lagerung?: boolean | null
+          frozen_has_schwer_colli?: boolean | null
           frozen_to_city?: string | null
           frozen_to_distance_to_parking?: number | null
           frozen_to_floor?: number | null
@@ -3591,6 +3623,10 @@ export type Database = {
           frozen_to_rooms?: number | null
           frozen_to_steps_to_entrance?: string | null
           frozen_to_street?: string | null
+          frozen_zwischenlager_city?: string | null
+          frozen_zwischenlager_house_number?: string | null
+          frozen_zwischenlager_plz?: string | null
+          frozen_zwischenlager_street?: string | null
           highlighted_items?: string[] | null
           hourly_rate?: number | null
           id?: string
