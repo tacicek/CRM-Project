@@ -295,7 +295,11 @@ const FirmaAuftraege = () => {
       const auftraegeData = (data || []) as Auftrag[];
       setAuftraege(auftraegeData);
 
+      // Truncate to local start-of-day, otherwise today's jobs fail `date >= today` after
+      // ~02:00 (scheduled_date parses to UTC midnight) and get dropped from "this week" and
+      // wrongly counted as overdue.
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const weekEnd = addDays(today, 7);
 
       const newStats: Stats = {
