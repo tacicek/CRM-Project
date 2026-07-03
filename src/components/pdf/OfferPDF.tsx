@@ -173,7 +173,6 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
     <Document>
       {chunks.map((chunk, chunkIdx) => {
         const isLastChunk = chunkIdx === chunks.length - 1;
-        const positionOffset = chunks.slice(0, chunkIdx).reduce((acc, c) => acc + c.length, 0);
 
         return (
           <Page key={`offer-table-${chunkIdx}`} size="A4" style={styles.page}>
@@ -203,7 +202,6 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
               data={data}
               itemsOverride={chunk}
               showTotalsBlock={isLastChunk}
-              positionOffset={positionOffset}
             />
 
             {isLastChunk ? (

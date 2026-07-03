@@ -324,7 +324,6 @@ interface ServiceTableProps {
   data: OfferData;
   itemsOverride?: OfferData["items"];
   showTotalsBlock?: boolean;
-  positionOffset?: number;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -333,7 +332,6 @@ export const ServiceTable = ({
   data,
   itemsOverride,
   showTotalsBlock = true,
-  positionOffset = 0,
 }: ServiceTableProps) => {
   const items = itemsOverride ?? data.items;
   const breakdownLines = buildBreakdownLines(data);
@@ -343,9 +341,6 @@ export const ServiceTable = ({
   // the service_type the grouper expects. Single group → no header (backward compat).
   const groups = groupItemsByService(items.map((it) => ({ ...it, service_type: it.serviceType })));
   const multi = groups.length > 1;
-
-  // Global continuous position number (does not reset at group boundaries — D2).
-  let rowNo = positionOffset;
 
   return (
     <View style={styles.container}>
@@ -364,6 +359,9 @@ export const ServiceTable = ({
       {groups.map((group, gi) => {
         const billable = group.items.filter((it) => !isFreeItem(it.priceType));
         const leistungLines = buildLeistungLines(group.items);
+        // POS restarts at 1 per service group (P2b-i). Group-aware chunking keeps each group
+        // whole in a single chunk, so numbering never straddles a page break.
+        let rowNo = 0;
         return (
           <View key={`group-${gi}`}>
             {billable.map((item, idx) => {
