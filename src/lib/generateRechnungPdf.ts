@@ -9,7 +9,7 @@
  * düz RechnungData alır. Numara/referans üretimi S4'te (erstelleRechnung) yapılır.
  */
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import autoTable, { type CellHookData } from "jspdf-autotable";
 import { buildQrPayload, renderQrPng, isQRIBAN, type QrBillInput, type QrBillAddress, type QrCurrency } from "@/lib/swiss-qr/core";
 
 export interface RechnungCompany {
@@ -71,6 +71,23 @@ const FONT = "helvetica";
 const A4_W = 210;
 const A4_H = 297;
 const MARGIN = 20;
+
+// ── Farben (PDF-Redesign) ────────────────────────────────────────────────────
+type Rgb = [number, number, number];
+const DEFAULT_ACCENT: Rgb = [15, 118, 110]; // teal-700 — Fallback, wenn primary_color NULL/ungültig
+const COL_DARK: Rgb = [15, 23, 42];         // slate-900 (Rechnungsnummer, Firmenname)
+const COL_GRAY: Rgb = [100, 116, 139];      // slate-500 (Adresse/Kontakt)
+const COL_LABEL: Rgb = [148, 163, 184];     // slate-400 (kleine Labels, "RECHNUNG")
+
+/** "#RRGGBB" | "#RGB" | "RRGGBB" → [r,g,b]; ungültig/leer → fallback. */
+const hexToRgb = (hex: string | null | undefined, fallback: Rgb): Rgb => {
+  if (!hex) return fallback;
+  let h = hex.trim().replace(/^#/, "");
+  if (h.length === 3) h = h.split("").map((ch) => ch + ch).join("");
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return fallback;
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+};
+const setText = (doc: jsPDF, [r, g, b]: Rgb): void => doc.setTextColor(r, g, b);
 
 // ── Biçimlendirme yardımcıları ───────────────────────────────────────────────
 
@@ -323,9 +340,15 @@ const LOGO_MAX_H = 20;
 
 const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | null): void => {
   const c = data.company;
+  const accent = hexToRgb(c.primary_color, DEFAULT_ACCENT);
 
-  // Firma başlığı (sol üst): logo varsa görsel, yoksa firma adı text (fallback)
-  let headerBottom = MARGIN + 8;
+  // ── BLOK 1: Akzent-Streifen + Header ──
+  // Üst aksan şeridi (tam genişlik, primary_color || teal-Fallback)
+  doc.setFillColor(accent[0], accent[1], accent[2]);
+  doc.rect(0, 0, A4_W, 4, "F");
+
+  // Header sol: Logo (varsa) ya da Firmenname (fallback)
+  let logoBottom = MARGIN;
   let logoDrawn = false;
   if (logoBase64) {
     try {
@@ -334,47 +357,61 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
       const w = props.width * scale;
       const h = props.height * scale;
       doc.addImage(logoBase64, "PNG", MARGIN, MARGIN, w, h);
-      headerBottom = MARGIN + h;
+      logoBottom = MARGIN + h;
       logoDrawn = true;
     } catch {
       logoDrawn = false; // sessiz fallback → text
     }
   }
-  if (!logoDrawn) {
-    setFont(doc, 16, "bold");
-    doc.text(c.company_name, MARGIN, MARGIN + 4);
-    headerBottom = MARGIN + 8;
-  }
 
-  // Firma iletişim bilgileri (sağ üst)
+  // Firmenblock (links, unter dem Logo): Name + Adresse + Telefon · E-Mail + MwSt-Nr
+  let lx = logoDrawn ? logoBottom + 6 : MARGIN + 4;
+  setText(doc, COL_DARK);
+  setFont(doc, logoDrawn ? 10 : 14, "bold");
+  doc.text(c.legal_name || c.company_name, MARGIN, lx);
+  lx += logoDrawn ? 5 : 6;
   setFont(doc, 8, "normal");
-  const headerInfo = [
-    logoDrawn ? c.company_name : "",
-    [c.street, c.house_number].filter(Boolean).join(" "),
-    `${c.plz} ${c.city}`,
-    c.phone ? `Tel: ${c.phone}` : "",
-    c.email ?? "",
-    c.mwst_number ? `MwSt: ${/mwst/i.test(c.mwst_number) ? c.mwst_number : `${c.mwst_number} MWST`}` : "",
-  ].filter((l) => l && l.trim().length > 0);
-  let infoY = MARGIN;
-  for (const line of headerInfo) {
-    doc.text(line, A4_W - MARGIN, infoY, { align: "right" });
-    infoY += 4;
+  setText(doc, COL_GRAY);
+  const companyLines = [
+    [c.street, c.house_number].filter(Boolean).join(" ").trim(),
+    `${c.plz} ${c.city}`.trim(),
+    [c.phone, c.email].filter(Boolean).join("  ·  "),
+    c.mwst_number ? (/mwst/i.test(c.mwst_number) ? c.mwst_number : `${c.mwst_number} MWST`) : "",
+  ].filter((l) => l && l.length > 0);
+  for (const line of companyLines) {
+    doc.text(line, MARGIN, lx);
+    lx += 4;
   }
 
-  let y = Math.max(headerBottom, infoY) + 8;
-  // Başlık + numara
-  setFont(doc, 14, "bold");
-  doc.text("RECHNUNG", MARGIN, y);
-  setFont(doc, 11, "normal");
-  doc.text(data.rechnung_nr, A4_W - MARGIN, y, { align: "right" });
-  y += 8;
+  // Header sağ: "RECHNUNG" (harf aralıklı, gri) + große, dunkle Rechnungsnummer
+  // Sperrung über Leerzeichen statt charSpace: bei align:"right" rechnet jsPDF die
+  // charSpace-Breite nicht in die Ausrichtung ein → rechte Kante verschiebt sich.
+  // Mit echten Leerzeichen liefert getTextWidth die korrekte Breite → bündige rechte Kante.
+  setText(doc, COL_LABEL);
+  setFont(doc, 8, "bold");
+  doc.text("R E C H N U N G", A4_W - MARGIN, MARGIN + 4, { align: "right" });
+  setText(doc, COL_DARK);
+  setFont(doc, 20, "bold");
+  doc.text(data.rechnung_nr, A4_W - MARGIN, MARGIN + 13, { align: "right" });
 
-  // Müşteri adresi (sol) + meta (sağ)
-  setFont(doc, 10, "bold");
-  doc.text(data.customer_name, MARGIN, y);
+  // Folgende (noch alte) Blöcke erwarten Schwarz → Farbe zurücksetzen.
+  doc.setTextColor(0, 0, 0);
+
+  let y = Math.max(lx, MARGIN + 20) + 10;
+
+  // ── BLOK 2: RECHNUNG AN (links) + Meta-Box (rechts) ──
+  const blockTop = y;
+
+  // Sol: "RECHNUNG AN" + Kunde
+  setText(doc, COL_LABEL);
+  setFont(doc, 7, "bold");
+  doc.text("RECHNUNG AN", MARGIN, blockTop, { charSpace: 1 });
+  setText(doc, COL_DARK);
+  setFont(doc, 11, "bold");
+  doc.text(data.customer_name, MARGIN, blockTop + 7);
   setFont(doc, 9, "normal");
-  let custY = y + 5;
+  setText(doc, COL_GRAY);
+  let custY = blockTop + 12;
   if (data.customer_address) {
     for (const line of data.customer_address.split("\n")) {
       doc.text(line, MARGIN, custY);
@@ -382,71 +419,203 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     }
   }
 
-  setFont(doc, 9, "normal");
-  const meta = [
-    `Rechnungsdatum: ${formatDateCH(data.datum)}`,
-    `Fällig am: ${formatDateCH(data.faellig_am)}`,
+  // Sağ: Meta-Box (yuvarlak köşe, açık gri zemin + ince kenar)
+  const boxX = 118;
+  const boxW = A4_W - MARGIN - boxX; // 72 → rechter Rand = A4_W - MARGIN
+  const boxY = blockTop - 4;
+  const boxH = 30;
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, "FD");
+  const metaPad = 6;
+  const metaRows: [string, string][] = [
+    ["Rechnungsdatum", formatDateCH(data.datum)],
+    ["Zahlbar bis", formatDateCH(data.faellig_am)],
+    ["Ansprechpartner", c.legal_name || c.company_name],
   ];
-  let metaY = y;
-  for (const line of meta) {
-    doc.text(line, A4_W - MARGIN, metaY, { align: "right" });
-    metaY += 4;
+  let mrY = boxY + 8;
+  for (const [label, value] of metaRows) {
+    setFont(doc, 8, "normal");
+    setText(doc, COL_GRAY);
+    doc.text(label, boxX + metaPad, mrY);
+    setFont(doc, 9, "bold");
+    setText(doc, COL_DARK);
+    doc.text(value, boxX + boxW - metaPad, mrY, { align: "right" });
+    mrY += 8;
   }
 
-  y = Math.max(custY, metaY) + 6;
+  // Renk/çizgi reset → alttaki (henüz eski) bloklar siyah/ince kalsın
+  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.1);
+
+  y = Math.max(custY, boxY + boxH) + 6;
+
+  // ── BLOK 3: Briefanrede + Einleitungstext ──
+  setText(doc, COL_DARK);
+  setFont(doc, 11, "bold");
+  const gruss =
+    data.anrede === "Herr"
+      ? `Sehr geehrter Herr ${data.customer_name}`
+      : data.anrede === "Frau"
+        ? `Sehr geehrte Frau ${data.customer_name}`
+        : "Sehr geehrte Damen und Herren";
+  doc.text(gruss, MARGIN, y);
+  y += 7;
+
+  if (data.einleitung && data.einleitung.trim()) {
+    setFont(doc, 9, "normal");
+    setText(doc, COL_GRAY);
+    const einleitungLines = doc.splitTextToSize(data.einleitung.trim(), A4_W - 2 * MARGIN);
+    doc.text(einleitungLines, MARGIN, y);
+    y += einleitungLines.length * 4 + 2;
+  }
+  doc.setTextColor(0, 0, 0);
+  y += 2;
 
   // Kalem tablosu
+  // ── BLOK 4: Positionstabelle (POS-Badge, helle Kopfzeile, einheitliche halign) ──
   autoTable(doc, {
     startY: y,
-    head: [["Beschreibung", "Menge", "Einzelpreis", "Betrag"]],
+    head: [["POS", "BEZEICHNUNG", "ANZAHL", "EINZELPREIS", "BETRAG"]],
     body: data.positionen.map((p) => [
+      "", // POS — Badge wird in didDrawCell gezeichnet
       p.beschreibung,
       typeof p.menge === "number" ? `${p.menge}${p.einheit ? " " + p.einheit : ""}` : "",
-      typeof p.einzelpreis === "number" ? formatAmountCH(p.einzelpreis) : "",
-      formatAmountCH(p.betrag),
+      typeof p.einzelpreis === "number" ? `CHF ${formatAmountCH(p.einzelpreis)}` : "",
+      `CHF ${formatAmountCH(p.betrag)}`,
     ]),
-    styles: { font: FONT, fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: [40, 40, 40], textColor: 255, halign: "left" },
+    theme: "plain",
+    styles: { font: FONT, fontSize: 9, cellPadding: { top: 2.6, bottom: 2.6, left: 2, right: 2 }, textColor: [71, 85, 105], valign: "middle" },
+    // halign in columnStyles gilt für Kopf UND Body → konsistente Ausrichtung.
+    headStyles: { fillColor: [255, 255, 255], textColor: COL_LABEL, fontStyle: "bold", fontSize: 8 },
     columnStyles: {
-      0: { halign: "left" },
-      1: { halign: "right", cellWidth: 22 },
-      2: { halign: "right", cellWidth: 28 },
-      3: { halign: "right", cellWidth: 28 },
+      0: { halign: "center", cellWidth: 12 },
+      1: { halign: "left", fontStyle: "bold", textColor: COL_DARK },
+      2: { halign: "right", cellWidth: 24 },
+      3: { halign: "right", cellWidth: 30 },
+      4: { halign: "right", cellWidth: 30, fontStyle: "bold", textColor: COL_DARK },
     },
     margin: { left: MARGIN, right: MARGIN },
+    didParseCell: (hook: CellHookData) => {
+      // Kopf UND Body pro Spalte identisch ausrichten — autoTable wendet die
+      // halign-Kaskade für head/body uneinheitlich an; hier deterministisch erzwingen.
+      const aligns = ["center", "left", "right", "right", "right"] as const;
+      const a = aligns[hook.column.index];
+      if (a) hook.cell.styles.halign = a;
+    },
+    didDrawCell: (hook: CellHookData) => {
+      const { x, y: cy, width, height } = hook.cell;
+      if (hook.section === "head") {
+        // Kopfzeile: dünne untere Trennlinie
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.4);
+        doc.line(x, cy + height, x + width, cy + height);
+        return;
+      }
+      if (hook.section === "body") {
+        // dünner Zeilentrenner
+        doc.setDrawColor(241, 245, 249);
+        doc.setLineWidth(0.1);
+        doc.line(x, cy + height, x + width, cy + height);
+        // POS-Badge: heller Grund + dunkle (accent) Zahl
+        if (hook.column.index === 0) {
+          const b = 6;
+          const bx = x + (width - b) / 2;
+          const by = cy + (height - b) / 2;
+          doc.setFillColor(224, 242, 241);
+          doc.roundedRect(bx, by, b, b, 1, 1, "F");
+          setText(doc, accent);
+          setFont(doc, 8, "bold");
+          doc.text(String(hook.row.index + 1), bx + b / 2, by + b / 2 + 1.4, { align: "center" });
+        }
+      }
+    },
   });
 
-  // Toplamlar
-  let ty = doc.lastAutoTable.finalY + 6;
-  const labelX = A4_W - MARGIN - 60;
-  const valX = A4_W - MARGIN;
-  const totalRow = (label: string, value: string, bold = false): void => {
-    setFont(doc, 10, bold ? "bold" : "normal");
-    doc.text(label, labelX, ty);
-    doc.text(value, valX, ty, { align: "right" });
-    ty += 5;
-  };
-  totalRow("Zwischensumme", `${data.currency ?? "CHF"} ${formatAmountCH(data.zwischensumme)}`);
-  // MwSt-Zeile nur bei aktiver Steuer (Satz > 0); ohne MwSt = Zwischensumme entspricht Total.
-  if (data.mwst_satz > 0) {
-    totalRow(`MwSt ${data.mwst_satz}%`, `${data.currency ?? "CHF"} ${formatAmountCH(data.mwst_betrag)}`);
-  }
-  totalRow("Total", `${data.currency ?? "CHF"} ${formatAmountCH(data.total)}`, true);
+  // Tablo sonrası renk/çizgi reset → alttaki (henüz eski) total bloğu siyah/ince kalsın
+  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.1);
 
-  ty += 4;
+  // ── BLOK 5: Summen (rechts) + Konditionen/Schluss/Unterschrift (links) ──
+  const finalY = doc.lastAutoTable.finalY;
+
+  // Rechts: Zwischensumme + MwSt (nur Satz>0), rechtsbündig auf 190 (wie Tabelle).
+  let ty = finalY + 9;
+  const rLabelX = 118;
+  const rValX = A4_W - MARGIN;
+  const subRow = (label: string, value: string): void => {
+    setFont(doc, 9, "normal");
+    setText(doc, COL_GRAY);
+    doc.text(label, rLabelX, ty);
+    setText(doc, COL_DARK);
+    doc.text(value, rValX, ty, { align: "right" });
+    ty += 6;
+  };
+  subRow("Zwischensumme exkl. MwSt.", `CHF ${formatAmountCH(data.zwischensumme)}`);
+  if (data.mwst_satz > 0) {
+    subRow(`MwSt. ${data.mwst_satz}%`, `CHF ${formatAmountCH(data.mwst_betrag)}`);
+  }
+
+  // Rechts: dunkle Total-Box (weiße Schrift = garantierter Kontrast).
+  const boxX2 = 110;
+  const boxW2 = A4_W - MARGIN - boxX2; // 80
+  const boxH2 = 14;
+  const boxY2 = ty + 1;
+  doc.setFillColor(COL_DARK[0], COL_DARK[1], COL_DARK[2]);
+  doc.roundedRect(boxX2, boxY2, boxW2, boxH2, 2, 2, "F");
+  const boxMidY = boxY2 + boxH2 / 2 + 1;
+  setFont(doc, 8.5, "normal");
+  doc.setTextColor(226, 232, 240);
+  doc.text("Rechnungstotal inkl. MwSt.", boxX2 + 5, boxMidY);
+  setFont(doc, 13, "bold");
+  doc.setTextColor(255, 255, 255);
+  doc.text(`CHF ${formatAmountCH(data.total)}`, boxX2 + boxW2 - 5, boxMidY + 0.5, { align: "right" });
+
+  // Links: Zahlungskonditionen + Schlusstext + Unterschrift.
+  let ly = finalY + 9;
+  const leftW = boxX2 - MARGIN - 6; // Textbreite links (vor der Box)
+  if (data.zahlungskonditionen && data.zahlungskonditionen.trim()) {
+    setFont(doc, 9, "bold");
+    const lbl = "Zahlungskonditionen: ";
+    const lblW = doc.getTextWidth(lbl);
+    setText(doc, COL_DARK);
+    doc.text(lbl, MARGIN, ly);
+    setFont(doc, 9, "normal");
+    setText(doc, COL_GRAY);
+    doc.text(data.zahlungskonditionen.trim(), MARGIN + lblW, ly);
+    ly += 6;
+  }
+  if (data.schlusstext && data.schlusstext.trim()) {
+    setFont(doc, 9, "normal");
+    setText(doc, COL_GRAY);
+    const sl = doc.splitTextToSize(data.schlusstext.trim(), leftW);
+    doc.text(sl, MARGIN, ly);
+    ly += sl.length * 4 + 4;
+  }
+  ly += 6;
   setFont(doc, 9, "normal");
-  // Gün sayısı sabit değil — datum↔faellig gerçek farkından (yoksa "30 Tagen" yazıp
-  // 29 günlük tarih basmak gibi kendi içinde çelişkili olur).
-  const dueDays = Math.round(
-    (new Date(data.faellig_am + "T00:00:00").getTime() - new Date(data.datum + "T00:00:00").getTime()) / 86_400_000,
-  );
-  doc.text(
-    dueDays > 0
-      ? `Zahlbar innert ${dueDays} Tagen, bis ${formatDateCH(data.faellig_am)}.`
-      : `Zahlbar bis ${formatDateCH(data.faellig_am)}.`,
-    MARGIN,
-    ty,
-  );
+  setText(doc, COL_GRAY);
+  doc.text("Mit freundlichen Grüssen", MARGIN, ly);
+  ly += 7;
+  setFont(doc, 10, "bold");
+  setText(doc, COL_DARK);
+  doc.text(c.legal_name || c.company_name, MARGIN, ly);
+
+  // Taşma guard — içerik Zahlteil bölgesine (y≥192) girmemeli (sessiz değil, görünür uyarı).
+  // TODO(root-cause): mehrseitiges Layout mit QR-Bill nur auf der letzten Seite = separater Task.
+  const bandBottom = Math.max(ly, boxY2 + boxH2);
+  if (bandBottom > PP_TOP - 4) {
+    setFont(doc, 8, "bold");
+    doc.setTextColor(220, 38, 38);
+    doc.text("ACHTUNG: Rechnung zu lang für eine Seite — Positionen reduzieren (mehrseitig: TODO).", MARGIN, PP_TOP - 6);
+  }
+
+  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.1);
 };
 
 // ── Genel API ────────────────────────────────────────────────────────────────
