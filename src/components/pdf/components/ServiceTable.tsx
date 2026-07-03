@@ -218,45 +218,39 @@ const buildBreakdownLines = (data: OfferData) => {
 
 interface RowProps {
   item: OfferData["items"][number];
-  posLabel: string;
-  alt: boolean;
 }
 
-const ItemRow = ({ item, posLabel, alt }: RowProps) => {
+// Two-column position row (servisler.png): description (+ a small Menge/Einzel context
+// line) on the left, price on the right. Same price computation as before — only the
+// presentation collapses from the old 5 columns to 2. No POS badge (screenshot pattern).
+const ItemRow = ({ item }: RowProps) => {
   const te = item.timeEstimate;
   const r = hourlyRange(te);
-  // Pauschale positions carry no meaningful count — show "Pauschal", not "1 Pauschal".
-  // Other price types keep the existing quantity+unit rendering.
-  const qtyLabel = item.priceType === "pauschale" ? "Pauschal" : formatQuantityUnit(item.quantity, item.unit);
+  // Menge/Einzel context, folded into a small sub-line under the description.
+  const sub = r
+    ? `${te!.minHours}–${te!.maxHours} Std. à ${formatCurrency(te!.hourlyRate)}/Std.`
+    : item.priceType === "pauschale"
+      ? "Pauschal"
+      : item.quantity !== 1
+        ? `${formatQuantityUnit(item.quantity, item.unit)} à ${formatCurrency(item.price)}`
+        : formatQuantityUnit(item.quantity, item.unit);
 
   return (
-    <View style={[styles.row, alt ? styles.rowAlt : {}]} wrap={false}>
-      <Text style={styles.colPos}>{posLabel}</Text>
-      <View style={styles.colDesc}>
-        {/* Position name only — details/sub-lines now surface in the grouped
-            Leistungsumfang ✓-list below (see buildLeistungLines). */}
-        <Text style={styles.descMain}>{item.description}</Text>
+    <View style={cardStyles.posRow} wrap={false}>
+      <View style={cardStyles.posLeft}>
+        <Text style={cardStyles.posDesc}>{item.description}</Text>
+        {sub ? <Text style={cardStyles.posSub}>{sub}</Text> : null}
       </View>
-      {r ? (
-        <>
-          <Text style={styles.colQty}>{`${te!.minHours}–${te!.maxHours} Std.`}</Text>
-          <Text style={styles.colUnit}>{`${formatCurrency(te!.hourlyRate)}/Std.`}</Text>
-          <View style={[styles.colTotal, { alignItems: "flex-end" }]}>
-            <Text style={{ fontSize: FONT_SIZES.sm, fontWeight: 700, color: "#B45309" }}>
-              {formatCurrency(r.min)}
-            </Text>
-            <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-              {"\u2013"} {formatCurrency(r.max)}
-            </Text>
-          </View>
-        </>
-      ) : (
-        <>
-          <Text style={styles.colQty}>{qtyLabel}</Text>
-          <Text style={styles.colUnit}>{formatCurrency(item.price)}</Text>
-          <Text style={styles.colTotal}>{formatCurrency(item.total)}</Text>
-        </>
-      )}
+      <View style={cardStyles.posRight}>
+        {r ? (
+          <>
+            <Text style={[cardStyles.posPrice, { color: "#B45309" }]}>{formatCurrency(r.min)}</Text>
+            <Text style={cardStyles.posPriceSub}>{"–"} {formatCurrency(r.max)}</Text>
+          </>
+        ) : (
+          <Text style={cardStyles.posPrice}>{formatCurrency(item.total)}</Text>
+        )}
+      </View>
     </View>
   );
 };
@@ -320,6 +314,47 @@ const LeistungsumfangBlock = ({ lines, accent }: { lines: string[]; accent: stri
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
+const cardStyles = StyleSheet.create({
+  card: {
+    marginBottom: SPACING.base,
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    borderRadius: 4,
+  },
+  cardBand: {
+    backgroundColor: DARK,
+    paddingVertical: 6,
+    paddingHorizontal: SPACING.sm,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+  },
+  cardBandText: {
+    color: "#FFFFFF",
+    fontSize: FONT_SIZES.sm,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+  },
+  cardBody: {
+    paddingHorizontal: SPACING.sm,
+    paddingTop: 2,
+    paddingBottom: 4,
+  },
+  posRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray[100],
+  },
+  posLeft: { flex: 1, paddingRight: SPACING.sm },
+  posDesc: { fontSize: FONT_SIZES.sm, fontWeight: 700, color: COLORS.text.primary },
+  posSub: { fontSize: FONT_SIZES.xs, color: COLORS.text.secondary, marginTop: 1 },
+  posRight: { minWidth: 78, alignItems: "flex-end" },
+  posPrice: { fontSize: FONT_SIZES.sm, fontWeight: 700, color: COLORS.text.primary },
+  posPriceSub: { fontSize: FONT_SIZES.xs, color: "#B45309" },
+});
+
 interface ServiceTableProps {
   data: OfferData;
   itemsOverride?: OfferData["items"];
@@ -337,60 +372,30 @@ export const ServiceTable = ({
   const breakdownLines = buildBreakdownLines(data);
   const accent = data.company.primaryColor || "#F97316";
 
-  // Multi-service grouping: based on the stored base. Map PdfItem.serviceType →
-  // the service_type the grouper expects. Single group → no header (backward compat).
+  // Group items by stored service_type; each renders as its own card (dark band = service
+  // name + priced rows + Leistungsumfang), unconditionally — every service gets a band.
   const groups = groupItemsByService(items.map((it) => ({ ...it, service_type: it.serviceType })));
-  const multi = groups.length > 1;
 
   return (
     <View style={styles.container}>
-      {/* Header row */}
-      <View style={[styles.headerRow, { backgroundColor: accent }]} wrap={false}>
-        <Text style={[styles.headerCell, styles.colPos]}>POS.</Text>
-        <Text style={[styles.headerCell, styles.colDesc]}>BESCHREIBUNG</Text>
-        <Text style={[styles.headerCell, styles.colQty]}>MENGE</Text>
-        <Text style={[styles.headerCell, styles.colUnit]}>EINZEL CHF</Text>
-        <Text style={[styles.headerCell, styles.colTotal]}>TOTAL CHF</Text>
-      </View>
-
-      {/* Rows — grouped by service (header when multi; orphan: header + first row atomic).
-          Only billable items get priced rows + POS numbers; free (inkl/optional) items
-          leave the table and resurface in the Leistungsumfang ✓-list below the group. */}
       {groups.map((group, gi) => {
         const billable = group.items.filter((it) => !isFreeItem(it.priceType));
         const leistungLines = buildLeistungLines(group.items);
-        // POS restarts at 1 per service group (P2b-i). Group-aware chunking keeps each group
-        // whole in a single chunk, so numbering never straddles a page break.
-        let rowNo = 0;
         return (
-          <View key={`group-${gi}`}>
-            {billable.map((item, idx) => {
-              rowNo += 1;
-              const row = (
-                <ItemRow
-                  key={`${item.description}-${rowNo}`}
-                  item={item}
-                  posLabel={String(rowNo)}
-                  alt={rowNo % 2 === 0}
-                />
-              );
-              // D3 orphan: in multi-group, header + first row in the same wrap={false} View → no orphaned header.
-              if (multi && idx === 0) {
-                return (
-                  <View key={`gh-${gi}`} wrap={false}>
-                    <View style={styles.categoryRow}>
-                      <View style={[styles.categoryBullet, { backgroundColor: accent }]} />
-                      <Text style={styles.categoryName}>{group.label}</Text>
-                    </View>
-                    {row}
-                  </View>
-                );
-              }
-              return row;
-            })}
-            {leistungLines.length > 0 ? (
-              <LeistungsumfangBlock lines={leistungLines} accent={accent} />
-            ) : null}
+          // wrap={false}: keep the whole card together on one page (group-aware chunking in
+          // P2b-i already sizes groups to fit; rare oversized groups still degrade gracefully).
+          <View key={`group-${gi}`} style={cardStyles.card} wrap={false}>
+            <View style={cardStyles.cardBand}>
+              <Text style={cardStyles.cardBandText}>{group.label}</Text>
+            </View>
+            <View style={cardStyles.cardBody}>
+              {billable.map((item, idx) => (
+                <ItemRow key={`${item.description}-${idx}`} item={item} />
+              ))}
+              {leistungLines.length > 0 ? (
+                <LeistungsumfangBlock lines={leistungLines} accent={accent} />
+              ) : null}
+            </View>
           </View>
         );
       })}
