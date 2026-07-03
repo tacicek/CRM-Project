@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDashboardAppBaseUrl } from "../_shared/dashboardAppUrl.ts";
+import { getDefaultFrom } from "../_shared/envConfig.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -165,7 +166,9 @@ serve(async (req: Request) => {
 
       if (roleError) {
         logStep("ERROR: Failed to assign role", { error: roleError.message, code: roleError.code });
-        // This is critical - throw error so admin knows role wasn't assigned
+        // Compensating action: remove the just-created auth user so a retry doesn't hit
+        // "email already registered" on a role-less, half-provisioned account.
+        await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
         throw new Error(`User created but role assignment failed: ${roleError.message}`);
       } else {
         logStep("Role assigned successfully", { userId: newUser.user.id, role, insertedRole });
@@ -181,6 +184,7 @@ serve(async (req: Request) => {
       
       if (!verifyRole || verifyRole.role !== role) {
         logStep("ERROR: Role verification failed", { expected: role, actual: verifyRole });
+        await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
         throw new Error(`Role verification failed. Expected: ${role}, Got: ${verifyRole?.role || 'nothing'}`);
       }
       
@@ -254,7 +258,7 @@ serve(async (req: Request) => {
         `;
 
         const { error: emailError } = await resend.emails.send({
-          from: "LeadFlow <onboarding@resend.dev>",
+          from: getDefaultFrom(),
           to: [email],
           subject: "🎉 Willkommen bei LeadFlow - Ihre Login-Daten",
           html: emailHtml,
@@ -294,9 +298,9 @@ serve(async (req: Request) => {
     
     // Return proper status codes based on error type
     let statusCode = 400;
-    if (errorMessage === "Unauthorized" || errorMessage === "No authorization header") {
+    if (errorMessage.startsWith("Unauthorized") || errorMessage === "No authorization header") {
       statusCode = 401;
-    } else if (errorMessage === "Only admins can create users") {
+    } else if (errorMessage.startsWith("Only super admins") || errorMessage.startsWith("Only staff members")) {
       statusCode = 403;
     }
     
