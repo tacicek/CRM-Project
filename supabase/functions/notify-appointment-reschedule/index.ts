@@ -185,14 +185,14 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    await resend.emails.send({
+    const { error: companyEmailError } = await resend.emails.send({
       from: getCalendarFrom(),
       to: [companyEmail],
       subject: `📅 Terminverschiebung angefragt: ${appointmentTitle}`,
       html: companyEmailHtml,
     });
-
-    console.log(`[notify-appointment-reschedule] Sent notification to company: ${companyEmail}`);
+    if (companyEmailError) console.error("[notify-appointment-reschedule] company email failed:", companyEmailError);
+    else console.log(`[notify-appointment-reschedule] Sent notification to company: ${companyEmail}`);
 
     // Send confirmation email to customer
     const customerEmailHtml = `
@@ -247,14 +247,14 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    await resend.emails.send({
+    const { error: customerEmailError } = await resend.emails.send({
       from: getCalendarFrom(),
       to: [customerEmail],
       subject: `✅ Terminvorschlag gesendet: ${appointmentTitle}`,
       html: customerEmailHtml,
     });
-
-    console.log(`[notify-appointment-reschedule] Sent confirmation to customer: ${customerEmail}`);
+    if (customerEmailError) console.error("[notify-appointment-reschedule] customer email failed:", customerEmailError);
+    else console.log(`[notify-appointment-reschedule] Sent confirmation to customer: ${customerEmail}`);
 
     // Create notification for dashboard
     const { companyId } = body;
@@ -285,7 +285,7 @@ const handler = async (req: Request): Promise<Response> => {
       recipient_email: companyEmail,
       recipient_name: companyName,
       subject: `Terminverschiebung angefragt: ${appointmentTitle}`,
-      status: "sent",
+      status: companyEmailError ? "failed" : "sent",
       metadata: {
         appointment_id: appointmentId,
         customer_name: customerName,

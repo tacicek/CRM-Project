@@ -179,12 +179,18 @@ async function sendDoubleOptInEmail(
     </div>`;
 
   try {
-    await resend.emails.send({
+    // resend.emails.send resolves with { error } instead of throwing — treat that as a failed
+    // double opt-in so the lead isn't marked as sent while the customer waits forever.
+    const { error } = await resend.emails.send({
       from: getDefaultFrom(),
       to: [to],
       subject: "Bitte bestätigen Sie Ihre Anfrage",
       html: wrapEmailDocument(inner),
     });
+    if (error) {
+      logStep("Resend send error", { error });
+      return false;
+    }
     return true;
   } catch (e) {
     logStep("Resend send error", { error: (e as Error).message });

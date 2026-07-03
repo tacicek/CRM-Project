@@ -196,7 +196,7 @@ serve(async (req: Request) => {
       // Send confirmation email to company
       const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
       
-      await resend.emails.send({
+      const { error: companyEmailError } = await resend.emails.send({
         from: getDefaultFrom(),
         to: [companyEmail],
         subject: `✅ Besichtigungstermin bestätigt - ${customerName}`,
@@ -243,7 +243,7 @@ serve(async (req: Request) => {
       });
 
       // Send confirmation email to customer
-      await resend.emails.send({
+      const { error: customerEmailError } = await resend.emails.send({
         from: getDefaultFrom(),
         to: [customerEmail],
         subject: `Ihr Besichtigungstermin bei ${companyName}`,
@@ -283,6 +283,12 @@ serve(async (req: Request) => {
         `,
       });
 
+      // resend.emails.send resolves with { error } instead of throwing. The appointment is
+      // already created, so we don't fail the request — but email_logs must reflect the real
+      // outcome rather than a blanket "sent".
+      if (companyEmailError) console.error("[handle-proposal-response] company email failed:", companyEmailError);
+      if (customerEmailError) console.error("[handle-proposal-response] customer email failed:", customerEmailError);
+
       // Log emails
       await supabase.from("email_logs").insert([
         {
@@ -292,7 +298,7 @@ serve(async (req: Request) => {
           recipient_email: companyEmail,
           recipient_name: company.company_name,
           subject: `Besichtigungstermin bestätigt - ${customerName}`,
-          status: "sent",
+          status: companyEmailError ? "failed" : "sent",
           metadata: { selectedDate, selectedTime },
         },
         {
@@ -302,7 +308,7 @@ serve(async (req: Request) => {
           recipient_email: customerEmail,
           recipient_name: customerName,
           subject: `Ihr Besichtigungstermin bei ${companyName}`,
-          status: "sent",
+          status: customerEmailError ? "failed" : "sent",
           metadata: { selectedDate, selectedTime },
         },
       ]);
@@ -324,7 +330,7 @@ serve(async (req: Request) => {
       // Send notification email to company
       const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
       
-      await resend.emails.send({
+      const { error: rejectEmailError } = await resend.emails.send({
         from: getDefaultFrom(),
         to: [companyEmail],
         subject: `❌ Terminvorschläge abgelehnt - ${customerName}`,
@@ -362,6 +368,8 @@ serve(async (req: Request) => {
         `,
       });
 
+      if (rejectEmailError) console.error("[handle-proposal-response] reject email failed:", rejectEmailError);
+
       // Log email
       await supabase.from("email_logs").insert({
         company_id: companyId,
@@ -370,7 +378,7 @@ serve(async (req: Request) => {
         recipient_email: companyEmail,
         recipient_name: company.company_name,
         subject: `Terminvorschläge abgelehnt - ${customerName}`,
-        status: "sent",
+        status: rejectEmailError ? "failed" : "sent",
         metadata: { customerMessage },
       });
     }

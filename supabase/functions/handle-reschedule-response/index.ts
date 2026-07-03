@@ -142,6 +142,9 @@ const handler = async (req: Request): Promise<Response> => {
       });
     };
 
+    // Track the send outcome so email_logs reflects reality (resend returns { error }, no throw).
+    let emailSendError: unknown = null;
+
     if (action === "confirm") {
       // Update the appointment with new date and time
       const { error: updateError } = await supabase
@@ -224,14 +227,15 @@ const handler = async (req: Request): Promise<Response> => {
         </html>
       `;
 
-      await resend.emails.send({
+      const { error: confirmSendError } = await resend.emails.send({
         from: getCalendarFrom(),
         to: [customerEmail],
         subject: `✅ Termin bestätigt: ${appointmentTitle}`,
         html: confirmEmailHtml,
       });
-
-      console.log(`[handle-reschedule-response] Sent confirmation to customer: ${customerEmail}`);
+      emailSendError = confirmSendError;
+      if (confirmSendError) console.error("[handle-reschedule-response] confirm email failed:", confirmSendError);
+      else console.log(`[handle-reschedule-response] Sent confirmation to customer: ${customerEmail}`);
 
     } else {
       // Reject - just update status and notify customer
@@ -301,14 +305,15 @@ const handler = async (req: Request): Promise<Response> => {
         </html>
       `;
 
-      await resend.emails.send({
+      const { error: rejectSendError } = await resend.emails.send({
         from: getCalendarFrom(),
         to: [customerEmail],
         subject: `📅 Terminvorschlag nicht möglich: ${appointmentTitle}`,
         html: rejectEmailHtml,
       });
-
-      console.log(`[handle-reschedule-response] Sent rejection to customer: ${customerEmail}`);
+      emailSendError = rejectSendError;
+      if (rejectSendError) console.error("[handle-reschedule-response] reject email failed:", rejectSendError);
+      else console.log(`[handle-reschedule-response] Sent rejection to customer: ${customerEmail}`);
     }
 
     // Log the email
@@ -317,9 +322,9 @@ const handler = async (req: Request): Promise<Response> => {
       recipient_email: customerEmail,
       recipient_name: customerName,
       subject: action === "confirm" 
-        ? `Termin bestätigt: ${appointmentTitle}` 
+        ? `Termin bestätigt: ${appointmentTitle}`
         : `Terminvorschlag nicht möglich: ${appointmentTitle}`,
-      status: "sent",
+      status: emailSendError ? "failed" : "sent",
       metadata: {
         appointment_id: appointmentId,
         action,

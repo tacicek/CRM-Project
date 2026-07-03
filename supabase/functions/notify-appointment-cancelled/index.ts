@@ -249,14 +249,18 @@ const handler = async (req: Request): Promise<Response> => {
       `;
 
       try {
-        await resend.emails.send({
+        // resend.emails.send resolves with { error } instead of throwing.
+        const { error: customerEmailError } = await resend.emails.send({
           from: fromAddress,
           to: [request.customerEmail],
           subject: `✅ Terminabsage bestätigt - ${request.appointmentTitle}`,
           html: customerEmailHtml,
         });
-        
-        logStep("Customer confirmation email sent", { isCompanyEmail });
+        if (customerEmailError) {
+          logStep("Failed to send customer confirmation email", { error: customerEmailError });
+        } else {
+          logStep("Customer confirmation email sent", { isCompanyEmail });
+        }
       } catch (customerEmailError) {
         logStep("Failed to send customer confirmation email", { error: customerEmailError });
       }
