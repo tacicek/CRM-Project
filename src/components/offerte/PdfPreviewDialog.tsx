@@ -11,13 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Send, Download, FileText, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
 import * as pdfjsLib from "pdfjs-dist";
+// Bundle the worker locally (Vite ?url) instead of a pinned CDN URL. The CDN was locked to
+// 4.0.379 while the installed pdfjs-dist is 4.10.x (version drift that can break rendering),
+// and a third-party CDN fails offline / under a strict CSP.
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { OfferPDF } from "@/components/pdf/OfferPDF";
 import { mapOfferToPdfData, LegacyOfferData } from "@/components/pdf/utils/mapOfferData";
 import { generateQRCode } from "@/components/pdf/utils/qr";
 
-// Use worker from unpkg CDN (matches installed version)
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://unpkg.com/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface PdfPreviewDialogProps {
   open: boolean;
