@@ -53,10 +53,13 @@ serve(async (req) => {
 
     const request = parseResult.data;
 
-    // Verify access_token matches the offerId — prevents unauthorized email spam
+    // Verify access_token matches the offerId — prevents unauthorized email spam.
+    // Authoritative notification data (amount, title, customer, recipient) is read from
+    // this row, NOT from the request body, so a caller can't spoof a fabricated amount or
+    // redirect the notification to a third party.
     const { data: offerRow, error: offerErr } = await supabase
       .from("offers")
-      .select("id, access_token, status, company_id")
+      .select("id, access_token, status, company_id, title, total, customer_first_name, customer_last_name, customer_email, customer_phone")
       .eq("id", request.offerId)
       .eq("access_token", request.accessToken)
       .single();
@@ -71,17 +74,26 @@ serve(async (req) => {
 
     logStep("Token validated", { offerId: request.offerId, responseType: request.responseType });
 
-    // Get company Resend settings
+    // Get company Resend settings + notification recipient (from DB, not the body)
     let company = null;
-    const companyId = request.companyId ?? offerRow.company_id;
+    const companyId = offerRow.company_id;
     if (companyId) {
       const { data } = await supabase
         .from("companies")
-        .select("id, company_name, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+        .select("id, company_name, email, notification_email, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
         .eq("id", companyId)
         .single();
       company = data;
     }
+
+    // Authoritative values — derived from the verified offer/company rows.
+    const offerTitle = offerRow.title ?? "";
+    const offerTotal = offerRow.total ?? 0;
+    const customerName = `${offerRow.customer_first_name ?? ""} ${offerRow.customer_last_name ?? ""}`.trim() || "Kunde";
+    const customerEmail = offerRow.customer_email ?? "";
+    const customerPhone = offerRow.customer_phone ?? null;
+    const companyName = company?.company_name ?? "";
+    const companyRecipient = company?.notification_email || company?.email || "";
 
     // Resolve Resend key and from address
     let resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -103,9 +115,17 @@ serve(async (req) => {
       );
     }
 
+    if (!companyRecipient) {
+      logStep("No company notification address configured, skipping email", { companyId });
+      return new Response(
+        JSON.stringify({ success: true, message: "Email notification skipped - no company recipient" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const resend = new Resend(resendApiKey);
     const appName = getAppName();
-    const senderLabel = isCompanyEmail ? request.companyName : `Ihr ${appName} Team`;
+    const senderLabel = isCompanyEmail ? companyName : `Ihr ${appName} Team`;
 
     const isAccepted = request.responseType === "accepted";
     const isQuestion = request.responseType === "question";
@@ -120,7 +140,7 @@ serve(async (req) => {
     let emailHtml: string;
 
     if (isQuestion) {
-      emailSubject = `❓ Kundenfrage zu Offerte "${request.offerTitle}"`;
+      emailSubject = `❓ Kundenfrage zu Offerte "${offerTitle}"`;
       emailHtml = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -130,14 +150,14 @@ serve(async (req) => {
   </div>
   <div style="background:#f8fafc;padding:30px;border:1px solid #e2e8f0;border-top:none;">
     <p style="margin-top:0;">Guten Tag,</p>
-    <p>Der Kunde <strong>${request.customerName}</strong> hat eine Frage zu Ihrer Offerte.</p>
+    <p>Der Kunde <strong>${customerName}</strong> hat eine Frage zu Ihrer Offerte.</p>
     <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:20px 0;">
       <table style="width:100%;border-collapse:collapse;">
-        <tr><td style="padding:8px 0;color:#64748b;">Offerte:</td><td style="padding:8px 0;font-weight:600;text-align:right;">${request.offerTitle}</td></tr>
-        <tr><td style="padding:8px 0;color:#64748b;">Betrag:</td><td style="padding:8px 0;font-weight:600;text-align:right;">${formatCurrency(request.offerTotal)}</td></tr>
-        <tr><td style="padding:8px 0;color:#64748b;">Kunde:</td><td style="padding:8px 0;text-align:right;">${request.customerName}</td></tr>
-        <tr><td style="padding:8px 0;color:#64748b;">E-Mail:</td><td style="padding:8px 0;text-align:right;"><a href="mailto:${request.customerEmail}" style="color:#3b82f6;">${request.customerEmail}</a></td></tr>
-        ${request.customerPhone ? `<tr><td style="padding:8px 0;color:#64748b;">Telefon:</td><td style="padding:8px 0;text-align:right;"><a href="tel:${request.customerPhone}" style="color:#3b82f6;">${request.customerPhone}</a></td></tr>` : ""}
+        <tr><td style="padding:8px 0;color:#64748b;">Offerte:</td><td style="padding:8px 0;font-weight:600;text-align:right;">${offerTitle}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Betrag:</td><td style="padding:8px 0;font-weight:600;text-align:right;">${formatCurrency(offerTotal)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Kunde:</td><td style="padding:8px 0;text-align:right;">${customerName}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">E-Mail:</td><td style="padding:8px 0;text-align:right;"><a href="mailto:${customerEmail}" style="color:#3b82f6;">${customerEmail}</a></td></tr>
+        ${customerPhone ? `<tr><td style="padding:8px 0;color:#64748b;">Telefon:</td><td style="padding:8px 0;text-align:right;"><a href="tel:${customerPhone}" style="color:#3b82f6;">${customerPhone}</a></td></tr>` : ""}
       </table>
     </div>
     <div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:16px;margin:20px 0;">
@@ -145,7 +165,7 @@ serve(async (req) => {
       <p style="margin:0;color:#1e3a8a;white-space:pre-wrap;">${request.responseNote || "Keine Nachricht"}</p>
     </div>
     <div style="text-align:center;margin-top:20px;">
-      <a href="mailto:${request.customerEmail}" style="display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">✉️ Kunde antworten</a>
+      <a href="mailto:${customerEmail}" style="display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">✉️ Kunde antworten</a>
     </div>
     <p style="margin-bottom:0;margin-top:30px;color:#64748b;font-size:14px;">Mit freundlichen Grüssen<br><strong>${senderLabel}</strong></p>
   </div>
@@ -153,7 +173,7 @@ serve(async (req) => {
 </body>
 </html>`;
     } else {
-      emailSubject = `${statusEmoji} Offerte "${request.offerTitle}" wurde ${statusText}`;
+      emailSubject = `${statusEmoji} Offerte "${offerTitle}" wurde ${statusText}`;
       emailHtml = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -163,13 +183,13 @@ serve(async (req) => {
   </div>
   <div style="background:#f8fafc;padding:30px;border:1px solid #e2e8f0;border-top:none;">
     <p style="margin-top:0;">Guten Tag,</p>
-    <p>Der Kunde <strong>${request.customerName}</strong> hat Ihre Offerte <strong>${statusText}</strong>.</p>
+    <p>Der Kunde <strong>${customerName}</strong> hat Ihre Offerte <strong>${statusText}</strong>.</p>
     <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:20px 0;">
       <table style="width:100%;border-collapse:collapse;">
-        <tr><td style="padding:8px 0;color:#64748b;">Offerte:</td><td style="padding:8px 0;font-weight:600;text-align:right;">${request.offerTitle}</td></tr>
-        <tr><td style="padding:8px 0;color:#64748b;">Betrag:</td><td style="padding:8px 0;font-weight:600;text-align:right;">${formatCurrency(request.offerTotal)}</td></tr>
-        <tr><td style="padding:8px 0;color:#64748b;">Kunde:</td><td style="padding:8px 0;text-align:right;">${request.customerName}</td></tr>
-        <tr><td style="padding:8px 0;color:#64748b;">E-Mail:</td><td style="padding:8px 0;text-align:right;"><a href="mailto:${request.customerEmail}" style="color:#667eea;">${request.customerEmail}</a></td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Offerte:</td><td style="padding:8px 0;font-weight:600;text-align:right;">${offerTitle}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Betrag:</td><td style="padding:8px 0;font-weight:600;text-align:right;">${formatCurrency(offerTotal)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Kunde:</td><td style="padding:8px 0;text-align:right;">${customerName}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">E-Mail:</td><td style="padding:8px 0;text-align:right;"><a href="mailto:${customerEmail}" style="color:#667eea;">${customerEmail}</a></td></tr>
         <tr><td style="padding:8px 0;color:#64748b;">Status:</td><td style="padding:8px 0;text-align:right;"><span style="background:${statusColor};color:white;padding:4px 12px;border-radius:12px;font-size:14px;">${statusText.charAt(0).toUpperCase() + statusText.slice(1)}</span></td></tr>
       </table>
     </div>
@@ -186,7 +206,7 @@ serve(async (req) => {
 
     const { data, error } = await resend.emails.send({
       from: fromAddress,
-      to: [request.companyEmail],
+      to: [companyRecipient],
       subject: emailSubject,
       html: emailHtml,
     });
@@ -194,27 +214,27 @@ serve(async (req) => {
     if (error) {
       logStep("Error sending email", { error });
       await logEmail({
-        recipientEmail: request.companyEmail,
-        recipientName: request.companyName,
+        recipientEmail: companyRecipient,
+        recipientName: companyName,
         subject: emailSubject,
         emailType: "offer_response",
         status: "failed",
         errorMessage: JSON.stringify(error),
         companyId: companyId,
-        metadata: { responseType: request.responseType, offerTitle: request.offerTitle, offerTotal: request.offerTotal },
+        metadata: { responseType: request.responseType, offerTitle: offerTitle, offerTotal: offerTotal },
       });
       throw error;
     }
 
     logStep("Email sent successfully", { emailId: data?.id });
     await logEmail({
-      recipientEmail: request.companyEmail,
-      recipientName: request.companyName,
+      recipientEmail: companyRecipient,
+      recipientName: companyName,
       subject: emailSubject,
       emailType: "offer_response",
       status: "sent",
       companyId: companyId,
-      metadata: { responseType: request.responseType, offerTitle: request.offerTitle, offerTotal: request.offerTotal },
+      metadata: { responseType: request.responseType, offerTitle: offerTitle, offerTotal: offerTotal },
     });
 
     return new Response(
