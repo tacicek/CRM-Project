@@ -165,7 +165,7 @@ serve(async (req) => {
         gesamttotal, mwst_satz, mwst_betrag, rabatt, zwischensumme,
         status, betrag_noch_offen, positionen,
         companies (
-          company_name, email, notification_email, logo_url, primary_color,
+          id, company_name, email, notification_email, logo_url, primary_color,
           phone, street, plz, city, mwst_number, iban, bank_name,
           resend_enabled, resend_api_key, resend_from_email, resend_from_name
         )
@@ -284,8 +284,12 @@ serve(async (req) => {
       if (!firmaErr) results.push("firma");
     }
 
-    // Only mark as sent if at least one email was delivered
-    if (results.length > 0) {
+    // The customer is the primary recipient: a receipt only counts as "sent" if it
+    // actually reached them (or there was no customer address at all). A firma-only
+    // success is a partial failure — don't flip status or report success.
+    const customerDelivered = !q.customer_email || results.includes("customer");
+
+    if (customerDelivered && results.length > 0) {
       await supabase
         .from("quittungen")
         .update({ status: "sent" })
@@ -296,6 +300,20 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: false, error: "Alle E-Mails fehlgeschlagen", sent_to: [] }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (!customerDelivered) {
+      // Non-2xx so functions.invoke surfaces an error — the UI must not claim the
+      // customer received the receipt when only the firma copy went out.
+      return new Response(
+        JSON.stringify({
+          success: false,
+          partial: true,
+          error: "Quittung konnte nicht an den Kunden gesendet werden",
+          sent_to: results,
+        }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
