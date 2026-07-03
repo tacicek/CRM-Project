@@ -1,4 +1,11 @@
-import { OfferData as PdfOfferData } from "../types/offer.types";
+import {
+  OfferData as PdfOfferData,
+  OfferItemEffortMeta,
+  OfferItemVolumeMeta,
+  OfferItemAreaMeta,
+  OfferItemBreakdownEntry,
+  OfferItemLeistungEntry,
+} from "../types/offer.types";
 
 export interface LegacyOfferData {
   id: string;
@@ -37,6 +44,9 @@ export interface LegacyOfferData {
   offerte_type?: 'normal' | 'blind' | null;
   surcharges?: { label: string; amount: number }[] | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
+  // ── Data-bridge P1a (Katman 3/4, offer-level) — carried, not yet mapped/rendered ──
+  customer_number?: string | null;
+  discount_percent?: number | null;
 }
 
 export interface LegacyOfferItem {
@@ -47,6 +57,16 @@ export interface LegacyOfferItem {
   total: number;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
   service_type?: string | null;
+  // ── Data-bridge P1a (Katman 1-4) — DB snake_case; carried, not yet mapped/rendered ──
+  price_type?: string | null;
+  list_price?: number | null;
+  /** Item-level discount % (offer_items.discount_percent, Katman 1c) */
+  discount_percent?: number | null;
+  effort_meta?: OfferItemEffortMeta | null;
+  volume_meta?: OfferItemVolumeMeta | null;
+  area_meta?: OfferItemAreaMeta | null;
+  breakdown?: OfferItemBreakdownEntry[];
+  leistung?: OfferItemLeistungEntry[];
 }
 
 export interface LegacyCompanyInfo {
