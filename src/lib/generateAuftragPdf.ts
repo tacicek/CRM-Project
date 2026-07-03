@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { isFreeItem } from "./offerPricing";
 
 // =============================================================================
 // INTERFACES
@@ -12,6 +13,7 @@ interface OfferItem {
   unit: string | null;
   unit_price: number;
   total: number | null;
+  price_type?: string | null;
 }
 
 interface CompanyInfo {
@@ -850,9 +852,16 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
       const textY = yPos + ROW_PADDING + 3; // baseline offset
 
       doc.text(descLines[0], col1, textY);
-      doc.text(`${item.quantity} ${item.unit || ""}`,                          col2, textY, { align: "center" });
-      doc.text(formatCurrency(item.unit_price),                                col3, textY, { align: "center" });
-      doc.text(formatCurrency(item.total ?? item.quantity * item.unit_price),  col4, textY, { align: "right"  });
+      doc.text(`${item.quantity} ${item.unit || ""}`, col2, textY, { align: "center" });
+      // Free items (optional/inkl) are excluded from Zwischensumme, so they must not print a
+      // billable line total — otherwise the rows wouldn't add up to the totals block.
+      if (isFreeItem(item.price_type)) {
+        const label = item.price_type === "inkl" ? "inkl." : "auf Anfrage";
+        doc.text(label, col4, textY, { align: "right" });
+      } else {
+        doc.text(formatCurrency(item.unit_price),                               col3, textY, { align: "center" });
+        doc.text(formatCurrency(item.total ?? item.quantity * item.unit_price), col4, textY, { align: "right"  });
+      }
 
       // Wrapped description continuation lines
       let lineY = textY + 4;
@@ -875,10 +884,16 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     const totalsValueX   = pageWidth - margin - 5;
     const totalsTextX    = totalsBoxX + 5;
 
+    // MwSt row is shown only when VAT is active (rate > 0); a 0% Auftrag must not be
+    // labelled "8.1%". `?? 8.1` (not `|| 8.1`) so an explicit 0 rate is preserved.
+    // Box shrinks by one row when the VAT line is omitted.
+    const effectiveVatRate = auftrag.vat_rate ?? 8.1;
+    const showVat = effectiveVatRate > 0;
+
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.3);
-    doc.roundedRect(totalsBoxX, yPos - 2, totalsBoxWidth, 34, 2, 2, "FD");
+    doc.roundedRect(totalsBoxX, yPos - 2, totalsBoxWidth, showVat ? 34 : 28, 2, 2, "FD");
 
     yPos += 5;
 
@@ -889,9 +904,11 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.text(formatCurrency(auftrag.subtotal || 0), totalsValueX, yPos, { align: "right" });
     yPos += 7;
 
-    doc.text(`MwSt. (${auftrag.vat_rate || 8.1}%):`, totalsTextX, yPos);
-    doc.text(formatCurrency(auftrag.vat_amount || 0), totalsValueX, yPos, { align: "right" });
-    yPos += 6;
+    if (showVat) {
+      doc.text(`MwSt. (${effectiveVatRate}%):`, totalsTextX, yPos);
+      doc.text(formatCurrency(auftrag.vat_amount || 0), totalsValueX, yPos, { align: "right" });
+      yPos += 6;
+    }
 
     // Divider
     doc.setDrawColor(...primaryRgb);

@@ -241,7 +241,9 @@ serve(async (req) => {
       logStep("Lead insert error", { error: leadError });
       return new Response(
         JSON.stringify({ success: false, error: `Datenbankfehler: ${leadError.message}` }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        // 500, not 200 — a 200 makes functions.invoke report success, so the import UI
+        // shows "imported" and never retries while the lead was silently lost.
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

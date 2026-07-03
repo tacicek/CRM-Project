@@ -60,21 +60,6 @@ verify_jwt = false
 [functions.notify-offer-response]
 verify_jwt = false
 
-[functions.stripe-webhook]
-verify_jwt = false
-
-[functions.recover-stripe-purchase]
-verify_jwt = false
-# Admin-only: recovers token credits for paid Stripe sessions where webhook failed
-# Auth handled inside: admin role check via user_roles table
-
-[functions.create-token-checkout]
-verify_jwt = false
-# Auth is handled inside the function via supabaseClient.auth.getUser(token)
-
-[functions.send-purchase-confirmation]
-verify_jwt = false
-
 [functions.admin-create-user]
 verify_jwt = false
 

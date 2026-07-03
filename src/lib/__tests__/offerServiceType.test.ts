@@ -10,7 +10,7 @@ interface TestItem {
   position?: number;
 }
 
-describe("normalizeToCatalogBase — base'ler (exact + variant)", () => {
+describe("normalizeToCatalogBase — bases (exact + variant)", () => {
   it("umzug", () => {
     expect(normalizeToCatalogBase("umzug")).toBe("umzug");
     expect(normalizeToCatalogBase("umzug_privat")).toBe("umzug");
@@ -28,7 +28,7 @@ describe("normalizeToCatalogBase — base'ler (exact + variant)", () => {
   });
 });
 
-describe("D1 — transport_moebel ÇELİŞKİ regresyonu (→ transport, umzug DEĞİL)", () => {
+describe("D1 — transport_moebel CONFLICT regression (→ transport, NOT umzug)", () => {
   it("transport_moebel → transport", () => {
     expect(normalizeToCatalogBase("transport_moebel")).toBe("transport");
   });
@@ -48,12 +48,12 @@ describe("D2 — klavier → transport", () => {
   it("transport_klavier → transport", () => {
     expect(normalizeToCatalogBase("transport_klavier")).toBe("transport");
   });
-  it("içerik kuralı: *klavier* → transport", () => {
+  it("content rule: *klavier* → transport", () => {
     expect(normalizeToCatalogBase("spezial_klavier_lift")).toBe("transport");
   });
 });
 
-describe("D3 — moebellift → moebellift (ayrı base)", () => {
+describe("D3 — moebellift → moebellift (separate base)", () => {
   it("moebellift → moebellift", () => {
     expect(normalizeToCatalogBase("moebellift")).toBe("moebellift");
   });
@@ -82,22 +82,22 @@ describe("D6 — umlaut: entrümpelung / entruempelung → raeumung", () => {
   });
 });
 
-describe("raeumung ≠ entsorgung (Lesson #3 — ayrı)", () => {
+describe("raeumung ≠ entsorgung (Lesson #3 — separate)", () => {
   it("raeumung_keller → raeumung", () => {
     expect(normalizeToCatalogBase("raeumung_keller")).toBe("raeumung");
   });
   it("entsorgung_moebel → entsorgung", () => {
     expect(normalizeToCatalogBase("entsorgung_moebel")).toBe("entsorgung");
   });
-  it("ikisi farklı base", () => {
+  it("the two are different bases", () => {
     expect(normalizeToCatalogBase("raeumung_keller")).not.toBe(
       normalizeToCatalogBase("entsorgung_moebel"),
     );
   });
 });
 
-describe("defensive + tanınmayan", () => {
-  it("null / boş → null", () => {
+describe("defensive + unrecognized", () => {
+  it("null / empty → null", () => {
     expect(normalizeToCatalogBase(null)).toBeNull();
     expect(normalizeToCatalogBase("")).toBeNull();
     expect(normalizeToCatalogBase("   ")).toBeNull();
@@ -106,14 +106,14 @@ describe("defensive + tanınmayan", () => {
     expect(normalizeToCatalogBase("  UMZUG_Privat ")).toBe("umzug");
     expect(normalizeToCatalogBase("EndReinigung")).toBe("reinigung");
   });
-  it("tanınmayan → null", () => {
+  it("unrecognized → null", () => {
     expect(normalizeToCatalogBase("xyz")).toBeNull();
     expect(normalizeToCatalogBase("foobar_service")).toBeNull();
   });
 });
 
 describe("groupItemsByService", () => {
-  it("TEK GRUP: hepsi umzug → length 1 (backward-compat sinyali)", () => {
+  it("SINGLE GROUP: all umzug → length 1 (backward-compat signal)", () => {
     const items: TestItem[] = [
       { id: "a", service_type: "umzug" },
       { id: "b", service_type: "umzug" },
@@ -124,15 +124,15 @@ describe("groupItemsByService", () => {
     expect(g[0].label).toBe("Umzug");
   });
 
-  it("TEK GRUP: hepsi null → length 1, Allgemein", () => {
+  it("SINGLE GROUP: all null → length 1, Allgemein", () => {
     const g = groupItemsByService<TestItem>([{ id: "a" }, { id: "b", service_type: null }]);
     expect(g).toHaveLength(1);
     expect(g[0].serviceType).toBeNull();
     expect(g[0].label).toBe("Allgemein");
   });
 
-  it("ÇOK GRUP: SERVICE_ORDER sıralı, Allgemein EN SON", () => {
-    // giriş sırası bilinçli karışık: transport, (null), reinigung, umzug
+  it("MULTIPLE GROUPS: SERVICE_ORDER ordered, Allgemein LAST", () => {
+    // input order deliberately mixed: transport, (null), reinigung, umzug
     const items: TestItem[] = [
       { id: "t", service_type: "transport" },
       { id: "x" }, // null → Allgemein
@@ -143,7 +143,7 @@ describe("groupItemsByService", () => {
     expect(keys).toEqual(["umzug", "reinigung", "transport", null]);
   });
 
-  it("moebellift, umzug'dan HEMEN SONRA gelir (SERVICE_ORDER)", () => {
+  it("moebellift comes RIGHT AFTER umzug (SERVICE_ORDER)", () => {
     const items: TestItem[] = [
       { id: "r", service_type: "reinigung" },
       { id: "m", service_type: "moebellift" },
@@ -153,7 +153,7 @@ describe("groupItemsByService", () => {
     expect(keys).toEqual(["umzug", "moebellift", "reinigung"]);
   });
 
-  it("position grup İÇİNDE korunuyor (3,1,2 → 1,2,3)", () => {
+  it("position is preserved WITHIN a group (3,1,2 → 1,2,3)", () => {
     const items: TestItem[] = [
       { id: "c", service_type: "umzug", position: 3 },
       { id: "a", service_type: "umzug", position: 1 },
@@ -163,20 +163,20 @@ describe("groupItemsByService", () => {
     expect(g[0].items.map((i) => i.position)).toEqual([1, 2, 3]);
   });
 
-  it("Lesson #2: reinigung vs reinigung_end → 2 AYRI grup (normalize ETMEZ)", () => {
+  it("Lesson #2: reinigung vs reinigung_end → 2 SEPARATE groups (does NOT normalize)", () => {
     const items: TestItem[] = [
       { id: "a", service_type: "reinigung" },
       { id: "b", service_type: "reinigung_end" },
     ];
     const g = groupItemsByService(items);
     expect(g).toHaveLength(2);
-    // reinigung (SERVICE_ORDER) önce, reinigung_end (bilinmeyen) sonra; raw label görünür
+    // reinigung (SERVICE_ORDER) first, reinigung_end (unknown) after; raw label appears
     expect(g[0].serviceType).toBe("reinigung");
     expect(g[1].serviceType).toBe("reinigung_end");
     expect(g[1].label).toBe("Reinigung_end");
   });
 
-  it("null/'' service_type → Allgemein grubu", () => {
+  it("null/'' service_type → Allgemein group", () => {
     const g = groupItemsByService<TestItem>([
       { id: "a", service_type: "" },
       { id: "b", service_type: "   " },
@@ -186,18 +186,18 @@ describe("groupItemsByService", () => {
     expect(g[0].label).toBe("Allgemein");
   });
 
-  it("boş items → []", () => {
+  it("empty items → []", () => {
     expect(groupItemsByService<TestItem>([])).toEqual([]);
   });
 
-  it("SERVICE_ORDER dışı bilinmeyen base → kendi grubu, raw label", () => {
+  it("unknown base outside SERVICE_ORDER → its own group, raw label", () => {
     const g = groupItemsByService<TestItem>([{ id: "a", service_type: "xyz" }]);
     expect(g).toHaveLength(1);
     expect(g[0].serviceType).toBe("xyz");
     expect(g[0].label).toBe("Xyz");
   });
 
-  it("trim+lowercase ile bucket (aynı base'in farklı yazımı tek grup)", () => {
+  it("bucket with trim+lowercase (different spellings of the same base → one group)", () => {
     const g = groupItemsByService<TestItem>([
       { id: "a", service_type: "Umzug" },
       { id: "b", service_type: " umzug " },
@@ -208,13 +208,13 @@ describe("groupItemsByService", () => {
 });
 
 describe("SERVICE_OPTIONS (per-item dropdown)", () => {
-  it("8 öğe: 7 base SERVICE_ORDER sırasında + allgemein son", async () => {
+  it("8 items: 7 bases in SERVICE_ORDER order + allgemein last", async () => {
     const { SERVICE_OPTIONS } = await import("@/lib/offerServiceType");
     expect(SERVICE_OPTIONS.map((o) => o.value)).toEqual([
       "umzug", "moebellift", "reinigung", "raeumung", "entsorgung", "transport", "lagerung", "allgemein",
     ]);
   });
-  it("label'lar LABEL_MAP'ten + Allgemein", async () => {
+  it("labels from LABEL_MAP + Allgemein", async () => {
     const { SERVICE_OPTIONS } = await import("@/lib/offerServiceType");
     expect(SERVICE_OPTIONS.find((o) => o.value === "umzug")?.label).toBe("Umzug");
     expect(SERVICE_OPTIONS.find((o) => o.value === "moebellift")?.label).toBe("Möbellift");

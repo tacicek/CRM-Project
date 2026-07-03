@@ -74,6 +74,7 @@ interface OfferItem {
   unit: string | null;
   unit_price: number;
   total: number | null;
+  price_type?: string | null;
 }
 
 interface ExtraService {
@@ -294,7 +295,11 @@ const FirmaAuftraege = () => {
       const auftraegeData = (data || []) as Auftrag[];
       setAuftraege(auftraegeData);
 
+      // Truncate to local start-of-day, otherwise today's jobs fail `date >= today` after
+      // ~02:00 (scheduled_date parses to UTC midnight) and get dropped from "this week" and
+      // wrongly counted as overdue.
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const weekEnd = addDays(today, 7);
 
       const newStats: Stats = {
@@ -447,7 +452,7 @@ const FirmaAuftraege = () => {
   };
 
   // Auftrag → Rechnung: erstelleRechnungAusAuftrag (saf map) → /firma/rechnungen/neu (state.fromRechnung).
-  // Kalem kaynağı auftrag.items + extra_services (sipariş snapshot'ı — Quittung akışıyla aynı).
+  // Line-item source is auftrag.items + extra_services (order snapshot — same as the Quittung flow).
   const handleCreateRechnung = async (auftrag: Auftrag) => {
     if (!companyId) return;
     const { data: comp } = await supabase
@@ -464,6 +469,9 @@ const FirmaAuftraege = () => {
 
     const getTotal = (it: OfferItem | ExtraService): number | null =>
       "total" in it && typeof it.total === "number" ? it.total : null;
+    // extra_services have no price_type → billable; offer items carry optional/inkl.
+    const getPriceType = (it: OfferItem | ExtraService): string | null =>
+      "price_type" in it && typeof it.price_type === "string" ? it.price_type : null;
 
     const offerItems: OfferItemInput[] = [
       ...(auftrag.items ?? []),
@@ -474,6 +482,7 @@ const FirmaAuftraege = () => {
       unit: it.unit ?? null,
       unit_price: it.unit_price ?? 0,
       total: getTotal(it),
+      price_type: getPriceType(it),
     }));
 
     try {

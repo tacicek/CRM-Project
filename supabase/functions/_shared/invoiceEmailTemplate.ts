@@ -1,5 +1,5 @@
-// Ortak fatura/makbuz e-posta gövdesi (send-quittung + send-rechnung-email).
-// wrapEmailDocument shell'ini kullanır; fonksiyon-özel kısımlar parametre/extraSection.
+// Shared invoice/receipt email body (send-quittung + send-rechnung-email).
+// Uses the wrapEmailDocument shell; function-specific parts via parameter/extraSection.
 import { wrapEmailDocument, EMAIL_FONT_STACK } from "./emailLayout.ts";
 
 export function fmtChf(amount: number): string {
@@ -13,38 +13,38 @@ export function fmtDate(isoDate: string): string {
 
 export interface InvoiceEmailLine {
   beschreibung: string;
-  /** Orta sütun metni — Quittung: satz ("3 Std. × CHF 50"), Rechnung: "6 Std". */
+  /** Middle column text — Quittung: rate ("3 Std. × CHF 50"), Rechnung: "6 Std". */
   detail: string;
   betrag: number;
 }
 
 export interface InvoiceEmailData {
   companyName: string;
-  /** Marka rengi (primary_color), ör. "#10B981". */
+  /** Brand color (primary_color), e.g. "#10B981". */
   brand: string;
-  /** Header etiketi: "Quittung" | "Rechnung". */
+  /** Header label: "Quittung" | "Rechnung". */
   documentLabel: string;
-  /** Belge no: QU-2026-0001 | RE-2026-0001. */
+  /** Document number: QU-2026-0001 | RE-2026-0001. */
   documentNumber: string;
-  /** ISO tarih. */
+  /** ISO date. */
   datum: string;
   customerName: string;
-  /** Gövde giriş cümlesi (belgeye özel). */
+  /** Body intro sentence (document-specific). */
   intro: string;
-  /** Orta sütun başlığı: "Satz" | "Menge". */
+  /** Middle column heading: "Satz" | "Menge". */
   detailLabel: string;
   lines: InvoiceEmailLine[];
   zwischensumme: number;
-  /** Opsiyonel — > 0 ise Rabatt satırı gösterilir (Quittung). */
+  /** Optional — if > 0 a Rabatt row is shown (Quittung). */
   rabatt?: number;
   mwstSatz: number;
   mwstBetrag: number;
-  /** Toplam satırı etiketi: "Gesamttotal" | "Total". */
+  /** Total row label: "Gesamttotal" | "Total". */
   totalLabel: string;
   total: number;
-  /** Toplamlardan sonra eklenen ham HTML (Quittung: offen uyarısı | Rechnung: ödeme kutusu). */
+  /** Raw HTML appended after the totals (Quittung: outstanding notice | Rechnung: payment box). */
   extraSection?: string;
-  /** Footer parçaları (IBAN/bank/MwSt/telefon) — boşlar atılır. */
+  /** Footer parts (IBAN/bank/MwSt/phone) — empty ones are dropped. */
   footerParts: string[];
 }
 
@@ -134,7 +134,7 @@ export function buildInvoiceEmailHtml(data: InvoiceEmailData): string {
   return wrapEmailDocument(inner);
 }
 
-/** Müşteri e-postası konu satırı: "Ihre {Quittung|Rechnung} von {Firma} – {Nr}". */
+/** Customer email subject line: "Ihre {Quittung|Rechnung} von {Firma} – {Nr}". */
 export function buildInvoiceEmailSubject(params: {
   documentTitle: string;
   documentNumber: string;

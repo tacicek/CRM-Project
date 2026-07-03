@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { getDefaultFrom, getDashAppUrl, getAppName } from "../_shared/envConfig.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 // jsPDF and QRCode removed - ALL PDFs are now generated on the frontend
 // using @react-pdf/renderer and passed to this edge function as base64.
 // This keeps the edge function lightweight and ensures identical PDFs.
@@ -13,20 +14,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// BUG-8: PII maskeleme yardımcıları — loglar DSG/DSGVO uyumlu
+// BUG-8: PII masking helpers — logs are DSG/DSGVO compliant
 const maskEmail = (e: string) => e.replace(/(?<=.{2}).+(?=@)/, "***");
 
 /** Escape user-supplied strings before interpolating into HTML email templates. */
-const escapeHtml = (s: string | null | undefined): string => {
-  if (!s) return "";
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-};
-
 interface SendOfferRequest {
   offerId: string;
   /** Pre-generated offer PDF as base64 (from frontend @react-pdf/renderer). */
@@ -271,7 +262,7 @@ const handler = async (req: Request): Promise<Response> => {
       logStep("Offer not found", { error: offerError });
       return new Response(
         JSON.stringify({ error: "Offerte nicht gefunden" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -288,7 +279,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Terminal statüdeki teklifler gönderilemez — status regression engellemek için
+    // Offers in a terminal status cannot be sent — to prevent status regression
     const TERMINAL_STATUSES = ["accepted", "rejected"];
     if (TERMINAL_STATUSES.includes(offer.status)) {
       logStep("Cannot resend — offer is in terminal status", { offerId, status: offer.status });
@@ -298,7 +289,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Çift gönderim koruması — offer zaten "sent" veya "viewed" ise force_resend gerek
+    // Duplicate-send guard — if the offer is already "sent" or "viewed", force_resend is required
     if (["sent", "viewed"].includes(offer.status) && !forceResendFromBody) {
       logStep("Offer already sent/viewed, skipping duplicate", { offerId, status: offer.status });
       return new Response(
@@ -533,7 +524,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Generate offer view URL
     const offerViewUrl = `${getDashAppUrl()}/offerte/${offer.access_token}`;
-    // Marka rengi (company.primary_color) — e-posta header/CTA/tablo başlığı için
+    // Brand color (company.primary_color) — for email header/CTA/table heading
     const accent = offer.company?.primary_color || "#4f46e5";
 
     // Build items HTML (mobile-safe stacked layout)
@@ -552,7 +543,7 @@ const handler = async (req: Request): Promise<Response> => {
               <td style="padding: 2px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${item.position}</td>
             </tr>
             <tr>
-              <td colspan="2" style="padding: 6px 0 4px 0; color: #111827; font-size: 14px; word-break: break-word; line-height: 1.5;">${item.description}</td>
+              <td colspan="2" style="padding: 6px 0 4px 0; color: #111827; font-size: 14px; word-break: break-word; line-height: 1.5;">${escapeHtml(item.description)}</td>
             </tr>
             ${hasTE ? `
             <tr>
@@ -693,7 +684,7 @@ const handler = async (req: Request): Promise<Response> => {
               const itemsSub = Number(offer.subtotal) - surchargesSum;
               const surchargeRows = surchargeArr.map((x) => `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">${x?.label || "Zuschlag"}:</span>
+              <span style="color: #6b7280;">${escapeHtml(x?.label) || "Zuschlag"}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(x?.amount) || 0)}</span>
             </div>`).join("");
               return `
@@ -728,7 +719,7 @@ const handler = async (req: Request): Promise<Response> => {
             const rangeSurchargesSum = rangeSurcharges.reduce((sum, x) => sum + (Number(x?.amount) || 0), 0);
             const rangeSurchargeRows = rangeSurcharges.map((x) => `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">${x?.label || 'Zuschlag'}:</span>
+              <span style="color: #6b7280;">${escapeHtml(x?.label) || 'Zuschlag'}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(x?.amount) || 0)}</span>
             </div>`).join("");
             const minVat = (minSub + rangeSurchargesSum) * (Number(offer.vat_rate) / 100);
@@ -794,7 +785,7 @@ const handler = async (req: Request): Promise<Response> => {
           <!-- Zahlungskondition -->
           <div style="margin: 0 0 24px 0; padding: 14px 16px; background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #22c55e; display: flex; align-items: flex-start; gap: 12px;">
             <span style="font-weight: 700; color: #166534; font-size: 14px; white-space: nowrap;">Zahlungskondition:</span>
-            <span style="color: #166534; font-size: 14px;">${paymentTerms}</span>
+            <span style="color: #166534; font-size: 14px;">${escapeHtml(paymentTerms)}</span>
           </div>
           ` : ''}
 
@@ -876,7 +867,7 @@ const handler = async (req: Request): Promise<Response> => {
       logStep("No Resend API key available - skipping email send");
       return new Response(
         JSON.stringify({ error: "E-Mail-Dienst nicht konfiguriert. Bitte richten Sie Resend in den Einstellungen ein." }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -898,6 +889,32 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (attachments.length > 0) {
       emailPayload.attachments = attachments;
+    }
+
+    // Atomically claim the send: flip to "sending" only if the offer is still in a claimable
+    // state. This closes the check-then-act race above — a concurrent request (or a double
+    // click) finds "sending" and gets 0 rows back, so the customer never receives duplicates.
+    const originalStatus = offer.status;
+    const { data: claimedRows, error: claimError } = await supabase
+      .from("offers")
+      .update({ status: "sending" })
+      .eq("id", offerId)
+      .in("status", ["draft", "sent", "viewed"])
+      .select("id");
+
+    if (claimError) {
+      logStep("Failed to claim offer for sending", { error: claimError });
+      return new Response(
+        JSON.stringify({ error: "Offerte konnte nicht für den Versand gesperrt werden." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!claimedRows || claimedRows.length === 0) {
+      logStep("Offer already being sent or status changed — duplicate prevented", { offerId });
+      return new Response(
+        JSON.stringify({ error: "Diese Offerte wird bereits gesendet oder wurde bereits gesendet." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { error: emailError } = await resend.emails.send(emailPayload);
@@ -938,7 +955,10 @@ const handler = async (req: Request): Promise<Response> => {
         },
       });
       
-      // BUG-5: 422 Unprocessable — e-posta gönderilemedi (frontend sendError ile yakalar)
+      // Release the claim so the offer can be retried (revert "sending" → its previous status).
+      await supabase.from("offers").update({ status: originalStatus }).eq("id", offerId);
+
+      // BUG-5: 422 Unprocessable — email could not be sent (frontend catches it via sendError)
       return new Response(
         JSON.stringify({ error: userFriendlyError, details: emailError, from_email: fromEmail }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1026,7 +1046,7 @@ const handler = async (req: Request): Promise<Response> => {
     const errorStack = error instanceof Error ? error.stack : undefined;
     logStep("Error processing request", { error: errorMessage, stack: errorStack });
     
-    // BUG-5: 500 — beklenmedik hata (frontend sendError ile yakalar)
+    // BUG-5: 500 — unexpected error (frontend catches it via sendError)
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

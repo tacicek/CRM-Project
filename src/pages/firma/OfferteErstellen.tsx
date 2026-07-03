@@ -187,7 +187,7 @@ const createEmptyItem = (position: number): OfferItem => ({
   priceType: "pauschale",
   highlighted: false,
   details: [],
-  serviceType: null, // default Allgemein; gerçek primary-base 2.3'te addItem'da set edilir
+  serviceType: null, // default Allgemein; the real primary-base is set in addItem in 2.3
 });
 
 /** Gültig bis kürzer als 7 Tage ab heute — nur Hinweis im Formular */
@@ -286,6 +286,8 @@ const FirmaOfferteErstellen = () => {
   const [priceModel, setPriceModel] = useState<'pauschal' | 'stundenansatz' | 'kostendach'>('pauschal');
   const [hourlyRate, setHourlyRate] = useState<string>('');
   const [kostendachMax, setKostendachMax] = useState<string>('');
+  // Offer-level Rabatt (%). F1a: only captured+saved; totals integration is F3.
+  const [discountPercent, setDiscountPercent] = useState<string>('');
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
   const [offerteType, setOfferteType] = useState<'normal' | 'blind'>('normal');
@@ -544,7 +546,7 @@ const FirmaOfferteErstellen = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [items, title]);
 
-  // Multi-service: teklifin birincil base'i (lead'den). Kaynaksız yollar buna stamp'lenir (D-C).
+  // Multi-service: the offer's primary base (from the lead). Sourceless paths are stamped with it (D-C).
   const primaryBase = normalizeToCatalogBase(lead?.service_type ?? null);
 
   const addItem = () => {
@@ -563,7 +565,7 @@ const FirmaOfferteErstellen = () => {
       priceType: "pauschale" as const,
       highlighted: false,
       details: ai.note ? [ai.note] : [],
-      // D-B: AI category varsa clean base'e indir, tanınmazsa primary.
+      // D-B: if there is an AI category, reduce to the clean base; if unrecognized, use primary.
       serviceType: ai.category ? (normalizeToCatalogBase(ai.category) ?? primaryBase) : primaryBase,
     }));
     setItems(prev => [...prev, ...newItems]);
@@ -655,7 +657,7 @@ const FirmaOfferteErstellen = () => {
       priceType: derivePriceTypeFromCatalog(service),
       highlighted: false,
       details: [],
-      // Catalog satırının service_type'ı RAW olabilir → clean base'e indir (Lesson #2); yoksa primary.
+      // A catalog row's service_type may be RAW → reduce to the clean base (Lesson #2); otherwise primary.
       serviceType: normalizeToCatalogBase(service.service_type) ?? primaryBase,
     }));
 
@@ -722,7 +724,7 @@ const FirmaOfferteErstellen = () => {
       priceType: derivePriceTypeFromCatalog(item),
       highlighted: false,
       details: [],
-      // Optional katalog item'ının service_type'ı RAW olabilir → clean base (Lesson #2); yoksa primary.
+      // An optional catalog item's service_type may be RAW → clean base (Lesson #2); otherwise primary.
       serviceType: normalizeToCatalogBase(item.service_type) ?? primaryBase,
     }));
 
@@ -802,7 +804,7 @@ const FirmaOfferteErstellen = () => {
     setItems(reorderedItems.map((item, i) => ({ ...item, position: i + 1 })));
   };
 
-  // Form item şeklini (timeEstimate string) helper'ın SubtotalItem'ına çevir (parse map'te).
+  // Convert the form item shape (timeEstimate string) into the helper's SubtotalItem (in the parse map).
   const toSubtotalItems = (): SubtotalItem[] =>
     items.map((item) => ({
       priceType: item.priceType,
@@ -1030,7 +1032,7 @@ const FirmaOfferteErstellen = () => {
         customer_last_name: lead.customer_last_name,
         customer_email: lead.customer_email,
         customer_phone: lead.customer_phone,
-        // Katman 2a: adresi teklife DONDUR (create-time) — lead silinse de korunur, backfill'e bağımlı değil.
+        // Layer 2a: FREEZE the address into the offer (create-time) — preserved even if the lead is deleted, not dependent on backfill.
         frozen_from_street: lead.from_street ?? null,
         frozen_from_house_number: lead.from_house_number ?? null,
         frozen_from_plz: lead.from_plz ?? null,
@@ -1049,17 +1051,19 @@ const FirmaOfferteErstellen = () => {
         service_date: serviceDate || null,
         valid_until: validUntil || null,
         subtotal,
+        // H1: persist the distance so OfferteBearbeiten can recompute per-km surcharges.
+        // Without it, editing an offer recomputes per_km amounts against a null distance → 0.
+        moving_distance_km: distanceKm,
         surcharges: computedSurcharges,
         vat_rate: mwstEnabled ? vatRate : 0,
+        // F1a: Kundennummer + teklif-seviyesi Rabatt (totals'a entegrasyon F3'te).
+        customer_number: offerDetails.customerNumber?.trim() || null,
+        discount_percent: discountPercent.trim() !== "" ? Number(discountPercent) : null,
         status: "draft",
         sent_at: null,
       };
 
-      // Try to insert with enhanced fields first, fall back to core fields only
-      let offer;
-      let offerError;
-
-      // Enhanced offer fields (only if migration has been applied)
+      // Enhanced offer fields — the live DB has all these columns.
       const enhancedOfferData = {
         ...coreOfferData,
         company_reference: offerDetails.companyReference || null,
@@ -1082,26 +1086,14 @@ const FirmaOfferteErstellen = () => {
         offerte_type: offerteType,
       };
 
-      // First try with enhanced fields
-      const enhancedResult = await supabase
+      // Insert directly. The old "core fields only" fallback was dead code that masked real
+      // insert errors — and coreOfferData itself now carries newer columns than some of the
+      // "enhanced" ones, so the fallback insert would fail identically and never recover.
+      const { data: offer, error: offerError } = await supabase
         .from("offers")
         .insert(enhancedOfferData)
         .select()
         .single();
-
-      if (enhancedResult.error?.message?.includes("column") || enhancedResult.error?.code === "42703") {
-        // Enhanced columns don't exist yet, try with core fields only
-        const coreResult = await supabase
-          .from("offers")
-          .insert(coreOfferData)
-          .select()
-          .single();
-        offer = coreResult.data;
-        offerError = coreResult.error;
-      } else {
-        offer = enhancedResult.data;
-        offerError = enhancedResult.error;
-      }
 
       if (offerError) throw offerError;
 
@@ -1120,7 +1112,10 @@ const FirmaOfferteErstellen = () => {
           description: item.details.length > 0
             ? `${item.description}\n${item.details.filter(Boolean).map((d) => `• ${d}`).join("\n")}`
             : item.description,
-          quantity: item.priceType === "inkl" ? 1 : item.quantity,
+          // M2: blind (time-estimate) items are priced as minHours*hourlyRate for the whole
+          // position, so quantity must be 1 — otherwise the GENERATED total (quantity*unit_price)
+          // double-counts. Mirrors the "inkl" handling.
+          quantity: item.priceType === "inkl" || teValid ? 1 : item.quantity,
           unit: item.priceType === "inkl" ? "inkl." : item.unit,
           unit_price: teValid
             ? parseFloat(te!.minHours) * parseFloat(te!.hourlyRate)
@@ -1140,7 +1135,7 @@ const FirmaOfferteErstellen = () => {
         .insert(itemsToInsert);
 
       if (itemsError) {
-        // D12: offer_items INSERT başarısız — offer kaydını temizle (cleanup güvenli yapıldı)
+        // D12: offer_items INSERT failed — clean up the offer record (cleanup done safely)
         try {
           const { error: deleteError } = await supabase
             .from("offers")
@@ -1175,7 +1170,7 @@ const FirmaOfferteErstellen = () => {
           });
 
         if (leistungError) {
-          // D12: leistung hatası non-fatal — offer + items zaten kaydedildi, sadece logla
+          // D12: leistung error is non-fatal — offer + items already saved, just log it
           console.error("Error saving Leistungsübersicht (non-fatal, offer already saved):", leistungError);
         }
       }
@@ -1727,6 +1722,21 @@ const FirmaOfferteErstellen = () => {
                       )}
                     </div>
                   )}
+
+                  {/* Offer-level Rabatt (%) — F1a: captured+saved, totals integration is F3 */}
+                  <div className="space-y-1 pt-1 sm:max-w-[50%]">
+                    <Label className="text-xs sm:text-sm">Rabatt gesamt (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={discountPercent}
+                      onChange={(e) => setDiscountPercent(e.target.value)}
+                      placeholder="z.B. 10 (optional)"
+                      className="h-9 sm:h-10 text-sm"
+                    />
+                  </div>
                 </CardContent>
               </Card>
 
@@ -2160,6 +2170,7 @@ const FirmaOfferteErstellen = () => {
                           title={title}
                           items={items}
                           subtotal={calculateSubtotal()}
+                          surcharges={surcharges.map((s) => ({ label: s.label, amount: computeSurchargeAmount(s, calculateSubtotal(), lead?.distance_km ?? null) }))}
                           vatRate={mwstEnabled ? vatRate : 0}
                           vatAmount={calculateVat()}
                           total={calculateTotal()}
@@ -2250,6 +2261,7 @@ const FirmaOfferteErstellen = () => {
                       title={title}
                       items={items}
                       subtotal={calculateSubtotal()}
+                      surcharges={surcharges.map((s) => ({ label: s.label, amount: computeSurchargeAmount(s, calculateSubtotal(), lead?.distance_km ?? null) }))}
                       vatRate={mwstEnabled ? vatRate : 0}
                       vatAmount={calculateVat()}
                       total={calculateTotal()}

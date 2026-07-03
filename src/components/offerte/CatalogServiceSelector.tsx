@@ -72,7 +72,7 @@ export function CatalogServiceSelector({
   const [loading, setLoading]         = useState(true);
   const [searchTerm, setSearchTerm]   = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [hiddenServices, setHiddenServices] = useState<Set<string>>(new Set()); // × ile gizlenen servisler (Faz 2: dropdown ile geri eklenir)
+  const [hiddenServices, setHiddenServices] = useState<Set<string>>(new Set()); // services hidden via × (Faz 2: re-added through a dropdown)
 
   const serviceTypeCandidates = useMemo(() => getServiceTypeCandidates(serviceType), [serviceType]);
   const excludedIdSet = useMemo(() => new Set(excludeServiceIds), [excludeServiceIds]);
@@ -81,8 +81,8 @@ export function CatalogServiceSelector({
     if (!companyId) return;
     setLoading(true);
     try {
-      // Multi-service: tüm şirket kataloğunu yükle (service_type filtresi YOK).
-      // serviceType prop artık filtre değil → primary tespiti + default-open için.
+      // Multi-service: load the entire company catalog (NO service_type filter).
+      // The serviceType prop is no longer a filter → used for primary detection + default-open.
       const { data, error } = await supabase
         .from("company_service_items")
         .select("*")
@@ -134,8 +134,8 @@ export function CatalogServiceSelector({
     };
   }, [services, searchTerm, excludedIdSet]);
 
-  // 2-seviye gruplama: service_type (üst) → category (alt). Katalog RAW service_type'ı kullanılır
-  // (klaviertransport/moebellift kendi bölümü). Item'lar zaten kendi service_type'ını taşır.
+  // 2-level grouping: service_type (top) → category (bottom). Uses the catalog RAW service_type
+  // (klaviertransport/moebellift as its own section). Items already carry their own service_type.
   const groupedByService = useMemo(() => {
     const acc: Record<string, Record<string, ServiceItem[]>> = {};
     for (const s of available) {
@@ -146,13 +146,13 @@ export function CatalogServiceSelector({
     return acc;
   }, [available]);
 
-  // Primary servis = lead'in service_type'ı (candidates'tan, katalogda mevcut olan).
+  // Primary service = the lead's service_type (from candidates, whichever exists in the catalog).
   const primaryServiceType = useMemo(() => {
     const candSet = new Set(serviceTypeCandidates);
     return Object.keys(groupedByService).find(k => candSet.has(k)) ?? null;
   }, [groupedByService, serviceTypeCandidates]);
 
-  // Sıra: primary önce, sonra SERVICE_ORDER, sonra diğerleri (ilk-görülme).
+  // Order: primary first, then SERVICE_ORDER, then the rest (first-seen).
   const orderedServiceKeys = useMemo(() => {
     const keys = Object.keys(groupedByService);
     const rank = (k: string) => {
@@ -163,11 +163,11 @@ export function CatalogServiceSelector({
     return [...keys].sort((a, b) => rank(a) - rank(b));
   }, [groupedByService, primaryServiceType]);
 
-  // Bir servisin (o an görünen — arama filtreli) seçilebilir item'ları.
+  // The selectable items of a service (currently visible — search-filtered).
   const serviceItemsOf = (st: string): ServiceItem[] =>
     Object.values(groupedByService[st] ?? {}).flat();
 
-  // × → servisi gizle. Gizlenen servisin seçimleri de iptal (görünmeyen kalem yanlışlıkla eklenmesin).
+  // × → hide the service. Also clear the hidden service's selections (so an unseen item is not accidentally added).
   const hideService = (st: string) => {
     const ids = new Set(serviceItemsOf(st).map(s => s.id));
     setHiddenServices(prev => new Set(prev).add(st));
@@ -183,7 +183,7 @@ export function CatalogServiceSelector({
     return its.length > 0 && its.every(s => selectedIds.has(s.id));
   };
 
-  // Per-service select-all / aufheben (arama aktifken sadece eşleşenleri etkiler — görünen set).
+  // Per-service select-all / deselect (when search is active only affects matches — the visible set).
   const toggleSelectService = (st: string) => {
     const its = serviceItemsOf(st);
     const allSel = its.length > 0 && its.every(s => selectedIds.has(s.id));
@@ -253,7 +253,7 @@ export function CatalogServiceSelector({
           ) : (
             <div className="divide-y">
 
-              {/* Available — service_type başlığı → düz 3-sütun item grid (offerio.png). × ile gizlenenler atlanır. */}
+              {/* Available — service_type header → flat 3-column item grid (offerio.png). Items hidden via × are skipped. */}
               {orderedServiceKeys.filter(st => !hiddenServices.has(st)).map((st) => {
                 const categories = groupedByService[st];
                 const serviceCount = Object.values(categories).reduce((n, arr) => n + arr.length, 0);
@@ -292,8 +292,8 @@ export function CatalogServiceSelector({
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 p-3">
                       {serviceItemsOf(st).map(service => {
                         const isSelected = selectedIds.has(service.id);
-                        // Per-item Status (derivePriceTypeFromCatalog tek kaynak): optional→auf Anfrage,
-                        // inkl→inklusive, ücretli→küçük fiyat. Başlık tek-tip rozeti yerine (karışık katalog).
+                        // Per-item Status (derivePriceTypeFromCatalog single source): optional→auf Anfrage,
+                        // inkl→inklusive, paid→small price. Instead of a single-type badge on the header (mixed catalog).
                         const pt = derivePriceTypeFromCatalog(service);
                         const itemStatus =
                           pt === "optional" ? { text: "auf Anfrage", cls: "text-emerald-600" }
@@ -372,7 +372,7 @@ export function CatalogServiceSelector({
         {/* ── Footer ── */}
         <DialogFooter className="px-4 py-3 border-t bg-background">
           <div className="flex items-center justify-between w-full gap-3">
-            {/* Global clear (servis-başına seçim service-header'larında) */}
+            {/* Global clear (per-service selection lives in the service headers) */}
             <div className="flex items-center gap-2">
               {selectedIds.size > 0 ? (
                 <button

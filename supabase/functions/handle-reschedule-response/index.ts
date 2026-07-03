@@ -2,26 +2,32 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { getCalendarFrom, getAppName } from "../_shared/envConfig.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Zod Schema für Input-Validierung
+/** Escape user-supplied text before interpolating it into email HTML. */
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+// Input validation. Recipient/company identity is NOT trusted from the body — it is
+// derived from the appointment row after the reschedule token has been validated.
 const RescheduleResponseSchema = z.object({
   appointmentId: z.string().uuid("Ungültige Termin-ID"),
   action: z.enum(["confirm", "reject"], { errorMap: () => ({ message: "Aktion muss 'confirm' oder 'reject' sein" }) }),
   proposedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ungültiges Datumsformat (YYYY-MM-DD)"),
   proposedTime: z.string().regex(/^\d{2}:\d{2}$/, "Ungültiges Zeitformat (HH:MM)"),
   message: z.string().max(2000, "Nachricht zu lang (max. 2000 Zeichen)").optional(),
-  customerEmail: z.string().email("Ungültige E-Mail-Adresse").max(255),
-  customerName: z.string().min(1, "Name erforderlich").max(200),
-  companyName: z.string().min(1, "Firmenname erforderlich").max(200),
-  appointmentTitle: z.string().min(1, "Titel erforderlich").max(200),
+  token: z.string().uuid("Ungültiges Token"),
 });
-
-type RescheduleResponseRequest = z.infer<typeof RescheduleResponseSchema>;
 
 const handler = async (req: Request): Promise<Response> => {
   console.log("[handle-reschedule-response] Function invoked");
@@ -63,24 +69,16 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const body = parseResult.data;
-    console.log("[handle-reschedule-response] Request body:", body);
 
-    const {
-      appointmentId,
-      action,
-      proposedDate,
-      proposedTime,
-      message,
-      customerEmail,
-      customerName,
-      companyName,
-      appointmentTitle,
-    } = body;
+    const { appointmentId, action, proposedDate, proposedTime, message, token } = body;
 
-    // Prüfe, ob der Termin existiert
+    // Load the appointment via service role. Identity fields (recipient, names, title)
+    // come from this row — never from the request body.
     const { data: appointment, error: appointmentError } = await supabase
       .from("appointments")
-      .select("id, company_id, status")
+      .select(
+        "id, company_id, status, title, customer_email, customer_first_name, customer_last_name, reschedule_token, reschedule_token_expires_at"
+      )
       .eq("id", appointmentId)
       .single();
 
@@ -91,6 +89,47 @@ const handler = async (req: Request): Promise<Response> => {
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Validate the single-use reschedule token: must exist, match, and not be expired.
+    const tokenValid =
+      !!appointment.reschedule_token &&
+      appointment.reschedule_token === token &&
+      (!appointment.reschedule_token_expires_at ||
+        new Date(appointment.reschedule_token_expires_at).getTime() > Date.now());
+
+    if (!tokenValid) {
+      console.warn("[handle-reschedule-response] Invalid/expired token for appointment:", appointmentId);
+      return new Response(
+        JSON.stringify({ error: "Ungültiger oder abgelaufener Link" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Derive recipient identity from the DB row.
+    const customerEmail = appointment.customer_email;
+    if (!customerEmail) {
+      console.error("[handle-reschedule-response] No customer email on appointment:", appointmentId);
+      return new Response(
+        JSON.stringify({ error: "Keine Kunden-E-Mail hinterlegt" }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const customerName =
+      `${appointment.customer_first_name ?? ""} ${appointment.customer_last_name ?? ""}`.trim() || "Kunde";
+    const appointmentTitle = appointment.title;
+
+    const { data: company } = await supabase
+      .from("companies")
+      .select("company_name")
+      .eq("id", appointment.company_id)
+      .maybeSingle();
+    const companyName = company?.company_name ?? getAppName();
+
+    // Escaped variants for interpolation into the email HTML.
+    const cName = escapeHtml(customerName);
+    const coName = escapeHtml(companyName);
+    const aTitle = escapeHtml(appointmentTitle);
+    const msg = message ? escapeHtml(message) : "";
 
     // Format dates for display
     const formatDateDisplay = (dateStr: string) => {
@@ -103,6 +142,9 @@ const handler = async (req: Request): Promise<Response> => {
       });
     };
 
+    // Track the send outcome so email_logs reflects reality (resend returns { error }, no throw).
+    let emailSendError: unknown = null;
+
     if (action === "confirm") {
       // Update the appointment with new date and time
       const { error: updateError } = await supabase
@@ -113,6 +155,9 @@ const handler = async (req: Request): Promise<Response> => {
           status: "confirmed",
           confirmed_by_firma: true,
           confirmed_at: new Date().toISOString(),
+          // Single-use: invalidate the token so the link can't be replayed.
+          reschedule_token: null,
+          reschedule_token_expires_at: null,
         })
         .eq("id", appointmentId);
 
@@ -147,28 +192,28 @@ const handler = async (req: Request): Promise<Response> => {
               <p style="margin: 10px 0 0; opacity: 0.9;">Ihr neuer Termin wurde akzeptiert</p>
             </div>
             <div class="content">
-              <p>Guten Tag ${customerName},</p>
-              <p>Tolle Neuigkeiten! ${companyName} hat Ihren Terminvorschlag akzeptiert.</p>
-              
+              <p>Guten Tag ${cName},</p>
+              <p>Tolle Neuigkeiten! ${coName} hat Ihren Terminvorschlag akzeptiert.</p>
+
               <div class="info-box">
-                <h2 style="margin: 0 0 15px; color: #1f2937;">${appointmentTitle}</h2>
-                
+                <h2 style="margin: 0 0 15px; color: #1f2937;">${aTitle}</h2>
+
                 <div class="date-box">
                   <div class="label">Ihr neuer Termin</div>
                   <div class="value">${formatDateDisplay(proposedDate)}</div>
                   <div class="value">${proposedTime} Uhr</div>
                 </div>
               </div>
-              
-              ${message ? `
+
+              ${msg ? `
               <div class="message-box">
-                <div class="label">💬 Nachricht von ${companyName}</div>
-                <p style="margin: 10px 0 0;">${message}</p>
+                <div class="label">💬 Nachricht von ${coName}</div>
+                <p style="margin: 10px 0 0;">${msg}</p>
               </div>
               ` : ""}
-              
+
               <p style="margin-top: 25px;">
-                Bitte erscheinen Sie pünktlich zum Termin. Bei Fragen können Sie sich jederzeit an ${companyName} wenden.
+                Bitte erscheinen Sie pünktlich zum Termin. Bei Fragen können Sie sich jederzeit an ${coName} wenden.
               </p>
               
               <div class="footer">
@@ -182,14 +227,15 @@ const handler = async (req: Request): Promise<Response> => {
         </html>
       `;
 
-      await resend.emails.send({
+      const { error: confirmSendError } = await resend.emails.send({
         from: getCalendarFrom(),
         to: [customerEmail],
         subject: `✅ Termin bestätigt: ${appointmentTitle}`,
         html: confirmEmailHtml,
       });
-
-      console.log(`[handle-reschedule-response] Sent confirmation to customer: ${customerEmail}`);
+      emailSendError = confirmSendError;
+      if (confirmSendError) console.error("[handle-reschedule-response] confirm email failed:", confirmSendError);
+      else console.log(`[handle-reschedule-response] Sent confirmation to customer: ${customerEmail}`);
 
     } else {
       // Reject - just update status and notify customer
@@ -197,6 +243,9 @@ const handler = async (req: Request): Promise<Response> => {
         .from("appointments")
         .update({
           status: "pending",
+          // Single-use: invalidate the token so the link can't be replayed.
+          reschedule_token: null,
+          reschedule_token_expires_at: null,
         })
         .eq("id", appointmentId);
 
@@ -227,20 +276,20 @@ const handler = async (req: Request): Promise<Response> => {
               <p style="margin: 10px 0 0; opacity: 0.9;">Leider konnte Ihr Vorschlag nicht angenommen werden</p>
             </div>
             <div class="content">
-              <p>Guten Tag ${customerName},</p>
-              <p>Leider kann ${companyName} Ihren vorgeschlagenen Termin am ${formatDateDisplay(proposedDate)} um ${proposedTime} Uhr nicht annehmen.</p>
-              
-              ${message ? `
+              <p>Guten Tag ${cName},</p>
+              <p>Leider kann ${coName} Ihren vorgeschlagenen Termin am ${formatDateDisplay(proposedDate)} um ${proposedTime} Uhr nicht annehmen.</p>
+
+              ${msg ? `
               <div class="message-box">
-                <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">💬 Nachricht von ${companyName}</div>
-                <p style="margin: 10px 0 0;">${message}</p>
+                <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">💬 Nachricht von ${coName}</div>
+                <p style="margin: 10px 0 0;">${msg}</p>
               </div>
               ` : ""}
-              
+
               <div class="info-box">
                 <h3 style="margin: 0 0 10px; color: #1f2937;">Was können Sie tun?</h3>
                 <ul style="margin: 0; padding-left: 20px;">
-                  <li>Kontaktieren Sie ${companyName} direkt, um einen alternativen Termin zu finden</li>
+                  <li>Kontaktieren Sie ${coName} direkt, um einen alternativen Termin zu finden</li>
                   <li>Der ursprüngliche Termin bleibt vorerst bestehen</li>
                 </ul>
               </div>
@@ -256,14 +305,15 @@ const handler = async (req: Request): Promise<Response> => {
         </html>
       `;
 
-      await resend.emails.send({
+      const { error: rejectSendError } = await resend.emails.send({
         from: getCalendarFrom(),
         to: [customerEmail],
         subject: `📅 Terminvorschlag nicht möglich: ${appointmentTitle}`,
         html: rejectEmailHtml,
       });
-
-      console.log(`[handle-reschedule-response] Sent rejection to customer: ${customerEmail}`);
+      emailSendError = rejectSendError;
+      if (rejectSendError) console.error("[handle-reschedule-response] reject email failed:", rejectSendError);
+      else console.log(`[handle-reschedule-response] Sent rejection to customer: ${customerEmail}`);
     }
 
     // Log the email
@@ -272,9 +322,9 @@ const handler = async (req: Request): Promise<Response> => {
       recipient_email: customerEmail,
       recipient_name: customerName,
       subject: action === "confirm" 
-        ? `Termin bestätigt: ${appointmentTitle}` 
+        ? `Termin bestätigt: ${appointmentTitle}`
         : `Terminvorschlag nicht möglich: ${appointmentTitle}`,
-      status: "sent",
+      status: emailSendError ? "failed" : "sent",
       metadata: {
         appointment_id: appointmentId,
         action,

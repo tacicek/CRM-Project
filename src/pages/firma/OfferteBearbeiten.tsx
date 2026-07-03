@@ -200,7 +200,7 @@ const FirmaOfferteBearbeiten = () => {
           return;
         }
 
-        // Kabul edilmiş veya reddedilmiş teklifler düzenlenemez
+        // Accepted or rejected offers cannot be edited
         if (["accepted", "rejected"].includes(offerData.status)) {
           toast({
             title: "Bearbeitung nicht möglich",
@@ -259,7 +259,7 @@ const FirmaOfferteBearbeiten = () => {
               timeEstimate: item.time_estimate
                 ? { minHours: String(item.time_estimate.minHours), maxHours: String(item.time_estimate.maxHours), hourlyRate: String(item.time_estimate.hourlyRate) }
                 : null,
-              // PRESERVE: yüklenen item kendi stamp'ını korur (eski/null item'lar Allgemein kalır)
+              // PRESERVE: the loaded item keeps its own stamp (old/null items stay Allgemein)
               serviceType: item.service_type ?? null,
             }))
           );
@@ -289,7 +289,7 @@ const FirmaOfferteBearbeiten = () => {
         quantity: 1,
         unit: "Pauschal",
         unit_price: 0,
-        // Edit'te lead/primary service_type erişimi yok → null (Allgemein). Faz 4 picker ile çözülecek.
+        // In edit mode there is no access to lead/primary service_type → null (Allgemein). To be resolved with the Phase 4 picker.
         serviceType: null,
       },
     ]);
@@ -322,8 +322,8 @@ const FirmaOfferteBearbeiten = () => {
     setItems(reorderedItems.map((item, i) => ({ ...item, position: i + 1 })));
   };
 
-  // Form item şeklini helper'ın SubtotalItem'ına çevir. Hariç-tutma artık SEMANTİK
-  // price_type ile (eski unit==="inkl." string guard'ı kaldırıldı → optional da hariç).
+  // Convert the form item shape into the helper's SubtotalItem. Exclusion is now SEMANTIC
+  // via price_type (the old unit==="inkl." string guard was removed → optional is also excluded).
   const toSubtotalItems = (): SubtotalItem[] =>
     items.map((item) => ({
       priceType: item.price_type ?? "",

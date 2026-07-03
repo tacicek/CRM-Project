@@ -92,7 +92,7 @@ interface FromAuftragPrefill {
   extraServices?: AuftragPrefillItem[];
 }
 
-/** Blob → base64 (data: ön eki olmadan), e-posta eki için. */
+/** Blob → base64 (without the data: prefix), for the email attachment. */
 const blobToBase64 = (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -126,7 +126,7 @@ export default function QuittungDetail() {
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [positionen, setPositionen] = useState<QuittungPosition[]>(buildDefaultPositionen);
-  const [mwstSatz] = useState(8.1);
+  const [mwstSatz, setMwstSatz] = useState(8.1);
   const [rabatt, setRabatt] = useState(0);
   const [betragNochOffen, setBetragNochOffen] = useState(false);
   const [notiz, setNotiz] = useState("");
@@ -146,7 +146,7 @@ export default function QuittungDetail() {
 
   const totals = calculateTotals(positionen, mwstSatz, rabatt);
 
-  // Tek kaynak: PDF indirme, önizleme ve e-posta eki aynı veriyi kullanır (drift önler).
+  // Single source: PDF download, preview and email attachment all use the same data (prevents drift).
   const buildQuittungData = (): Quittung => ({
     id: quittungId || "",
     company_id: company?.id ?? "",
@@ -260,6 +260,9 @@ export default function QuittungDetail() {
       ? q.positionen
       : buildDefaultPositionen());
     setRabatt(q.rabatt || 0);
+    // Restore the stored VAT rate; only new receipts default to 8.1 (pre-2024 receipts
+    // may carry 7.7 or 0 — recomputing at 8.1 would silently rewrite a signed receipt).
+    setMwstSatz(q.mwst_satz ?? 8.1);
     setBetragNochOffen(q.betrag_noch_offen || false);
     setNotiz(q.notiz || "");
     setStatus(q.status);
@@ -414,7 +417,7 @@ export default function QuittungDetail() {
     if (!savedId || !company) return;
     setIsSendingEmail(true);
     try {
-      // PDF client-tarafında üret (react-pdf) → base64 → send-quittung'a ek olarak gönder.
+      // Generate the PDF client-side (react-pdf) → base64 → send it as an attachment to send-quittung.
       const blob = await pdf(
         <QuittungPDF
           quittung={buildQuittungData()}
@@ -430,7 +433,7 @@ export default function QuittungDetail() {
         body: { quittungId: savedId, quittungPdfBase64 },
       });
       if (error) throw error;
-      // Status'u send-quittung server'da 'sent' yapar — burada yalnız yerel UI güncellenir.
+      // send-quittung sets the status to 'sent' on the server — here only the local UI is updated.
       setStatus("sent");
       toast({ title: "Quittung versendet!", description: `E-Mail an ${customerEmail} gesendet.` });
     } catch (e) {

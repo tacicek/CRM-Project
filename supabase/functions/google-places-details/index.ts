@@ -1,10 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { createRateLimiter } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Unauthenticated proxy to the paid Google Places API — throttle per client IP.
+const limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
 
 // Zod Schema für Input-Validierung
 const PlaceDetailsRequestSchema = z.object({
@@ -30,6 +34,14 @@ serve(async (req) => {
   }
 
   try {
+    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (limiter.isLimited(clientIp)) {
+      return new Response(
+        JSON.stringify({ error: "Zu viele Anfragen. Bitte kurz warten." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const rawBody = await req.json();
     
     // Validiere Input mit Zod

@@ -582,13 +582,13 @@ const KalenderPage = () => {
   const thisWeekAppointments = useMemo(() => {
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday start
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6); // Sunday end
+    const weekEnd = addDays(weekStart, 6); // Sunday end
 
-    return appointments.filter(a => {
-      const aptDate = new Date(a.appointment_date);
-      return aptDate >= weekStart && aptDate <= weekEnd;
-    }).length;
+    // appointment_date is a yyyy-MM-dd string. Comparing strings avoids new Date() parsing
+    // it as UTC midnight (= 02:00 local in CEST), which pushed Sunday past the local weekEnd.
+    const startStr = format(weekStart, "yyyy-MM-dd");
+    const endStr = format(weekEnd, "yyyy-MM-dd");
+    return appointments.filter(a => a.appointment_date >= startStr && a.appointment_date <= endStr).length;
   }, [appointments]);
 
   return (

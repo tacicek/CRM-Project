@@ -25,12 +25,6 @@ interface Appointment {
   company_id: string;
 }
 
-interface Company {
-  company_name: string;
-  email: string;
-  notification_email: string | null;
-}
-
 export default function RescheduleResponse() {
   const { appointmentId } = useParams<{ appointmentId: string }>();
   const [searchParams] = useSearchParams();
@@ -43,7 +37,6 @@ export default function RescheduleResponse() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
-  const [company, setCompany] = useState<Company | null>(null);
   const [message, setMessage] = useState("");
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,17 +78,6 @@ export default function RescheduleResponse() {
       }
 
       setAppointment(appointmentData);
-
-      // Fetch company info
-      const { data: companyData } = await supabase
-        .from("companies")
-        .select("company_name, email, notification_email")
-        .eq("id", appointmentData.company_id)
-        .maybeSingle();
-
-      if (companyData) {
-        setCompany(companyData);
-      }
     } catch (err) {
       console.error("Error fetching appointment:", err);
       setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
@@ -120,10 +102,7 @@ export default function RescheduleResponse() {
           proposedDate,
           proposedTime,
           message,
-          customerEmail: appointment.customer_email,
-          customerName: `${appointment.customer_first_name || ""} ${appointment.customer_last_name || ""}`.trim(),
-          companyName: company?.company_name,
-          appointmentTitle: appointment.title,
+          token,
         },
       });
 

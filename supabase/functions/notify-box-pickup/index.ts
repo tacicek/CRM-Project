@@ -247,7 +247,7 @@ serve(async (req: Request) => {
             ` : ""}
             
             <p style="text-align: center; margin: 30px 0 20px;">
-              <a href=`${getDashAppUrl()}/firma/umzugsboxen` 
+              <a href="${getDashAppUrl()}/firma/umzugsboxen"
                  style="display: inline-block; background: ${primaryColor}; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
                 Zur Boxen-Übersicht
               </a>
@@ -269,12 +269,13 @@ serve(async (req: Request) => {
       // Send email to company
       if (resend && company.email) {
         try {
-          await resend.emails.send({
+          const { error: sendError } = await resend.emails.send({
             from: getDefaultFrom(),
             to: [company.email],
             subject: `📦 Umzugsbox Erinnerung: ${overdue.length > 0 ? `${overdue.length} überfällig!` : `${dueToday.length + dueSoon.length} bald fällig`}`,
             html: emailHtml,
           });
+          if (sendError) throw sendError; // resend returns { error } instead of throwing
           emailsSent++;
           console.log(`[notify-box-pickup] Email sent to ${company.email}`);
         } catch (emailError) {
@@ -333,12 +334,13 @@ serve(async (req: Request) => {
             `;
 
             try {
-              await resend.emails.send({
+              const { error: sendError } = await resend.emails.send({
                 from: `${company.company_name} <${getSenderEmail()}>`,
                 to: [teamMember.email],
                 subject: `📦 Box-Abholung: ${rental.customer_first_name} ${rental.customer_last_name}`,
                 html: memberEmailHtml,
               });
+              if (sendError) throw sendError; // resend returns { error } instead of throwing
               emailsSent++;
               console.log(`[notify-box-pickup] Email sent to team member ${teamMember.email}`);
             } catch (emailError) {

@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     marginTop: 2,
   },
-  // ── Signature block (offerte'den sonra akar) ──────────────────────────────
+  // ── Signature block (flows after the offerte) ─────────────────────────────
   signatureFlow: {
     marginTop: SPACING.xl,
   },
@@ -209,8 +209,8 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
             {isLastChunk ? (
               <>
                 <BottomSection data={data} accent={accent} />
-                {/* İmza/onay bloğu akışta — kısa offerte'de aynı sayfayı doldurur,
-                    taşarsa wrap={false} ile bütün halde sonraki sayfaya geçer. */}
+                {/* Signature/approval block in the flow — on a short offerte it fills
+                    the same page; if it overflows, wrap={false} moves it whole to the next page. */}
                 <View style={styles.signatureFlow} wrap={false}>
                   <SignaturePage data={data} />
                 </View>

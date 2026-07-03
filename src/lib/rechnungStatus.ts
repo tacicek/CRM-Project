@@ -11,7 +11,7 @@ export const RECHNUNG_STATUS_LABELS: Record<RechnungStatus, string> = {
   ueberfaellig: "Überfällig",
 };
 
-/** Tailwind badge renkleri (status rozetleri için). */
+/** Tailwind badge colors (for status badges). */
 export const RECHNUNG_STATUS_COLORS: Record<RechnungStatus, string> = {
   entwurf: "bg-slate-100 text-slate-700",
   versendet: "bg-blue-100 text-blue-700",

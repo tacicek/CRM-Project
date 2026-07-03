@@ -8,7 +8,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// BUG-8: PII maskeleme yardımcıları — loglar DSG/DSGVO uyumlu
+// Appointments store a naive Swiss wall-clock (date + time, no offset). The Deno runtime is UTC,
+// so `new Date("2026-07-03T14:00:00")` would be read as 14:00 UTC and overstate "hours until" by
+// the CET/CEST offset. Convert the wall-clock as Europe/Zurich to the correct UTC instant.
+const APP_TIME_ZONE = "Europe/Zurich";
+const zonedWallClockToUtc = (dateStr: string, timeStr: string, timeZone = APP_TIME_ZONE): Date => {
+  const naiveAsUtc = new Date(`${dateStr}T${timeStr}Z`);
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p = Object.fromEntries(dtf.formatToParts(naiveAsUtc).map((x) => [x.type, x.value]));
+  const asSeenInZone = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  const offsetMs = asSeenInZone - naiveAsUtc.getTime();
+  return new Date(naiveAsUtc.getTime() - offsetMs);
+};
+
+// BUG-8: PII masking helpers — logs are DSG/DSGVO compliant
 const maskEmail = (e: string) => e.replace(/(?<=.{2}).+(?=@)/, "***");
 const maskPhone = (p: string) => p.slice(0, 4) + "***";
 
@@ -211,13 +228,17 @@ const handler = async (req: Request): Promise<Response> => {
 
   // Internal cron secret — protect from unauthorized external calls
   const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  if (cronSecret) {
-    const providedSecret = req.headers.get("x-internal-secret");
-    if (providedSecret !== cronSecret) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+  if (!cronSecret) {
+    console.error("INTERNAL_CRON_SECRET not configured — refusing to run (fail closed)");
+    return new Response(JSON.stringify({ error: "Server misconfigured" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const providedSecret = req.headers.get("x-internal-secret");
+  if (providedSecret !== cronSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -319,7 +340,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Process today's appointments (2-hour and 1-hour reminders)
     for (const appointment of appointments as Appointment[]) {
-      const appointmentDateTime = new Date(`${appointment.appointment_date}T${appointment.start_time}`);
+      const appointmentDateTime = zonedWallClockToUtc(appointment.appointment_date, appointment.start_time);
       const timeUntilMs = appointmentDateTime.getTime() - now.getTime();
       const hoursUntil = timeUntilMs / (1000 * 60 * 60);
 
@@ -428,10 +449,13 @@ const handler = async (req: Request): Promise<Response> => {
         const timeUntilText = `${Math.round(hoursUntil)} Stunden`;
         const icsContent = generateIcsContent(appointment, company as Company);
         const icsBase64 = stringToBase64(icsContent);
+        // Track per-recipient success so the appointment flags aren't set on a failed send.
+        let firmaSent = false;
+        let customerSent = false;
 
         // Send reminder to firma
         try {
-          await activeResend.client.emails.send({
+          const { error: firmaSendErr } = await activeResend.client.emails.send({
             from: activeResend.from,
             to: [recipientEmail],
             subject: `⏰ Erinnerung: ${appointment.title} in ${timeUntilText}`,
@@ -443,6 +467,7 @@ const handler = async (req: Request): Promise<Response> => {
               },
             ],
           });
+          if (firmaSendErr) throw firmaSendErr; // resend returns { error } instead of throwing
 
           console.log(`[notify-appointment-reminder] Sent reminder to firma ${recipientEmail} for appointment ${appointment.id}`);
 
@@ -453,6 +478,7 @@ const handler = async (req: Request): Promise<Response> => {
             reminder_type: "email",
             status: "sent",
           });
+          firmaSent = true;
         } catch (emailError) {
           console.error(`[notify-appointment-reminder] Failed to send firma email:`, emailError);
           
@@ -469,7 +495,7 @@ const handler = async (req: Request): Promise<Response> => {
         // Send reminder to customer if email available
         if (appointment.customer_email && !appointment.reminder_sent_customer) {
           try {
-            await activeResend.client.emails.send({
+            const { error: custSendErr } = await activeResend.client.emails.send({
               from: activeResend.from,
               to: [appointment.customer_email],
               subject: `⏰ Termin-Erinnerung: ${appointment.title} in ${timeUntilText}`,
@@ -482,6 +508,8 @@ const handler = async (req: Request): Promise<Response> => {
               ],
             });
 
+            if (custSendErr) throw custSendErr; // resend returns { error } instead of throwing
+
             console.log(`[notify-appointment-reminder] Sent reminder to customer ${maskEmail(appointment.customer_email)}`);
 
             await supabase.from("appointment_reminders").insert({
@@ -491,6 +519,7 @@ const handler = async (req: Request): Promise<Response> => {
               reminder_type: "email",
               status: "sent",
             });
+            customerSent = true;
           } catch (emailError) {
             console.error(`[notify-appointment-reminder] Failed to send customer email:`, emailError);
           }
@@ -526,17 +555,20 @@ const handler = async (req: Request): Promise<Response> => {
           }
         }
 
-        // Update appointment reminder flags
-        await supabase
-          .from("appointments")
-          .update({
-            reminder_sent_firma: true,
-            reminder_sent_customer: !!appointment.customer_email,
-            reminder_sent_at: new Date().toISOString(),
-          })
-          .eq("id", appointment.id);
+        // Only mark a recipient reminded when its send actually succeeded, so a failed send is
+        // retried on the next run instead of being silently skipped.
+        if (firmaSent || customerSent) {
+          await supabase
+            .from("appointments")
+            .update({
+              reminder_sent_firma: firmaSent || appointment.reminder_sent_firma,
+              reminder_sent_customer: customerSent || appointment.reminder_sent_customer,
+              reminder_sent_at: new Date().toISOString(),
+            })
+            .eq("id", appointment.id);
 
-        remindersSent++;
+          remindersSent++;
+        }
       }
     }
 

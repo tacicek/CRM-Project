@@ -194,8 +194,8 @@ const styles = StyleSheet.create({
 });
 
 // ─── Service grouping (Faz 3) ───────────────────────────────────────────────
-// Gruplama artık offer_items.service_type üzerinden (groupItemsByService, Faz 0).
-// Eski isSectionHeader-heuristiği emekli edildi (canlı veride hiç kullanılmamıştı).
+// Grouping now happens via offer_items.service_type (groupItemsByService, Faz 0).
+// The old isSectionHeader heuristic was retired (it was never used in live data).
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -285,12 +285,12 @@ export const ServiceTable = ({
   const breakdownLines = buildBreakdownLines(data);
   const accent = data.company.primaryColor || "#F97316";
 
-  // Multi-service gruplama: stored base'e göre. PdfItem.serviceType → grouper'ın beklediği
-  // service_type'a map'le. Tek grup → başlık yok (backward compat).
+  // Multi-service grouping: based on the stored base. Map PdfItem.serviceType →
+  // the service_type the grouper expects. Single group → no header (backward compat).
   const groups = groupItemsByService(items.map((it) => ({ ...it, service_type: it.serviceType })));
   const multi = groups.length > 1;
 
-  // Global sürekli pozisyon numarası (grup sınırında sıfırlanmaz — D2).
+  // Global continuous position number (does not reset at group boundaries — D2).
   let rowNo = positionOffset;
 
   return (
@@ -304,7 +304,7 @@ export const ServiceTable = ({
         <Text style={[styles.headerCell, styles.colTotal]}>TOTAL CHF</Text>
       </View>
 
-      {/* Rows — service'e göre gruplu (multi ise başlık; orphan: başlık+ilk satır atomik) */}
+      {/* Rows — grouped by service (header when multi; orphan: header + first row atomic) */}
       {groups.map((group, gi) => (
         <View key={`group-${gi}`}>
           {group.items.map((item, idx) => {
@@ -317,7 +317,7 @@ export const ServiceTable = ({
                 alt={rowNo % 2 === 0}
               />
             );
-            // D3 orphan: çok-grup'ta başlık + ilk satır aynı wrap={false} View'da → yetim başlık olmaz.
+            // D3 orphan: in multi-group, header + first row in the same wrap={false} View → no orphaned header.
             if (multi && idx === 0) {
               return (
                 <View key={`gh-${gi}`} wrap={false}>

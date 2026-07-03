@@ -78,6 +78,7 @@ interface OfferItem {
   unit: string | null;
   unit_price: number;
   total: number | null;
+  price_type?: string | null;
 }
 
 interface FullOffer {
@@ -701,8 +702,8 @@ export function AuftragModal({
       return;
     }
 
-    // E16: Yeni Auftrag oluştururken offer_id zorunlu
-    // (Düzenleme modunda veya offerId zaten verilmişse bu kontrol atlanır)
+    // E16: offer_id is required when creating a new Auftrag
+    // (this check is skipped in edit mode or when offerId is already provided)
     const resolvedOfferId = selectedOfferId || offerId || auftrag?.offer_id || null;
     if (!auftrag && !resolvedOfferId) {
       toast({
@@ -800,7 +801,7 @@ export function AuftragModal({
 
         const dateChanged = auftrag.scheduled_date !== auftragData.scheduled_date;
 
-        // Reschedule: Datum değiştiyse hatırlatma bayraklarını sıfırla.
+        // Reschedule: if the date changed, reset the reminder flags.
         const rescheduleReset = dateChanged
           ? {
               team_reminder_sent: false,
@@ -810,9 +811,9 @@ export function AuftragModal({
             }
           : {};
 
-        // #7 Tek kaynak: Zaman (Datum/Zeit/Dauer) kanonik olarak appointments'ta.
-        // Linkli randevu varsa zamanı ORAYA yaz — trigger auftrag.scheduled_*'ı aynalar.
-        // Bu yüzden auftrag update'inden schedule alanlarını çıkarıyoruz.
+        // #7 Single source: time (Datum/Zeit/Dauer) lives canonically in appointments.
+        // If a linked appointment exists, write the time THERE — a trigger mirrors auftrag.scheduled_*.
+        // That is why we strip the schedule fields out of the auftrag update.
         if (auftrag.appointment_id) {
           const { error: apptError } = await supabase
             .from("appointments")

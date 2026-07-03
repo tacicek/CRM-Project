@@ -43,9 +43,9 @@ export const setCachedCompany = (company: CachedCompanyData | null) => {
 export const useCachedCompany = (_select: string = "id") => {
   const { activeCompany, companyId, loading, refresh } = useCompanyContext();
 
-  // activeCompany YALNIZ CompanyData içerir (id, company_name, logo_url, is_verified).
-  // Daha fazla alan (plz, iban, street, ...) gerekiyorsa fetchSingleCompanyForUser ile
-  // taze çek — `as unknown as T` ile var gibi göstermek (sessiz undefined) YASAK.
+  // activeCompany ONLY contains CompanyData (id, company_name, logo_url, is_verified).
+  // If more fields (plz, iban, street, ...) are needed, fetch fresh via fetchSingleCompanyForUser
+  // — faking their presence with `as unknown as T` (silent undefined) is FORBIDDEN.
   return {
     company: activeCompany,
     companyId,

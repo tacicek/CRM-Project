@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,6 +83,25 @@ const handler = async (req: Request): Promise<Response> => {
     const confirmUrl = `${siteUrl}/termin/${appointmentId}/antwort?action=confirm&date=${proposedDate}&time=${proposedTime}&token=${responseToken}`;
     const rejectUrl = `${siteUrl}/termin/${appointmentId}/antwort?action=reject&date=${proposedDate}&time=${proposedTime}&token=${responseToken}`;
 
+    // Persist the token so handle-reschedule-response can validate the firma's click.
+    // 30-day window: a reschedule request older than that must be re-initiated.
+    const tokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { error: tokenError } = await supabase
+      .from("appointments")
+      .update({
+        reschedule_token: responseToken,
+        reschedule_token_expires_at: tokenExpiresAt,
+      })
+      .eq("id", appointmentId);
+
+    if (tokenError) {
+      console.error("[notify-appointment-reschedule] Failed to persist reschedule token:", tokenError);
+      return new Response(
+        JSON.stringify({ error: "Terminverschiebung konnte nicht vorbereitet werden" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Send email to company with action buttons
     const companyEmailHtml = `
       <!DOCTYPE html>
@@ -135,14 +155,14 @@ const handler = async (req: Request): Promise<Response> => {
             
             <div class="customer-info">
               <div class="label">👤 Kunde</div>
-              <div class="value">${customerName}</div>
+              <div class="value">${escapeHtml(customerName)}</div>
               <div style="color: #6b7280; font-size: 14px; margin-top: 5px;">${customerEmail}</div>
             </div>
             
             ${customerMessage ? `
             <div class="message-box">
               <div class="label">💬 Nachricht des Kunden</div>
-              <p style="margin: 10px 0 0;">${customerMessage}</p>
+              <p style="margin: 10px 0 0;">${escapeHtml(customerMessage)}</p>
             </div>
             ` : ""}
             
@@ -166,14 +186,14 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    await resend.emails.send({
+    const { error: companyEmailError } = await resend.emails.send({
       from: getCalendarFrom(),
       to: [companyEmail],
       subject: `📅 Terminverschiebung angefragt: ${appointmentTitle}`,
       html: companyEmailHtml,
     });
-
-    console.log(`[notify-appointment-reschedule] Sent notification to company: ${companyEmail}`);
+    if (companyEmailError) console.error("[notify-appointment-reschedule] company email failed:", companyEmailError);
+    else console.log(`[notify-appointment-reschedule] Sent notification to company: ${companyEmail}`);
 
     // Send confirmation email to customer
     const customerEmailHtml = `
@@ -200,8 +220,8 @@ const handler = async (req: Request): Promise<Response> => {
             <p style="margin: 10px 0 0; opacity: 0.9;">Ihr Verschiebungswunsch wurde übermittelt</p>
           </div>
           <div class="content">
-            <p>Guten Tag ${customerName},</p>
-            <p>Ihr Terminvorschlag wurde erfolgreich an ${companyName} gesendet.</p>
+            <p>Guten Tag ${escapeHtml(customerName)},</p>
+            <p>Ihr Terminvorschlag wurde erfolgreich an ${escapeHtml(companyName)} gesendet.</p>
             
             <div class="info-box">
               <h2 style="margin: 0 0 15px; color: #1f2937;">${appointmentTitle}</h2>
@@ -214,12 +234,12 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
             
             <p>
-              ${companyName} wird sich bei Ihnen melden, um den Termin zu bestätigen oder einen alternativen Vorschlag zu machen.
+              ${escapeHtml(companyName)} wird sich bei Ihnen melden, um den Termin zu bestätigen oder einen alternativen Vorschlag zu machen.
             </p>
             
             <div class="footer">
               <p style="color: #6b7280;">
-                Bei Fragen können Sie sich direkt an ${companyName} wenden.
+                Bei Fragen können Sie sich direkt an ${escapeHtml(companyName)} wenden.
               </p>
             </div>
           </div>
@@ -228,14 +248,14 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    await resend.emails.send({
+    const { error: customerEmailError } = await resend.emails.send({
       from: getCalendarFrom(),
       to: [customerEmail],
       subject: `✅ Terminvorschlag gesendet: ${appointmentTitle}`,
       html: customerEmailHtml,
     });
-
-    console.log(`[notify-appointment-reschedule] Sent confirmation to customer: ${customerEmail}`);
+    if (customerEmailError) console.error("[notify-appointment-reschedule] customer email failed:", customerEmailError);
+    else console.log(`[notify-appointment-reschedule] Sent confirmation to customer: ${customerEmail}`);
 
     // Create notification for dashboard
     const { companyId } = body;
@@ -266,7 +286,7 @@ const handler = async (req: Request): Promise<Response> => {
       recipient_email: companyEmail,
       recipient_name: companyName,
       subject: `Terminverschiebung angefragt: ${appointmentTitle}`,
-      status: "sent",
+      status: companyEmailError ? "failed" : "sent",
       metadata: {
         appointment_id: appointmentId,
         customer_name: customerName,

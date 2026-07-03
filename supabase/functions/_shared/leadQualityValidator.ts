@@ -1,21 +1,21 @@
 /**
  * Deterministic Lead Quality Validator (shared between edge functions)
  *
- * Ücretsiz, hızlı, ~%85 sahte leadleri LLM çağırmadan yakalar.
- * Prompts.ts'deki VALIDATE_LEAD_QUALITY_PROMPT ile paralel mantık kullanır;
- * amaç: her lead'de LLM maliyetini ödememek.
+ * Free, fast, catches ~85% of fake leads without calling the LLM.
+ * Uses logic parallel to VALIDATE_LEAD_QUALITY_PROMPT in prompts.ts;
+ * goal: avoid paying the LLM cost on every lead.
  *
- * Çıktı verdict:
- *   - "clearly_invalid" → LLM çağırma, direkt reject/risky bucket
- *   - "ambiguous"       → LLM'e danış (VALIDATE_LEAD_QUALITY_PROMPT)
- *   - "clearly_valid"   → LLM çağırma, pending_verification'da kalsın
+ * Output verdict:
+ *   - "clearly_invalid" → don't call the LLM, go straight to reject/risky bucket
+ *   - "ambiguous"       → consult the LLM (VALIDATE_LEAD_QUALITY_PROMPT)
+ *   - "clearly_valid"   → don't call the LLM, keep it in pending_verification
  */
 
 // ---------------------------------------------------------------------------
-// Referans listeleri
+// Reference lists
 // ---------------------------------------------------------------------------
 
-// Beyaz listede olmayan / 6 karakterden uzun TLD → ungültig
+// TLD not in the whitelist / longer than 6 characters → ungültig
 const VALID_TLDS = new Set([
   "com", "ch", "de", "at", "net", "org", "io", "co", "uk", "fr", "it", "li",
   "eu", "me", "info", "biz", "swiss", "be", "nl", "es", "pt", "dk", "se",
@@ -44,7 +44,7 @@ const DISPOSABLE_DOMAINS = new Set([
   "dispostable.com", "mintemail.com", "mailnesia.com",
 ]);
 
-// Avrupa ülke kodları (prompt ile senkron)
+// European country codes (in sync with the prompt)
 const VALID_EU_PHONE_PREFIXES = [
   "+41", "+49", "+43", "+33", "+39", "+423", "+352",
   "+32", "+31", "+34", "+351", "+44", "+45", "+46",
@@ -65,7 +65,7 @@ const TEST_NAMES = new Set([
 ]);
 
 // ---------------------------------------------------------------------------
-// Tipler
+// Types
 // ---------------------------------------------------------------------------
 
 export interface LeadValidationInput {
@@ -88,7 +88,7 @@ export type Verdict = "clearly_invalid" | "ambiguous" | "clearly_valid";
 export interface DeterministicResult {
   verdict: Verdict;
   qualityScore: number;      // 0-100
-  signals: string[];         // Sinyal listesi
+  signals: string[];         // Signal list
   rejectionReason: string | null;
   fieldChecks: {
     email:   { valid: boolean; issue: string | null };
@@ -97,12 +97,12 @@ export interface DeterministicResult {
     address: { valid: boolean; issue: string | null };
     date:    { valid: boolean; issue: string | null };
   };
-  // True ise: email formatı bile geçersiz → double opt-in gönderilemez
+  // If true: even the email format is invalid → double opt-in cannot be sent
   emailCanReceive: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// Yardımcılar
+// Helpers
 // ---------------------------------------------------------------------------
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -156,7 +156,7 @@ function checkEmail(email: string | null | undefined): {
   }
 
   if (!VALID_TLDS.has(tld)) {
-    // 2-6 karakter ama bilmediğimiz bir TLD — geçerli kabul et, sadece şüphe sinyali
+    // 2-6 characters but an unknown TLD — accept as valid, only a suspicion signal
   }
 
   if (DISPOSABLE_DOMAINS.has(domain)) {
@@ -190,7 +190,7 @@ function checkPhone(phone: string | null | undefined): { valid: boolean; issue: 
     return { valid: false, issue: `Telefon-Länge ungültig (${digits.length} Ziffern)` };
   }
 
-  // Ülke kodu varsa Avrupa listesinde olmalı
+  // If there is a country code it must be in the European list
   if (raw.startsWith("+") || raw.startsWith("00")) {
     const normalized = raw.startsWith("00") ? `+${raw.slice(2)}` : raw;
     const hasValidPrefix = VALID_EU_PHONE_PREFIXES.some((p) => normalized.startsWith(p));
@@ -200,12 +200,12 @@ function checkPhone(phone: string | null | undefined): { valid: boolean; issue: 
     return { valid: true, issue: null };
   }
 
-  // Ülke kodu yoksa CH lokal formatı bekleniyor (07x/04x/03x/02x, toplam 10 rakam)
+  // Without a country code, CH local format is expected (07x/04x/03x/02x, 10 digits total)
   if (digits.length === 10 && /^0[2-7]/.test(digits)) {
     return { valid: true, issue: null };
   }
 
-  // Lokal format da değilse ve ülke kodu da yoksa → şüpheli ama kesin değil
+  // If it's neither local format nor has a country code → suspicious but not certain
   return { valid: true, issue: null };
 }
 
@@ -233,7 +233,7 @@ function checkName(firstName: string | null | undefined, lastName: string | null
   if (TEST_NAMES.has(first) || TEST_NAMES.has(last)) {
     return { valid: false, issue: "Test/Fake-Name", suspicious: false };
   }
-  // Verdächtig (geçersiz değil ama puanı düşür)
+  // Suspicious (not invalid, but lower the score)
   if (first && first === last) {
     return { valid: true, issue: null, suspicious: true };
   }
@@ -247,7 +247,7 @@ function checkAddress(input: LeadValidationInput): { valid: boolean; issue: stri
   const plz = input.from_plz?.trim() || input.to_plz?.trim() || "";
   const city = input.from_city?.trim() || input.to_city?.trim() || "";
 
-  // İsviçre PLZ kontrolü — yalnızca 4-rakamlı ve tipik CH formatındaysa yap
+  // Swiss PLZ check — only when it's 4 digits and in typical CH format
   if (plz && /^\d{4}$/.test(plz)) {
     const n = parseInt(plz, 10);
     if (n < 1000 || n > 9999) {
@@ -351,7 +351,7 @@ export function validateLeadDeterministic(input: LeadValidationInput): Determini
     signals.push("Name verdächtig");
   }
 
-  // ---- Adres -------------------------------------------------------------
+  // ---- Address -----------------------------------------------------------
   if (!addressCheck.valid) {
     score -= 15;
     signals.push(`Adresse ungültig: ${addressCheck.issue}`);
@@ -372,9 +372,9 @@ export function validateLeadDeterministic(input: LeadValidationInput): Determini
   score = Math.max(0, Math.min(100, score));
 
   // ---- Verdict -----------------------------------------------------------
-  // clearly_invalid: E-posta formatı kesinlikle geçersiz (mail bile gidemez) veya skor <25
-  // clearly_valid:   Skor >=80 ve hiçbir kritik sinyal yok
-  // ambiguous:       Kalan her şey (LLM'e danış)
+  // clearly_invalid: email format is definitely invalid (mail can't even be sent) or score <25
+  // clearly_valid:   score >=80 and no critical signals at all
+  // ambiguous:       everything else (consult the LLM)
   let verdict: Verdict;
   let rejectionReason: string | null = null;
 

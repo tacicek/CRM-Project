@@ -1,18 +1,19 @@
-// Kanonik servis-tipi normalizasyonu — offer_items STAMPING için tek kaynak (referans §3).
+// Canonical service-type normalization — single source for offer_items STAMPING (reference §3).
 //
-// ⚠️ Lesson #1/#3: Bu fn STAMPING içindir (item hangi tek base'e ait). Mevcut
-// `normalizeServiceTypeForAgb` (AGB lookup) ve `getServiceTypeCandidates` (katalog IN-lookup)
-// FARKLI ihtiyaçlar (çoklu-aday) — onlara dokunulmadı, yerinde kalıyorlar. Üçüncü çelişen
-// mapper DEĞİL; bu, o ikisinin çelişkilerini onaylanan kararlarla çözen kanonik olandır.
+// ⚠️ Lesson #1/#3: This fn is for STAMPING (which single base an item belongs to). The existing
+// `normalizeServiceTypeForAgb` (AGB lookup) and `getServiceTypeCandidates` (catalog IN-lookup)
+// serve DIFFERENT needs (multi-candidate) — they were left untouched and stay in place. This is NOT
+// a third conflicting mapper; it is the canonical one that resolves the conflicts of those two with
+// approved decisions.
 //
-// Onaylanan taksonomi (D1-D6):
+// Approved taxonomy (D1-D6):
 //   D1 transport_moebel / moebel_transport → transport
 //   D2 klaviertransport / *klavier*        → transport
-//   D3 moebellift / moebellift_*           → moebellift (ayrı base — umzug'dan ayrıldı)
-//   D4 malerarbeit / renovation            → null (katalogda base yok → Allgemein)
+//   D3 moebellift / moebellift_*           → moebellift (separate base — split off from umzug)
+//   D4 malerarbeit / renovation            → null (no base in the catalog → Allgemein)
 //   D5 lagerung_*                          → lagerung
 //   D6 entrümpelung / entruempelung (ü+ue) → raeumung
-//   raeumung ≠ entsorgung (ayrı — Lesson #3)
+//   raeumung ≠ entsorgung (separate — Lesson #3)
 
 export type CatalogBase =
   | "umzug"
@@ -23,7 +24,7 @@ export type CatalogBase =
   | "transport"
   | "lagerung";
 
-// Exact eşleşmeler (iki mevcut mapper'dan + onaylanan kararlar). null = bilinçli "base yok".
+// Exact matches (from the two existing mappers + approved decisions). null = deliberate "no base".
 const EXACT = new Map<string, CatalogBase | null>([
   // umzug
   ["umzug", "umzug"],
@@ -33,7 +34,7 @@ const EXACT = new Map<string, CatalogBase | null>([
   ["umzug_international", "umzug"],
   ["privatumzug", "umzug"],
   ["firmenumzug", "umzug"],
-  ["moebellift", "moebellift"], // D3 (ayrı base)
+  ["moebellift", "moebellift"], // D3 (separate base)
   // reinigung
   ["reinigung", "reinigung"],
   ["endreinigung", "reinigung"],
@@ -60,21 +61,21 @@ const EXACT = new Map<string, CatalogBase | null>([
   // transport (D1 + D2)
   ["transport", "transport"],
   ["moebel_transport", "transport"], // D1
-  ["transport_moebel", "transport"], // D1 (Mapper B'nin →umzug'u DEĞİL)
+  ["transport_moebel", "transport"], // D1 (NOT Mapper B's →umzug)
   ["usm_transport", "transport"],
   ["wasserbett_transport", "transport"],
   ["klaviertransport", "transport"], // D2
   ["transport_klavier", "transport"], // D2
   // lagerung
   ["lagerung", "lagerung"],
-  // D4 — bilinçli null (katalogda base yok)
+  // D4 — deliberate null (no base in the catalog)
   ["malerarbeit", null],
   ["renovation", null],
 ]);
 
-// Prefix kuralları (exact'ten sonra). moebellift_ önce — umzug_ ile çakışmaz ama niyet net.
+// Prefix rules (after exact). moebellift_ first — it does not clash with umzug_ but the intent is clear.
 const PREFIX: [string, CatalogBase][] = [
-  ["moebellift_", "moebellift"], // D3 (ayrı base)
+  ["moebellift_", "moebellift"], // D3 (separate base)
   ["umzug_", "umzug"],
   ["reinigung_", "reinigung"],
   ["raeumung_", "raeumung"],
@@ -84,19 +85,19 @@ const PREFIX: [string, CatalogBase][] = [
 ];
 
 /**
- * Bir lead/servis tipini 7 kanonik base'den birine indirger; katalogda karşılığı yoksa null.
- * exact → prefix → content → null sırası (referans §3).
- * DEFENSIVE: null/boş → null; trim + lowercase ile normalize.
+ * Reduces a lead/service type to one of the 7 canonical bases; null if there is no match in the catalog.
+ * Order: exact → prefix → content → null (reference §3).
+ * DEFENSIVE: null/empty → null; normalize with trim + lowercase.
  */
 export const normalizeToCatalogBase = (t: string | null): CatalogBase | null => {
   if (!t) return null;
   const v = t.trim().toLowerCase();
   if (!v) return null;
 
-  // 1) exact (null değer = bilinçli "base yok")
+  // 1) exact (null value = deliberate "no base")
   if (EXACT.has(v)) return EXACT.get(v) ?? null;
 
-  // 2) bilinçli null prefix'leri (D4) — content kuralından önce
+  // 2) deliberate null prefixes (D4) — before the content rule
   if (v.startsWith("malerarbeit") || v.startsWith("renovation")) return null;
 
   // 3) prefix
@@ -104,18 +105,18 @@ export const normalizeToCatalogBase = (t: string | null): CatalogBase | null => 
     if (v.startsWith(p)) return base;
   }
 
-  // 4) content (D2: klavier herhangi bir yerde → transport)
+  // 4) content (D2: klavier anywhere → transport)
   if (v.includes("klavier")) return "transport";
 
-  // 5) tanınmayan → null (Allgemein grubuna düşer)
+  // 5) unrecognized → null (falls into the Allgemein group)
   return null;
 };
 
 // ---------------------------------------------------------------------------
-// Grouping — render tüketicileri (PDF, firma detay, public OfferView) için TEK kaynak.
+// Grouping — SINGLE source for render consumers (PDF, firma detail, public OfferView).
 // ---------------------------------------------------------------------------
 
-// Gruplar arası sıralama. Bu listede olmayan bilinen base'ler sonra, null (Allgemein) en sonda.
+// Ordering between groups. Known bases not in this list come after, null (Allgemein) comes last.
 export const SERVICE_ORDER: CatalogBase[] = [
   "umzug",
   "moebellift",
@@ -126,7 +127,7 @@ export const SERVICE_ORDER: CatalogBase[] = [
   "lagerung",
 ];
 
-// Base → UI başlığı. SERVICE_ORDER dışı/tanınmayan base'ler raw (capitalize) görünür (Lesson #2).
+// Base → UI title. Bases outside SERVICE_ORDER / unrecognized appear raw (capitalized) (Lesson #2).
 export const LABEL_MAP: Record<string, string> = {
   umzug: "Umzug",
   moebellift: "Möbellift",
@@ -137,15 +138,15 @@ export const LABEL_MAP: Record<string, string> = {
   lagerung: "Lagerung",
 };
 
-// Per-item servis dropdown'ı için seçenekler (create + edit aynı kaynaktan — divergence önle).
-// 'allgemein' = null sentinel (Radix Select string ister; yazarken null'a çevrilir).
+// Options for the per-item service dropdown (create + edit from the same source — avoid divergence).
+// 'allgemein' = null sentinel (Radix Select needs a string; converted to null on write).
 export const SERVICE_OPTIONS: { value: string; label: string }[] = [
   ...SERVICE_ORDER.map((base) => ({ value: base as string, label: LABEL_MAP[base] })),
   { value: "allgemein", label: "Allgemein" },
 ];
 
 export interface ServiceGroup<T> {
-  serviceType: string | null; // stored key (trim+lowercase); null/boş → null (Allgemein)
+  serviceType: string | null; // stored key (trim+lowercase); null/empty → null (Allgemein)
   label: string;
   items: T[];
 }
@@ -158,16 +159,16 @@ const labelFor = (key: string | null): string => {
 };
 
 /**
- * Kalemleri stored service_type'a göre gruplar (referans §7).
+ * Groups items by the stored service_type (reference §7).
  *
- * ⚠️ Lesson #2: normalizeToCatalogBase'i ÇAĞIRMAZ — sadece trim().toLowerCase() ile bucket'lar.
- * Normalize = stamping'in işi (Faz 2). Raw variant görünürse (ör. 'reinigung_end' ayrı grup)
- * bu bir STAMPING bug sinyalidir; grouper GİZLEMEZ.
+ * ⚠️ Lesson #2: does NOT CALL normalizeToCatalogBase — it only buckets with trim().toLowerCase().
+ * Normalize = stamping's job (Phase 2). If a raw variant appears (e.g. 'reinigung_end' as a separate
+ * group) that is a STAMPING bug signal; the grouper does NOT hide it.
  */
 export function groupItemsByService<
   T extends { service_type?: string | null; position?: number },
 >(items: T[]): ServiceGroup<T>[] {
-  // 1) bucket — sadece trim+lowercase; ilk-görülme sırasını koru
+  // 1) bucket — trim+lowercase only; preserve first-seen order
   const buckets = new Map<string | null, T[]>();
   const firstSeen: (string | null)[] = [];
   for (const item of items) {
@@ -180,7 +181,7 @@ export function groupItemsByService<
     buckets.get(key)!.push(item);
   }
 
-  // 3) gruplar arası sıra: SERVICE_ORDER → diğer bilinen (ilk-görülme) → null en son
+  // 3) order between groups: SERVICE_ORDER → other known (first-seen) → null last
   const rank = (key: string | null): number => {
     if (key === null) return Number.MAX_SAFE_INTEGER;
     const idx = SERVICE_ORDER.indexOf(key as CatalogBase);
@@ -188,7 +189,7 @@ export function groupItemsByService<
   };
   const sortedKeys = [...firstSeen].sort((a, b) => rank(a) - rank(b));
 
-  // 2) grup içi: position'a göre (stable; position yoksa giriş sırası korunur)
+  // 2) within a group: by position (stable; if no position, input order is preserved)
   return sortedKeys.map((key) => {
     const groupItems = [...buckets.get(key)!].sort(
       (x, y) => (x.position ?? 0) - (y.position ?? 0),

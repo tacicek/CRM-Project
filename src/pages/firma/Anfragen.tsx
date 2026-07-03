@@ -113,7 +113,7 @@ export default function FirmaAnfragen() {
   const [serviceFilter, setServiceFilter] = useState("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  // lead_id → mevcut offer (rozet + "Offerte ansehen" için)
+  // lead_id → existing offer (badge + "Offerte ansehen")
   const [leadOffers, setLeadOffers] = useState<Record<string, { id: string; offer_number: number | null; status: string }>>({});
 
   const fetchLeads = useCallback(async () => {
@@ -130,7 +130,7 @@ export default function FirmaAnfragen() {
       const rows = (data as Lead[]) || [];
       setLeads(rows);
 
-      // Bu lead'lere ait offer'ları çek → her lead için en güncel offer'ı eşle
+      // Fetch offers for these leads → match the most recent offer for each lead
       const leadIds = rows.map((l) => l.id);
       if (leadIds.length > 0) {
         const { data: offers } = await supabase
@@ -207,14 +207,14 @@ export default function FirmaAnfragen() {
     );
   });
 
-  // Offer'ı olan lead'ler servis sekmelerinden çıkıp ayrı "Offeriert" sekmesinde toplanır
+  // Leads with an offer leave the service tabs and are grouped in a separate "Offeriert" tab
   const openLeads = searched.filter((lead) => !leadOffers[lead.id]);
   const offeredCount = searched.length - openLeads.length;
 
   const filtered = searched.filter((lead) => {
     const hasOffer = !!leadOffers[lead.id];
     if (serviceFilter === "offered") return hasOffer;
-    if (hasOffer) return false; // açık sekmelerde offer'lı lead gösterilmez
+    if (hasOffer) return false; // leads with an offer are not shown in the open tabs
     if (serviceFilter === "all") return true;
     return getServiceGroup(lead.service_type).key === serviceFilter;
   });

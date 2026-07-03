@@ -146,12 +146,12 @@ const handler = async (req: Request): Promise<Response> => {
             
             <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
               Mit freundlichen Grüssen<br>
-              <strong>${isCompanyEmail ? request.companyName : "Ihr ${getAppName()} Team"}</strong>
+              <strong>${isCompanyEmail ? request.companyName : `Ihr ${getAppName()} Team`}</strong>
             </p>
           </div>
           
           <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-            <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : " von ${getAppName()}"} gesendet.</p>
+            <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : ` von ${getAppName()}`} gesendet.</p>
           </div>
         </body>
       </html>
@@ -237,26 +237,30 @@ const handler = async (req: Request): Promise<Response> => {
               
               <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
                 Mit freundlichen Grüssen<br>
-                <strong>${isCompanyEmail ? request.companyName : "Ihr ${getAppName()} Team"}</strong>
+                <strong>${isCompanyEmail ? request.companyName : `Ihr ${getAppName()} Team`}</strong>
               </p>
             </div>
             
             <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-              <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : " von ${getAppName()}"} gesendet.</p>
+              <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : ` von ${getAppName()}`} gesendet.</p>
             </div>
           </body>
         </html>
       `;
 
       try {
-        await resend.emails.send({
+        // resend.emails.send resolves with { error } instead of throwing.
+        const { error: customerEmailError } = await resend.emails.send({
           from: fromAddress,
           to: [request.customerEmail],
           subject: `✅ Terminabsage bestätigt - ${request.appointmentTitle}`,
           html: customerEmailHtml,
         });
-        
-        logStep("Customer confirmation email sent", { isCompanyEmail });
+        if (customerEmailError) {
+          logStep("Failed to send customer confirmation email", { error: customerEmailError });
+        } else {
+          logStep("Customer confirmation email sent", { isCompanyEmail });
+        }
       } catch (customerEmailError) {
         logStep("Failed to send customer confirmation email", { error: customerEmailError });
       }

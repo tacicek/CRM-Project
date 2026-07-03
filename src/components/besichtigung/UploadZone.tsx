@@ -14,7 +14,7 @@ interface UploadZoneProps {
   primaryColor?: string;
 }
 
-// Server (upload-besichtigung-photo) ile birebir: yalnız görsel, video yok.
+// Exactly matches the server (upload-besichtigung-photo): images only, no video.
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
 
 export function UploadZone({

@@ -7,6 +7,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Appointments store a naive Swiss wall-clock. The Deno runtime is UTC, so setHours()/new Date()
+// on the date-only string would treat the time as UTC and shift it by the CET/CEST offset.
+// Convert the wall-clock as Europe/Zurich to the correct UTC instant.
+const APP_TIME_ZONE = "Europe/Zurich";
+const zonedWallClockToUtc = (dateStr: string, timeStr: string, timeZone = APP_TIME_ZONE): Date => {
+  const naiveAsUtc = new Date(`${dateStr}T${timeStr}Z`);
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p = Object.fromEntries(dtf.formatToParts(naiveAsUtc).map((x) => [x.type, x.value]));
+  const asSeenInZone = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  return new Date(naiveAsUtc.getTime() - (asSeenInZone - naiveAsUtc.getTime()));
+};
+
 interface TeamMember {
   id: string;
   first_name: string;
@@ -581,13 +597,17 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  if (cronSecret) {
-    const providedSecret = req.headers.get("x-internal-secret");
-    if (providedSecret !== cronSecret) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+  if (!cronSecret) {
+    console.error("INTERNAL_CRON_SECRET not configured — refusing to run (fail closed)");
+    return new Response(JSON.stringify({ error: "Server misconfigured" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const providedSecret = req.headers.get("x-internal-secret");
+  if (providedSecret !== cronSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -617,13 +637,18 @@ const handler = async (req: Request): Promise<Response> => {
     // 3. Appointment is within 11-13 hours from now
     // 4. Team reminder not yet sent
 
-    const targetDate = from11Hours.toISOString().split("T")[0];
-    
+    // The 11–13h window can straddle a UTC calendar-day boundary, so query BOTH dates it spans
+    // (deduped) — a single UTC date would miss appointments on the following day.
+    const targetDates = [...new Set([
+      from11Hours.toISOString().split("T")[0],
+      to13Hours.toISOString().split("T")[0],
+    ])];
+
     const { data: appointments, error: appointmentsError } = await supabase
       .from("appointments")
       .select("*")
       .in("status", ["confirmed", "pending"])
-      .eq("appointment_date", targetDate)
+      .in("appointment_date", targetDates)
       .not("assigned_team_member_ids", "is", null)
       .or("reminder_sent_team.is.null,reminder_sent_team.eq.false");
 
@@ -642,10 +667,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Filter appointments by time
     const appointmentsToRemind = appointments.filter((apt) => {
-      const [hours, minutes] = apt.start_time.split(":").map(Number);
-      const appointmentDateTime = new Date(apt.appointment_date);
-      appointmentDateTime.setHours(hours, minutes, 0, 0);
-
+      const appointmentDateTime = zonedWallClockToUtc(apt.appointment_date, apt.start_time);
       return appointmentDateTime >= from11Hours && appointmentDateTime <= to13Hours;
     });
 

@@ -11,7 +11,7 @@ import {
 } from "@/lib/offerPricing";
 
 describe("hourlyRange", () => {
-  it("normal: min*rate ve max*rate döndürür", () => {
+  it("normal: returns min*rate and max*rate", () => {
     expect(hourlyRange({ minHours: 2, maxHours: 4, hourlyRate: 100 })).toEqual({
       min: 200,
       max: 400,
@@ -23,13 +23,13 @@ describe("hourlyRange", () => {
     expect(hourlyRange(undefined)).toBeNull();
   });
 
-  it("minHours=0 veya hourlyRate=0 → null (ServiceTable guard'ıyla birebir)", () => {
+  it("minHours=0 or hourlyRate=0 → null (identical to the ServiceTable guard)", () => {
     expect(hourlyRange({ minHours: 0, maxHours: 4, hourlyRate: 100 })).toBeNull();
     expect(hourlyRange({ minHours: 2, maxHours: 4, hourlyRate: 0 })).toBeNull();
   });
 
-  it("defensive: yanlış şekil / yanlış tip → null (patlamadan)", () => {
-    // as cast tuzağı: DB jsonb beklenmedik şekil taşıyabilir
+  it("defensive: wrong shape / wrong type → null (without blowing up)", () => {
+    // as-cast trap: DB jsonb may carry an unexpected shape
     expect(hourlyRange({ min: 2, max: 4 } as unknown as Parameters<typeof hourlyRange>[0])).toBeNull();
     expect(
       hourlyRange({ minHours: "2", maxHours: "4", hourlyRate: "100" } as unknown as Parameters<typeof hourlyRange>[0]),
@@ -39,18 +39,18 @@ describe("hourlyRange", () => {
 });
 
 describe("isFreeItem", () => {
-  it("ücretsiz (çip) tipleri → true", () => {
+  it("free (chip) types → true", () => {
     expect(isFreeItem("inkl")).toBe(true);
     expect(isFreeItem("optional")).toBe(true);
   });
 
-  it("ücretli (kutu) tipleri → false", () => {
+  it("paid (box) types → false", () => {
     expect(isFreeItem("pauschale")).toBe(false);
     expect(isFreeItem("per_unit")).toBe(false);
     expect(isFreeItem("per_hour")).toBe(false);
   });
 
-  it("null/undefined/boş → false (defensive)", () => {
+  it("null/undefined/empty → false (defensive)", () => {
     expect(isFreeItem(null)).toBe(false);
     expect(isFreeItem(undefined)).toBe(false);
     expect(isFreeItem("")).toBe(false);
@@ -58,43 +58,43 @@ describe("isFreeItem", () => {
 });
 
 describe("derivePriceTypeFromCatalog", () => {
-  it("is_default_included → inkl (flag öncelikli, fiyattan bağımsız)", () => {
+  it("is_default_included → inkl (flag takes priority, independent of price)", () => {
     expect(derivePriceTypeFromCatalog({ is_default_included: true, unit: "Stunde" })).toBe("inkl");
   });
 
-  it("is_optional → optional (CHF 0 olsa bile inkl'e DÖNMEZ)", () => {
+  it("is_optional → optional (does NOT become inkl even if CHF 0)", () => {
     expect(derivePriceTypeFromCatalog({ is_optional: true, unit: "Pauschale" })).toBe("optional");
     expect(derivePriceTypeFromCatalog({ is_optional: true, unit: "" })).toBe("optional");
   });
 
-  it("flag yoksa unit 'Inklusiv' → inkl (legacy)", () => {
+  it("no flag, unit 'Inklusiv' → inkl (legacy)", () => {
     expect(derivePriceTypeFromCatalog({ unit: "Inklusiv" })).toBe("inkl");
   });
 
-  it("unit saat içeriyor → per_hour", () => {
+  it("unit contains hours → per_hour", () => {
     expect(derivePriceTypeFromCatalog({ unit: "Stunde" })).toBe("per_hour");
     expect(derivePriceTypeFromCatalog({ unit: "Std." })).toBe("per_hour");
   });
 
-  it("birim-bazlı unit → per_unit", () => {
+  it("unit-based unit → per_unit", () => {
     expect(derivePriceTypeFromCatalog({ unit: "Stück" })).toBe("per_unit");
     expect(derivePriceTypeFromCatalog({ unit: "m³" })).toBe("per_unit");
     expect(derivePriceTypeFromCatalog({ unit: "Tag" })).toBe("per_unit");
   });
 
-  it("tanınmayan / boş unit → pauschale", () => {
+  it("unrecognized / empty unit → pauschale", () => {
     expect(derivePriceTypeFromCatalog({ unit: "Pauschale" })).toBe("pauschale");
     expect(derivePriceTypeFromCatalog({ unit: null })).toBe("pauschale");
     expect(derivePriceTypeFromCatalog({})).toBe("pauschale");
   });
 
-  it("öncelik: is_default_included, is_optional'dan önce gelir", () => {
+  it("priority: is_default_included comes before is_optional", () => {
     expect(derivePriceTypeFromCatalog({ is_default_included: true, is_optional: true })).toBe("inkl");
   });
 });
 
 describe("computeItemsSubtotal", () => {
-  // Karışık fixture: pauschale + fiyatlı optional + inkl + blind
+  // Mixed fixture: pauschale + priced optional + inkl + blind
   const mixed: SubtotalItem[] = [
     { priceType: "pauschale", quantity: 1, unitPrice: 1000, timeEstimate: null },
     { priceType: "optional", quantity: 1, unitPrice: 200, timeEstimate: null },
@@ -102,27 +102,27 @@ describe("computeItemsSubtotal", () => {
     { priceType: "pauschale", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 2, maxHours: 4, hourlyRate: 100 } },
   ];
 
-  it("min: optional+inkl hariç, blind alt sınır (1000 + 2*100) = 1200", () => {
+  it("min: excluding optional+inkl, blind lower bound (1000 + 2*100) = 1200", () => {
     expect(computeItemsSubtotal(mixed, "min")).toBe(1200);
   });
 
-  it("max: blind üst sınır (1000 + 4*100) = 1400", () => {
+  it("max: blind upper bound (1000 + 4*100) = 1400", () => {
     expect(computeItemsSubtotal(mixed, "max")).toBe(1400);
   });
 
-  it("REGRESYON: fiyatlı optional subtotal'a GİRMEZ (1200, 1400 değil)", () => {
-    // optional CHF 200 dahil olsaydı min=1400 olurdu — olmamalı
+  it("REGRESSION: priced optional does NOT enter the subtotal (1200, not 1400)", () => {
+    // if the optional CHF 200 were included min would be 1400 — it must not be
     expect(computeItemsSubtotal(mixed, "min")).not.toBe(1400);
     expect(computeItemsSubtotal(mixed, "min")).toBe(1200);
   });
 
-  it("CREATE == EDIT: iki form-şekli aynı SubtotalItem'a map → aynı sayı (optional hariç)", () => {
-    // create-form item (priceType camelCase) — fiyatlı optional, eski edit bug'ının tetikleyicisi
+  it("CREATE == EDIT: both form shapes map to the same SubtotalItem → same number (excluding optional)", () => {
+    // create-form item (priceType camelCase) — priced optional, the trigger of the old edit bug
     const createForm = [
       { priceType: "pauschale", quantity: 1, unit_price: 1000, timeEstimate: null },
       { priceType: "optional", quantity: 1, unit_price: 200, timeEstimate: null },
     ];
-    // edit-form item (price_type snake) — aynı içerik
+    // edit-form item (price_type snake) — same content
     const editForm = [
       { price_type: "pauschale", quantity: 1, unit_price: 1000, timeEstimate: null },
       { price_type: "optional", quantity: 1, unit_price: 200, timeEstimate: null },
@@ -139,15 +139,15 @@ describe("computeItemsSubtotal", () => {
       unitPrice: i.unit_price,
       timeEstimate: null,
     }));
-    // Eski bug'da edit 1200 (optional dahil), create 1000 → diverge. Artık ikisi de 1000.
+    // In the old bug edit was 1200 (optional included), create 1000 → diverge. Now both are 1000.
     expect(computeItemsSubtotal(fromCreate, "min")).toBe(computeItemsSubtotal(fromEdit, "min"));
-    expect(computeItemsSubtotal(fromEdit, "min")).toBe(1000); // optional CHF 200 HARİÇ
+    expect(computeItemsSubtotal(fromEdit, "min")).toBe(1000); // optional CHF 200 EXCLUDED
   });
 
-  it("DB aynalama: subtotal 1200 → total = 1200*(1+8.1/100) = 1297.20 cent", () => {
+  it("DB mirroring: subtotal 1200 → total = 1200*(1+8.1/100) = 1297.20 cent", () => {
     const subtotal = computeItemsSubtotal(mixed, "min"); // 1200
     const vatRate = 8.1;
-    const total = subtotal + (subtotal * vatRate) / 100; // DB generated formülü
+    const total = subtotal + (subtotal * vatRate) / 100; // DB generated formula
     expect(Number(total.toFixed(2))).toBe(1297.2);
   });
 });
@@ -161,7 +161,7 @@ describe("computeTotalsFromSubtotal", () => {
     });
   });
 
-  it("sabit surcharge 100, VAT 8.1: taxableBase 1100, total 1189.1", () => {
+  it("fixed surcharge 100, VAT 8.1: taxableBase 1100, total 1189.1", () => {
     const r = computeTotalsFromSubtotal(1000, 100, 8.1);
     expect(r.taxableBase).toBe(1100);
     expect(Number(r.vatAmount.toFixed(2))).toBe(89.1);
@@ -176,24 +176,24 @@ describe("computeTotalsFromSubtotal", () => {
     });
   });
 
-  it("BLIND RANGE — optional HER İKİ tarafta hariç + total aralığı", () => {
+  it("BLIND RANGE — optional excluded on BOTH sides + total range", () => {
     const items: SubtotalItem[] = [
       { priceType: "pauschale", quantity: 1, unitPrice: 1000, timeEstimate: null },
       { priceType: "optional", quantity: 1, unitPrice: 300, timeEstimate: null },
       { priceType: "pauschale", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 2, maxHours: 4, hourlyRate: 100 } },
     ];
-    const minItems = computeItemsSubtotal(items, "min"); // 1000 + 200 = 1200 (optional hariç)
-    const maxItems = computeItemsSubtotal(items, "max"); // 1000 + 400 = 1400 (optional hariç)
+    const minItems = computeItemsSubtotal(items, "min"); // 1000 + 200 = 1200 (optional excluded)
+    const maxItems = computeItemsSubtotal(items, "max"); // 1000 + 400 = 1400 (optional excluded)
     expect(minItems).toBe(1200);
     expect(maxItems).toBe(1400);
-    // VAT 0, surcharge 0 → total aralığı 1200 – 1400
+    // VAT 0, surcharge 0 → total range 1200 – 1400
     expect(computeTotalsFromSubtotal(minItems, 0, 0).total).toBe(1200);
     expect(computeTotalsFromSubtotal(maxItems, 0, 0).total).toBe(1400);
   });
 });
 
-describe("blind disclaimer sabitleri", () => {
-  it("metin sabitleri tanımlı ve dolu", () => {
+describe("blind disclaimer constants", () => {
+  it("text constants are defined and non-empty", () => {
     expect(BLIND_DISCLAIMER_LABEL).toBe("Wichtiger Hinweis");
     expect(BLIND_DISCLAIMER_TEXT).toContain("ohne persönliche Besichtigung");
   });

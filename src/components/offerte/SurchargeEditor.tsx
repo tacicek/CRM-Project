@@ -10,9 +10,9 @@ import { computeSurchargeAmount, type OfferSurcharge, type SurchargeType } from 
 interface SurchargeEditorProps {
   surcharges: OfferSurcharge[];
   onChange: (surcharges: OfferSurcharge[]) => void;
-  /** Kalem subtotal'ı — percent surcharge'lar bunun üzerinden hesaplanır. */
+  /** Items subtotal — percent surcharges are calculated on top of this. */
   itemsSubtotal: number;
-  /** İş mesafesi (per_km için). */
+  /** Job distance (for per_km). */
   distanceKm: number | null | undefined;
 }
 

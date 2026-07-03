@@ -59,13 +59,17 @@ serve(async (req) => {
   }
 
   const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  if (cronSecret) {
-    const providedSecret = req.headers.get("x-internal-secret");
-    if (providedSecret !== cronSecret) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+  if (!cronSecret) {
+    console.error("INTERNAL_CRON_SECRET not configured — refusing to run (fail closed)");
+    return new Response(JSON.stringify({ error: "Server misconfigured" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const providedSecret = req.headers.get("x-internal-secret");
+  if (providedSecret !== cronSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -161,7 +165,7 @@ serve(async (req) => {
         const pdfBase64 = btoa(Array.from(pdfBytes).map(b => String.fromCharCode(b)).join(""));
 
         // Send email to team leader
-        const emailResult = await resend.emails.send({
+        const { error: teamEmailError } = await resend.emails.send({
           from: fromAddress,
           to: auftrag.team_leader_email,
           subject: `📋 Auftrag ${auftrag.auftrag_nummer} - ${formattedDate}`,
@@ -174,8 +178,11 @@ serve(async (req) => {
             },
           ],
         });
+        // resend.emails.send resolves with { error } instead of throwing — bail before marking
+        // the reminder sent, otherwise a failed send is never retried and the team is never told.
+        if (teamEmailError) throw teamEmailError;
 
-        // Update auftrag as reminded
+        // Update auftrag as reminded (only after a successful send)
         await supabase
           .from("auftraege")
           .update({
@@ -253,12 +260,13 @@ serve(async (req) => {
             year: "numeric",
           });
 
-          await resend.emails.send({
+          const { error: custEmailError } = await resend.emails.send({
             from: fromAddress,
             to: auftrag.customer_email,
             subject: `Erinnerung: Ihr Termin am ${formattedDate} – ${auftrag.company_name}`,
             html: generateCustomerEmailHtml(auftrag, formattedDate),
           });
+          if (custEmailError) throw custEmailError;
 
           await supabase
             .from("auftraege")

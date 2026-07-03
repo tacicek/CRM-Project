@@ -27,13 +27,13 @@ export const rechnungToPdfData = (r: Rechnung, company: RechnungCompany): Rechnu
   company,
 });
 
-/** positionen (RechnungPosition[]) → Json sütunu için sınır dönüşümü. */
+/** positionen (RechnungPosition[]) → boundary conversion for the Json column. */
 export const positionenToJson = (positionen: RechnungPosition[]): Json =>
   positionen as unknown as Json;
 
 /**
- * Rechnungen veri katmanı — supabase.from + useState/useEffect (Quittungen deseni,
- * React Query yok). companyId değişince otomatik yeniden yükler.
+ * Rechnungen data layer — supabase.from + useState/useEffect (Quittungen pattern,
+ * no React Query). Reloads automatically when companyId changes.
  */
 export const useRechnungen = (companyId: string | undefined) => {
   const { toast } = useToast();
