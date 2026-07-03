@@ -11,6 +11,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
@@ -130,8 +131,11 @@ const FirmaDashboard = () => {
             .select("*", { count: "exact", head: true })
             .eq("company_id", company.id)
             .eq("appointment_type", "service")
-            .gte("appointment_date", monthStart.toISOString())
-            .lte("appointment_date", monthEnd.toISOString())
+            // appointment_date is a DATE column — compare with local yyyy-MM-dd strings.
+            // toISOString() shifts local midnight to the previous UTC day in CET/CEST,
+            // which pulled in the wrong calendar days.
+            .gte("appointment_date", format(monthStart, "yyyy-MM-dd"))
+            .lte("appointment_date", format(monthEnd, "yyyy-MM-dd"))
             .neq("status", "cancelled"),
 
           supabase
@@ -174,8 +178,8 @@ const FirmaDashboard = () => {
             .from("appointments")
             .select("id, title, appointment_date, appointment_type")
             .eq("company_id", company.id)
-            .gte("appointment_date", todayStart.toISOString())
-            .lte("appointment_date", todayEnd.toISOString())
+            .gte("appointment_date", format(todayStart, "yyyy-MM-dd"))
+            .lte("appointment_date", format(todayEnd, "yyyy-MM-dd"))
             .neq("status", "cancelled")
             .order("appointment_date", { ascending: true })
             .limit(8),
