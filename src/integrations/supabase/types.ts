@@ -3396,6 +3396,31 @@ export type Database = {
           customer_salutation: string | null
           description: string | null
           destination_building_info: Json | null
+          frozen_address_at: string | null
+          frozen_from_city: string | null
+          frozen_from_distance_to_parking: number | null
+          frozen_from_floor: number | null
+          frozen_from_has_lift: boolean | null
+          frozen_from_house_number: string | null
+          frozen_from_lift_type: string | null
+          frozen_from_living_space_m2: number | null
+          frozen_from_path_obstruction: boolean | null
+          frozen_from_plz: string | null
+          frozen_from_rooms: number | null
+          frozen_from_steps_to_entrance: string | null
+          frozen_from_street: string | null
+          frozen_to_city: string | null
+          frozen_to_distance_to_parking: number | null
+          frozen_to_floor: number | null
+          frozen_to_has_lift: boolean | null
+          frozen_to_house_number: string | null
+          frozen_to_lift_type: string | null
+          frozen_to_living_space_m2: number | null
+          frozen_to_path_obstruction: boolean | null
+          frozen_to_plz: string | null
+          frozen_to_rooms: number | null
+          frozen_to_steps_to_entrance: string | null
+          frozen_to_street: string | null
           highlighted_items: string[] | null
           hourly_rate: number | null
           id: string
@@ -3456,6 +3481,31 @@ export type Database = {
           customer_salutation?: string | null
           description?: string | null
           destination_building_info?: Json | null
+          frozen_address_at?: string | null
+          frozen_from_city?: string | null
+          frozen_from_distance_to_parking?: number | null
+          frozen_from_floor?: number | null
+          frozen_from_has_lift?: boolean | null
+          frozen_from_house_number?: string | null
+          frozen_from_lift_type?: string | null
+          frozen_from_living_space_m2?: number | null
+          frozen_from_path_obstruction?: boolean | null
+          frozen_from_plz?: string | null
+          frozen_from_rooms?: number | null
+          frozen_from_steps_to_entrance?: string | null
+          frozen_from_street?: string | null
+          frozen_to_city?: string | null
+          frozen_to_distance_to_parking?: number | null
+          frozen_to_floor?: number | null
+          frozen_to_has_lift?: boolean | null
+          frozen_to_house_number?: string | null
+          frozen_to_lift_type?: string | null
+          frozen_to_living_space_m2?: number | null
+          frozen_to_path_obstruction?: boolean | null
+          frozen_to_plz?: string | null
+          frozen_to_rooms?: number | null
+          frozen_to_steps_to_entrance?: string | null
+          frozen_to_street?: string | null
           highlighted_items?: string[] | null
           hourly_rate?: number | null
           id?: string
@@ -3516,6 +3566,31 @@ export type Database = {
           customer_salutation?: string | null
           description?: string | null
           destination_building_info?: Json | null
+          frozen_address_at?: string | null
+          frozen_from_city?: string | null
+          frozen_from_distance_to_parking?: number | null
+          frozen_from_floor?: number | null
+          frozen_from_has_lift?: boolean | null
+          frozen_from_house_number?: string | null
+          frozen_from_lift_type?: string | null
+          frozen_from_living_space_m2?: number | null
+          frozen_from_path_obstruction?: boolean | null
+          frozen_from_plz?: string | null
+          frozen_from_rooms?: number | null
+          frozen_from_steps_to_entrance?: string | null
+          frozen_from_street?: string | null
+          frozen_to_city?: string | null
+          frozen_to_distance_to_parking?: number | null
+          frozen_to_floor?: number | null
+          frozen_to_has_lift?: boolean | null
+          frozen_to_house_number?: string | null
+          frozen_to_lift_type?: string | null
+          frozen_to_living_space_m2?: number | null
+          frozen_to_path_obstruction?: boolean | null
+          frozen_to_plz?: string | null
+          frozen_to_rooms?: number | null
+          frozen_to_steps_to_entrance?: string | null
+          frozen_to_street?: string | null
           highlighted_items?: string[] | null
           hourly_rate?: number | null
           id?: string
