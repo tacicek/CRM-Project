@@ -72,6 +72,8 @@ interface OfferteLivePreviewProps {
   vatRate: number;
   vatAmount: number;
   total: number;
+  /** Computed surcharge amounts, rendered between Zwischensumme and MwSt. */
+  surcharges?: { label: string; amount: number }[];
   serviceDate: string;
   validUntil: string;
   paymentTerms: string;
@@ -89,6 +91,7 @@ export const OfferteLivePreview = ({
   vatRate,
   vatAmount,
   total,
+  surcharges,
   serviceDate,
   validUntil,
   paymentTerms,
@@ -347,6 +350,12 @@ export const OfferteLivePreview = ({
             <span>Zwischensumme:</span>
             <span>{formatCurrency(subtotal)}</span>
           </div>
+          {surcharges?.map((s, i) => (
+            <div key={i} className="flex justify-between">
+              <span>{s.label || "Zuschlag"}:</span>
+              <span>{formatCurrency(s.amount)}</span>
+            </div>
+          ))}
           <div className="flex justify-between">
             <span>MwSt. ({vatRate}%):</span>
             <span>{formatCurrency(vatAmount)}</span>

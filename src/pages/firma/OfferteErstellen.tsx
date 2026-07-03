@@ -2170,6 +2170,7 @@ const FirmaOfferteErstellen = () => {
                           title={title}
                           items={items}
                           subtotal={calculateSubtotal()}
+                          surcharges={surcharges.map((s) => ({ label: s.label, amount: computeSurchargeAmount(s, calculateSubtotal(), lead?.distance_km ?? null) }))}
                           vatRate={mwstEnabled ? vatRate : 0}
                           vatAmount={calculateVat()}
                           total={calculateTotal()}
@@ -2260,6 +2261,7 @@ const FirmaOfferteErstellen = () => {
                       title={title}
                       items={items}
                       subtotal={calculateSubtotal()}
+                      surcharges={surcharges.map((s) => ({ label: s.label, amount: computeSurchargeAmount(s, calculateSubtotal(), lead?.distance_km ?? null) }))}
                       vatRate={mwstEnabled ? vatRate : 0}
                       vatAmount={calculateVat()}
                       total={calculateTotal()}
