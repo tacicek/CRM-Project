@@ -102,6 +102,9 @@ export interface OfferData {
   offerteType?: 'normal' | 'blind';
   /** Explicit salutation from form (e.g. "Herr", "Frau") — used for gender-aware greeting */
   customerSalutation?: string | null;
+  // ── Data-bridge P1b (Katman 3/4, offer-level) — carried, NOT yet rendered ──
+  customerNumber?: string | null;
+  discountPercent?: number | null;
 }
 
 export interface AddressDetails {

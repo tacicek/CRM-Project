@@ -3,6 +3,7 @@ import { generateOfferPdfBase64 } from "@/lib/generateOfferPdf";
 import { generateAgbPdfBase64 } from "@/lib/generateAgbPdf";
 import { getChecklistPdfBase64 } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
+import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 
 type LeadRow = {
   service_type?: string | null;
@@ -32,7 +33,7 @@ export const buildOfferEmailAttachments = async (
 ): Promise<AttachmentResult> => {
   const [offerRes, itemsRes, companyRes, leistungRes] = await Promise.all([
     supabase.from("offers").select("*").eq("id", offerId).single(),
-    supabase.from("offer_items").select("*").eq("offer_id", offerId).order("position"),
+    supabase.from("offer_items").select(OFFER_ITEMS_PDF_SELECT).eq("offer_id", offerId).order("position"),
     supabase.from("companies").select("*").eq("id", companyId).single(),
     supabase.from("offer_leistungsuebersicht").select("*").eq("offer_id", offerId).maybeSingle(),
   ]);

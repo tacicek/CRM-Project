@@ -71,6 +71,7 @@ import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
 import { computeItemsSubtotal, computeTotalsFromSubtotal, hourlyRange } from "@/lib/offerPricing";
+import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -322,7 +323,7 @@ const FirmaOfferteDetail = () => {
         const [itemsResult, leistungResult, emailLogsResult, agbResult] = await Promise.all([
           supabase
             .from("offer_items")
-            .select("*")
+            .select(OFFER_ITEMS_PDF_SELECT)
             .eq("offer_id", id)
             .order("position"),
           supabase
