@@ -47,6 +47,23 @@ export interface OfferData {
     timeEstimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
     /** Multi-service grouping key (clean base or null=Allgemein) */
     serviceType?: string | null;
+    // ── Data-bridge P1a (Katman 1-4) — carried for the redesign, NOT yet rendered ──
+    /** Price semantics: pauschale | per_unit | per_hour | inkl | optional */
+    priceType?: string | null;
+    /** Original catalog price before item discount (Katman 1c) */
+    listPrice?: number | null;
+    /** Item-level discount % (Katman 1c) */
+    discountPercent?: number | null;
+    /** Effort meta (crew/vehicles/hourly rate/effort range) — offer_item_effort_meta */
+    effortMeta?: OfferItemEffortMeta | null;
+    /** Volume meta (m³ + rate) — offer_item_volume_meta */
+    volumeMeta?: OfferItemVolumeMeta | null;
+    /** Area meta (object type / m² / handover) — offer_item_area_meta */
+    areaMeta?: OfferItemAreaMeta | null;
+    /** Detailed breakdown rows — offer_item_breakdown (1:N) */
+    breakdownRows?: OfferItemBreakdownEntry[];
+    /** Included-service (Leistungsumfang) rows — offer_item_leistung (1:N) */
+    leistung?: OfferItemLeistungEntry[];
   }>;
   breakdown?: {
     volume?: number;
@@ -96,4 +113,45 @@ export interface AddressDetails {
   rooms?: number;
   hasLift?: boolean;
   hasParking?: boolean;
+}
+
+// ── Per-item service meta (data-bridge P1a) ─────────────────────────────────────
+// Shapes mirror the DB tables 1:1 (offer_item_*_meta / _breakdown / _leistung).
+// Shared here so both LegacyOfferItem (mapOfferData input) and OfferData.items
+// (render type) reference one definition. Carried in P1a, rendered from P2 onward.
+
+export interface OfferItemEffortMeta {
+  crew?: number | null;
+  vehicles?: number | null;
+  vehicle_type?: string | null;
+  hourly_rate?: number | null;
+  aufwand_min_h?: number | null;
+  aufwand_max_h?: number | null;
+}
+
+export interface OfferItemVolumeMeta {
+  volume_m3?: number | null;
+  volume_min_m3?: number | null;
+  volume_max_m3?: number | null;
+  rate?: number | null;
+  rate_unit?: string | null;
+  location?: string | null;
+}
+
+export interface OfferItemAreaMeta {
+  object_type?: string | null;
+  area_m2?: number | null;
+  abgabe?: string | null;
+  abnahmegarantie?: boolean | null;
+}
+
+export interface OfferItemBreakdownEntry {
+  position: number;
+  label: string;
+  value: string;
+}
+
+export interface OfferItemLeistungEntry {
+  position: number;
+  text: string;
 }
