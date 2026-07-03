@@ -137,6 +137,19 @@ interface Offer {
   customer_salutation?: string | null;
   offerte_type?: "normal" | "blind" | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
+  // Katman 2a: dondurulmuş adres (lead silinse de korunur). Okuma önceliği frozen > lead.
+  frozen_from_street?: string | null;
+  frozen_from_house_number?: string | null;
+  frozen_from_plz?: string | null;
+  frozen_from_city?: string | null;
+  frozen_from_floor?: number | null;
+  frozen_from_has_lift?: boolean | null;
+  frozen_to_street?: string | null;
+  frozen_to_house_number?: string | null;
+  frozen_to_plz?: string | null;
+  frozen_to_city?: string | null;
+  frozen_to_floor?: number | null;
+  frozen_to_has_lift?: boolean | null;
 }
 
 interface Company {
@@ -477,21 +490,23 @@ const FirmaOfferteDetail = () => {
                 primary_color: company.primary_color || undefined,
                 iban: company.iban || undefined,
               },
-      customer_address: leadAddress ? {
-        street: leadAddress.from_street || undefined,
-        house_number: leadAddress.from_house_number || undefined,
-        plz: leadAddress.from_plz || undefined,
-        city: leadAddress.from_city || undefined,
-        floor: leadAddress.from_floor ?? undefined,
-        has_lift: leadAddress.from_has_lift ?? undefined,
+      // Adres önceliği: dondurulmuş (offer.frozen_*) > lead (fallback). Böylece lead silinse de
+      // teklif adresini korur; 16/16 zaten frozen dolu olduğundan görünür fark yok.
+      customer_address: (offer.frozen_from_street || offer.frozen_from_plz || offer.frozen_from_city || leadAddress) ? {
+        street: offer.frozen_from_street ?? leadAddress?.from_street ?? undefined,
+        house_number: offer.frozen_from_house_number ?? leadAddress?.from_house_number ?? undefined,
+        plz: offer.frozen_from_plz ?? leadAddress?.from_plz ?? undefined,
+        city: offer.frozen_from_city ?? leadAddress?.from_city ?? undefined,
+        floor: offer.frozen_from_floor ?? leadAddress?.from_floor ?? undefined,
+        has_lift: offer.frozen_from_has_lift ?? leadAddress?.from_has_lift ?? undefined,
       } : undefined,
-      customer_destination: leadAddress && (leadAddress.to_plz || leadAddress.to_city) ? {
-        street: leadAddress.to_street || undefined,
-        house_number: leadAddress.to_house_number || undefined,
-        plz: leadAddress.to_plz || undefined,
-        city: leadAddress.to_city || undefined,
-        floor: leadAddress.to_floor ?? undefined,
-        has_lift: leadAddress.to_has_lift ?? undefined,
+      customer_destination: (offer.frozen_to_plz || offer.frozen_to_city || leadAddress?.to_plz || leadAddress?.to_city) ? {
+        street: offer.frozen_to_street ?? leadAddress?.to_street ?? undefined,
+        house_number: offer.frozen_to_house_number ?? leadAddress?.to_house_number ?? undefined,
+        plz: offer.frozen_to_plz ?? leadAddress?.to_plz ?? undefined,
+        city: offer.frozen_to_city ?? leadAddress?.to_city ?? undefined,
+        floor: offer.frozen_to_floor ?? leadAddress?.to_floor ?? undefined,
+        has_lift: offer.frozen_to_has_lift ?? leadAddress?.to_has_lift ?? undefined,
       } : undefined,
       service_type: leadAddress?.service_type || undefined,
       access_token: offer.access_token,
