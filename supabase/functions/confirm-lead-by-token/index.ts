@@ -107,33 +107,20 @@ serve(async (req) => {
       );
     }
 
-    // Mark confirmed + flip lead status to pending_verification
-    const nowIso = new Date().toISOString();
+    // Both writes run in one transaction (atomic_confirm_lead RPC) so the confirmation and
+    // the lead-status flip can't diverge — previously a failed flip left the lead stuck in
+    // 'awaiting_customer_confirmation' while the token reported 'already_confirmed' on retry.
+    const { error: confirmErr } = await supabase.rpc("atomic_confirm_lead", {
+      p_confirmation_id: conf.id,
+      p_lead_id: conf.lead_id,
+    });
 
-    const { error: updConfErr } = await supabase
-      .from("lead_confirmations")
-      .update({ confirmed_at: nowIso })
-      .eq("id", conf.id);
-
-    if (updConfErr) {
-      logStep("Failed to mark confirmation", { error: updConfErr.message });
+    if (confirmErr) {
+      logStep("Failed to confirm lead", { error: confirmErr.message });
       return new Response(
         JSON.stringify({ success: false, status: "error" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
-    }
-
-    const { error: updLeadErr } = await supabase
-      .from("leads")
-      .update({
-        status: "pending_verification",
-        updated_at: nowIso,
-      })
-      .eq("id", conf.lead_id)
-      .eq("status", "awaiting_customer_confirmation");
-
-    if (updLeadErr) {
-      logStep("Failed to flip lead status", { error: updLeadErr.message });
     }
 
     logStep("Lead confirmed by customer", { lead_id: conf.lead_id });
