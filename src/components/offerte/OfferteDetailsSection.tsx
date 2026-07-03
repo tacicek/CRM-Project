@@ -53,6 +53,7 @@ interface ServiceTemplate {
 export interface OfferDetails {
   // Reference & Salutation
   companyReference: string;
+  customerNumber: string;
   customerSalutation: string;
   
   // Timing
@@ -121,6 +122,7 @@ const PAYMENT_METHODS = [
 
 export const DEFAULT_OFFER_DETAILS: OfferDetails = {
   companyReference: "",
+  customerNumber: "",
   customerSalutation: "",
   serviceStartTime: "",
   serviceEndTime: "",
@@ -276,8 +278,24 @@ export function OfferteDetailsSection({
             </div>
           )}
 
-          {/* ── Row 1: Reference & Salutation ── */}
+          {/* ── Row 0: Kundennummer ── */}
           <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium flex items-center gap-1.5 text-foreground">
+                <User className="w-3.5 h-3.5 text-muted-foreground" />
+                Kundennummer
+              </Label>
+              <Input
+                value={details.customerNumber}
+                onChange={(e) => updateDetails("customerNumber", e.target.value)}
+                placeholder="z.B. K-1042 (optional)"
+                className="h-10"
+              />
+            </div>
+          </div>
+
+          {/* ── Row 1: Reference & Salutation ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium flex items-center gap-1.5 text-foreground">
                 <User className="w-3.5 h-3.5 text-muted-foreground" />

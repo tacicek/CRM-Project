@@ -286,6 +286,8 @@ const FirmaOfferteErstellen = () => {
   const [priceModel, setPriceModel] = useState<'pauschal' | 'stundenansatz' | 'kostendach'>('pauschal');
   const [hourlyRate, setHourlyRate] = useState<string>('');
   const [kostendachMax, setKostendachMax] = useState<string>('');
+  // Teklif-seviyesi Rabatt (%). F1a: sadece yakalanır+kaydedilir; totals entegrasyonu F3.
+  const [discountPercent, setDiscountPercent] = useState<string>('');
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
   const [offerteType, setOfferteType] = useState<'normal' | 'blind'>('normal');
@@ -1051,6 +1053,9 @@ const FirmaOfferteErstellen = () => {
         subtotal,
         surcharges: computedSurcharges,
         vat_rate: mwstEnabled ? vatRate : 0,
+        // F1a: Kundennummer + teklif-seviyesi Rabatt (totals'a entegrasyon F3'te).
+        customer_number: offerDetails.customerNumber?.trim() || null,
+        discount_percent: discountPercent.trim() !== "" ? Number(discountPercent) : null,
         status: "draft",
         sent_at: null,
       };
@@ -1727,6 +1732,21 @@ const FirmaOfferteErstellen = () => {
                       )}
                     </div>
                   )}
+
+                  {/* Teklif-seviyesi Rabatt (%) — F1a: yakalanır+kaydedilir, totals entegrasyonu F3 */}
+                  <div className="space-y-1 pt-1 sm:max-w-[50%]">
+                    <Label className="text-xs sm:text-sm">Rabatt gesamt (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={discountPercent}
+                      onChange={(e) => setDiscountPercent(e.target.value)}
+                      placeholder="z.B. 10 (optional)"
+                      className="h-9 sm:h-10 text-sm"
+                    />
+                  </div>
                 </CardContent>
               </Card>
 
