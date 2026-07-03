@@ -247,6 +247,15 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       total: item.total || item.quantity * item.unit_price,
       timeEstimate: te ?? null,
       serviceType: item.service_type ?? null,
+      // ── Data-bridge P1b — carried, NOT yet rendered (ServiceTable ignores these) ──
+      priceType: item.price_type ?? null,
+      listPrice: item.list_price ?? null,
+      discountPercent: item.discount_percent ?? null,
+      effortMeta: item.effort_meta ?? null,
+      volumeMeta: item.volume_meta ?? null,
+      areaMeta: item.area_meta ?? null,
+      breakdownRows: item.breakdown,
+      leistung: item.leistung,
     };
   });
 
@@ -344,5 +353,8 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
     briefLayout: offer.brief_layout ?? false,
     customerSalutation: offer.customer_salutation ?? null,
     offerteType: offer.offerte_type ?? 'normal',
+    // ── Data-bridge P1b (offer-level) — carried, NOT yet rendered ──
+    customerNumber: offer.customer_number ?? null,
+    discountPercent: offer.discount_percent ?? null,
   };
 };
