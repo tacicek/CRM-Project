@@ -22,3 +22,14 @@ export function floorLabelToInt(label: string | null | undefined): number | null
   if (label === null || label === undefined) return null;
   return FLOOR_LABEL_MAP[label] ?? null;
 }
+
+/**
+ * Integer floor → display label (counterpart of floorLabelToInt, single source).
+ * 0 must NEVER render as "0. OG" — ground floor is "Erdgeschoss"; negatives are "UG".
+ */
+export function formatFloorLabel(floor: number | null | undefined): string | null {
+  if (floor === null || floor === undefined || Number.isNaN(floor)) return null;
+  if (floor < 0) return "UG";
+  if (floor === 0) return "Erdgeschoss";
+  return `${floor}. OG`;
+}

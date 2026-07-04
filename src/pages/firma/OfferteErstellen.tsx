@@ -46,6 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { normalizeToCatalogBase, groupItemsByService } from "@/lib/offerServiceType";
+import { formatFloorLabel } from "@/lib/floorUtils";
 import type { ServiceItem } from "@/types/leistungskatalog";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -1386,7 +1387,7 @@ const FirmaOfferteErstellen = () => {
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           {lead.from_floor !== null && (
                             <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                              {lead.from_floor === 0 ? 'Erdgeschoss' : `${lead.from_floor}. OG`}
+                              {formatFloorLabel(lead.from_floor)}
                             </Badge>
                           )}
                           <Badge
@@ -1418,7 +1419,7 @@ const FirmaOfferteErstellen = () => {
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                             {lead.to_floor !== null && (
                               <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                                {lead.to_floor === 0 ? 'Erdgeschoss' : `${lead.to_floor}. OG`}
+                                {formatFloorLabel(lead.to_floor)}
                               </Badge>
                             )}
                             <Badge
