@@ -305,7 +305,14 @@ const FirmaOfferten = () => {
       });
       return;
     }
-    navigate(`/firma/kalender?newAppointment=true&leadId=${offer.lead_id}`);
+    // From an offer → a service appointment (not Besichtigung); carry the offer title.
+    const params = new URLSearchParams({
+      newAppointment: "true",
+      leadId: offer.lead_id,
+      type: "service",
+      title: offer.title ?? "",
+    });
+    navigate(`/firma/kalender?${params.toString()}`);
   };
 
   useEffect(() => {
