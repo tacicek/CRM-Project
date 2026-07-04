@@ -1173,11 +1173,13 @@ const FirmaOfferteErstellen = () => {
       }
 
       // Create offer items (convert to simple format for DB)
-      const itemsToInsert = items.map((item) => {
+      // #7b: build the item payload for replace_offer_items (offer_id comes from the RPC
+      // parameter, not each row). Same RPC the edit flow uses → atomic (delete+insert in
+      // one transaction, no partial items) and no duplicated insert logic.
+      const itemsPayload = items.map((item) => {
         const te = item.timeEstimate;
         const teValid = te && te.minHours && te.maxHours && te.hourlyRate;
         return {
-          offer_id: offer.id,
           position: item.position,
           description: item.details.length > 0
             ? `${item.description}\n${item.details.filter(Boolean).map((d) => `• ${d}`).join("\n")}`
@@ -1204,12 +1206,14 @@ const FirmaOfferteErstellen = () => {
         };
       });
 
-      const { error: itemsError } = await supabase
-        .from("offer_items")
-        .insert(itemsToInsert);
+      const { error: itemsError } = await supabase.rpc("replace_offer_items", {
+        p_offer_id: offer.id,
+        p_items: itemsPayload,
+      });
 
       if (itemsError) {
-        // D12: offer_items INSERT failed — clean up the offer record (cleanup done safely)
+        // Items failed — the RPC is atomic (no partial rows), but the offer header was
+        // already inserted, so clean it up to avoid an orphan zero-item draft.
         try {
           const { error: deleteError } = await supabase
             .from("offers")
