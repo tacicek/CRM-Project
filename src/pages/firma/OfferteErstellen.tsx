@@ -290,6 +290,22 @@ const FirmaOfferteErstellen = () => {
   const [kostendachMax, setKostendachMax] = useState<string>('');
   // Offer-level Rabatt (%). F1a: only captured+saved; totals integration is F3.
   const [discountPercent, setDiscountPercent] = useState<string>('');
+  // Per-service dates (multi-service offers): ONE date per service group, keyed by the
+  // normalized service key. On save the value is copied to every item of the group
+  // (invariant: all items of a group carry the same scheduled_* values).
+  const [groupDates, setGroupDates] = useState<Record<string, { date: string; startTime: string; endTime: string }>>({});
+
+  const serviceGroupKey = (serviceType: string | null | undefined): string => {
+    const raw = (serviceType ?? "").trim().toLowerCase();
+    return raw === "" ? "null" : raw;
+  };
+
+  const updateGroupDate = (key: string, field: "date" | "startTime" | "endTime", value: string) => {
+    setGroupDates((prev) => ({
+      ...prev,
+      [key]: { date: "", startTime: "", endTime: "", ...prev[key], [field]: value },
+    }));
+  };
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
   const [offerteType, setOfferteType] = useState<'normal' | 'blind'>('normal');
@@ -1122,8 +1138,9 @@ const FirmaOfferteErstellen = () => {
         customer_salutation: offerDetails.customerSalutation || null,
         service_start_time: offerDetails.serviceStartTime || null,
         service_end_time: offerDetails.serviceEndTime || null,
-        secondary_service_date: offerDetails.secondaryServiceDate || null,
-        secondary_service_type: offerDetails.secondaryServiceType || null,
+        // secondary_service_date/type: retired half-feature (one extra date, max 2 services,
+        // never reached PDF/edit/customer view). Superseded by per-group scheduled_* on
+        // offer_items (N services). Columns stay in the DB but are no longer written.
         service_details: offerDetails.serviceDetails || {},
         highlighted_items: offerDetails.highlightedItems || [],
         payment_method: offerDetails.paymentMethod || null,
@@ -1179,6 +1196,10 @@ const FirmaOfferteErstellen = () => {
             ? { minHours: parseFloat(te!.minHours), maxHours: parseFloat(te!.maxHours), hourlyRate: parseFloat(te!.hourlyRate) }
             : null,
           service_type: item.serviceType ?? null,
+          // Per-service date: the group's value is copied onto every item of the group.
+          scheduled_date: groupDates[serviceGroupKey(item.serviceType)]?.date || null,
+          scheduled_start_time: groupDates[serviceGroupKey(item.serviceType)]?.startTime || null,
+          scheduled_end_time: groupDates[serviceGroupKey(item.serviceType)]?.endTime || null,
         };
       });
 
@@ -1915,19 +1936,44 @@ const FirmaOfferteErstellen = () => {
                         <div className="space-y-5">
                           {groupItemsByService(
                             items.map((it) => ({ ...it, service_type: it.serviceType ?? null })),
-                          ).map((group) => {
+                          ).map((group, _gi, allGroups) => {
                             const serviceKey = group.serviceType ?? "null";
                             const billable = group.items.filter((it) => !isFreeItem(it.priceType));
                             const free = group.items.filter((it) => isFreeItem(it.priceType));
 
                             return (
                               <div key={serviceKey} className="space-y-3">
-                                {/* Service group header */}
-                                <div className="flex items-center gap-2 px-1">
+                                {/* Service group header + per-group date (multi-service only:
+                                    with a single service the offer-level date is sufficient) */}
+                                <div className="flex flex-wrap items-center gap-2 px-1">
                                   <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                     {group.label}
                                   </span>
+                                  {allGroups.length > 1 && (
+                                    <div className="flex items-center gap-1.5 ml-auto">
+                                      <span className="text-[10px] text-muted-foreground">Termin</span>
+                                      <Input
+                                        type="date"
+                                        value={groupDates[serviceKey]?.date ?? ""}
+                                        onChange={(e) => updateGroupDate(serviceKey, "date", e.target.value)}
+                                        className="h-7 w-[8.5rem] text-xs"
+                                      />
+                                      <Input
+                                        type="time"
+                                        value={groupDates[serviceKey]?.startTime ?? ""}
+                                        onChange={(e) => updateGroupDate(serviceKey, "startTime", e.target.value)}
+                                        className="h-7 w-[5.5rem] text-xs"
+                                      />
+                                      <span className="text-[10px] text-muted-foreground">–</span>
+                                      <Input
+                                        type="time"
+                                        value={groupDates[serviceKey]?.endTime ?? ""}
+                                        onChange={(e) => updateGroupDate(serviceKey, "endTime", e.target.value)}
+                                        className="h-7 w-[5.5rem] text-xs"
+                                      />
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* Billable positions — full editable cards, drag-sortable within the group */}

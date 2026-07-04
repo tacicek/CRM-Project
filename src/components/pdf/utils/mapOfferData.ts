@@ -60,6 +60,9 @@ export interface LegacyOfferItem {
   service_type?: string | null;
   // ── Data-bridge P1a (Katman 1-4) — DB snake_case; carried, not yet mapped/rendered ──
   price_type?: string | null;
+  scheduled_date?: string | null;
+  scheduled_start_time?: string | null;
+  scheduled_end_time?: string | null;
   list_price?: number | null;
   /** Item-level discount % (offer_items.discount_percent, Katman 1c) */
   discount_percent?: number | null;
@@ -254,6 +257,9 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       serviceType: item.service_type ?? null,
       // ── Data-bridge P1b — carried, NOT yet rendered (ServiceTable ignores these) ──
       priceType: item.price_type ?? null,
+      scheduledDate: item.scheduled_date ?? null,
+      scheduledStartTime: item.scheduled_start_time ?? null,
+      scheduledEndTime: item.scheduled_end_time ?? null,
       listPrice: item.list_price ?? null,
       discountPercent: item.discount_percent ?? null,
       effortMeta: item.effort_meta ?? null,

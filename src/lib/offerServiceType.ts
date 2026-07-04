@@ -197,3 +197,36 @@ export function groupItemsByService<
     return { serviceType: key, label: labelFor(key), items: groupItems };
   });
 }
+
+/**
+ * German "Termin" label for a service group (per-service dates, 2026-07).
+ * Explicit map because the Fugen-s is not universal (Umzugstermin but Transporttermin).
+ */
+export function serviceTerminLabel(serviceType: string | null | undefined): string {
+  switch ((serviceType ?? "").trim().toLowerCase()) {
+    case "umzug": return "Umzugstermin";
+    case "reinigung": return "Reinigungstermin";
+    case "raeumung": return "Räumungstermin";
+    case "entsorgung": return "Entsorgungstermin";
+    case "lagerung": return "Lagerungstermin";
+    case "transport": return "Transporttermin";
+    default: return "Termin";
+  }
+}
+
+/**
+ * The group's scheduled date/time — first non-null value (the group invariant
+ * guarantees all items carry the same one). Returns null when the group has none
+ * (callers fall back to the offer-level date).
+ */
+export function groupScheduled<T extends { scheduledDate?: string | null; scheduledStartTime?: string | null; scheduledEndTime?: string | null }>(
+  items: T[],
+): { date: string; startTime: string | null; endTime: string | null } | null {
+  const hit = items.find((i) => i.scheduledDate);
+  if (!hit?.scheduledDate) return null;
+  return {
+    date: hit.scheduledDate,
+    startTime: hit.scheduledStartTime ?? null,
+    endTime: hit.scheduledEndTime ?? null,
+  };
+}

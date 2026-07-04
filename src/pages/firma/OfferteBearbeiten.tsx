@@ -30,7 +30,7 @@ import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
 import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, type SubtotalItem } from "@/lib/offerPricing";
-import { SERVICE_OPTIONS } from "@/lib/offerServiceType";
+import { SERVICE_OPTIONS, groupItemsByService } from "@/lib/offerServiceType";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
@@ -134,6 +134,21 @@ const FirmaOfferteBearbeiten = () => {
   const [vatRate, setVatRate] = useState(8.1);
   const [mwstEnabled, setMwstEnabled] = useState(true);
   const [items, setItems] = useState<OfferItem[]>([]);
+  // Per-service dates: one date per service group (invariant — copied to every item of
+  // the group on save via replace_offer_items). Seeded from the loaded items.
+  const [groupDates, setGroupDates] = useState<Record<string, { date: string; startTime: string; endTime: string }>>({});
+
+  const serviceGroupKey = (serviceType: string | null | undefined): string => {
+    const raw = (serviceType ?? "").trim().toLowerCase();
+    return raw === "" ? "null" : raw;
+  };
+
+  const updateGroupDate = (key: string, field: "date" | "startTime" | "endTime", value: string) => {
+    setGroupDates((prev) => ({
+      ...prev,
+      [key]: { date: "", startTime: "", endTime: "", ...prev[key], [field]: value },
+    }));
+  };
 
   // Price model state
   const [priceModel, setPriceModel] = useState<PriceModel>('pauschal');
@@ -264,6 +279,21 @@ const FirmaOfferteBearbeiten = () => {
               serviceType: item.service_type ?? null,
             }))
           );
+          // Seed per-group dates from the first item of each group (the invariant
+          // guarantees all items of a group carry the same values).
+          const seeded: Record<string, { date: string; startTime: string; endTime: string }> = {};
+          for (const item of itemsData) {
+            const raw = (item.service_type ?? "").trim().toLowerCase();
+            const k = raw === "" ? "null" : raw;
+            if (!seeded[k] && (item.scheduled_date || item.scheduled_start_time || item.scheduled_end_time)) {
+              seeded[k] = {
+                date: item.scheduled_date ?? "",
+                startTime: (item.scheduled_start_time ?? "").slice(0, 5),
+                endTime: (item.scheduled_end_time ?? "").slice(0, 5),
+              };
+            }
+          }
+          setGroupDates(seeded);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -584,6 +614,11 @@ const FirmaOfferteBearbeiten = () => {
             ? { minHours: parseFloat(te!.minHours), maxHours: parseFloat(te!.maxHours), hourlyRate: parseFloat(te!.hourlyRate) }
             : null,
           service_type: item.serviceType ?? null,
+          // Per-service date — replace_offer_items writes these columns; without them
+          // every edit would silently reset the dates (delete+insert RPC trap).
+          scheduled_date: groupDates[serviceGroupKey(item.serviceType)]?.date || null,
+          scheduled_start_time: groupDates[serviceGroupKey(item.serviceType)]?.startTime || null,
+          scheduled_end_time: groupDates[serviceGroupKey(item.serviceType)]?.endTime || null,
         };
       });
 
@@ -966,6 +1001,28 @@ const FirmaOfferteBearbeiten = () => {
                   <CardTitle className="text-sm sm:text-base">Positionen</CardTitle>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                  {(() => {
+                    const groups = groupItemsByService(items.map((it) => ({ ...it, service_type: it.serviceType ?? null })));
+                    if (groups.length < 2) return null;
+                    return (
+                      <div className="mb-4 rounded-lg border border-dashed p-3 space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Termine pro Service</p>
+                        {groups.map((g) => {
+                          const k = g.serviceType ?? "null";
+                          return (
+                            <div key={k} className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-xs font-medium w-24 shrink-0">{g.label}</span>
+                              <Input type="date" value={groupDates[k]?.date ?? ""} onChange={(e) => updateGroupDate(k, "date", e.target.value)} className="h-7 w-[8.5rem] text-xs" />
+                              <Input type="time" value={groupDates[k]?.startTime ?? ""} onChange={(e) => updateGroupDate(k, "startTime", e.target.value)} className="h-7 w-[5.5rem] text-xs" />
+                              <span className="text-[10px] text-muted-foreground">–</span>
+                              <Input type="time" value={groupDates[k]?.endTime ?? ""} onChange={(e) => updateGroupDate(k, "endTime", e.target.value)} className="h-7 w-[5.5rem] text-xs" />
+                            </div>
+                          );
+                        })}
+                        <p className="text-[10px] text-muted-foreground">Leer = globales Ausführungsdatum gilt.</p>
+                      </div>
+                    );
+                  })()}
                   <DragDropContext onDragEnd={handleDragEnd}>
                     <Droppable droppableId="items">
                       {(provided) => (

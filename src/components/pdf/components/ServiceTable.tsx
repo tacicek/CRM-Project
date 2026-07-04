@@ -6,10 +6,10 @@ import {
   OfferItemEffortMeta,
   OfferItemVolumeMeta,
 } from "../types/offer.types";
-import { formatCurrency, formatTime } from "../utils/formatters";
+import { formatCurrency, formatDate, formatTime } from "../utils/formatters";
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
 import { hourlyRange, isFreeItem } from "@/lib/offerPricing";
-import { groupItemsByService } from "@/lib/offerServiceType";
+import { groupItemsByService, groupScheduled, serviceTerminLabel } from "@/lib/offerServiceType";
 
 const DARK = "#1C1C27";
 const SECTION_BG = "#F9FAFB";
@@ -493,6 +493,13 @@ const cardStyles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
     borderTopLeftRadius: 3,
     borderTopRightRadius: 3,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cardBandDate: {
+    color: "#CBD5E1",
+    fontSize: FONT_SIZES.xs,
   },
   cardBandText: {
     color: "#FFFFFF",
@@ -548,6 +555,22 @@ export const ServiceTable = ({
   // name + priced rows + Leistungsumfang), unconditionally — every service gets a band.
   const groups = groupItemsByService(items.map((it) => ({ ...it, service_type: it.serviceType })));
 
+  // Per-service dates: as soon as ONE group carries its own date, every band shows its
+  // date (own value, fallback = offer-level executionDate) and the global TERMIN cell
+  // is suppressed (AddressComparison) — otherwise the same info would appear twice,
+  // once under a wrong label. No group date → exact legacy rendering.
+  const hasAnyGroupDate = items.some((it) => it.scheduledDate);
+  const bandDate = (group: (typeof groups)[number]): string | null => {
+    if (!hasAnyGroupDate) return null;
+    const sched = groupScheduled(group.items);
+    const date = sched?.date ?? data.executionDate;
+    if (!date) return null;
+    const st = sched?.startTime?.slice(0, 5);
+    const et = sched?.endTime?.slice(0, 5);
+    const time = st && et ? ` · ${st}–${et} Uhr` : st ? ` · ab ${st} Uhr` : "";
+    return `${serviceTerminLabel(group.serviceType)}: ${formatDate(date)}${time}`;
+  };
+
   return (
     <View style={styles.container}>
       {groups.map((group, gi) => {
@@ -559,6 +582,7 @@ export const ServiceTable = ({
           <View key={`group-${gi}`} style={cardStyles.card} wrap={false}>
             <View style={cardStyles.cardBand}>
               <Text style={cardStyles.cardBandText}>{group.label}</Text>
+              {bandDate(group) ? <Text style={cardStyles.cardBandDate}>{bandDate(group)}</Text> : null}
             </View>
             <View style={cardStyles.cardBody}>
               {billable.map((item, idx) => (

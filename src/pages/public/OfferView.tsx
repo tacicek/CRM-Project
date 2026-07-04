@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Fragment, useEffect, useState } from "react";
-import { groupItemsByService } from "@/lib/offerServiceType";
+import { groupItemsByService, serviceTerminLabel } from "@/lib/offerServiceType";
 import { supabase } from "@/integrations/supabase/client";
 import { useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -62,6 +62,9 @@ interface OfferItem {
   total: number;
   price_type?: string | null;
   service_type?: string | null;
+  scheduled_date?: string | null;
+  scheduled_start_time?: string | null;
+  scheduled_end_time?: string | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
 }
 
@@ -773,8 +776,26 @@ const PublicOfferView = () => {
                         <Fragment key={group.serviceType ?? "allgemein"}>
                           {multi && (
                             <TableRow className="bg-muted/40 hover:bg-muted/40">
-                              <TableCell colSpan={6} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground py-2">
-                                {group.label}
+                              <TableCell colSpan={6} className="py-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</span>
+                                  {(() => {
+                                    // Per-service date: own group value, fallback to the offer-level date;
+                                    // shown only when at least one group carries its own date.
+                                    if (!items.some((i) => i.scheduled_date)) return null;
+                                    const sched = group.items.find((i) => i.scheduled_date);
+                                    const date = sched?.scheduled_date ?? offer.service_date;
+                                    if (!date) return null;
+                                    const st = sched?.scheduled_start_time?.slice(0, 5);
+                                    const et = sched?.scheduled_end_time?.slice(0, 5);
+                                    const time = st && et ? ` · ${st}–${et} Uhr` : st ? ` · ab ${st} Uhr` : "";
+                                    return (
+                                      <span className="text-xs font-medium text-foreground normal-case tracking-normal">
+                                        {serviceTerminLabel(group.serviceType)}: {new Date(date).toLocaleDateString("de-CH")}{time}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
                               </TableCell>
                             </TableRow>
                           )}
