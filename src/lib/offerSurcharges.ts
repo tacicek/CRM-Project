@@ -20,7 +20,8 @@ export interface OfferSurcharge {
   amount: number;
 }
 
-const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+/** Round to 2 decimals (Rappen). Exported for reuse in offerPricing (single rounding source). */
+export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const clamp = (n: number, min: number, max: number): number => Math.min(max, Math.max(min, n));
 
