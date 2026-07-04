@@ -318,22 +318,12 @@
   --calendar-accent-light: 224 231 255;
 }
 
-/* Month view: allow scrolling inside each week when many events (avoids clipped badges) */
-.calendar-modern .rbc-row-content-scrollable .rbc-row-content-scroll-container {
-  overflow-y: auto;
-  -ms-overflow-style: auto;
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
-}
-
-.calendar-modern .rbc-row-content-scrollable .rbc-row-content-scroll-container::-webkit-scrollbar {
-  display: block;
-  width: 5px;
-}
-
-.calendar-modern .rbc-row-content-scrollable .rbc-row-content-scroll-container::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.35);
-  border-radius: 4px;
+/* Month view overflow is handled by react-big-calendar's popup ("+X mehr" → click →
+   overlay). The old showAllEvents + scrollable-row hack was removed (it clipped badges
+   below the cell). Give each week row a little breathing room so 3–4 events fit before
+   the "+X mehr" chip appears. */
+.calendar-modern .rbc-month-row {
+  min-height: 5.5rem;
 }
 
 .rbc-header {
