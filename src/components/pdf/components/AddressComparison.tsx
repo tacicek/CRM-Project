@@ -142,7 +142,13 @@ export const AddressComparison = ({ data }: AddressComparisonProps) => {
   const metaCells: { label: string; value: string; unit?: string }[] = [];
 
   if (data.executionDate) {
-    metaCells.push({ label: "TERMIN", value: formatDate(data.executionDate) });
+    // Time below the date (old template parity: "01.07.2026 08:00 Uhr").
+    // DB time columns may carry seconds ("08:00:00") — display as HH:MM.
+    const hhmm = (v?: string | null) => (v ? v.slice(0, 5) : null);
+    const start = hhmm(data.executionStartTime);
+    const end = hhmm(data.executionEndTime);
+    const time = start && end ? `${start}–${end} Uhr` : start ? `ab ${start} Uhr` : undefined;
+    metaCells.push({ label: "TERMIN", value: formatDate(data.executionDate), unit: time });
   }
 
   // typeof-Guard deckt null UND undefined bereits ab (typeof null === "object"),
