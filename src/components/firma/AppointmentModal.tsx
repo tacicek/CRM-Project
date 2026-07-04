@@ -85,6 +85,10 @@ interface AppointmentModalProps {
   onClose: () => void;
   appointment: Appointment | null;
   initialDate: Date | null;
+  /** Default appointment type for a NEW appointment (e.g. 'service' when added from an
+      accepted offer). Falls back to 'besichtigung' — the most common first-contact type. */
+  initialType?: string | null;
+  initialTitle?: string | null;
   companyId: string | null;
   onSaved: () => void;
   initialLeadId?: string | null;
@@ -113,6 +117,8 @@ export const AppointmentModal = ({
   companyId,
   onSaved,
   initialLeadId,
+  initialType,
+  initialTitle,
 }: AppointmentModalProps) => {
   const [loading, setLoading] = useState(false);
   const [conflicts, setConflicts] = useState<Appointment[]>([]);
@@ -179,8 +185,9 @@ export const AppointmentModal = ({
     } else if (initialDate) {
       setFormData((prev) => ({
         ...prev,
+        appointment_type: initialType || "besichtigung",
         appointment_date: format(initialDate, "yyyy-MM-dd"),
-        title: "",
+        title: initialTitle || "",
         description: "",
         internal_notes: "",
         location_address: "",
@@ -196,7 +203,7 @@ export const AppointmentModal = ({
         required_equipment: [],
       }));
     }
-  }, [appointment, initialDate, isOpen]);
+  }, [appointment, initialDate, initialType, initialTitle, isOpen]);
 
   // Load team members, resources, and accepted leads
   useEffect(() => {

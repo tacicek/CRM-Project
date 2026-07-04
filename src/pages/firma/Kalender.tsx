@@ -147,6 +147,8 @@ const KalenderPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [modalInitialDate, setModalInitialDate] = useState<Date | null>(null);
+  const [modalInitialType, setModalInitialType] = useState<string | null>(null);
+  const [modalInitialTitle, setModalInitialTitle] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; date: Date } | null>(null);
 
@@ -163,6 +165,10 @@ const KalenderPage = () => {
 
     if (newAppointment === "true" && companyId) {
       setInitialLeadId(leadId);
+      // Offer/auftrag origin passes type=service — an accepted offer is past the
+      // Besichtigung stage, so the calendar entry must not default to 'besichtigung'.
+      setModalInitialType(searchParams.get("type"));
+      setModalInitialTitle(searchParams.get("title"));
       setEditingAppointment(null);
       setModalInitialDate(new Date());
       setIsModalOpen(true);
@@ -1104,11 +1110,15 @@ const KalenderPage = () => {
             onClose={() => {
               setIsModalOpen(false);
               setInitialLeadId(null);
+              setModalInitialType(null);
+              setModalInitialTitle(null);
             }}
             appointment={editingAppointment}
             initialDate={modalInitialDate}
             companyId={companyId}
             initialLeadId={initialLeadId}
+            initialType={modalInitialType}
+            initialTitle={modalInitialTitle}
             onSaved={() => {
               fetchAppointments();
               setIsModalOpen(false);
