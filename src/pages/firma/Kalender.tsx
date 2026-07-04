@@ -10,6 +10,17 @@ import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/integrations/supabase/client";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   Popover,
@@ -100,6 +111,9 @@ interface Appointment {
   confirmed_by_firma: boolean;
   confirmed_by_customer: boolean;
   created_at: string;
+  is_recurring: boolean | null;
+  parent_appointment_id: string | null;
+  recurrence_pattern: string | null;
 }
 
 interface CalendarEvent {
@@ -476,19 +490,27 @@ const KalenderPage = () => {
     }
   };
 
-  const handleCancelAppointment = async (id: string) => {
+  const handleCancelAppointment = async (id: string, scope: "single" | "series" = "single") => {
     try {
-      const { error } = await supabase
-        .from("appointments")
-        .update({
-          status: "cancelled",
-          cancelled_by: "firma",
-          cancelled_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const patch = {
+        status: "cancelled",
+        cancelled_by: "firma",
+        cancelled_at: new Date().toISOString(),
+      };
+      const appt = appointments.find((a) => a.id === id);
+      const isSeries = scope === "series" && !!appt && (appt.is_recurring || !!appt.parent_appointment_id);
+      let query = supabase.from("appointments").update(patch);
+      if (isSeries) {
+        // Cancel the whole series: the root (parent or self) + all its children.
+        const rootId = appt!.parent_appointment_id ?? appt!.id;
+        query = query.or(`id.eq.${rootId},parent_appointment_id.eq.${rootId}`);
+      } else {
+        query = query.eq("id", id);
+      }
+      const { error } = await query;
 
       if (error) throw error;
-      toast.success("Termin abgesagt");
+      toast.success(isSeries ? "Terminserie abgesagt" : "Termin abgesagt");
       fetchAppointments();
       setSelectedEvent(null);
     } catch (e) {
@@ -957,7 +979,7 @@ const KalenderPage = () => {
                     onClose={() => setSelectedEvent(null)}
                     onEdit={() => handleEditAppointment(selectedEvent.resource.appointment)}
                     onConfirm={() => handleConfirmAppointment(selectedEvent.id)}
-                    onCancel={() => handleCancelAppointment(selectedEvent.id)}
+                    onCancel={(scope) => handleCancelAppointment(selectedEvent.id, scope)}
                     onComplete={() => handleCompleteAppointment(selectedEvent.id)}
                   />
                 ) : selectedDate ? (
@@ -1144,7 +1166,7 @@ const AppointmentDetailCard = ({
   onClose: () => void;
   onEdit: () => void;
   onConfirm: () => void;
-  onCancel: () => void;
+  onCancel: (scope: "single" | "series") => void;
   onComplete: () => void;
 }) => {
   const typeInfo = typeColors[appointment.appointment_type] || typeColors.meeting;
@@ -1346,10 +1368,39 @@ const AppointmentDetailCard = ({
               <span className="truncate">Bearbeiten</span>
             </Button>
             {appointment.status !== "cancelled" && appointment.status !== "completed" && (
-              <Button onClick={onCancel} className="h-9 min-w-0 flex-1 rounded-lg bg-folk-coral text-[12.5px] font-semibold text-white hover:bg-folk-coral/90">
-                <XCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">Absagen</span>
-              </Button>
+              (appointment.is_recurring || appointment.parent_appointment_id) ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button className="h-9 min-w-0 flex-1 rounded-lg bg-folk-coral text-[12.5px] font-semibold text-white hover:bg-folk-coral/90">
+                      <XCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">Absagen</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Wiederkehrender Termin</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Nur diesen Termin absagen oder die ganze Serie (alle wiederkehrenden Termine)?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => onCancel("single")}>Nur diesen</AlertDialogAction>
+                      <AlertDialogAction
+                        onClick={() => onCancel("series")}
+                        className="bg-folk-coral hover:bg-folk-coral/90"
+                      >
+                        Ganze Serie
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <Button onClick={() => onCancel("single")} className="h-9 min-w-0 flex-1 rounded-lg bg-folk-coral text-[12.5px] font-semibold text-white hover:bg-folk-coral/90">
+                  <XCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Absagen</span>
+                </Button>
+              )
             )}
           </div>
         </div>
