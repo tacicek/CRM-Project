@@ -45,7 +45,7 @@ import { useCompanyPricing } from "@/hooks/useCompanyPricing";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
-import { normalizeToCatalogBase } from "@/lib/offerServiceType";
+import { normalizeToCatalogBase, groupItemsByService } from "@/lib/offerServiceType";
 import type { ServiceItem } from "@/types/leistungskatalog";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -53,10 +53,11 @@ import { useToast } from "@/hooks/use-toast";
 import { sendOffer } from "@/lib/sendOffer";
 import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
 import { OfferteItemRow, type OfferItem } from "@/components/offerte/OfferteItemRow";
+import { ItemChip } from "@/components/offerte/ItemChip";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
-import { computeItemsSubtotal, derivePriceTypeFromCatalog, type SubtotalItem } from "@/lib/offerPricing";
+import { computeItemsSubtotal, derivePriceTypeFromCatalog, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -794,14 +795,38 @@ const FirmaOfferteErstellen = () => {
   };
 
   const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
+    const { source, destination } = result;
+    if (!destination) return;
+    // F2: items render grouped by service (one Droppable per group, droppableId = `group-<key>`).
+    // Only within-group reordering is supported — cross-group drag is out of scope.
+    if (source.droppableId !== destination.droppableId || source.index === destination.index) return;
 
-    const reorderedItems = Array.from(items);
-    const [removed] = reorderedItems.splice(result.source.index, 1);
-    reorderedItems.splice(result.destination.index, 0, removed);
+    const key = source.droppableId.replace(/^group-/, "");
 
-    // Update positions
-    setItems(reorderedItems.map((item, i) => ({ ...item, position: i + 1 })));
+    setItems((prev) => {
+      const byId = new Map(prev.map((it) => [it.id, it]));
+      const groups = groupItemsByService(
+        prev.map((it) => ({ ...it, service_type: it.serviceType ?? null })),
+      );
+      // Rebuild the flat list in grouped visual order (billable rows first, then free chips),
+      // moving the dragged item inside its own group's billable list.
+      const rebuilt: OfferItem[] = [];
+      for (const group of groups) {
+        const groupKey = group.serviceType ?? "null";
+        const billable = group.items
+          .filter((it) => !isFreeItem(it.priceType))
+          .map((it) => byId.get(it.id)!);
+        const free = group.items
+          .filter((it) => isFreeItem(it.priceType))
+          .map((it) => byId.get(it.id)!);
+        if (groupKey === key && source.index < billable.length) {
+          const [moved] = billable.splice(source.index, 1);
+          billable.splice(destination.index, 0, moved);
+        }
+        rebuilt.push(...billable, ...free);
+      }
+      return rebuilt.map((item, i) => ({ ...item, position: i + 1 }));
+    });
   };
 
   // Convert the form item shape (timeEstimate string) into the helper's SubtotalItem (in the parse map).
@@ -1850,32 +1875,75 @@ const FirmaOfferteErstellen = () => {
                   ) : (
                     <>
                       <DragDropContext onDragEnd={handleDragEnd}>
-                        <Droppable droppableId="offer-items">
-                          {(provided) => (
-                            <div
-                              {...provided.droppableProps}
-                              ref={provided.innerRef}
-                              className="space-y-3 sm:space-y-4"
-                            >
-                              {items.map((item, index) => (
-                                <OfferteItemRow
-                                  key={item.id}
-                                  item={item}
-                                  index={index}
-                                  onUpdate={updateItem}
-                                  onRemove={removeItem}
-                                  onAddDetail={addDetail}
-                                  onUpdateDetail={updateDetail}
-                                  onRemoveDetail={removeDetail}
-                                  canRemove={true}
-                                  formatCurrency={formatCurrency}
-                                  offerteType={offerteType}
-                                />
-                              ))}
-                              {provided.placeholder}
-                            </div>
-                          )}
-                        </Droppable>
+                        <div className="space-y-5">
+                          {groupItemsByService(
+                            items.map((it) => ({ ...it, service_type: it.serviceType ?? null })),
+                          ).map((group) => {
+                            const serviceKey = group.serviceType ?? "null";
+                            const billable = group.items.filter((it) => !isFreeItem(it.priceType));
+                            const free = group.items.filter((it) => isFreeItem(it.priceType));
+
+                            return (
+                              <div key={serviceKey} className="space-y-3">
+                                {/* Service group header */}
+                                <div className="flex items-center gap-2 px-1">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {group.label}
+                                  </span>
+                                </div>
+
+                                {/* Billable positions — full editable cards, drag-sortable within the group */}
+                                <Droppable droppableId={`group-${serviceKey}`}>
+                                  {(provided) => (
+                                    <div
+                                      {...provided.droppableProps}
+                                      ref={provided.innerRef}
+                                      className="space-y-3 sm:space-y-4"
+                                    >
+                                      {billable.map((item, localIndex) => {
+                                        const originalIndex = items.findIndex((i) => i.id === item.id);
+                                        return (
+                                          <OfferteItemRow
+                                            key={item.id}
+                                            item={items[originalIndex]}
+                                            index={localIndex}
+                                            onUpdate={(_i, field, value) => updateItem(originalIndex, field, value)}
+                                            onRemove={() => removeItem(originalIndex)}
+                                            onAddDetail={() => addDetail(originalIndex)}
+                                            onUpdateDetail={(_i, di, v) => updateDetail(originalIndex, di, v)}
+                                            onRemoveDetail={(_i, di) => removeDetail(originalIndex, di)}
+                                            canRemove={true}
+                                            formatCurrency={formatCurrency}
+                                            offerteType={offerteType}
+                                          />
+                                        );
+                                      })}
+                                      {provided.placeholder}
+                                    </div>
+                                  )}
+                                </Droppable>
+
+                                {/* Free (inkl / optional) items — compact ✓ chips; add a price to promote to a card */}
+                                {free.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 pl-3">
+                                    {free.map((item) => {
+                                      const originalIndex = items.findIndex((i) => i.id === item.id);
+                                      return (
+                                        <ItemChip
+                                          key={item.id}
+                                          item={items[originalIndex]}
+                                          onRemove={() => removeItem(originalIndex)}
+                                          onPromote={() => updateItem(originalIndex, "priceType", "pauschale")}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </DragDropContext>
 
                       {/* Add Position Buttons - At Bottom */}
