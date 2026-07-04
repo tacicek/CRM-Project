@@ -493,12 +493,15 @@ export default function FirmaAnfragen() {
                             `/firma/kalender?${new URLSearchParams({
                               newAppointment: "true",
                               leadId: lead.id,
-                              type: "besichtigung",
+                              // Service appointment (Auftrag) — the service type comes from the
+                              // Anfrage; Besichtigung has its own (video) button above.
+                              type: "service",
+                              title: `${getServiceLabel(lead.service_type)} - ${[lead.customer_first_name, lead.customer_last_name].filter(Boolean).join(" ")}`.trim(),
                             }).toString()}`,
                           )
                         }
                         className="h-8 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
-                        title="Vor-Ort-Termin im Kalender planen"
+                        title="Termin im Kalender planen"
                       >
                         <CalendarPlus className="h-3.5 w-3.5" />
                         Termin planen
