@@ -446,6 +446,7 @@ const FirmaAuftraege = () => {
     navigate("/firma/quittungen/neu", {
       state: {
         fromAuftrag: {
+          auftragId: auftrag.id,
           offerId: auftrag.offer_id ?? null,
           customerName: auftrag.customer_name,
           customerAddress: auftrag.from_address ?? "",

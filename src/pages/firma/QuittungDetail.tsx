@@ -83,6 +83,7 @@ interface AuftragPrefillItem {
 }
 
 interface FromAuftragPrefill {
+  auftragId?: string | null;
   offerId: string | null;
   customerName?: string;
   customerAddress?: string;
@@ -139,6 +140,7 @@ export default function QuittungDetail() {
   const [teamchefSignedAt, setTeamchefSignedAt] = useState<string | null>(null);
 
   const [linkedOfferId, setLinkedOfferId] = useState<string | null>(null);
+  const [linkedAuftragId, setLinkedAuftragId] = useState<string | null>(null);
   const [offerOptions, setOfferOptions] = useState<OfferOption[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
 
@@ -251,6 +253,7 @@ export default function QuittungDetail() {
     }
     const q = data as unknown as Quittung;
     if (q.offer_id) setLinkedOfferId(q.offer_id);
+    if (q.auftrag_id) setLinkedAuftragId(q.auftrag_id);
     setDatum(q.datum);
     setCustomerName(q.customer_name || "");
     setCustomerAddress(q.customer_address || "");
@@ -290,6 +293,7 @@ export default function QuittungDetail() {
     if (fa.customerEmail) setCustomerEmail(fa.customerEmail);
     if (fa.customerPhone) setCustomerPhone(fa.customerPhone);
     if (fa.offerId) setLinkedOfferId(fa.offerId);
+    if (fa.auftragId) setLinkedAuftragId(fa.auftragId);
 
     const toRow = (it: AuftragPrefillItem): QuittungPosition => {
       const qty = it.quantity ?? 1;
@@ -341,6 +345,7 @@ export default function QuittungDetail() {
     const payload = {
       company_id: company.id,
       offer_id: linkedOfferId ?? undefined,
+      auftrag_id: linkedAuftragId ?? undefined,
       datum,
       customer_name: customerName,
       customer_address: customerAddress || null,

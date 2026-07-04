@@ -3865,6 +3865,7 @@ export type Database = {
           mwst_betrag: number
           mwst_satz: number
           notiz: string | null
+          auftrag_id: string | null
           offer_id: string | null
           pdf_url: string | null
           positionen: Json
@@ -3894,6 +3895,7 @@ export type Database = {
           mwst_betrag?: number
           mwst_satz?: number
           notiz?: string | null
+          auftrag_id?: string | null
           offer_id?: string | null
           pdf_url?: string | null
           positionen?: Json
@@ -3923,6 +3925,7 @@ export type Database = {
           mwst_betrag?: number
           mwst_satz?: number
           notiz?: string | null
+          auftrag_id?: string | null
           offer_id?: string | null
           pdf_url?: string | null
           positionen?: Json
