@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1953,10 +1954,9 @@ const FirmaOfferteErstellen = () => {
                                   {allGroups.length > 1 && (
                                     <div className="flex items-center gap-1.5 ml-auto">
                                       <span className="text-[10px] text-muted-foreground">Termin</span>
-                                      <Input
-                                        type="date"
+                                      <DatePicker
                                         value={groupDates[serviceKey]?.date ?? ""}
-                                        onChange={(e) => updateGroupDate(serviceKey, "date", e.target.value)}
+                                        onChange={(value) => updateGroupDate(serviceKey, "date", value)}
                                         className="h-7 w-[8.5rem] text-xs"
                                       />
                                       <Input

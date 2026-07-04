@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -1336,11 +1337,10 @@ const PublicOfferView = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="besichtigungDate">Wunschdatum</Label>
-                <Input
+                <DatePicker
                   id="besichtigungDate"
-                  type="date"
                   value={besichtigungDate}
-                  onChange={(e) => setBesichtigungDate(e.target.value)}
+                  onChange={(value) => setBesichtigungDate(value)}
                   min={new Date().toISOString().split("T")[0]}
                 />
               </div>

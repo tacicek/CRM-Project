@@ -10,6 +10,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -413,11 +414,10 @@ export const AcceptBesichtigungDialog = ({
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="accept-date">Datum</Label>
-                <Input
+                <DatePicker
                   id="accept-date"
-                  type="date"
                   value={acceptDate}
-                  onChange={(e) => setAcceptDate(e.target.value)}
+                  onChange={(value) => setAcceptDate(value)}
                 />
               </div>
               <div className="space-y-2">
@@ -537,10 +537,9 @@ export const AcceptBesichtigungDialog = ({
                         updateManualSlot(index, "selected", !!checked)
                       }
                     />
-                    <Input
-                      type="date"
+                    <DatePicker
                       value={slot.date}
-                      onChange={(e) => updateManualSlot(index, "date", e.target.value)}
+                      onChange={(value) => updateManualSlot(index, "date", value)}
                       className="w-auto"
                     />
                     <Input

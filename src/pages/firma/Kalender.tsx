@@ -55,6 +55,7 @@ import { toast } from "sonner";
 import { AppointmentModal } from "@/components/firma/AppointmentModal";
 import { TeamWeekView } from "@/components/firma/TeamWeekView";
 import { CalendarExportMenu } from "@/components/firma/CalendarExportMenu";
+import { AppointmentAnfrageSummary } from "@/components/firma/AppointmentAnfrageSummary";
 import { CalendarEvent as ICSCalendarEvent } from "@/lib/calendarSync";
 import { MobileCalendarNav } from "@/components/firma/MobileCalendarNav";
 import { cn } from "@/lib/utils";
@@ -1326,7 +1327,10 @@ const AppointmentDetailCard = ({
           </div>
         )}
 
-        {/* Internal Notes */}
+        {/* Live Anfrage summary (from the linked lead — single source, no manual copy) */}
+        <AppointmentAnfrageSummary leadId={appointment.lead_id} />
+
+        {/* Internal Notes — appointment-specific notes only */}
         {appointment.internal_notes && (
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
             <p className="text-xs font-semibold text-amber-700 mb-1 flex items-center gap-1">

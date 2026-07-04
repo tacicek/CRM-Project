@@ -27,6 +27,7 @@ import {
   Eye,
   RefreshCw,
   CheckCircle2,
+  CalendarPlus,
 } from "lucide-react";
 import { getServiceLabel } from "@/lib/serviceLabels";
 import { useToast } from "@/hooks/use-toast";
@@ -483,6 +484,27 @@ export default function FirmaAnfragen() {
                       >
                         <Eye className="h-3.5 w-3.5" />
                         Besichtigung
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          navigate(
+                            `/firma/kalender?${new URLSearchParams({
+                              newAppointment: "true",
+                              leadId: lead.id,
+                              // Service appointment (Auftrag) — the service type comes from the
+                              // Anfrage; Besichtigung has its own (video) button above.
+                              type: "service",
+                              title: `${getServiceLabel(lead.service_type)} - ${[lead.customer_first_name, lead.customer_last_name].filter(Boolean).join(" ")}`.trim(),
+                            }).toString()}`,
+                          )
+                        }
+                        className="h-8 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
+                        title="Termin im Kalender planen"
+                      >
+                        <CalendarPlus className="h-3.5 w-3.5" />
+                        Termin planen
                       </Button>
                       <Button
                         variant="ghost"
