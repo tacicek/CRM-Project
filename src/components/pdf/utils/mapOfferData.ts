@@ -92,6 +92,8 @@ export interface LegacyAddress {
   city?: string;
   floor?: number;
   has_lift?: boolean;
+  has_estrich?: boolean;
+  has_keller?: boolean;
   rooms?: number;
 }
 
@@ -223,6 +225,8 @@ const mapAddress = (addr?: LegacyAddress): PdfOfferData["addresses"]["from"] | u
     floor: addr.floor,
     rooms: addr.rooms,
     hasLift: addr.has_lift,
+    hasEstrich: addr.has_estrich,
+    hasKeller: addr.has_keller,
   };
 };
 
@@ -324,6 +328,8 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
         subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "min",
       );
       const itemsSubtotal = minTotals.subtotal;
+      let maxDiscountAmount: number | null = null;
+      let maxTaxableBase: number | null = null;
       if (hasItemTe) {
         const maxTotals = computeDisplayTotals(
           subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "max",
@@ -331,6 +337,8 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
         maxSubtotal = maxTotals.subtotal;
         maxMwstAmount = maxTotals.vatAmount;
         maxTotal = maxTotals.total;
+        maxDiscountAmount = maxTotals.discountAmount;
+        maxTaxableBase = maxTotals.taxableBase;
       }
       return {
         subtotal: itemsSubtotal,
@@ -344,6 +352,11 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
         maxSubtotal,
         maxMwstAmount,
         maxTotal,
+        discountPercent: offer.discount_percent ?? null,
+        discountAmount: minTotals.discountAmount,
+        maxDiscountAmount,
+        taxableBase: minTotals.taxableBase,
+        maxTaxableBase,
       };
     })(),
     timeEstimate: null,

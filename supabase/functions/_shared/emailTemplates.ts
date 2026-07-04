@@ -305,7 +305,7 @@ export function buildCustomerConfirmationEmail(params: CustomerConfirmationEmail
     coreRows.push(`<tr><td style="padding:8px 0;color:#6b7280;">Instrument:</td><td style="padding:8px 0;font-weight:500;">${lead.piano_type}${lead.piano_weight_kg ? ` (${lead.piano_weight_kg} kg)` : ""}</td></tr>`);
   }
   if (lead.moebellift_floor) {
-    coreRows.push(`<tr><td style="padding:8px 0;color:#6b7280;">Stockwerk:</td><td style="padding:8px 0;font-weight:500;">${lead.moebellift_floor}. OG</td></tr>`);
+    coreRows.push(`<tr><td style="padding:8px 0;color:#6b7280;">Stockwerk:</td><td style="padding:8px 0;font-weight:500;">${Number(lead.moebellift_floor) < 0 ? 'UG' : Number(lead.moebellift_floor) === 0 ? 'Erdgeschoss' : `${lead.moebellift_floor}. OG`}</td></tr>`);
   }
 
   const booleanServices: string[] = [];

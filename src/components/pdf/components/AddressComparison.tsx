@@ -2,6 +2,7 @@ import { StyleSheet, Text, View, Svg, Path } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData, AddressDetails } from "../types/offer.types";
 import { getServiceLayout } from "../utils/serviceLayout";
+import { formatFloorLabel } from "@/lib/floorUtils";
 import { formatDate } from "../utils/formatters";
 
 const ORANGE = "#F97316";
@@ -108,8 +109,11 @@ const formatAddressLines = (addr?: AddressDetails) => {
   const city = [addr.plz, addr.city].filter(Boolean).join(" ");
   const meta: string[] = [];
   if (typeof addr.rooms === "number") meta.push(`${addr.rooms} Zi.`);
-  if (typeof addr.floor === "number") meta.push(`${addr.floor}. OG`);
+  const floorLabel = formatFloorLabel(addr.floor);
+  if (floorLabel) meta.push(floorLabel);
   if (addr.hasLift === true) meta.push("Lift");
+  if (addr.hasEstrich === true) meta.push("Estrich");
+  if (addr.hasKeller === true) meta.push("Keller");
   if (addr.buildingType) meta.push(addr.buildingType);
   return { street, city, meta };
 };

@@ -2351,6 +2351,8 @@ export type Database = {
           from_city: string
           from_distance_to_parking: number | null
           from_floor: number | null
+          from_has_estrich: boolean | null
+          from_has_keller: boolean | null
           from_has_lift: boolean | null
           from_house_number: string | null
           from_lift_type: string | null
@@ -2471,6 +2473,8 @@ export type Database = {
           from_city: string
           from_distance_to_parking?: number | null
           from_floor?: number | null
+          from_has_estrich?: boolean | null
+          from_has_keller?: boolean | null
           from_has_lift?: boolean | null
           from_house_number?: string | null
           from_lift_type?: string | null
@@ -2591,6 +2595,8 @@ export type Database = {
           from_city?: string
           from_distance_to_parking?: number | null
           from_floor?: number | null
+          from_has_estrich?: boolean | null
+          from_has_keller?: boolean | null
           from_has_lift?: boolean | null
           from_house_number?: string | null
           from_lift_type?: string | null
@@ -5323,6 +5329,8 @@ export type Database = {
           description: string | null
           from_city: string | null
           from_floor: number | null
+          from_has_estrich: boolean | null
+          from_has_keller: boolean | null
           from_has_lift: boolean | null
           from_house_number: string | null
           from_living_space_m2: number | null

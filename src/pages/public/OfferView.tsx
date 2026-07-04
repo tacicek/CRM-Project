@@ -49,7 +49,8 @@ import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { hourlyRange, computeDisplayTotals, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
+import { hourlyRange, computeDisplayTotals, isFreeItem, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
+import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 
 interface OfferItem {
   id: string;
@@ -107,6 +108,8 @@ interface Offer {
   from_city?: string | null;
   from_floor?: number | null;
   from_has_lift?: boolean | null;
+  from_has_estrich?: boolean | null;
+  from_has_keller?: boolean | null;
   to_street?: string | null;
   to_house_number?: string | null;
   to_plz?: string | null;
@@ -155,6 +158,8 @@ interface LeadAddress {
   from_city?: string | null;
   from_floor?: number | null;
   from_has_lift?: boolean | null;
+  from_has_estrich?: boolean | null;
+  from_has_keller?: boolean | null;
   to_street?: string | null;
   to_house_number?: string | null;
   to_plz?: string | null;
@@ -227,6 +232,8 @@ const PublicOfferView = () => {
             from_plz: offerData.from_plz,
             from_city: offerData.from_city,
             from_floor: offerData.from_floor,
+            from_has_estrich: offerData.from_has_estrich,
+            from_has_keller: offerData.from_has_keller,
             from_has_lift: offerData.from_has_lift,
             to_street: offerData.to_street,
             to_house_number: offerData.to_house_number,
@@ -527,6 +534,8 @@ const PublicOfferView = () => {
         city: leadAddress.from_city || undefined,
         floor: leadAddress.from_floor ?? undefined,
         has_lift: leadAddress.from_has_lift ?? undefined,
+        has_estrich: leadAddress.from_has_estrich ?? undefined,
+        has_keller: leadAddress.from_has_keller ?? undefined,
       } : undefined,
       customer_destination: leadAddress && (leadAddress.to_plz || leadAddress.to_city) ? {
         street: leadAddress.to_street || undefined,
@@ -769,12 +778,12 @@ const PublicOfferView = () => {
                               </TableCell>
                             </TableRow>
                           )}
-                          {group.items.map((item) => {
+                          {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => {
                             const r = hourlyRange(item.time_estimate);
                             return (
                             <TableRow key={item.id}>
                               <TableCell className="text-center">{item.position}</TableCell>
-                              <TableCell>{item.description}</TableCell>
+                              <TableCell><PositionDescription text={item.description} /></TableCell>
                               {r ? (
                                 <>
                                   <TableCell className="text-right">
@@ -803,6 +812,14 @@ const PublicOfferView = () => {
                             </TableRow>
                             );
                           })}
+                          {group.items.some((item) => isFreeItem(item.price_type)) && (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell />
+                              <TableCell colSpan={5} className="py-3">
+                                <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </Fragment>
                       ));
                     })()}
@@ -869,36 +886,77 @@ const PublicOfferView = () => {
                     const isRange = offer.offerte_type === "blind" && maxItemsSub !== minItemsSub;
                     return (
                       <>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Zwischensumme</span>
-                          <span>
-                            {isRange
-                              ? `${formatCurrency(minItemsSub)} – ${formatCurrency(maxItemsSub)}`
-                              : formatCurrency(minItemsSub)}
-                          </span>
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="text-muted-foreground shrink-0">Zwischensumme</span>
+                          {isRange ? (
+                            <div className="text-right text-amber-700 font-medium leading-snug">
+                              <div>{formatCurrency(minItemsSub)}</div>
+                              <div className="text-xs text-amber-600">– {formatCurrency(maxItemsSub)}</div>
+                            </div>
+                          ) : (
+                            <span>{formatCurrency(minItemsSub)}</span>
+                          )}
                         </div>
                         {surchargeList.map((s, i) => (
-                          <div key={i} className="flex justify-between">
+                          <div key={i} className="flex items-start justify-between gap-4">
                             <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
-                            <span>{formatCurrency(s.amount)}</span>
+                            <span className="shrink-0">{formatCurrency(s.amount)}</span>
                           </div>
                         ))}
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">MwSt. ({offer.vat_rate}%)</span>
-                          <span>
-                            {isRange
-                              ? `${formatCurrency(Number(offer.vat_amount))} – ${formatCurrency(maxTotals.vatAmount)}`
-                              : formatCurrency(Number(offer.vat_amount))}
-                          </span>
-                        </div>
+                        {offer.discount_percent && offer.discount_percent > 0 ? (
+                          <>
+                            <div className="flex items-start justify-between gap-4">
+                              <span className="text-muted-foreground shrink-0">
+                                Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
+                              </span>
+                              {isRange ? (
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>- {formatCurrency(minTotals.discountAmount)}</div>
+                                  <div className="text-xs text-amber-600">– - {formatCurrency(maxTotals.discountAmount)}</div>
+                                </div>
+                              ) : (
+                                <span>- {formatCurrency(minTotals.discountAmount)}</span>
+                              )}
+                            </div>
+                            <div className="flex items-start justify-between gap-4">
+                              <span className="text-muted-foreground shrink-0">Total exkl. MwSt</span>
+                              {isRange ? (
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>{formatCurrency(minTotals.taxableBase)}</div>
+                                  <div className="text-xs text-amber-600">– {formatCurrency(maxTotals.taxableBase)}</div>
+                                </div>
+                              ) : (
+                                <span>{formatCurrency(minTotals.taxableBase)}</span>
+                              )}
+                            </div>
+                          </>
+                        ) : null}
+                        {/* MwSt row only when a rate is active — at 0 % it is omitted entirely
+                            (Zwischensumme = Total), mirroring the PDF/Rechnung rule. */}
+                        {Number(offer.vat_rate) > 0 ? (
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-muted-foreground shrink-0">MwSt. ({offer.vat_rate}%)</span>
+                            {isRange ? (
+                              <div className="text-right text-amber-700 leading-snug">
+                                <div>{formatCurrency(Number(offer.vat_amount))}</div>
+                                <div className="text-xs text-amber-600">– {formatCurrency(maxTotals.vatAmount)}</div>
+                              </div>
+                            ) : (
+                              <span>{formatCurrency(Number(offer.vat_amount))}</span>
+                            )}
+                          </div>
+                        ) : null}
                         <Separator />
-                        <div className="flex justify-between text-xl font-bold">
-                          <span>Total</span>
-                          <span className="text-secondary">
-                            {isRange
-                              ? `${formatCurrency(Number(offer.total))} – ${formatCurrency(maxTotals.total)}`
-                              : formatCurrency(Number(offer.total))}
-                          </span>
+                        <div className="flex items-start justify-between gap-4 text-xl font-bold">
+                          <span className="shrink-0">Total</span>
+                          {isRange ? (
+                            <div className="text-right text-amber-700 leading-snug">
+                              <div>{formatCurrency(Number(offer.total))}</div>
+                              <div className="text-sm font-semibold text-amber-600">– {formatCurrency(maxTotals.total)}</div>
+                            </div>
+                          ) : (
+                            <span className="text-secondary">{formatCurrency(Number(offer.total))}</span>
+                          )}
                         </div>
                       </>
                     );

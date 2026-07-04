@@ -521,6 +521,12 @@ const cardStyles = StyleSheet.create({
   posPriceSub: { fontSize: FONT_SIZES.xs, color: "#B45309" },
 });
 
+/** Active offer-level discount or null — gates the Rabatt/Total-exkl. rows. */
+const styleDiscount = (data: OfferData): number | null =>
+  data.pricing.discountPercent && data.pricing.discountPercent > 0
+    ? data.pricing.discountPercent
+    : null;
+
 interface ServiceTableProps {
   data: OfferData;
   itemsOverride?: OfferData["items"];
@@ -597,6 +603,46 @@ export const ServiceTable = ({
                 <Text style={styles.totalValue}>{formatCurrency(s.amount)}</Text>
               </View>
             ))}
+
+            {/* Rabatt + Total exkl. MwSt — only when an offer-level discount is active
+                (new_offer.png pattern); without a discount the block is absent and the
+                layout is byte-identical to before (P3b-2c-ii). */}
+            {isSet(styleDiscount(data)) ? (
+              <>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    {`Rabatt ${Number(data.pricing.discountPercent).toLocaleString("de-CH")} %`}
+                  </Text>
+                  {isSet(data.pricing.maxDiscountAmount) ? (
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={[styles.totalValue, { color: "#B45309" }]}>
+                        {`- ${formatCurrency(data.pricing.discountAmount ?? 0)}`}
+                      </Text>
+                      <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
+                        {"\u2013"} {`- ${formatCurrency(data.pricing.maxDiscountAmount)}`}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.totalValue}>{`- ${formatCurrency(data.pricing.discountAmount ?? 0)}`}</Text>
+                  )}
+                </View>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total exkl. MwSt</Text>
+                  {isSet(data.pricing.maxTaxableBase) ? (
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={[styles.totalValue, { color: "#B45309" }]}>
+                        {formatCurrency(data.pricing.taxableBase ?? 0)}
+                      </Text>
+                      <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
+                        {"\u2013"} {formatCurrency(data.pricing.maxTaxableBase)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.totalValue}>{formatCurrency(data.pricing.taxableBase ?? 0)}</Text>
+                  )}
+                </View>
+              </>
+            ) : null}
 
             <View style={styles.totalDivider} />
 

@@ -70,7 +70,8 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeDisplayTotals, computeItemsSubtotal, hourlyRange } from "@/lib/offerPricing";
+import { computeDisplayTotals, hourlyRange, isFreeItem } from "@/lib/offerPricing";
+import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
@@ -149,6 +150,8 @@ interface Offer {
   frozen_from_city?: string | null;
   frozen_from_floor?: number | null;
   frozen_from_has_lift?: boolean | null;
+  frozen_has_estrich?: boolean | null;
+  frozen_has_keller?: boolean | null;
   frozen_to_street?: string | null;
   frozen_to_house_number?: string | null;
   frozen_to_plz?: string | null;
@@ -194,6 +197,8 @@ interface LeadData {
   from_city?: string | null;
   from_floor?: number | null;
   from_has_lift?: boolean | null;
+  from_has_estrich?: boolean | null;
+  from_has_keller?: boolean | null;
   from_rooms?: number | null;
   from_living_space_m2?: number | null;
   to_street?: string | null;
@@ -310,7 +315,7 @@ const FirmaOfferteDetail = () => {
         if (offerData.lead_id) {
           const { data: leadData } = await supabase
             .from("leads")
-            .select("service_type, from_street, from_house_number, from_plz, from_city, from_floor, from_has_lift, from_rooms, from_living_space_m2, to_street, to_house_number, to_plz, to_city, to_floor, to_has_lift, preferred_date, preferred_time_slot, packing_service_needed, cleaning_service_needed, storage_needed, description, property_type")
+            .select("service_type, from_street, from_house_number, from_plz, from_city, from_floor, from_has_lift, from_has_estrich, from_has_keller, from_rooms, from_living_space_m2, to_street, to_house_number, to_plz, to_city, to_floor, to_has_lift, preferred_date, preferred_time_slot, packing_service_needed, cleaning_service_needed, storage_needed, description, property_type")
             .eq("id", offerData.lead_id)
             .maybeSingle();
           if (leadData) {
@@ -414,7 +419,13 @@ const FirmaOfferteDetail = () => {
     const dtMax = computeDisplayTotals(
       subtotalItems, surchargesSum, Number(offer.vat_rate), offer.discount_percent, "max",
     );
-    return { maxSubtotal: dtMax.subtotal, maxVat: dtMax.vatAmount, maxTotal: dtMax.total };
+    return {
+      maxSubtotal: dtMax.subtotal,
+      maxVat: dtMax.vatAmount,
+      maxTotal: dtMax.total,
+      maxDiscountAmount: dtMax.discountAmount,
+      maxTaxableBase: dtMax.taxableBase,
+    };
   };
 
   const getStatusBadge = (status: string) => {
@@ -521,6 +532,8 @@ const FirmaOfferteDetail = () => {
         city: offer.frozen_from_city ?? leadAddress?.from_city ?? undefined,
         floor: offer.frozen_from_floor ?? leadAddress?.from_floor ?? undefined,
         has_lift: offer.frozen_from_has_lift ?? leadAddress?.from_has_lift ?? undefined,
+        has_estrich: offer.frozen_has_estrich ?? leadAddress?.from_has_estrich ?? undefined,
+        has_keller: offer.frozen_has_keller ?? leadAddress?.from_has_keller ?? undefined,
       } : undefined,
       customer_destination: (offer.frozen_to_plz || offer.frozen_to_city || leadAddress?.to_plz || leadAddress?.to_city) ? {
         street: offer.frozen_to_street ?? leadAddress?.to_street ?? undefined,
@@ -873,13 +886,11 @@ const FirmaOfferteDetail = () => {
                             {group.label}
                           </div>
                         )}
-                        {group.items.map((item) => (
+                        {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => (
                           <div key={item.id} className="border rounded-lg p-3 space-y-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="shrink-0 text-xs">{item.position}</Badge>
-                                <span className="font-medium text-sm">{item.description}</span>
-                              </div>
+                            <div className="flex items-start gap-2">
+                              <Badge variant="outline" className="shrink-0 text-xs">{item.position}</Badge>
+                              <div className="text-sm min-w-0"><PositionDescription text={item.description} /></div>
                             </div>
                             <div className="flex justify-between text-sm text-muted-foreground">
                               <span>{item.quantity} {item.unit} × {formatCurrency(Number(item.unit_price))}</span>
@@ -887,6 +898,11 @@ const FirmaOfferteDetail = () => {
                             </div>
                           </div>
                         ))}
+                        {group.items.some((item) => isFreeItem(item.price_type)) && (
+                          <div className="rounded-lg bg-muted/30 p-3">
+                            <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
+                          </div>
+                        )}
                       </Fragment>
                     ));
                   })()}
@@ -894,35 +910,76 @@ const FirmaOfferteDetail = () => {
                   <Separator className="my-3" />
 
                   <div className="space-y-2 text-sm">
-                    {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = computeItemsSubtotal(toSubtotalItems(), "min"); return (
+                    {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
                       <>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Zwischensumme</span>
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="text-muted-foreground shrink-0">Zwischensumme</span>
                           {range ? (
-                            <span className="text-amber-700 font-medium">{formatCurrency(itemsSub)} – {formatCurrency(range.maxSubtotal)}</span>
+                            <div className="text-right text-amber-700 font-medium leading-snug">
+                              <div>{formatCurrency(itemsSub)}</div>
+                              <div className="text-xs text-amber-600">– {formatCurrency(range.maxSubtotal)}</div>
+                            </div>
                           ) : (
                             <span>{formatCurrency(itemsSub)}</span>
                           )}
                         </div>
                         {surchargeList.map((s, i) => (
-                          <div key={i} className="flex justify-between">
+                          <div key={i} className="flex items-start justify-between gap-4">
                             <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
-                            <span>{formatCurrency(s.amount)}</span>
+                            <span className="shrink-0">{formatCurrency(s.amount)}</span>
                           </div>
                         ))}
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">MwSt. ({offer.vat_rate}%)</span>
-                          {range ? (
-                            <span className="text-amber-700">{formatCurrency(Number(offer.vat_amount))} – {formatCurrency(range.maxVat)}</span>
-                          ) : (
-                            <span>{formatCurrency(Number(offer.vat_amount))}</span>
-                          )}
-                        </div>
+                        {offer.discount_percent && offer.discount_percent > 0 ? (
+                          <>
+                            <div className="flex items-start justify-between gap-4">
+                              <span className="text-muted-foreground shrink-0">
+                                Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
+                              </span>
+                              {range ? (
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>- {formatCurrency(dtMin.discountAmount)}</div>
+                                  <div className="text-xs text-amber-600">– - {formatCurrency(range.maxDiscountAmount)}</div>
+                                </div>
+                              ) : (
+                                <span>- {formatCurrency(dtMin.discountAmount)}</span>
+                              )}
+                            </div>
+                            <div className="flex items-start justify-between gap-4">
+                              <span className="text-muted-foreground shrink-0">Total exkl. MwSt</span>
+                              {range ? (
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>{formatCurrency(dtMin.taxableBase)}</div>
+                                  <div className="text-xs text-amber-600">– {formatCurrency(range.maxTaxableBase)}</div>
+                                </div>
+                              ) : (
+                                <span>{formatCurrency(dtMin.taxableBase)}</span>
+                              )}
+                            </div>
+                          </>
+                        ) : null}
+                        {/* MwSt row only when a rate is active — at 0 % it is omitted entirely
+                            (Zwischensumme = Total), mirroring the PDF/Rechnung rule. */}
+                        {Number(offer.vat_rate) > 0 ? (
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-muted-foreground shrink-0">MwSt. ({offer.vat_rate}%)</span>
+                            {range ? (
+                              <div className="text-right text-amber-700 leading-snug">
+                                <div>{formatCurrency(Number(offer.vat_amount))}</div>
+                                <div className="text-xs text-amber-600">– {formatCurrency(range.maxVat)}</div>
+                              </div>
+                            ) : (
+                              <span>{formatCurrency(Number(offer.vat_amount))}</span>
+                            )}
+                          </div>
+                        ) : null}
                         <Separator />
-                        <div className="flex justify-between font-bold text-base pt-1">
-                          <span>Total</span>
+                        <div className="flex items-start justify-between gap-4 font-bold text-base pt-1">
+                          <span className="shrink-0">Total</span>
                           {range ? (
-                            <span className="text-amber-700">{formatCurrency(Number(offer.total))} – {formatCurrency(range.maxTotal)}</span>
+                            <div className="text-right text-amber-700 leading-snug">
+                              <div>{formatCurrency(Number(offer.total))}</div>
+                              <div className="text-sm font-semibold text-amber-600">– {formatCurrency(Number(range.maxTotal))}</div>
+                            </div>
                           ) : (
                             <span className="text-primary">{formatCurrency(Number(offer.total))}</span>
                           )}
@@ -963,10 +1020,10 @@ const FirmaOfferteDetail = () => {
                                 </TableCell>
                               </TableRow>
                             )}
-                            {group.items.map((item) => (
+                            {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => (
                               <TableRow key={item.id}>
                                 <TableCell className="text-center">{item.position}</TableCell>
-                                <TableCell>{item.description}</TableCell>
+                                <TableCell><PositionDescription text={item.description} /></TableCell>
                                 <TableCell className="text-right">{item.quantity}</TableCell>
                                 <TableCell>{item.unit}</TableCell>
                                 <TableCell className="text-right">
@@ -977,6 +1034,14 @@ const FirmaOfferteDetail = () => {
                                 </TableCell>
                               </TableRow>
                             ))}
+                            {group.items.some((item) => isFreeItem(item.price_type)) && (
+                              <TableRow className="hover:bg-transparent">
+                                <TableCell />
+                                <TableCell colSpan={5} className="py-3">
+                                  <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
+                                </TableCell>
+                              </TableRow>
+                            )}
                           </Fragment>
                         ));
                       })()}
@@ -987,40 +1052,81 @@ const FirmaOfferteDetail = () => {
 
                   <div className="flex justify-end">
                     <div className="w-72 space-y-2">
-                      {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = computeItemsSubtotal(toSubtotalItems(), "min"); return (
-                        <>
-                          <div className="flex justify-between text-sm">
-                            <span>Zwischensumme</span>
-                            {range ? (
-                              <span className="text-amber-700 font-medium">{formatCurrency(itemsSub)} – {formatCurrency(range.maxSubtotal)}</span>
-                            ) : (
-                              <span>{formatCurrency(itemsSub)}</span>
-                            )}
-                          </div>
-                          {surchargeList.map((s, i) => (
-                            <div key={i} className="flex justify-between text-sm">
-                              <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
-                              <span>{formatCurrency(s.amount)}</span>
+                      {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
+                      <>
+                        <div className="flex items-start justify-between gap-4 text-sm">
+                          <span className="text-muted-foreground shrink-0">Zwischensumme</span>
+                          {range ? (
+                            <div className="text-right text-amber-700 font-medium leading-snug">
+                              <div>{formatCurrency(itemsSub)}</div>
+                              <div className="text-xs text-amber-600">– {formatCurrency(range.maxSubtotal)}</div>
                             </div>
-                          ))}
-                          <div className="flex justify-between text-sm">
-                            <span>MwSt. ({offer.vat_rate}%)</span>
+                          ) : (
+                            <span>{formatCurrency(itemsSub)}</span>
+                          )}
+                        </div>
+                        {surchargeList.map((s, i) => (
+                          <div key={i} className="flex items-start justify-between gap-4 text-sm">
+                            <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
+                            <span className="shrink-0">{formatCurrency(s.amount)}</span>
+                          </div>
+                        ))}
+                        {offer.discount_percent && offer.discount_percent > 0 ? (
+                          <>
+                            <div className="flex items-start justify-between gap-4 text-sm">
+                              <span className="text-muted-foreground shrink-0">
+                                Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
+                              </span>
+                              {range ? (
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>- {formatCurrency(dtMin.discountAmount)}</div>
+                                  <div className="text-xs text-amber-600">– - {formatCurrency(range.maxDiscountAmount)}</div>
+                                </div>
+                              ) : (
+                                <span>- {formatCurrency(dtMin.discountAmount)}</span>
+                              )}
+                            </div>
+                            <div className="flex items-start justify-between gap-4 text-sm">
+                              <span className="text-muted-foreground shrink-0">Total exkl. MwSt</span>
+                              {range ? (
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>{formatCurrency(dtMin.taxableBase)}</div>
+                                  <div className="text-xs text-amber-600">– {formatCurrency(range.maxTaxableBase)}</div>
+                                </div>
+                              ) : (
+                                <span>{formatCurrency(dtMin.taxableBase)}</span>
+                              )}
+                            </div>
+                          </>
+                        ) : null}
+                        {/* MwSt row only when a rate is active — at 0 % it is omitted entirely
+                            (Zwischensumme = Total), mirroring the PDF/Rechnung rule. */}
+                        {Number(offer.vat_rate) > 0 ? (
+                          <div className="flex items-start justify-between gap-4 text-sm">
+                            <span className="text-muted-foreground shrink-0">MwSt. ({offer.vat_rate}%)</span>
                             {range ? (
-                              <span className="text-amber-700">{formatCurrency(Number(offer.vat_amount))} – {formatCurrency(range.maxVat)}</span>
+                              <div className="text-right text-amber-700 leading-snug">
+                                <div>{formatCurrency(Number(offer.vat_amount))}</div>
+                                <div className="text-xs text-amber-600">– {formatCurrency(range.maxVat)}</div>
+                              </div>
                             ) : (
                               <span>{formatCurrency(Number(offer.vat_amount))}</span>
                             )}
                           </div>
-                          <Separator />
-                          <div className="flex justify-between font-bold text-lg">
-                            <span>Total</span>
-                            {range ? (
-                              <span className="text-amber-700">{formatCurrency(Number(offer.total))} – {formatCurrency(range.maxTotal)}</span>
-                            ) : (
-                              <span>{formatCurrency(Number(offer.total))}</span>
-                            )}
-                          </div>
-                        </>
+                        ) : null}
+                        <Separator />
+                        <div className="flex items-start justify-between gap-4 font-bold text-lg">
+                          <span className="shrink-0">Total</span>
+                          {range ? (
+                            <div className="text-right text-amber-700 leading-snug">
+                              <div>{formatCurrency(Number(offer.total))}</div>
+                              <div className="text-sm font-semibold text-amber-600">– {formatCurrency(Number(range.maxTotal))}</div>
+                            </div>
+                          ) : (
+                            <span className="">{formatCurrency(Number(offer.total))}</span>
+                          )}
+                        </div>
+                      </>
                       ); })()}
                     </div>
                   </div>

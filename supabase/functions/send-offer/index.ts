@@ -68,6 +68,7 @@ interface OfferItem {
   unit: string;
   unit_price: number;
   total?: number;
+  price_type?: string | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
 }
 
@@ -105,6 +106,7 @@ interface OfferData {
   vat_rate: number;
   vat_amount: number;
   total: number;
+  discount_percent?: number | null;
   created_at: string;
   paymentTerms?: string | null;
   termsAndConditions?: string | null;
@@ -529,7 +531,19 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Build items HTML (mobile-safe stacked layout)
     const fmtCHF = (n: number) => 'CHF ' + n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const itemsHtml = items?.map(item => {
+    // Free items (inkl/optional) are NOT priced rows — they resurface as a \u2713 "Inklusive"
+    // block below the billable rows (mirrors PDF P2a + Detail view; single-source semantics
+    // of src/lib/offerPricing isFreeItem, duplicated here because Deno cannot import src/).
+    const isFreeItem = (pt: string | null | undefined) => pt === "inkl" || pt === "optional";
+    const billableItems = (items ?? []).filter((i) => !isFreeItem(i.price_type));
+    const freeItems = (items ?? []).filter((i) => isFreeItem(i.price_type));
+    // First description line = bold main title, remaining lines = muted sub-line.
+    const descHtml = (desc: string) => {
+      const [main, ...rest] = (desc ?? "").split("\n");
+      const sub = rest.join(" ").trim();
+      return `<span style="font-weight: 700;">${escapeHtml(main)}</span>${sub ? `<br><span style="font-size: 12px; color: #6b7280;">${escapeHtml(sub)}</span>` : ""}`;
+    };
+    const itemsHtml = billableItems.map(item => {
       const te = item.time_estimate;
       const hasTE = te && te.minHours > 0 && te.hourlyRate > 0;
       const minTotal = hasTE ? te!.minHours * te!.hourlyRate : item.quantity * item.unit_price;
@@ -543,7 +557,7 @@ const handler = async (req: Request): Promise<Response> => {
               <td style="padding: 2px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${item.position}</td>
             </tr>
             <tr>
-              <td colspan="2" style="padding: 6px 0 4px 0; color: #111827; font-size: 14px; word-break: break-word; line-height: 1.5;">${escapeHtml(item.description)}</td>
+              <td colspan="2" style="padding: 6px 0 4px 0; color: #111827; font-size: 14px; word-break: break-word; line-height: 1.5;">${descHtml(item.description)}</td>
             </tr>
             ${hasTE ? `
             <tr>
@@ -568,7 +582,13 @@ const handler = async (req: Request): Promise<Response> => {
           </table>
         </td>
       </tr>`;
-    }).join("") || "";
+    }).join("") + (freeItems.length > 0 ? `
+      <tr>
+        <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #6b7280; margin-bottom: 6px;">INKLUSIVE</div>
+          ${freeItems.map((i) => `<span style="display: inline-block; margin: 2px 14px 2px 0; font-size: 13px; color: #111827;"><span style="color: ${accent}; font-weight: 700;">&#10003;</span>&nbsp;${escapeHtml((i.description ?? "").split("\n")[0])}</span>`).join("")}
+        </td>
+      </tr>` : "");
 
     const formatDate = (dateStr: string | null) => {
       if (!dateStr) return "-";
@@ -678,10 +698,22 @@ const handler = async (req: Request): Promise<Response> => {
           ${(() => {
             const hasItemTE = items?.some(i => i.time_estimate && i.time_estimate.maxHours > 0 && i.time_estimate.hourlyRate > 0);
             if (!hasItemTE) {
-              // Zuschläge: offer.subtotal = steuerbare Basis (Positionen + Zuschläge).
+              // P4a: Zwischensumme comes from the ITEMS (raw, free items excluded) — never
+              // derived back from offers.subtotal, which stores the DISCOUNTED base (P3b-1).
               const surchargeArr = Array.isArray(offer.surcharges) ? offer.surcharges : [];
               const surchargesSum = surchargeArr.reduce((sum, x) => sum + (Number(x?.amount) || 0), 0);
-              const itemsSub = Number(offer.subtotal) - surchargesSum;
+              const itemsSub = billableItems.reduce((sum, i) => sum + Number(i.quantity) * Number(i.unit_price), 0);
+              const hasDiscount = Number(offer.discount_percent) > 0;
+              // Discounted base = exactly what the save flow wrote to offers.subtotal.
+              const discountRows = hasDiscount ? `
+            <div style="margin-bottom: 8px;">
+              <span style="color: #6b7280;">Rabatt ${Number(offer.discount_percent).toLocaleString('de-CH')} %:</span>
+              <span style="margin-left: 24px; color: #1f2937;">- ${fmtCHF(itemsSub + surchargesSum - Number(offer.subtotal))}</span>
+            </div>
+            <div style="margin-bottom: 8px;">
+              <span style="color: #6b7280;">Total exkl. MwSt:</span>
+              <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(offer.subtotal))}</span>
+            </div>` : "";
               const surchargeRows = surchargeArr.map((x) => `
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">${escapeHtml(x?.label) || "Zuschlag"}:</span>
@@ -692,24 +724,30 @@ const handler = async (req: Request): Promise<Response> => {
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">Zwischensumme:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(itemsSub)}</span>
-            </div>${surchargeRows}
+            </div>${surchargeRows}${discountRows}
+            ${Number(offer.vat_rate) > 0 ? `
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">MwSt. (${offer.vat_rate}%):</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(offer.vat_amount || 0))}</span>
-            </div>
+            </div>` : ''}
             <div style="font-size: 20px; font-weight: bold; color: #1f2937; border-top: 2px solid #e5e7eb; padding-top: 12px;">
               <span>Total:</span>
               <span style="margin-left: 24px;">${fmtCHF(Number(offer.total || (Number(offer.subtotal) + Number(offer.vat_amount || 0))))}</span>
             </div>
           </div>`;
             }
-            // Per-item time estimates — compute range totals
-            const minSub = (items || []).reduce((sum, item) => {
+            // Per-item time estimates — compute range totals (P4a: free items excluded,
+            // discount applied between the raw base and the VAT — mirrors offerPricing
+            // computeDisplayTotals; duplicated because Deno cannot import src/).
+            const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+            const dPct = Number(offer.discount_percent) > 0 ? Number(offer.discount_percent) : 0;
+            const applyD = (n: number) => (dPct > 0 ? round2(n * (1 - dPct / 100)) : n);
+            const minSub = billableItems.reduce((sum, item) => {
               const te = item.time_estimate;
               if (te && te.minHours > 0 && te.hourlyRate > 0) return sum + te.minHours * te.hourlyRate;
               return sum + item.quantity * item.unit_price;
             }, 0);
-            const maxSub = (items || []).reduce((sum, item) => {
+            const maxSub = billableItems.reduce((sum, item) => {
               const te = item.time_estimate;
               if (te && te.maxHours > 0 && te.hourlyRate > 0) return sum + te.maxHours * te.hourlyRate;
               return sum + item.quantity * item.unit_price;
@@ -722,10 +760,21 @@ const handler = async (req: Request): Promise<Response> => {
               <span style="color: #6b7280;">${escapeHtml(x?.label) || 'Zuschlag'}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(x?.amount) || 0)}</span>
             </div>`).join("");
-            const minVat = (minSub + rangeSurchargesSum) * (Number(offer.vat_rate) / 100);
-            const maxVat = (maxSub + rangeSurchargesSum) * (Number(offer.vat_rate) / 100);
-            const minTotal = minSub + rangeSurchargesSum + minVat;
-            const maxTotal = maxSub + rangeSurchargesSum + maxVat;
+            const minBase = applyD(minSub + rangeSurchargesSum);
+            const maxBase = applyD(maxSub + rangeSurchargesSum);
+            const rangeDiscountRows = dPct > 0 ? `
+            <div style="margin-bottom: 8px;">
+              <span style="color: #6b7280;">Rabatt ${dPct.toLocaleString('de-CH')} %:</span>
+              <span style="margin-left: 24px; color: #b45309;">- ${fmtCHF(minSub + rangeSurchargesSum - minBase)} &ndash; - ${fmtCHF(maxSub + rangeSurchargesSum - maxBase)}</span>
+            </div>
+            <div style="margin-bottom: 8px;">
+              <span style="color: #6b7280;">Total exkl. MwSt:</span>
+              <span style="margin-left: 24px; color: #b45309;">${fmtCHF(minBase)} &ndash; ${fmtCHF(maxBase)}</span>
+            </div>` : "";
+            const minVat = minBase * (Number(offer.vat_rate) / 100);
+            const maxVat = maxBase * (Number(offer.vat_rate) / 100);
+            const minTotal = minBase + minVat;
+            const maxTotal = maxBase + maxVat;
             return `
           ${offer.offerte_type === 'blind' ? `
           <div style="margin: 0 0 20px 0; padding: 16px; background-color: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b;">
@@ -739,11 +788,12 @@ const handler = async (req: Request): Promise<Response> => {
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">Zwischensumme:</span>
               <span style="margin-left: 24px; color: #b45309; font-weight: 600;">${fmtCHF(minSub)} &ndash; ${fmtCHF(maxSub)}</span>
-            </div>${rangeSurchargeRows}
+            </div>${rangeSurchargeRows}${rangeDiscountRows}
+            ${Number(offer.vat_rate) > 0 ? `
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">MwSt. (${offer.vat_rate}%):</span>
               <span style="margin-left: 24px; color: #b45309;">${fmtCHF(minVat)} &ndash; ${fmtCHF(maxVat)}</span>
-            </div>
+            </div>` : ''}
             <div style="font-size: 20px; font-weight: bold; color: #92400e; border-top: 2px solid #fde68a; padding-top: 12px;">
               <span>Total:</span>
               <span style="margin-left: 24px;">${fmtCHF(minTotal)} &ndash; ${fmtCHF(maxTotal)}</span>

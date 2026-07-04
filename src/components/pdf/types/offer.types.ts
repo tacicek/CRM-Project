@@ -89,6 +89,13 @@ export interface OfferData {
     maxSubtotal?: number | null;
     maxMwstAmount?: number | null;
     maxTotal?: number | null;
+    /** P3b-2c-ii: offer-level Rabatt row (between Zuschläge and MwSt). */
+    discountPercent?: number | null;
+    discountAmount?: number;
+    maxDiscountAmount?: number | null;
+    /** Discounted base ("Total exkl. MwSt") — equals offers.subtotal on the min side. */
+    taxableBase?: number;
+    maxTaxableBase?: number | null;
   };
   /** Blind Offerte only — time-range estimate data */
   timeEstimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
@@ -116,6 +123,8 @@ export interface AddressDetails {
   rooms?: number;
   hasLift?: boolean;
   hasParking?: boolean;
+  hasEstrich?: boolean;
+  hasKeller?: boolean;
 }
 
 // ── Per-item service meta (data-bridge P1a) ─────────────────────────────────────
