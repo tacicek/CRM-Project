@@ -949,14 +949,37 @@ const FirmaOfferten = () => {
                                           Anzeigen
                                         </DropdownMenuItem>
                                         {offer.status === "accepted" && (
-                                          <DropdownMenuItem
-                                            onClick={(e) => {
-                                              handleAddToCalendar(offer, e as unknown as React.MouseEvent);
-                                            }}
-                                          >
-                                            <CalendarPlus className="mr-2 h-4 w-4 text-folk-mint" />
-                                            Zum Kalender hinzufügen
-                                          </DropdownMenuItem>
+                                          <>
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                handleAddToCalendar(offer, e as unknown as React.MouseEvent);
+                                              }}
+                                            >
+                                              <CalendarPlus className="mr-2 h-4 w-4 text-folk-mint" />
+                                              Zum Kalender hinzufügen
+                                            </DropdownMenuItem>
+                                            {offersWithAuftrag.has(offer.id) ? (
+                                              <DropdownMenuItem
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  navigate("/firma/auftraege");
+                                                }}
+                                              >
+                                                <FileCheck className="mr-2 h-4 w-4 text-folk-mint" />
+                                                Auftrag anzeigen
+                                              </DropdownMenuItem>
+                                            ) : (
+                                              <DropdownMenuItem
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setAuftragOffer(offer);
+                                                }}
+                                              >
+                                                <FileCheck className="mr-2 h-4 w-4 text-folk-sky" />
+                                                Auftrag erstellen
+                                              </DropdownMenuItem>
+                                            )}
+                                          </>
                                         )}
                                         <DropdownMenuItem
                                           onClick={(e) => {
