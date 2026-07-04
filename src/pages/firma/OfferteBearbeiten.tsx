@@ -29,7 +29,7 @@ import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
-import { computeItemsSubtotal, type SubtotalItem } from "@/lib/offerPricing";
+import { applyDiscount, computeItemsSubtotal, type SubtotalItem } from "@/lib/offerPricing";
 import { SERVICE_OPTIONS } from "@/lib/offerServiceType";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
@@ -110,6 +110,7 @@ interface Offer {
   price_model?: PriceModel | null;
   hourly_rate?: number | null;
   kostendach_max?: number | null;
+  discount_percent?: number | null;
 }
 
 const generateItemId = () => `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -508,8 +509,12 @@ const FirmaOfferteBearbeiten = () => {
     try {
       const itemsSubtotal = calculateSubtotal();
       const computedSurcharges = withComputedAmounts(surcharges, itemsSubtotal, distanceKm);
-      // subtotal = steuerbare Basis (Positionen + Zuschläge) → GENERATED vat_amount/total
-      const subtotal = itemsSubtotal + surchargesTotal(surcharges, itemsSubtotal, distanceKm);
+      // Steuerbare Basis = Positionen + Zuschläge. P3b-1: rabattierte Basis schreiben —
+      // GENERATED vat_amount/total leiten sich automatisch ab. discount_percent kommt aus der
+      // geladenen Offerte (Edit-Formularfeld existiert noch nicht, F1c) und wird im Update-
+      // Payload bewusst NICHT mitgeschickt → der DB-Wert bleibt erhalten.
+      const taxableBase = itemsSubtotal + surchargesTotal(surcharges, itemsSubtotal, distanceKm);
+      const subtotal = applyDiscount(taxableBase, offer?.discount_percent);
 
       // Update offer
       const { error: offerError } = await supabase
