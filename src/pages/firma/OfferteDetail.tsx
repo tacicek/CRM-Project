@@ -604,6 +604,18 @@ const FirmaOfferteDetail = () => {
   const handleDeleteOffer = async () => {
     if (!offer) return;
 
+    // C1: an accepted offer has a linked Auftrag (and possibly Rechnung/Quittung).
+    // Deleting it would strip those links (offer_id → NULL). Block it — the offer is
+    // the origin document of an active job and must not be removed.
+    if (offer.status === "accepted") {
+      toast({
+        title: "Löschen nicht möglich",
+        description: "Angenommene Offerten sind mit einem Auftrag verknüpft und können nicht gelöscht werden.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsDeleting(true);
     try {
       const { error } = await supabase.from("offers").delete().eq("id", offer.id);
@@ -1482,6 +1494,8 @@ const FirmaOfferteDetail = () => {
                       </Button>
                     </div>
                   </div>
+                  {offer.status !== "accepted" && (
+                  <>
                   <Separator />
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -1512,6 +1526,8 @@ const FirmaOfferteDetail = () => {
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                  </>
+                  )}
                 </CardContent>
               </Card>
             </div>
