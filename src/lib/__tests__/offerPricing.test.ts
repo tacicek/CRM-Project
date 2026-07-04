@@ -5,6 +5,8 @@ import {
   derivePriceTypeFromCatalog,
   computeItemsSubtotal,
   computeTotalsFromSubtotal,
+  applyDiscount,
+  computeDiscountAmount,
   type SubtotalItem,
   BLIND_DISCLAIMER_LABEL,
   BLIND_DISCLAIMER_TEXT,
@@ -196,5 +198,44 @@ describe("blind disclaimer constants", () => {
   it("text constants are defined and non-empty", () => {
     expect(BLIND_DISCLAIMER_LABEL).toBe("Wichtiger Hinweis");
     expect(BLIND_DISCLAIMER_TEXT).toContain("ohne persönliche Besichtigung");
+  });
+});
+
+describe("applyDiscount / computeDiscountAmount (P3a)", () => {
+  it("applies the percent discount, rounded to Rappen", () => {
+    expect(applyDiscount(1000, 10)).toBe(900);
+    expect(computeDiscountAmount(1000, 10)).toBe(100);
+  });
+
+  it("null/undefined/0/negative percent → no-op", () => {
+    expect(applyDiscount(1000, null)).toBe(1000);
+    expect(applyDiscount(1000, undefined)).toBe(1000);
+    expect(applyDiscount(1000, 0)).toBe(1000);
+    expect(applyDiscount(1000, -5)).toBe(1000);
+    expect(computeDiscountAmount(1000, null)).toBe(0);
+    expect(computeDiscountAmount(1000, 0)).toBe(0);
+  });
+
+  it("matches the new_offer.png reference range (Zwischensumme 3080\u20133640, Rabatt 10 %)", () => {
+    // Total exkl. MwSt: 2'772 \u2013 3'276
+    expect(applyDiscount(3080, 10)).toBe(2772);
+    expect(applyDiscount(3640, 10)).toBe(3276);
+    // Rabatt row: \u2212308 \u2013 \u2212364
+    expect(computeDiscountAmount(3080, 10)).toBe(308);
+    expect(computeDiscountAmount(3640, 10)).toBe(364);
+    // Downstream MwSt 8.1 % on the discounted base (same chain as generated columns)
+    expect(computeTotalsFromSubtotal(applyDiscount(3080, 10), 0, 8.1).vatAmount).toBeCloseTo(224.53, 2);
+    expect(computeTotalsFromSubtotal(applyDiscount(3640, 10), 0, 8.1).vatAmount).toBeCloseTo(265.36, 2);
+  });
+
+  it("fractional results round to 2 decimals", () => {
+    expect(applyDiscount(999.99, 7.5)).toBe(924.99);
+    expect(computeDiscountAmount(999.99, 7.5)).toBe(75);
+  });
+
+  it("min and max sides take the same percent independently (mode-agnostic)", () => {
+    const pct = 12.5;
+    expect(applyDiscount(2000, pct)).toBe(1750);
+    expect(applyDiscount(2800, pct)).toBe(2450);
   });
 });

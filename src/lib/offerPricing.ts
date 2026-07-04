@@ -5,6 +5,8 @@
 // guards; guard consolidation = scope of 3b (CLAUDE.md root-cause: not a patch, to be merged in a
 // separate, deliberate step).
 
+import { round2 } from "@/lib/offerSurcharges";
+
 export interface TimeEstimate {
   minHours: number;
   maxHours: number;
@@ -116,6 +118,32 @@ export const computeItemsSubtotal = (
     if (r) return sum + (mode === "min" ? r.min : r.max);
     return sum + item.quantity * item.unitPrice;
   }, 0);
+
+// ---------------------------------------------------------------------------
+// Offer-level Rabatt (offers.discount_percent, Katman 4) — P3a.
+//
+// Decision (Option A): the DISCOUNTED taxable base is written to offers.subtotal, so the
+// GENERATED vat_amount/total stay correct untouched. The pre-discount Zwischensumme is always
+// recomputed from the items (computeItemsSubtotal) — never derived back from offers.subtotal.
+//
+// Both fns are pure and mode-agnostic: for a blind range the caller applies them separately
+// to the min and the max value with the same percent.
+// ---------------------------------------------------------------------------
+
+/** Applies the offer-level discount to an amount. null/0/negative percent → no-op. */
+export function applyDiscount(amount: number, discountPercent: number | null | undefined): number {
+  if (!discountPercent || discountPercent <= 0) return amount;
+  return round2(amount * (1 - discountPercent / 100));
+}
+
+/** CHF value of the discount (pre-discount amount − discounted amount). */
+export function computeDiscountAmount(
+  amount: number,
+  discountPercent: number | null | undefined,
+): number {
+  if (!discountPercent || discountPercent <= 0) return 0;
+  return round2(amount - applyDiscount(amount, discountPercent));
+}
 
 /**
  * itemsSubtotal + (fixed) surcharge sum → taxableBase → VAT → total.
