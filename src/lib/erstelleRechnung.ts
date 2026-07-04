@@ -2,7 +2,10 @@
  * Auftrag → Rechnung map — Layer 4 (pure, testable; Phase 4a / S4).
  *
  * Guard: only an Auftrag with status='abgeschlossen' is invoiced.
- * Item source is offer_items (no Soll/Ist — documented decision; can be corrected manually on the invoice).
+ * Item source is the AUFTRAG's frozen snapshot (auftrag.items + auftrag.extra_services) — NOT live
+ * offer_items. The snapshot is filled at accept/create time (update_offer_by_token / AuftragModal, C2)
+ * and may be adjusted on the job (SahaExtras, hourly completion), so it is the correct billing source.
+ * Free/optional items are filtered; MwSt comes from auftrag.vat_rate. Can be corrected manually.
  * Positions are shaped as RechnungPosition → generateRechnungPdf consumes them directly.
  *
  * Does not know about DB/React: takes plain data, returns a plain NeueRechnung. rechnung_nr + faellig_am
