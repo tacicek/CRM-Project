@@ -66,9 +66,8 @@ interface OfferItem {
 
 interface Offer {
   id: string;
-  // TODO(root-cause): get_offer_by_token does NOT return discount_percent yet — until that
-  // RPC migration lands, this stays undefined on the public page and applyDiscount is a no-op
-  // (the max side of a discounted blind offer shows undiscounted). Tracked for P3b-2c.
+  // P3b-2c-i: returned by get_offer_by_token since migration 20260704090000 — feeds
+  // computeDisplayTotals so the public page discounts the max side of a blind range too.
   discount_percent?: number | null;
   title: string;
   description: string | null;
