@@ -380,6 +380,14 @@ const FirmaAuftraege = () => {
     const original = auftraege.find((a) => a.id === auftragId);
     if (!original) return;
 
+    // C3 defense-in-depth: the dropdown already hides invalid transitions via
+    // canTransitionAuftrag, but guard the handler too so a stale/programmatic call
+    // can't push an illegal status straight to the DB (no DB-level state machine).
+    if (!canTransitionAuftrag(original.status, newStatus)) {
+      toast.error(`Ungültiger Statuswechsel: ${original.status} → ${newStatus}`);
+      return;
+    }
+
     setUpdatingIds((prev) => new Set(prev).add(auftragId));
 
     setAuftraege((prev) =>
