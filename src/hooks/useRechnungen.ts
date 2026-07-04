@@ -24,6 +24,12 @@ export const rechnungToPdfData = (r: Rechnung, company: RechnungCompany): Rechnu
   currency: "CHF",
   qr_referenz: r.qr_referenz,
   qr_iban: r.qr_iban,
+  // Anschreiben & Konditionen — without these the list-page PDF silently dropped the
+  // whole letter block (salutation, intro, payment terms, closing) that the DB row carries.
+  anrede: r.anrede,
+  einleitung: r.einleitung,
+  schlusstext: r.schlusstext,
+  zahlungskonditionen: r.zahlungskonditionen,
   company,
 });
 
