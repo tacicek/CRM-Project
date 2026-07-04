@@ -6112,6 +6112,7 @@ export type Database = {
           customer_last_name: string
           customer_phone: string
           description: string
+          discount_percent: number
           from_city: string
           from_floor: number
           from_has_lift: boolean
