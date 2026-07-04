@@ -291,6 +291,8 @@ export default function RechnungDetail() {
       einleitung: einleitung || null,
       schlusstext: schlusstext || null,
       zahlungskonditionen: zahlungskonditionen || null,
+      // notiz had state/load/UI but was missing here — typed text silently never persisted.
+      notiz: notiz || null,
       status,
     };
   };
