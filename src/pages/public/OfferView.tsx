@@ -49,7 +49,8 @@ import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { hourlyRange, computeDisplayTotals, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
+import { hourlyRange, computeDisplayTotals, isFreeItem, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
+import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 
 interface OfferItem {
   id: string;
@@ -769,12 +770,12 @@ const PublicOfferView = () => {
                               </TableCell>
                             </TableRow>
                           )}
-                          {group.items.map((item) => {
+                          {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => {
                             const r = hourlyRange(item.time_estimate);
                             return (
                             <TableRow key={item.id}>
                               <TableCell className="text-center">{item.position}</TableCell>
-                              <TableCell>{item.description}</TableCell>
+                              <TableCell><PositionDescription text={item.description} /></TableCell>
                               {r ? (
                                 <>
                                   <TableCell className="text-right">
@@ -803,6 +804,14 @@ const PublicOfferView = () => {
                             </TableRow>
                             );
                           })}
+                          {group.items.some((item) => isFreeItem(item.price_type)) && (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell />
+                              <TableCell colSpan={5} className="py-3">
+                                <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </Fragment>
                       ));
                     })()}

@@ -70,7 +70,8 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeDisplayTotals, hourlyRange } from "@/lib/offerPricing";
+import { computeDisplayTotals, hourlyRange, isFreeItem } from "@/lib/offerPricing";
+import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
@@ -879,13 +880,11 @@ const FirmaOfferteDetail = () => {
                             {group.label}
                           </div>
                         )}
-                        {group.items.map((item) => (
+                        {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => (
                           <div key={item.id} className="border rounded-lg p-3 space-y-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="shrink-0 text-xs">{item.position}</Badge>
-                                <span className="font-medium text-sm">{item.description}</span>
-                              </div>
+                            <div className="flex items-start gap-2">
+                              <Badge variant="outline" className="shrink-0 text-xs">{item.position}</Badge>
+                              <div className="text-sm min-w-0"><PositionDescription text={item.description} /></div>
                             </div>
                             <div className="flex justify-between text-sm text-muted-foreground">
                               <span>{item.quantity} {item.unit} × {formatCurrency(Number(item.unit_price))}</span>
@@ -893,6 +892,11 @@ const FirmaOfferteDetail = () => {
                             </div>
                           </div>
                         ))}
+                        {group.items.some((item) => isFreeItem(item.price_type)) && (
+                          <div className="rounded-lg bg-muted/30 p-3">
+                            <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
+                          </div>
+                        )}
                       </Fragment>
                     ));
                   })()}
@@ -991,10 +995,10 @@ const FirmaOfferteDetail = () => {
                                 </TableCell>
                               </TableRow>
                             )}
-                            {group.items.map((item) => (
+                            {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => (
                               <TableRow key={item.id}>
                                 <TableCell className="text-center">{item.position}</TableCell>
-                                <TableCell>{item.description}</TableCell>
+                                <TableCell><PositionDescription text={item.description} /></TableCell>
                                 <TableCell className="text-right">{item.quantity}</TableCell>
                                 <TableCell>{item.unit}</TableCell>
                                 <TableCell className="text-right">
@@ -1005,6 +1009,14 @@ const FirmaOfferteDetail = () => {
                                 </TableCell>
                               </TableRow>
                             ))}
+                            {group.items.some((item) => isFreeItem(item.price_type)) && (
+                              <TableRow className="hover:bg-transparent">
+                                <TableCell />
+                                <TableCell colSpan={5} className="py-3">
+                                  <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
+                                </TableCell>
+                              </TableRow>
+                            )}
                           </Fragment>
                         ));
                       })()}
