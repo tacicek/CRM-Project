@@ -129,7 +129,9 @@ export default function FirmaQuittungen() {
   };
 
   const handleMarkPaid = async (id: string) => {
-    const updated = await updateQuittung(id, { status: "paid" });
+    // E: keep the two payment indicators in sync — marking paid also clears the
+    // "noch offen" flag (otherwise the receipt shows "bezahlt" AND "Offen" at once).
+    const updated = await updateQuittung(id, { status: "paid", betrag_noch_offen: false });
     if (updated) toast({ title: "Als bezahlt markiert" });
   };
 
