@@ -162,6 +162,50 @@ export const computeTotalsFromSubtotal = (
   return { taxableBase, vatAmount, total: taxableBase + vatAmount };
 };
 
+/**
+ * Consolidated READ-surface totals (Detail / OfferView / PDF mapOfferData) — P3b-2a.
+ *
+ * Snapshot semantics: `surchargesSum` is the STORED surcharge amount sum
+ * (sumSurchargeAmounts) — percent/per_km surcharges are NOT recomputed here (unlike the
+ * save-side computeOfferTotals in offerSurcharges.ts, which recomputes from type/value).
+ *
+ * `subtotal` is the RAW items sum (Zwischensumme) — the discount is NEVER applied to it
+ * (rule P3b: the Zwischensumme is always derived from the items, never back from
+ * offers.subtotal, which stores the DISCOUNTED base since P3b-1). The discount enters
+ * between the raw base and the VAT, exactly mirroring what the save flow writes.
+ */
+export interface DisplayTotals {
+  /** RAW items subtotal (Zwischensumme) — no discount applied. */
+  subtotal: number;
+  /** CHF discount on the raw base (0 when no discount). */
+  discountAmount: number;
+  /** Discounted base = what offers.subtotal stores (min mode). */
+  taxableBase: number;
+  vatAmount: number;
+  total: number;
+}
+
+export function computeDisplayTotals(
+  items: SubtotalItem[],
+  surchargesSum: number,
+  vatRate: number,
+  discountPercent: number | null | undefined,
+  mode: "min" | "max",
+): DisplayTotals {
+  const itemsSubtotal = computeItemsSubtotal(items, mode);
+  const rawBase = itemsSubtotal + surchargesSum;
+  const discountAmount = computeDiscountAmount(rawBase, discountPercent);
+  const taxableBase = applyDiscount(rawBase, discountPercent);
+  const vatAmount = round2((taxableBase * (vatRate > 0 ? vatRate : 0)) / 100);
+  return {
+    subtotal: itemsSubtotal,
+    discountAmount,
+    taxableBase,
+    vatAmount,
+    total: round2(taxableBase + vatAmount),
+  };
+}
+
 // Blind offer disclaimer — PDF (BlindOfferteDisclaimer) + OfferView (DOM) use the same text.
 export const BLIND_DISCLAIMER_LABEL = "Wichtiger Hinweis";
 export const BLIND_DISCLAIMER_TEXT =

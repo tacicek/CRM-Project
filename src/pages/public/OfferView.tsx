@@ -49,7 +49,7 @@ import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { hourlyRange, computeItemsSubtotal, computeTotalsFromSubtotal, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
+import { hourlyRange, computeDisplayTotals, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
 
 interface OfferItem {
   id: string;
@@ -66,6 +66,10 @@ interface OfferItem {
 
 interface Offer {
   id: string;
+  // TODO(root-cause): get_offer_by_token does NOT return discount_percent yet — until that
+  // RPC migration lands, this stays undefined on the public page and applyDiscount is a no-op
+  // (the max side of a discounted blind offer shows undiscounted). Tracked for P3b-2c.
+  discount_percent?: number | null;
   title: string;
   description: string | null;
   customer_first_name: string;
@@ -847,19 +851,22 @@ const PublicOfferView = () => {
                   {(() => {
                     const surchargeList = parseSurcharges(offer.surcharges);
                     const surchargesSum = sumSurchargeAmounts(surchargeList);
-                    const minItemsSub = Number(offer.subtotal) - surchargesSum;
-                    // Upper bound: from the maxHours of blind items — optional/inkl excluded (single source).
-                    const maxItemsSub = computeItemsSubtotal(
-                      items.map((it): SubtotalItem => ({
-                        priceType: it.price_type ?? "",
-                        quantity: Number(it.quantity),
-                        unitPrice: Number(it.unit_price),
-                        timeEstimate: it.time_estimate ?? null,
-                      })),
-                      "max",
+                    // P3b-2a: Zwischensumme comes from the ITEMS (raw, undiscounted) — never
+                    // derived back from offers.subtotal (which stores the discounted base).
+                    const subtotalItems = items.map((it): SubtotalItem => ({
+                      priceType: it.price_type ?? "",
+                      quantity: Number(it.quantity),
+                      unitPrice: Number(it.unit_price),
+                      timeEstimate: it.time_estimate ?? null,
+                    }));
+                    const minTotals = computeDisplayTotals(
+                      subtotalItems, surchargesSum, Number(offer.vat_rate), offer.discount_percent, "min",
                     );
-                    // Fixed surcharge total (same source as the PDF max — percent is not recalculated).
-                    const maxTotals = computeTotalsFromSubtotal(maxItemsSub, surchargesSum, Number(offer.vat_rate));
+                    const maxTotals = computeDisplayTotals(
+                      subtotalItems, surchargesSum, Number(offer.vat_rate), offer.discount_percent, "max",
+                    );
+                    const minItemsSub = minTotals.subtotal;
+                    const maxItemsSub = maxTotals.subtotal;
                     const isRange = offer.offerte_type === "blind" && maxItemsSub !== minItemsSub;
                     return (
                       <>
