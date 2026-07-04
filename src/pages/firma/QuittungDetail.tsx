@@ -414,7 +414,15 @@ export default function QuittungDetail() {
     const newStatus: QuittungStatus = "signed";
     const savedId = await save(newStatus);
     if (savedId) {
-      toast({ title: "Quittung unterzeichnet!", description: "Beide Unterschriften gespeichert." });
+      // C: report what was actually captured — "signed" can be reached with a single
+      // signature, so don't claim "beide Unterschriften".
+      const bothNow =
+        (kundeSignatur || (kundeSignRef.current && !kundeSignRef.current.isEmpty())) &&
+        (teamchefSignatur || (teamSignRef.current && !teamSignRef.current.isEmpty()));
+      toast({
+        title: "Quittung unterzeichnet!",
+        description: bothNow ? "Beide Unterschriften gespeichert." : "Unterschrift gespeichert.",
+      });
     }
   };
 
@@ -596,6 +604,11 @@ export default function QuittungDetail() {
                     {linkedOfferId && (
                       <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" /> Kundendaten aus Offerte geladen
+                      </p>
+                    )}
+                    {linkedAuftragId && (
+                      <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                        <Link2 className="w-3 h-3" /> Verknüpft mit Auftrag
                       </p>
                     )}
                   </div>
