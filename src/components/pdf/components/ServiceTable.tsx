@@ -1,6 +1,11 @@
-import { Polyline, StyleSheet, Svg, Text, View } from "@react-pdf/renderer";
+import { Circle, Path, Polyline, Rect, StyleSheet, Svg, Text, View } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
-import { OfferData } from "../types/offer.types";
+import {
+  OfferData,
+  OfferItemAreaMeta,
+  OfferItemEffortMeta,
+  OfferItemVolumeMeta,
+} from "../types/offer.types";
 import { formatCurrency, formatTime } from "../utils/formatters";
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
 import { hourlyRange, isFreeItem } from "@/lib/offerPricing";
@@ -214,6 +219,139 @@ const buildBreakdownLines = (data: OfferData) => {
   ].filter(Boolean) as string[];
 };
 
+// ─── Position meta lines (P2c) ────────────────────────────────────────────────
+// Compact per-position detail lines under the description (new_offer.png pattern):
+//   effort → person/truck vector icons + crew/vehicles left, hourly rate as a badge right
+//   area   → "OBJEKT" label + object type / m² (+ Abnahme note)
+//   volume → "TARIF" label + rate per m³/Monat + estimated volume
+// Icons are font-independent Svg vectors — same lesson as CheckMark: the built-in
+// Helvetica has no emoji/dingbat glyphs, so no unicode/emoji icons.
+
+const metaStyles = StyleSheet.create({
+  effortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 2,
+  },
+  effortItems: { flexDirection: "row", alignItems: "center" },
+  effortItem: { flexDirection: "row", alignItems: "center", marginRight: 10 },
+  effortText: { fontSize: FONT_SIZES.xs, color: COLORS.text.secondary },
+  rateBadge: {
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
+    borderRadius: 3,
+    backgroundColor: SECTION_BG,
+    paddingVertical: 1.5,
+    paddingHorizontal: 5,
+  },
+  rateBadgeText: { fontSize: FONT_SIZES.xs, fontWeight: 700, color: COLORS.text.primary },
+  metaLine: { flexDirection: "row", alignItems: "baseline", marginTop: 2 },
+  metaLabel: {
+    fontSize: 6.5,
+    fontWeight: 700,
+    letterSpacing: 0.6,
+    color: COLORS.text.secondary,
+    marginRight: 5,
+  },
+  metaText: { fontSize: FONT_SIZES.xs, color: COLORS.text.primary },
+  metaNote: { fontSize: FONT_SIZES.xs, color: COLORS.text.secondary, marginTop: 1 },
+});
+
+/** Null/undefined guard that satisfies eqeqeq (meta fields are `T | null | undefined`). */
+const isSet = <T,>(v: T | null | undefined): v is T => v !== null && v !== undefined;
+
+/** Swiss rate notation: whole francs as "CHF 280.–", fractional amounts via formatCurrency. */
+const formatRate = (value: number): string => {
+  const n = Number(value);
+  return Number.isInteger(n) ? `CHF ${n.toLocaleString("de-CH")}.–` : formatCurrency(n);
+};
+
+/** m²/m³ measures without artificial decimals: 110.00 → "110", 3.5 → "3.5". */
+const formatMeasure = (value: number): string =>
+  Number(value).toLocaleString("de-CH", { maximumFractionDigits: 1 });
+
+const PersonIcon = ({ color }: { color: string }) => (
+  <Svg width={8} height={8} viewBox="0 0 10 10" style={{ marginRight: 3 }}>
+    <Circle cx={5} cy={3.1} r={1.9} fill="none" stroke={color} strokeWidth={1.1} />
+    <Path d="M1.7 9.3 C1.7 7 3.1 6 5 6 C6.9 6 8.3 7 8.3 9.3" fill="none" stroke={color} strokeWidth={1.1} />
+  </Svg>
+);
+
+const TruckIcon = ({ color }: { color: string }) => (
+  <Svg width={11} height={8} viewBox="0 0 13 10" style={{ marginRight: 3 }}>
+    <Rect x={0.8} y={1.6} width={6.6} height={4.8} fill="none" stroke={color} strokeWidth={1.1} />
+    <Path d="M7.4 3.2 H10.2 L11.9 5.2 V6.4 H7.4" fill="none" stroke={color} strokeWidth={1.1} />
+    <Circle cx={3.2} cy={8.2} r={1.2} fill="none" stroke={color} strokeWidth={1.1} />
+    <Circle cx={9.7} cy={8.2} r={1.2} fill="none" stroke={color} strokeWidth={1.1} />
+  </Svg>
+);
+
+const EffortLine = ({ effort }: { effort: OfferItemEffortMeta }) => (
+  <View style={metaStyles.effortRow}>
+    <View style={metaStyles.effortItems}>
+      {isSet(effort.crew) ? (
+        <View style={metaStyles.effortItem}>
+          <PersonIcon color={COLORS.text.secondary} />
+          <Text style={metaStyles.effortText}>{`${effort.crew} Mitarbeiter`}</Text>
+        </View>
+      ) : null}
+      {isSet(effort.vehicles) ? (
+        <View style={metaStyles.effortItem}>
+          <TruckIcon color={COLORS.text.secondary} />
+          <Text style={metaStyles.effortText}>
+            {`${effort.vehicles}${effort.vehicle_type ? ` ${effort.vehicle_type}` : ""}`}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+    {isSet(effort.hourly_rate) ? (
+      <View style={metaStyles.rateBadge}>
+        <Text style={metaStyles.rateBadgeText}>{`à ${formatRate(Number(effort.hourly_rate))}/Stunde`}</Text>
+      </View>
+    ) : null}
+  </View>
+);
+
+const AreaLine = ({ area }: { area: OfferItemAreaMeta }) => {
+  const parts = [
+    area.object_type?.trim() || null,
+    isSet(area.area_m2) ? `ca. ${formatMeasure(Number(area.area_m2))} m²` : null,
+  ].filter(Boolean) as string[];
+  return (
+    <View>
+      <View style={metaStyles.metaLine}>
+        <Text style={metaStyles.metaLabel}>OBJEKT</Text>
+        <Text style={metaStyles.metaText}>{parts.join(", ")}</Text>
+      </View>
+      {area.abnahmegarantie ? (
+        <Text style={metaStyles.metaNote}>inkl. Abnahme mit der Verwaltung</Text>
+      ) : null}
+    </View>
+  );
+};
+
+const VolumeLine = ({ volume }: { volume: OfferItemVolumeMeta }) => {
+  const unitLabel = volume.rate_unit === "monthly" ? "Monat" : "m³";
+  const vol =
+    isSet(volume.volume_m3)
+      ? `ca. ${formatMeasure(Number(volume.volume_m3))} m³`
+      : isSet(volume.volume_min_m3) && isSet(volume.volume_max_m3)
+        ? `ca. ${formatMeasure(Number(volume.volume_min_m3))}–${formatMeasure(Number(volume.volume_max_m3))} m³`
+        : null;
+  return (
+    <View>
+      {isSet(volume.rate) ? (
+        <View style={metaStyles.metaLine}>
+          <Text style={metaStyles.metaLabel}>TARIF</Text>
+          <Text style={metaStyles.metaText}>{`${formatRate(Number(volume.rate))}/${unitLabel}`}</Text>
+        </View>
+      ) : null}
+      {vol ? <Text style={metaStyles.metaNote}>{`geschätztes Volumen ${vol}`}</Text> : null}
+    </View>
+  );
+};
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface RowProps {
@@ -226,6 +364,25 @@ interface RowProps {
 const ItemRow = ({ item }: RowProps) => {
   const te = item.timeEstimate;
   const r = hourlyRange(te);
+  // Meta lines render only when they carry actual content (embeds can exist all-null).
+  const effort =
+    item.effortMeta &&
+    (isSet(item.effortMeta.crew) ||
+      isSet(item.effortMeta.vehicles) ||
+      isSet(item.effortMeta.hourly_rate))
+      ? item.effortMeta
+      : null;
+  const area =
+    item.areaMeta && (item.areaMeta.object_type || isSet(item.areaMeta.area_m2))
+      ? item.areaMeta
+      : null;
+  const volume =
+    item.volumeMeta &&
+    (isSet(item.volumeMeta.rate) ||
+      isSet(item.volumeMeta.volume_m3) ||
+      isSet(item.volumeMeta.volume_min_m3))
+      ? item.volumeMeta
+      : null;
   // Menge/Einzel context, folded into a small sub-line under the description.
   const sub = r
     ? `${te!.minHours}–${te!.maxHours} Std. à ${formatCurrency(te!.hourlyRate)}/Std.`
@@ -239,7 +396,16 @@ const ItemRow = ({ item }: RowProps) => {
     <View style={cardStyles.posRow} wrap={false}>
       <View style={cardStyles.posLeft}>
         <Text style={cardStyles.posDesc}>{item.description}</Text>
-        {sub ? <Text style={cardStyles.posSub}>{sub}</Text> : null}
+        {/* Dedup (P2c): effort meta REPLACES the Menge/Einzel sub-line — the hourly rate
+            lives in its badge and the hours already sit in the price column (hourlyRange),
+            so nothing is shown twice. Without effort meta the old sub-line stays as-is. */}
+        {effort ? (
+          <EffortLine effort={effort} />
+        ) : sub ? (
+          <Text style={cardStyles.posSub}>{sub}</Text>
+        ) : null}
+        {area ? <AreaLine area={area} /> : null}
+        {volume ? <VolumeLine volume={volume} /> : null}
       </View>
       <View style={cardStyles.posRight}>
         {r ? (
