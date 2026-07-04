@@ -108,6 +108,8 @@ interface Offer {
   from_city?: string | null;
   from_floor?: number | null;
   from_has_lift?: boolean | null;
+  from_has_estrich?: boolean | null;
+  from_has_keller?: boolean | null;
   to_street?: string | null;
   to_house_number?: string | null;
   to_plz?: string | null;
@@ -156,6 +158,8 @@ interface LeadAddress {
   from_city?: string | null;
   from_floor?: number | null;
   from_has_lift?: boolean | null;
+  from_has_estrich?: boolean | null;
+  from_has_keller?: boolean | null;
   to_street?: string | null;
   to_house_number?: string | null;
   to_plz?: string | null;
@@ -228,6 +232,8 @@ const PublicOfferView = () => {
             from_plz: offerData.from_plz,
             from_city: offerData.from_city,
             from_floor: offerData.from_floor,
+            from_has_estrich: offerData.from_has_estrich,
+            from_has_keller: offerData.from_has_keller,
             from_has_lift: offerData.from_has_lift,
             to_street: offerData.to_street,
             to_house_number: offerData.to_house_number,
@@ -528,6 +534,8 @@ const PublicOfferView = () => {
         city: leadAddress.from_city || undefined,
         floor: leadAddress.from_floor ?? undefined,
         has_lift: leadAddress.from_has_lift ?? undefined,
+        has_estrich: leadAddress.from_has_estrich ?? undefined,
+        has_keller: leadAddress.from_has_keller ?? undefined,
       } : undefined,
       customer_destination: leadAddress && (leadAddress.to_plz || leadAddress.to_city) ? {
         street: leadAddress.to_street || undefined,

@@ -92,6 +92,8 @@ export interface LegacyAddress {
   city?: string;
   floor?: number;
   has_lift?: boolean;
+  has_estrich?: boolean;
+  has_keller?: boolean;
   rooms?: number;
 }
 
@@ -223,6 +225,8 @@ const mapAddress = (addr?: LegacyAddress): PdfOfferData["addresses"]["from"] | u
     floor: addr.floor,
     rooms: addr.rooms,
     hasLift: addr.has_lift,
+    hasEstrich: addr.has_estrich,
+    hasKeller: addr.has_keller,
   };
 };
 

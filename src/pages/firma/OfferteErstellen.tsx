@@ -1094,6 +1094,9 @@ const FirmaOfferteErstellen = () => {
         frozen_to_city: lead.to_city ?? null,
         frozen_to_floor: lead.to_floor ?? null,
         frozen_to_has_lift: lead.to_has_lift ?? null,
+        // Estrich/Keller (Auszug side) — revived fork-remnant columns, frozen from the lead.
+        frozen_has_estrich: lead.from_has_estrich ?? null,
+        frozen_has_keller: lead.from_has_keller ?? null,
         frozen_address_at: new Date().toISOString(),
         title,
         description,
@@ -1396,6 +1399,16 @@ const FirmaOfferteErstellen = () => {
                           >
                             {lead.from_has_lift ? '✓ Lift' : '✗ Kein Lift'}
                           </Badge>
+                          {lead.from_has_estrich !== null && lead.from_has_estrich !== undefined && (
+                            <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+                              {lead.from_has_estrich ? '✓ Estrich' : '✗ Kein Estrich'}
+                            </Badge>
+                          )}
+                          {lead.from_has_keller !== null && lead.from_has_keller !== undefined && (
+                            <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+                              {lead.from_has_keller ? '✓ Keller' : '✗ Kein Keller'}
+                            </Badge>
+                          )}
                         </div>
                       )}
                     </div>

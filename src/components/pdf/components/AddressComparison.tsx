@@ -117,6 +117,8 @@ const formatAddressLines = (addr?: AddressDetails) => {
   const floorLabel = formatFloorLabel(addr.floor);
   if (floorLabel) meta.push(floorLabel);
   if (addr.hasLift === true) meta.push("Lift");
+  if (addr.hasEstrich === true) meta.push("Estrich");
+  if (addr.hasKeller === true) meta.push("Keller");
   if (addr.buildingType) meta.push(addr.buildingType);
   return { street, city, meta };
 };

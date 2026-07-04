@@ -150,6 +150,8 @@ interface Offer {
   frozen_from_city?: string | null;
   frozen_from_floor?: number | null;
   frozen_from_has_lift?: boolean | null;
+  frozen_has_estrich?: boolean | null;
+  frozen_has_keller?: boolean | null;
   frozen_to_street?: string | null;
   frozen_to_house_number?: string | null;
   frozen_to_plz?: string | null;
@@ -195,6 +197,8 @@ interface LeadData {
   from_city?: string | null;
   from_floor?: number | null;
   from_has_lift?: boolean | null;
+  from_has_estrich?: boolean | null;
+  from_has_keller?: boolean | null;
   from_rooms?: number | null;
   from_living_space_m2?: number | null;
   to_street?: string | null;
@@ -311,7 +315,7 @@ const FirmaOfferteDetail = () => {
         if (offerData.lead_id) {
           const { data: leadData } = await supabase
             .from("leads")
-            .select("service_type, from_street, from_house_number, from_plz, from_city, from_floor, from_has_lift, from_rooms, from_living_space_m2, to_street, to_house_number, to_plz, to_city, to_floor, to_has_lift, preferred_date, preferred_time_slot, packing_service_needed, cleaning_service_needed, storage_needed, description, property_type")
+            .select("service_type, from_street, from_house_number, from_plz, from_city, from_floor, from_has_lift, from_has_estrich, from_has_keller, from_rooms, from_living_space_m2, to_street, to_house_number, to_plz, to_city, to_floor, to_has_lift, preferred_date, preferred_time_slot, packing_service_needed, cleaning_service_needed, storage_needed, description, property_type")
             .eq("id", offerData.lead_id)
             .maybeSingle();
           if (leadData) {
@@ -528,6 +532,8 @@ const FirmaOfferteDetail = () => {
         city: offer.frozen_from_city ?? leadAddress?.from_city ?? undefined,
         floor: offer.frozen_from_floor ?? leadAddress?.from_floor ?? undefined,
         has_lift: offer.frozen_from_has_lift ?? leadAddress?.from_has_lift ?? undefined,
+        has_estrich: offer.frozen_has_estrich ?? leadAddress?.from_has_estrich ?? undefined,
+        has_keller: offer.frozen_has_keller ?? leadAddress?.from_has_keller ?? undefined,
       } : undefined,
       customer_destination: (offer.frozen_to_plz || offer.frozen_to_city || leadAddress?.to_plz || leadAddress?.to_city) ? {
         street: offer.frozen_to_street ?? leadAddress?.to_street ?? undefined,

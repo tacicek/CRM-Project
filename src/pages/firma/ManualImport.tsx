@@ -161,6 +161,8 @@ interface ExtractedData {
   from_city?: string | null;
   from_floor?: number | null;
   from_has_elevator?: boolean;
+  from_has_estrich?: boolean | null;
+  from_has_keller?: boolean | null;
   from_rooms?: number | null;
   from_living_space_m2?: number | null;
   to_street?: string | null;
@@ -589,6 +591,8 @@ const FirmaManualImport = () => {
           from_city: extractedData.from_city?.trim() || null,
           from_floor: extractedData.from_floor,
           from_has_lift: extractedData.from_has_elevator,
+          from_has_estrich: extractedData.from_has_estrich ?? null,
+          from_has_keller: extractedData.from_has_keller ?? null,
           from_rooms: extractedData.from_rooms,
           from_living_space_m2: extractedData.from_living_space_m2,
           to_street: extractedData.to_street?.trim() || null,
@@ -880,6 +884,38 @@ const FirmaManualImport = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="yes">Ja</SelectItem>
+                <SelectItem value="no">Nein</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Estrich vorhanden?</Label>
+            <Select
+              value={extractedData?.from_has_estrich === true ? "yes" : extractedData?.from_has_estrich === false ? "no" : "unknown"}
+              onValueChange={(v) => updateExtractedData("from_has_estrich", v === "unknown" ? null : v === "yes")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unknown">Unbekannt</SelectItem>
+                <SelectItem value="yes">Ja</SelectItem>
+                <SelectItem value="no">Nein</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Keller/Garage vorhanden?</Label>
+            <Select
+              value={extractedData?.from_has_keller === true ? "yes" : extractedData?.from_has_keller === false ? "no" : "unknown"}
+              onValueChange={(v) => updateExtractedData("from_has_keller", v === "unknown" ? null : v === "yes")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unknown">Unbekannt</SelectItem>
                 <SelectItem value="yes">Ja</SelectItem>
                 <SelectItem value="no">Nein</SelectItem>
               </SelectContent>

@@ -13,6 +13,8 @@ type LeadRow = {
   from_city?: string | null;
   from_floor?: number | null;
   from_has_lift?: boolean | null;
+  from_has_estrich?: boolean | null;
+  from_has_keller?: boolean | null;
   to_street?: string | null;
   to_house_number?: string | null;
   to_plz?: string | null;
@@ -54,7 +56,7 @@ export const buildOfferEmailAttachments = async (
     const { data } = await supabase
       .from("leads")
       .select(
-        "service_type, from_street, from_house_number, from_plz, from_city, from_floor, from_has_lift, to_street, to_house_number, to_plz, to_city, to_floor, to_has_lift"
+        "service_type, from_street, from_house_number, from_plz, from_city, from_floor, from_has_lift, from_has_estrich, from_has_keller, to_street, to_house_number, to_plz, to_city, to_floor, to_has_lift"
       )
       .eq("id", offerData.lead_id)
       .single();
@@ -109,6 +111,8 @@ export const buildOfferEmailAttachments = async (
           city: leadData.from_city || undefined,
           floor: leadData.from_floor ?? undefined,
           has_lift: leadData.from_has_lift ?? undefined,
+          has_estrich: leadData.from_has_estrich ?? undefined,
+          has_keller: leadData.from_has_keller ?? undefined,
         }
       : undefined,
     customer_destination:

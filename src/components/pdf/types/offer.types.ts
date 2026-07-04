@@ -123,6 +123,8 @@ export interface AddressDetails {
   rooms?: number;
   hasLift?: boolean;
   hasParking?: boolean;
+  hasEstrich?: boolean;
+  hasKeller?: boolean;
 }
 
 // ── Per-item service meta (data-bridge P1a) ─────────────────────────────────────
