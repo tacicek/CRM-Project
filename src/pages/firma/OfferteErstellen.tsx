@@ -57,7 +57,7 @@ import { ItemChip } from "@/components/offerte/ItemChip";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
-import { computeItemsSubtotal, derivePriceTypeFromCatalog, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
+import { applyDiscount, computeItemsSubtotal, derivePriceTypeFromCatalog, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -1043,8 +1043,13 @@ const FirmaOfferteErstellen = () => {
       const itemsSubtotal = calculateSubtotal();
       const distanceKm = lead?.distance_km ?? null;
       const computedSurcharges = withComputedAmounts(surcharges, itemsSubtotal, distanceKm);
-      // subtotal = steuerbare Basis (Positionen + Zuschläge) → GENERATED vat_amount/total korrekt
-      const subtotal = itemsSubtotal + surchargesTotal(surcharges, itemsSubtotal, distanceKm);
+      // Steuerbare Basis = Positionen + Zuschläge. P3b-1: offers.subtotal erhält die
+      // RABATTIERTE Basis (applyDiscount) — die GENERATED vat_amount/total leiten sich damit
+      // automatisch korrekt ab. Die Zwischensumme wird NIE aus offers.subtotal zurückgerechnet,
+      // sondern immer aus computeItemsSubtotal (Regel P3b).
+      const taxableBase = itemsSubtotal + surchargesTotal(surcharges, itemsSubtotal, distanceKm);
+      const parsedDiscount = discountPercent.trim() !== "" ? Number(discountPercent) : null;
+      const subtotal = applyDiscount(taxableBase, parsedDiscount);
 
       // Create offer (vat_amount and total are generated columns, so we don't include them)
       // Core fields that exist in the original schema
@@ -1081,9 +1086,9 @@ const FirmaOfferteErstellen = () => {
         moving_distance_km: distanceKm,
         surcharges: computedSurcharges,
         vat_rate: mwstEnabled ? vatRate : 0,
-        // F1a: Kundennummer + teklif-seviyesi Rabatt (totals'a entegrasyon F3'te).
+        // F1a: Kundennummer + Offerten-Rabatt (P3b-1: fliesst in subtotal via applyDiscount).
         customer_number: offerDetails.customerNumber?.trim() || null,
-        discount_percent: discountPercent.trim() !== "" ? Number(discountPercent) : null,
+        discount_percent: parsedDiscount,
         status: "draft",
         sent_at: null,
       };
