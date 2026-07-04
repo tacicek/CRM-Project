@@ -49,12 +49,20 @@ function blobToPngBase64(blob: Blob): Promise<string | null> {
 
     img.onload = () => {
       try {
+        // Cap the canvas size: the logo prints at ~55mm (LOGO_MAX_W) — 600px is ~280dpi
+        // there. Without the cap a large source renders a multi-MB PNG that bloats the
+        // invoice PDF (observed: 3.7MB for a one-line Rechnung) and broke the e-mail
+        // upload (root cause of the endless "Per E-Mail senden" spinner).
+        const MAX_W = 600;
+        const srcW = img.naturalWidth || 300;
+        const srcH = img.naturalHeight || 100;
+        const scale = Math.min(1, MAX_W / srcW);
         const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth || 300;
-        canvas.height = img.naturalHeight || 100;
+        canvas.width = Math.round(srcW * scale);
+        canvas.height = Math.round(srcH * scale);
         const ctx = canvas.getContext("2d");
         if (!ctx) { resolve(null); return; }
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/png"));
       } catch {
         resolve(null);
