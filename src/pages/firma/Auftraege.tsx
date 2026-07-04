@@ -158,6 +158,7 @@ const FirmaAuftraege = () => {
   const navigate = useNavigate();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [auftraege, setAuftraege] = useState<Auftrag[]>([]);
+  const [docsForAuftrag, setDocsForAuftrag] = useState<Record<string, { quittung: boolean; rechnung: boolean }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("alle");
@@ -294,6 +295,21 @@ const FirmaAuftraege = () => {
 
       const auftraegeData = (data || []) as Auftrag[];
       setAuftraege(auftraegeData);
+
+      // B: which Aufträge already have a Quittung/Rechnung (by auftrag_id OR shared offer_id,
+      // so pre-M3 documents linked only via offer are caught too). Surfaces the double-count
+      // risk in the menu — a job billed as both a receipt and a QR-invoice counts twice.
+      const [qRes, rRes] = await Promise.all([
+        supabase.from("quittungen").select("auftrag_id, offer_id").eq("company_id", company.id),
+        supabase.from("rechnungen").select("auftrag_id, offer_id").eq("company_id", company.id),
+      ]);
+      const docMap: Record<string, { quittung: boolean; rechnung: boolean }> = {};
+      for (const a of auftraegeData) {
+        const hasQ = (qRes.data ?? []).some((q) => q.auftrag_id === a.id || (!!a.offer_id && q.offer_id === a.offer_id));
+        const hasR = (rRes.data ?? []).some((r) => r.auftrag_id === a.id || (!!a.offer_id && r.offer_id === a.offer_id));
+        docMap[a.id] = { quittung: hasQ, rechnung: hasR };
+      }
+      setDocsForAuftrag(docMap);
 
       // Truncate to local start-of-day, otherwise today's jobs fail `date >= today` after
       // ~02:00 (scheduled_date parses to UTC midnight) and get dropped from "this week" and
@@ -835,15 +851,16 @@ const FirmaAuftraege = () => {
                                 className="text-folk-mint"
                               >
                                 <FileText className="mr-2 h-4 w-4" />
-                                Quittung erstellen
+                                {docsForAuftrag[auftrag.id]?.quittung ? "Weitere Quittung (bereits vorhanden)" : "Quittung erstellen"}
                               </DropdownMenuItem>
                               {auftrag.status === "abgeschlossen" && (
                                 <DropdownMenuItem
                                   onClick={() => handleCreateRechnung(auftrag)}
+                                  disabled={docsForAuftrag[auftrag.id]?.rechnung}
                                   className="text-folk-coral"
                                 >
                                   <Receipt className="mr-2 h-4 w-4" />
-                                  Rechnung erstellen
+                                  {docsForAuftrag[auftrag.id]?.rechnung ? "Rechnung bereits erstellt" : "Rechnung erstellen"}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />
