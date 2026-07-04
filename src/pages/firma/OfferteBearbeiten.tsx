@@ -566,8 +566,12 @@ const FirmaOfferteBearbeiten = () => {
       const taxableBase = itemsSubtotal + surchargesTotal(surcharges, itemsSubtotal, distanceKm);
       const subtotal = applyDiscount(taxableBase, effectiveDiscountPercent);
 
-      // Update offer
-      const { error: offerError } = await supabase
+      // Update offer — TOCTOU guard (#2): the accepted/rejected block at LOAD isn't enough.
+      // If the customer accepts between load and save, this header UPDATE must NOT mutate
+      // the financials of an already-accepted offer (whose Auftrag snapshot is frozen).
+      // Conditional update: only draft/sent/viewed; 0 rows → offer went terminal → abort
+      // BEFORE replace_offer_items (which has its own guard) can cause a partial write.
+      const { data: updatedRows, error: offerError } = await supabase
         .from("offers")
         .update({
           customer_first_name: customerFirstName,
@@ -593,9 +597,16 @@ const FirmaOfferteBearbeiten = () => {
           brief_layout: briefLayout,
           offerte_type: offerteType,
         })
-        .eq("id", offerId);
+        .eq("id", offerId)
+        .in("status", ["draft", "sent", "viewed"])
+        .select("id");
 
       if (offerError) throw offerError;
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error(
+          "Diese Offerte wurde inzwischen angenommen oder abgelehnt und kann nicht mehr bearbeitet werden."
+        );
+      }
 
       // Atomic replace via RPC — delete + insert in a single transaction
       // Prevents orphan state if insert fails after delete
