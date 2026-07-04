@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -665,12 +666,11 @@ export const AppointmentModal = ({
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="date">Datum *</Label>
-              <Input
+              <DatePicker
                 id="date"
-                type="date"
                 value={formData.appointment_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, appointment_date: e.target.value })
+                onChange={(value) =>
+                  setFormData({ ...formData, appointment_date: value })
                 }
               />
             </div>
@@ -749,11 +749,10 @@ export const AppointmentModal = ({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="recurrence_end">Ende der Wiederholung</Label>
-                <Input
+                <DatePicker
                   id="recurrence_end"
-                  type="date"
                   value={formData.recurrence_end_date}
-                  onChange={(e) => setFormData({ ...formData, recurrence_end_date: e.target.value })}
+                  onChange={(value) => setFormData({ ...formData, recurrence_end_date: value })}
                   min={formData.appointment_date}
                 />
               </div>

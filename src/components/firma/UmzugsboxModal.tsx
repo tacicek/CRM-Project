@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -734,18 +735,16 @@ export const UmzugsboxModal = ({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Lieferdatum *</Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={formData.delivery_date}
-                  onChange={(e) => setFormData({ ...formData, delivery_date: e.target.value })}
+                  onChange={(value) => setFormData({ ...formData, delivery_date: value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Erwartetes Rückgabedatum</Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={formData.expected_return_date}
-                  onChange={(e) => setFormData({ ...formData, expected_return_date: e.target.value })}
+                  onChange={(value) => setFormData({ ...formData, expected_return_date: value })}
                 />
               </div>
             </div>
@@ -753,10 +752,9 @@ export const UmzugsboxModal = ({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Geplantes Abholdatum</Label>
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={formData.pickup_scheduled_date}
-                    onChange={(e) => setFormData({ ...formData, pickup_scheduled_date: e.target.value })}
+                    onChange={(value) => setFormData({ ...formData, pickup_scheduled_date: value })}
                   />
                 </div>
                 <div className="space-y-2">

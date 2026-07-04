@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -524,15 +525,15 @@ export default function RechnungDetail() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label className="text-xs">Datum</Label>
-                    <Input type="date" value={datum} onChange={(e) => {
-                      const v = e.target.value;
+                    <DatePicker value={datum} onChange={(value) => {
+                      const v = value;
                       setDatum(v);
                       if (!faelligTouched && v) setFaelligAm(addDaysIso(v, 30));
                     }} className="mt-1 h-9 text-sm" />
                   </div>
                   <div>
                     <Label className="text-xs">Fällig am</Label>
-                    <Input type="date" value={faelligAm} onChange={(e) => { setFaelligAm(e.target.value); setFaelligTouched(true); }} className="mt-1 h-9 text-sm" />
+                    <DatePicker value={faelligAm} onChange={(value) => { setFaelligAm(value); setFaelligTouched(true); }} className="mt-1 h-9 text-sm" />
                   </div>
                 </div>
                 {rechnungNr && (

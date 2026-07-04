@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -596,7 +597,7 @@ export default function QuittungDetail() {
 
                   <div>
                     <Label className="text-xs">Datum *</Label>
-                    <Input type="date" value={datum} onChange={e => setDatum(e.target.value)}
+                    <DatePicker value={datum} onChange={(value) => setDatum(value)}
                       className="mt-1 h-9 text-sm" />
                   </div>
                   {quittungNr && (

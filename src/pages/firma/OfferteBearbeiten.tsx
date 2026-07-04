@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInputCH } from "@/components/ui/date-input-ch";
@@ -1012,7 +1013,7 @@ const FirmaOfferteBearbeiten = () => {
                           return (
                             <div key={k} className="flex flex-wrap items-center gap-1.5">
                               <span className="text-xs font-medium w-24 shrink-0">{g.label}</span>
-                              <Input type="date" value={groupDates[k]?.date ?? ""} onChange={(e) => updateGroupDate(k, "date", e.target.value)} className="h-7 w-[8.5rem] text-xs" />
+                              <DatePicker value={groupDates[k]?.date ?? ""} onChange={(value) => updateGroupDate(k, "date", value)} className="h-7 w-[8.5rem] text-xs" />
                               <Input type="time" value={groupDates[k]?.startTime ?? ""} onChange={(e) => updateGroupDate(k, "startTime", e.target.value)} className="h-7 w-[5.5rem] text-xs" />
                               <span className="text-[10px] text-muted-foreground">–</span>
                               <Input type="time" value={groupDates[k]?.endTime ?? ""} onChange={(e) => updateGroupDate(k, "endTime", e.target.value)} className="h-7 w-[5.5rem] text-xs" />

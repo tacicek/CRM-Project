@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -2131,10 +2132,9 @@ Steinway Flügel, ca. 350kg`}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Wunschdatum</Label>
-                      <Input
-                        type="date"
+                      <DatePicker
                         value={extractedData.preferred_date || ""}
-                        onChange={(e) => updateExtractedData("preferred_date", e.target.value)}
+                        onChange={(value) => updateExtractedData("preferred_date", value)}
                       />
                     </div>
                     <div>
