@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { detectConflicts, type ConflictResult } from "@/lib/appointmentConflicts";
 import {
   Dialog,
   DialogContent,
@@ -121,7 +122,7 @@ export const AppointmentModal = ({
   initialTitle,
 }: AppointmentModalProps) => {
   const [loading, setLoading] = useState(false);
-  const [conflicts, setConflicts] = useState<Appointment[]>([]);
+  const [conflicts, setConflicts] = useState<ConflictResult<Appointment>[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [_leadLoading, setLeadLoading] = useState(false);
@@ -292,21 +293,22 @@ export const AppointmentModal = ({
 
       if (requestId !== conflictRequestIdRef.current) return;
 
-      const conflicting =
-        data?.filter((apt) => {
-          const aptStart = apt.start_time;
-          const aptEnd = apt.end_time;
-          const formStart = formData.start_time;
-          const formEnd = formData.end_time;
+      const conflicting = detectConflicts(
+        {
+          id: appointment?.id ?? null,
+          start_time: formData.start_time,
+          end_time: formData.end_time,
+          assigned_team_member_ids: formData.assigned_team_member_ids,
+          required_vehicles: formData.required_vehicles,
+        },
+        (data ?? []) as Appointment[],
+      );
 
-          return aptStart < formEnd && aptEnd > formStart;
-        }) || [];
-
-      setConflicts(conflicting as Appointment[]);
+      setConflicts(conflicting);
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [formData.appointment_date, formData.start_time, formData.end_time, companyId, appointment]);
+  }, [formData.appointment_date, formData.start_time, formData.end_time, formData.assigned_team_member_ids, formData.required_vehicles, companyId, appointment]);
 
   // Fetch lead data when initialLeadId is provided
   useEffect(() => {
@@ -761,22 +763,33 @@ export const AppointmentModal = ({
           )}
 
           {/* Conflict Warning */}
-          {conflicts.length > 0 && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Terminkonflikt!</strong> Es gibt {conflicts.length}{" "}
-                überschneidende Termine:
-                <ul className="mt-1 text-sm">
-                  {conflicts.slice(0, 3).map((c) => (
-                    <li key={c.id}>
-                      • {c.title} ({c.start_time.slice(0, 5)} - {c.end_time.slice(0, 5)})
-                    </li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
+          {conflicts.length > 0 && (() => {
+            // A real conflict = shared team/vehicle. A candidate without resources yields
+            // time-only overlaps (informational, weaker wording).
+            const hasResourceConflict = conflicts.some((c) => c.sharedTeam || c.sharedVehicles);
+            return (
+              <Alert variant={hasResourceConflict ? "destructive" : "default"}>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>{hasResourceConflict ? "Ressourcenkonflikt!" : "Zeitliche Überschneidung"}</strong>{" "}
+                  {hasResourceConflict
+                    ? "Mitarbeiter oder Fahrzeug sind bereits verplant:"
+                    : `${conflicts.length} Termin(e) zur gleichen Zeit:`}
+                  <ul className="mt-1 text-sm">
+                    {conflicts.slice(0, 3).map((c) => {
+                      const tags = [c.sharedTeam && "Mitarbeiter", c.sharedVehicles && "Fahrzeug"].filter(Boolean).join(" + ");
+                      return (
+                        <li key={c.appointment.id}>
+                          • {c.appointment.title} ({c.appointment.start_time.slice(0, 5)} – {c.appointment.end_time.slice(0, 5)})
+                          {tags ? ` — ${tags}` : ""}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            );
+          })()}
 
           {/* Customer Info */}
           {formData.appointment_type !== "blocked" && (
