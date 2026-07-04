@@ -348,27 +348,37 @@ const FirmaOfferteBearbeiten = () => {
   };
 
   // Steuerbare Basis = Positionen + Zuschläge → offers.subtotal (GENERATED vat/total).
+  // P3b-2b: Rabatt-Quelle im Edit ist die geladene Offerte (Formularfeld folgt mit F1c) —
+  // Preview und Save nutzen denselben Wert.
+  const effectiveDiscountPercent = offer?.discount_percent ?? null;
+
   const calculateTaxableBase = () =>
     calculateSubtotal() + surchargesTotal(surcharges, calculateSubtotal(), distanceKm);
 
+
+  // P3b-2b: MwSt/Total im Live-Preview rechnen ab der RABATTIERTEN Basis — exakt das, was
+  // der Save-Flow (P3b-1) nach offers.subtotal schreibt. Die Zwischensumme bleibt ROH;
+  // die sichtbare Rabatt-Zeile folgt in P3b-2c.
+  const calculateDiscountedBase = () => applyDiscount(calculateTaxableBase(), effectiveDiscountPercent);
+
   const calculateVat = () => {
     if (!mwstEnabled) return 0;
-    return calculateTaxableBase() * (vatRate / 100);
+    return calculateDiscountedBase() * (vatRate / 100);
   };
 
   const calculateMaxVat = (): number | null => {
     const maxSub = calculateMaxSubtotal();
     if (maxSub === null || !mwstEnabled) return null;
-    const maxBase = maxSub + surchargesTotal(surcharges, maxSub, distanceKm);
+    const maxBase = applyDiscount(maxSub + surchargesTotal(surcharges, maxSub, distanceKm), effectiveDiscountPercent);
     return maxBase * (vatRate / 100);
   };
 
-  const calculateTotal = () => calculateTaxableBase() + calculateVat();
+  const calculateTotal = () => calculateDiscountedBase() + calculateVat();
 
   const calculateMaxTotal = (): number | null => {
     const maxSub = calculateMaxSubtotal();
     if (maxSub === null) return null;
-    const maxBase = maxSub + surchargesTotal(surcharges, maxSub, distanceKm);
+    const maxBase = applyDiscount(maxSub + surchargesTotal(surcharges, maxSub, distanceKm), effectiveDiscountPercent);
     return maxBase + (calculateMaxVat() ?? 0);
   };
 
@@ -514,7 +524,7 @@ const FirmaOfferteBearbeiten = () => {
       // geladenen Offerte (Edit-Formularfeld existiert noch nicht, F1c) und wird im Update-
       // Payload bewusst NICHT mitgeschickt → der DB-Wert bleibt erhalten.
       const taxableBase = itemsSubtotal + surchargesTotal(surcharges, itemsSubtotal, distanceKm);
-      const subtotal = applyDiscount(taxableBase, offer?.discount_percent);
+      const subtotal = applyDiscount(taxableBase, effectiveDiscountPercent);
 
       // Update offer
       const { error: offerError } = await supabase

@@ -854,27 +854,37 @@ const FirmaOfferteErstellen = () => {
 
   // Steuerbare Basis = Positionen + Zuschläge. Entspricht offers.subtotal →
   // GENERATED vat_amount/total (subtotal * vat_rate / 100). Vorschau = gespeicherte Offerte.
+  // P3b-2b: EINZIGE Parse-Quelle für den Offerten-Rabatt — Preview und Save (P3b-1)
+  // leiten sich vom selben Wert ab (kein doppeltes Parsen).
+  const parsedDiscountPercent = discountPercent.trim() !== "" ? Number(discountPercent) : null;
+
   const calculateTaxableBase = () =>
     calculateSubtotal() + surchargesTotal(surcharges, calculateSubtotal(), lead?.distance_km ?? null);
 
+
+  // P3b-2b: MwSt/Total im Live-Preview rechnen ab der RABATTIERTEN Basis — exakt das, was
+  // der Save-Flow (P3b-1) nach offers.subtotal schreibt. Die Zwischensumme bleibt ROH;
+  // die sichtbare Rabatt-Zeile folgt in P3b-2c.
+  const calculateDiscountedBase = () => applyDiscount(calculateTaxableBase(), parsedDiscountPercent);
+
   const calculateVat = () => {
     if (!mwstEnabled) return 0;
-    return calculateTaxableBase() * (vatRate / 100);
+    return calculateDiscountedBase() * (vatRate / 100);
   };
 
   const calculateMaxVat = (): number | null => {
     const maxSub = calculateMaxSubtotal();
     if (maxSub === null || !mwstEnabled) return null;
-    const maxBase = maxSub + surchargesTotal(surcharges, maxSub, lead?.distance_km ?? null);
+    const maxBase = applyDiscount(maxSub + surchargesTotal(surcharges, maxSub, lead?.distance_km ?? null), parsedDiscountPercent);
     return maxBase * (vatRate / 100);
   };
 
-  const calculateTotal = () => calculateTaxableBase() + calculateVat();
+  const calculateTotal = () => calculateDiscountedBase() + calculateVat();
 
   const calculateMaxTotal = (): number | null => {
     const maxSub = calculateMaxSubtotal();
     if (maxSub === null) return null;
-    const maxBase = maxSub + surchargesTotal(surcharges, maxSub, lead?.distance_km ?? null);
+    const maxBase = applyDiscount(maxSub + surchargesTotal(surcharges, maxSub, lead?.distance_km ?? null), parsedDiscountPercent);
     return maxBase + (calculateMaxVat() ?? 0);
   };
 
@@ -1048,8 +1058,7 @@ const FirmaOfferteErstellen = () => {
       // automatisch korrekt ab. Die Zwischensumme wird NIE aus offers.subtotal zurückgerechnet,
       // sondern immer aus computeItemsSubtotal (Regel P3b).
       const taxableBase = itemsSubtotal + surchargesTotal(surcharges, itemsSubtotal, distanceKm);
-      const parsedDiscount = discountPercent.trim() !== "" ? Number(discountPercent) : null;
-      const subtotal = applyDiscount(taxableBase, parsedDiscount);
+      const subtotal = applyDiscount(taxableBase, parsedDiscountPercent);
 
       // Create offer (vat_amount and total are generated columns, so we don't include them)
       // Core fields that exist in the original schema
@@ -1088,7 +1097,7 @@ const FirmaOfferteErstellen = () => {
         vat_rate: mwstEnabled ? vatRate : 0,
         // F1a: Kundennummer + Offerten-Rabatt (P3b-1: fliesst in subtotal via applyDiscount).
         customer_number: offerDetails.customerNumber?.trim() || null,
-        discount_percent: parsedDiscount,
+        discount_percent: parsedDiscountPercent,
         status: "draft",
         sent_at: null,
       };
