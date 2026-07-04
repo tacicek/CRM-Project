@@ -887,7 +887,6 @@ const KalenderPage = () => {
                         culture="de-CH"
                         scrollToTime={(() => { const t = new Date(); t.setHours(7, 0, 0, 0); return t; })()}
                         popup
-                        showAllEvents
                         components={{
                           event: EventComponent,
                           toolbar: ({ date, onNavigate, view: toolbarView }) => {
