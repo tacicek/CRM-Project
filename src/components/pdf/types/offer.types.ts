@@ -47,6 +47,11 @@ export interface OfferData {
     timeEstimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
     /** Multi-service grouping key (clean base or null=Allgemein) */
     serviceType?: string | null;
+    /** Per-service dates (2026-07): all items of one service group carry the same value;
+        NULL falls back to the offer-level executionDate. */
+    scheduledDate?: string | null;
+    scheduledStartTime?: string | null;
+    scheduledEndTime?: string | null;
     // ── Data-bridge P1a (Katman 1-4) — carried for the redesign, NOT yet rendered ──
     /** Price semantics: pauschale | per_unit | per_hour | inkl | optional */
     priceType?: string | null;

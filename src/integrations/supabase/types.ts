@@ -3260,6 +3260,9 @@ export type Database = {
           position: number
           price_type: string | null
           quantity: number
+          scheduled_date: string | null
+          scheduled_end_time: string | null
+          scheduled_start_time: string | null
           service_type: string | null
           time_estimate: Json | null
           total: number | null
@@ -3279,6 +3282,9 @@ export type Database = {
           position?: number
           price_type?: string | null
           quantity?: number
+          scheduled_date?: string | null
+          scheduled_end_time?: string | null
+          scheduled_start_time?: string | null
           service_type?: string | null
           time_estimate?: Json | null
           total?: number | null
@@ -3298,6 +3304,9 @@ export type Database = {
           position?: number
           price_type?: string | null
           quantity?: number
+          scheduled_date?: string | null
+          scheduled_end_time?: string | null
+          scheduled_start_time?: string | null
           service_type?: string | null
           time_estimate?: Json | null
           total?: number | null
@@ -6166,6 +6175,9 @@ export type Database = {
           position: number
           price_type: string
           quantity: number
+          scheduled_date: string
+          scheduled_end_time: string
+          scheduled_start_time: string
           service_type: string
           time_estimate: Json
           total: number

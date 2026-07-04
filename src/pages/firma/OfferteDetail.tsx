@@ -61,7 +61,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { Fragment, Suspense, lazy, useEffect, useState } from "react";
-import { groupItemsByService } from "@/lib/offerServiceType";
+import { groupItemsByService, serviceTerminLabel } from "@/lib/offerServiceType";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -97,6 +97,9 @@ interface OfferItem {
   unit_price: number;
   total: number;
   service_type?: string | null;
+  scheduled_date?: string | null;
+  scheduled_start_time?: string | null;
+  scheduled_end_time?: string | null;
   price_type?: string | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
 }
@@ -399,6 +402,19 @@ const FirmaOfferteDetail = () => {
    * code read offer.time_estimate, an offer-level field that is never written, so the range
    * was always null and the firm saw only the min total for a blind offer.)
    */
+  // Per-service date label for a group header — own value, fallback offer.service_date;
+  // rendered only when at least one group carries its own date.
+  const groupDateLabel = (group: { serviceType: string | null; items: OfferItem[] }): string | null => {
+    if (!items.some((i) => i.scheduled_date)) return null;
+    const sched = group.items.find((i) => i.scheduled_date);
+    const date = sched?.scheduled_date ?? offer?.service_date;
+    if (!date) return null;
+    const st = sched?.scheduled_start_time?.slice(0, 5);
+    const et = sched?.scheduled_end_time?.slice(0, 5);
+    const time = st && et ? ` · ${st}–${et} Uhr` : st ? ` · ab ${st} Uhr` : "";
+    return `${serviceTerminLabel(group.serviceType)}: ${new Date(date).toLocaleDateString("de-CH")}${time}`;
+  };
+
   // Shared item mapper for the totals chain (getBlindRange + Zwischensumme rows).
   const toSubtotalItems = () =>
     items.map((it) => ({
@@ -882,8 +898,11 @@ const FirmaOfferteDetail = () => {
                     return groups.map((group) => (
                       <Fragment key={group.serviceType ?? "allgemein"}>
                         {multi && (
-                          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-1">
-                            {group.label}
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</span>
+                            {groupDateLabel(group) && (
+                              <span className="text-xs font-medium">{groupDateLabel(group)}</span>
+                            )}
                           </div>
                         )}
                         {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => (
@@ -1015,8 +1034,13 @@ const FirmaOfferteDetail = () => {
                           <Fragment key={group.serviceType ?? "allgemein"}>
                             {multi && (
                               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                                <TableCell colSpan={6} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground py-2">
-                                  {group.label}
+                                <TableCell colSpan={6} className="py-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</span>
+                                    {groupDateLabel(group) && (
+                                      <span className="text-xs font-medium">{groupDateLabel(group)}</span>
+                                    )}
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             )}

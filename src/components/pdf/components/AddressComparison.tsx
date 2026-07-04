@@ -141,7 +141,11 @@ export const AddressComparison = ({ data }: AddressComparisonProps) => {
   // Meta cells — only numeric/defined values (rooms: use == null, NOT !== null to catch undefined too)
   const metaCells: { label: string; value: string; unit?: string }[] = [];
 
-  if (data.executionDate) {
+  // Per-service dates: when any item group carries its own date, the per-group band in
+  // the ServiceTable shows the dates — the global TERMIN cell would repeat the first one
+  // under a generic label, so it is suppressed.
+  const hasGroupDates = (data.items ?? []).some((it) => it.scheduledDate);
+  if (data.executionDate && !hasGroupDates) {
     // Time below the date (old template parity: "01.07.2026 08:00 Uhr").
     // DB time columns may carry seconds ("08:00:00") — display as HH:MM.
     const hhmm = (v?: string | null) => (v ? v.slice(0, 5) : null);

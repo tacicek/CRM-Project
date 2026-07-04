@@ -59,8 +59,6 @@ export interface OfferDetails {
   // Timing
   serviceStartTime: string;
   serviceEndTime: string;
-  secondaryServiceDate: string;
-  secondaryServiceType: string;
   
   // Service Details (customer-visible)
   serviceDetails: {
@@ -126,8 +124,6 @@ export const DEFAULT_OFFER_DETAILS: OfferDetails = {
   customerSalutation: "",
   serviceStartTime: "",
   serviceEndTime: "",
-  secondaryServiceDate: "",
-  secondaryServiceType: "",
   serviceDetails: {
     propertyType: "",
     livingSpaceM2: null,
@@ -359,41 +355,9 @@ export function OfferteDetailsSection({
             </div>
           </div>
 
-          {/* ── Row 3: Secondary date + service ── */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium flex items-center gap-1.5 text-foreground">
-              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-              Zusatztermin
-            </Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Datum (optional)</span>
-                <Input
-                  type="date"
-                  value={details.secondaryServiceDate}
-                  onChange={(e) => updateDetails("secondaryServiceDate", e.target.value)}
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Zusatzservice</span>
-                <Select
-                  value={details.secondaryServiceType || "none"}
-                  onValueChange={(v) => updateDetails("secondaryServiceType", v === "none" ? "" : v)}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="Kein Zusatzservice" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Kein Zusatzservice</SelectItem>
-                    <SelectItem value="reinigung">Reinigung</SelectItem>
-                    <SelectItem value="entsorgung">Entsorgung</SelectItem>
-                    <SelectItem value="lagerung">Lagerung</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
+          {/* Row 3 (Zusatztermin) retired: superseded by per-service dates on the
+              item groups (offer_items.scheduled_*) — N services instead of max 2, and the
+              old fields never reached PDF/edit/customer view. */}
 
           {/* ── Row 4: Payment ── */}
           <div className="space-y-1.5">

@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeToCatalogBase,
   groupItemsByService,
+  serviceTerminLabel,
+  groupScheduled,
 } from "@/lib/offerServiceType";
 
 interface TestItem {
@@ -220,5 +222,24 @@ describe("SERVICE_OPTIONS (per-item dropdown)", () => {
     expect(SERVICE_OPTIONS.find((o) => o.value === "moebellift")?.label).toBe("Möbellift");
     expect(SERVICE_OPTIONS.find((o) => o.value === "raeumung")?.label).toBe("Räumung");
     expect(SERVICE_OPTIONS.find((o) => o.value === "allgemein")?.label).toBe("Allgemein");
+  });
+});
+
+describe("serviceTerminLabel", () => {
+  it("maps known services (Fugen-s handled explicitly)", () => {
+    expect(serviceTerminLabel("umzug")).toBe("Umzugstermin");
+    expect(serviceTerminLabel("reinigung")).toBe("Reinigungstermin");
+    expect(serviceTerminLabel("transport")).toBe("Transporttermin");
+    expect(serviceTerminLabel(null)).toBe("Termin");
+    expect(serviceTerminLabel("sonstiges")).toBe("Termin");
+  });
+});
+
+describe("groupScheduled", () => {
+  it("returns first non-null scheduled values, null when group has none", () => {
+    expect(groupScheduled([{ scheduledDate: null }, { scheduledDate: "2026-08-28", scheduledStartTime: "08:00", scheduledEndTime: null }]))
+      .toEqual({ date: "2026-08-28", startTime: "08:00", endTime: null });
+    expect(groupScheduled([{ scheduledDate: null }])).toBeNull();
+    expect(groupScheduled([])).toBeNull();
   });
 });
