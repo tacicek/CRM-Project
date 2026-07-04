@@ -6,6 +6,7 @@ import {
   OfferItemBreakdownEntry,
   OfferItemLeistungEntry,
 } from "../types/offer.types";
+import { computeDisplayTotals, type SubtotalItem } from "@/lib/offerPricing";
 
 export interface LegacyOfferData {
   id: string;
@@ -309,22 +310,27 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       // Anzeige: Positionen-Zwischensumme = subtotal − Σ Zuschläge; Zuschlagszeilen separat.
       const surcharges = (offer.surcharges ?? []).map((s) => ({ label: s.label, amount: s.amount }));
       const surchargesSum = surcharges.reduce((sum, s) => sum + (Number.isFinite(s.amount) ? s.amount : 0), 0);
-      const itemsSubtotal = offer.subtotal - surchargesSum;
+      // P3b-2a: consolidated read chain (computeDisplayTotals). Zwischensumme = RAW items sum —
+      // never derived back from offers.subtotal (discounted base since P3b-1). The former inline
+      // max reduce (TODO(3b)) is gone: optional/inkl are now excluded on the max side too,
+      // matching OfferView/Detail (single source).
+      const subtotalItems = offer.items.map((item): SubtotalItem => ({
+        priceType: item.price_type ?? "",
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+        timeEstimate: item.time_estimate ?? null,
+      }));
+      const minTotals = computeDisplayTotals(
+        subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "min",
+      );
+      const itemsSubtotal = minTotals.subtotal;
       if (hasItemTe) {
-        // TODO(3b): max subtotal should be tied to computeItemsSubtotal. Right now it does NOT
-        // EXCLUDE optional/inkl (it adds them via quantity*unit_price) → it diverges from the
-        // OfferView max (which excludes optional) in the blind+optional edge case. Proven example:
-        // blind te{19,25,100} + optional 500 → PDF max 3000, OfferView max 2500 (500 CHF diff).
-        // Needed: price_type plumbing into LegacyOfferItem + all PDF callers
-        // (buildOfferEmailAttachments, OfferteDetail, OfferView-PDF, PdfPreviewDialog) (~5 files).
-        // Latent: in live data optional/inkl = 0 rows. Lesson #8/#11.
-        maxSubtotal = offer.items.reduce((sum, item) => {
-          const te = item.time_estimate;
-          if (te && te.maxHours && te.hourlyRate) return sum + te.maxHours * te.hourlyRate;
-          return sum + item.quantity * item.unit_price;
-        }, 0);
-        maxMwstAmount = (maxSubtotal + surchargesSum) * (offer.vat_rate / 100);
-        maxTotal = maxSubtotal + surchargesSum + maxMwstAmount;
+        const maxTotals = computeDisplayTotals(
+          subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "max",
+        );
+        maxSubtotal = maxTotals.subtotal;
+        maxMwstAmount = maxTotals.vatAmount;
+        maxTotal = maxTotals.total;
       }
       return {
         subtotal: itemsSubtotal,

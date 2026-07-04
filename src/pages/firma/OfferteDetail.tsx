@@ -70,7 +70,7 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeItemsSubtotal, computeTotalsFromSubtotal, hourlyRange } from "@/lib/offerPricing";
+import { computeDisplayTotals, computeItemsSubtotal, hourlyRange } from "@/lib/offerPricing";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
@@ -132,6 +132,7 @@ interface Offer {
   agb_version: string | null;
   payment_terms: string | null;
   price_model: 'pauschal' | 'stundenansatz' | 'kostendach' | null;
+  discount_percent?: number | null;
   surcharges?: unknown;
   hourly_rate: number | null;
   kostendach_max: number | null;
@@ -393,20 +394,27 @@ const FirmaOfferteDetail = () => {
    * code read offer.time_estimate, an offer-level field that is never written, so the range
    * was always null and the firm saw only the min total for a blind offer.)
    */
-  const getBlindRange = () => {
-    if (offer?.offerte_type !== 'blind') return null;
-    const subtotalItems = items.map((it) => ({
+  // Shared item mapper for the totals chain (getBlindRange + Zwischensumme rows).
+  const toSubtotalItems = () =>
+    items.map((it) => ({
       priceType: it.price_type ?? 'pauschale',
       quantity: Number(it.quantity) || 0,
       unitPrice: Number(it.unit_price) || 0,
       timeEstimate: it.time_estimate ?? null,
     }));
+
+  const getBlindRange = () => {
+    if (offer?.offerte_type !== 'blind') return null;
+    const subtotalItems = toSubtotalItems();
     if (!subtotalItems.some((it) => hourlyRange(it.timeEstimate) !== null)) return null;
     const surchargesSum = sumSurchargeAmounts(parseSurcharges(offer.surcharges));
-    const maxItemsSubtotal = computeItemsSubtotal(subtotalItems, "max");
-    const { taxableBase: maxSubtotal, vatAmount: maxVat, total: maxTotal } =
-      computeTotalsFromSubtotal(maxItemsSubtotal, surchargesSum, Number(offer.vat_rate));
-    return { maxSubtotal, maxVat, maxTotal };
+    // P3b-2a: consolidated read chain — the discount now also caps the max side.
+    // maxSubtotal is the RAW max items sum (Zwischensumme upper bound, items only —
+    // previously it wrongly included the surcharges while the min side did not).
+    const dtMax = computeDisplayTotals(
+      subtotalItems, surchargesSum, Number(offer.vat_rate), offer.discount_percent, "max",
+    );
+    return { maxSubtotal: dtMax.subtotal, maxVat: dtMax.vatAmount, maxTotal: dtMax.total };
   };
 
   const getStatusBadge = (status: string) => {
@@ -886,7 +894,7 @@ const FirmaOfferteDetail = () => {
                   <Separator className="my-3" />
 
                   <div className="space-y-2 text-sm">
-                    {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = Number(offer.subtotal) - sumSurchargeAmounts(surchargeList); return (
+                    {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = computeItemsSubtotal(toSubtotalItems(), "min"); return (
                       <>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Zwischensumme</span>
@@ -979,7 +987,7 @@ const FirmaOfferteDetail = () => {
 
                   <div className="flex justify-end">
                     <div className="w-72 space-y-2">
-                      {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = Number(offer.subtotal) - sumSurchargeAmounts(surchargeList); return (
+                      {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = computeItemsSubtotal(toSubtotalItems(), "min"); return (
                         <>
                           <div className="flex justify-between text-sm">
                             <span>Zwischensumme</span>

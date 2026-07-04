@@ -7,6 +7,7 @@ import {
   computeTotalsFromSubtotal,
   applyDiscount,
   computeDiscountAmount,
+  computeDisplayTotals,
   type SubtotalItem,
   BLIND_DISCLAIMER_LABEL,
   BLIND_DISCLAIMER_TEXT,
@@ -237,5 +238,55 @@ describe("applyDiscount / computeDiscountAmount (P3a)", () => {
     const pct = 12.5;
     expect(applyDiscount(2000, pct)).toBe(1750);
     expect(applyDiscount(2800, pct)).toBe(2450);
+  });
+});
+
+describe("computeDisplayTotals (P3b-2a, consolidated read chain)", () => {
+  const items: SubtotalItem[] = [
+    { priceType: "pauschale", quantity: 1, unitPrice: 1000, timeEstimate: null },
+    { priceType: "per_unit", quantity: 4, unitPrice: 20, timeEstimate: null },
+  ];
+
+  it("no discount → identical to the old chain (regression guard)", () => {
+    const dt = computeDisplayTotals(items, 100, 8.1, null, "min");
+    const old = computeTotalsFromSubtotal(computeItemsSubtotal(items, "min"), 100, 8.1);
+    expect(dt.subtotal).toBe(1080);
+    expect(dt.discountAmount).toBe(0);
+    expect(dt.taxableBase).toBe(old.taxableBase);
+    expect(dt.vatAmount).toBeCloseTo(old.vatAmount, 10);
+    expect(dt.total).toBeCloseTo(old.total, 10);
+  });
+
+  it("discount: subtotal stays RAW, base/vat/total are discounted (new_offer.png chain)", () => {
+    const refItems: SubtotalItem[] = [
+      { priceType: "pauschale", quantity: 1, unitPrice: 3080, timeEstimate: null },
+    ];
+    const dt = computeDisplayTotals(refItems, 0, 8.1, 10, "min");
+    expect(dt.subtotal).toBe(3080); // Zwischensumme HAM — kural
+    expect(dt.discountAmount).toBe(308);
+    expect(dt.taxableBase).toBe(2772); // = what P3b-1 writes to offers.subtotal
+    expect(dt.vatAmount).toBe(224.53); // = DB generated (2772*8.1%)
+    expect(dt.total).toBe(2996.53);
+  });
+
+  it("max mode excludes optional/inkl — TODO(3b) fixed (documented case)", () => {
+    // Documented divergence case: blind te{19,25,100} + optional 500
+    // old PDF inline max = 3000 (optional wrongly summed) / correct = 2500.
+    const blindItems: SubtotalItem[] = [
+      { priceType: "per_hour", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 19, maxHours: 25, hourlyRate: 100 } },
+      { priceType: "optional", quantity: 1, unitPrice: 500, timeEstimate: null },
+    ];
+    const dtMax = computeDisplayTotals(blindItems, 0, 0, null, "max");
+    expect(dtMax.subtotal).toBe(2500); // NOT 3000
+  });
+
+  it("discount caps the max side of a blind range too", () => {
+    const blindItems: SubtotalItem[] = [
+      { priceType: "per_hour", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 10, maxHours: 20, hourlyRate: 100 } },
+    ];
+    const dtMax = computeDisplayTotals(blindItems, 0, 8.1, 10, "max");
+    expect(dtMax.subtotal).toBe(2000); // raw Zwischensumme upper bound
+    expect(dtMax.taxableBase).toBe(1800);
+    expect(dtMax.total).toBe(1945.8);
   });
 });
