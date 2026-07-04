@@ -153,6 +153,7 @@ const FirmaOfferteBearbeiten = () => {
 
   // Price model state
   const [priceModel, setPriceModel] = useState<PriceModel>('pauschal');
+  const [discountPercent, setDiscountPercent] = useState<string>('');
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [hourlyRate, setHourlyRate] = useState<string>('');
@@ -245,6 +246,7 @@ const FirmaOfferteBearbeiten = () => {
         // Price model
         const pm = (offerData.price_model as PriceModel | null | undefined) ?? 'pauschal';
         setPriceModel(pm);
+        setDiscountPercent(offerData.discount_percent !== null && offerData.discount_percent !== undefined ? String(offerData.discount_percent) : '');
         if (offerData.hourly_rate !== null && offerData.hourly_rate !== undefined) setHourlyRate(String(offerData.hourly_rate));
         if (offerData.kostendach_max !== null && offerData.kostendach_max !== undefined) setKostendachMax(String(offerData.kostendach_max));
         setBriefLayout(offerData.brief_layout ?? false);
@@ -379,9 +381,8 @@ const FirmaOfferteBearbeiten = () => {
   };
 
   // Steuerbare Basis = Positionen + Zuschläge → offers.subtotal (GENERATED vat/total).
-  // P3b-2b: Rabatt-Quelle im Edit ist die geladene Offerte (Formularfeld folgt mit F1c) —
-  // Preview und Save nutzen denselben Wert.
-  const effectiveDiscountPercent = offer?.discount_percent ?? null;
+  // #7: Rabatt is now editable in the form (single parse source, like OfferteErstellen).
+  const effectiveDiscountPercent = discountPercent.trim() !== "" ? Number(discountPercent) : null;
 
   const calculateTaxableBase = () =>
     calculateSubtotal() + surchargesTotal(surcharges, calculateSubtotal(), distanceKm);
@@ -596,6 +597,7 @@ const FirmaOfferteBearbeiten = () => {
           payment_terms: paymentTerms?.trim() || null,
           brief_layout: briefLayout,
           offerte_type: offerteType,
+          discount_percent: effectiveDiscountPercent,
         })
         .eq("id", offerId)
         .in("status", ["draft", "sent", "viewed"])
@@ -897,6 +899,21 @@ const FirmaOfferteBearbeiten = () => {
                         {opt.label}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Offer-level Rabatt (%) — editable (#7: was missing in edit) */}
+                  <div className="space-y-1 pt-1 sm:max-w-[50%]">
+                    <Label className="text-xs sm:text-sm">Rabatt gesamt (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={discountPercent}
+                      onChange={(e) => setDiscountPercent(e.target.value)}
+                      placeholder="z.B. 10 (optional)"
+                      className="h-9 sm:h-10 text-sm"
+                    />
                   </div>
 
                   {(priceModel === 'stundenansatz' || priceModel === 'kostendach') && (
