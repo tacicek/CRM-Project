@@ -883,6 +883,28 @@ const PublicOfferView = () => {
                             <span>{formatCurrency(s.amount)}</span>
                           </div>
                         ))}
+                        {offer.discount_percent && offer.discount_percent > 0 ? (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">
+                                Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
+                              </span>
+                              <span>
+                                {isRange
+                                  ? `- ${formatCurrency(minTotals.discountAmount)} – - ${formatCurrency(maxTotals.discountAmount)}`
+                                  : `- ${formatCurrency(minTotals.discountAmount)}`}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Total exkl. MwSt</span>
+                              <span>
+                                {isRange
+                                  ? `${formatCurrency(minTotals.taxableBase)} – ${formatCurrency(maxTotals.taxableBase)}`
+                                  : formatCurrency(minTotals.taxableBase)}
+                              </span>
+                            </div>
+                          </>
+                        ) : null}
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">MwSt. ({offer.vat_rate}%)</span>
                           <span>

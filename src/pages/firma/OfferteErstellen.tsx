@@ -57,7 +57,7 @@ import { ItemChip } from "@/components/offerte/ItemChip";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
-import { applyDiscount, computeItemsSubtotal, derivePriceTypeFromCatalog, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -872,19 +872,28 @@ const FirmaOfferteErstellen = () => {
     return calculateDiscountedBase() * (vatRate / 100);
   };
 
-  const calculateMaxVat = (): number | null => {
+  const calculateMaxTaxableBase = (): number | null => {
     const maxSub = calculateMaxSubtotal();
-    if (maxSub === null || !mwstEnabled) return null;
-    const maxBase = applyDiscount(maxSub + surchargesTotal(surcharges, maxSub, lead?.distance_km ?? null), parsedDiscountPercent);
+    if (maxSub === null) return null;
+    return maxSub + surchargesTotal(surcharges, maxSub, lead?.distance_km ?? null);
+  };
+
+  const calculateMaxDiscountedBase = (): number | null => {
+    const maxBase = calculateMaxTaxableBase();
+    return maxBase === null ? null : applyDiscount(maxBase, parsedDiscountPercent);
+  };
+
+  const calculateMaxVat = (): number | null => {
+    const maxBase = calculateMaxDiscountedBase();
+    if (maxBase === null || !mwstEnabled) return null;
     return maxBase * (vatRate / 100);
   };
 
   const calculateTotal = () => calculateDiscountedBase() + calculateVat();
 
   const calculateMaxTotal = (): number | null => {
-    const maxSub = calculateMaxSubtotal();
-    if (maxSub === null) return null;
-    const maxBase = applyDiscount(maxSub + surchargesTotal(surcharges, maxSub, lead?.distance_km ?? null), parsedDiscountPercent);
+    const maxBase = calculateMaxDiscountedBase();
+    if (maxBase === null) return null;
     return maxBase + (calculateMaxVat() ?? 0);
   };
 
@@ -2027,6 +2036,33 @@ const FirmaOfferteErstellen = () => {
                           <span>{formatCurrency(computeSurchargeAmount(s, calculateSubtotal(), lead?.distance_km ?? null))}</span>
                         </div>
                       ))}
+                      {/* Rabatt + Total exkl. MwSt (P3b-2c-ii, new_offer.png) — nur bei aktivem Rabatt */}
+                      {parsedDiscountPercent !== null && parsedDiscountPercent > 0 && (
+                        <>
+                          <div className="flex justify-between items-start text-xs sm:text-sm text-slate-600">
+                            <span className="shrink-0">Rabatt {parsedDiscountPercent.toLocaleString("de-CH")} %</span>
+                            {calculateMaxTaxableBase() !== null ? (
+                              <div className="text-right text-amber-700 leading-snug">
+                                <div>- {formatCurrency(computeDiscountAmount(calculateTaxableBase(), parsedDiscountPercent))}</div>
+                                <div className="text-[10px] text-amber-600">– - {formatCurrency(computeDiscountAmount(calculateMaxTaxableBase()!, parsedDiscountPercent))}</div>
+                              </div>
+                            ) : (
+                              <span>- {formatCurrency(computeDiscountAmount(calculateTaxableBase(), parsedDiscountPercent))}</span>
+                            )}
+                          </div>
+                          <div className="flex justify-between items-start text-xs sm:text-sm">
+                            <span className="shrink-0">Total exkl. MwSt</span>
+                            {calculateMaxDiscountedBase() !== null ? (
+                              <div className="text-right text-amber-700 font-medium leading-snug">
+                                <div>{formatCurrency(calculateDiscountedBase())}</div>
+                                <div className="text-[10px] text-amber-600">– {formatCurrency(calculateMaxDiscountedBase()!)}</div>
+                              </div>
+                            ) : (
+                              <span>{formatCurrency(calculateDiscountedBase())}</span>
+                            )}
+                          </div>
+                        </>
+                      )}
                       {/* MwSt row */}
                       <div className="flex justify-between items-start text-xs sm:text-sm gap-2">
                         <div className="flex items-center gap-2 shrink-0">

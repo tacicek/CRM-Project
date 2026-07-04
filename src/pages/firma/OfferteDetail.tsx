@@ -70,7 +70,7 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeDisplayTotals, computeItemsSubtotal, hourlyRange } from "@/lib/offerPricing";
+import { computeDisplayTotals, hourlyRange } from "@/lib/offerPricing";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
@@ -414,7 +414,13 @@ const FirmaOfferteDetail = () => {
     const dtMax = computeDisplayTotals(
       subtotalItems, surchargesSum, Number(offer.vat_rate), offer.discount_percent, "max",
     );
-    return { maxSubtotal: dtMax.subtotal, maxVat: dtMax.vatAmount, maxTotal: dtMax.total };
+    return {
+      maxSubtotal: dtMax.subtotal,
+      maxVat: dtMax.vatAmount,
+      maxTotal: dtMax.total,
+      maxDiscountAmount: dtMax.discountAmount,
+      maxTaxableBase: dtMax.taxableBase,
+    };
   };
 
   const getStatusBadge = (status: string) => {
@@ -894,7 +900,7 @@ const FirmaOfferteDetail = () => {
                   <Separator className="my-3" />
 
                   <div className="space-y-2 text-sm">
-                    {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = computeItemsSubtotal(toSubtotalItems(), "min"); return (
+                    {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
                       <>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Zwischensumme</span>
@@ -910,6 +916,28 @@ const FirmaOfferteDetail = () => {
                             <span>{formatCurrency(s.amount)}</span>
                           </div>
                         ))}
+                        {offer.discount_percent && offer.discount_percent > 0 ? (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">
+                                Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
+                              </span>
+                              {range ? (
+                                <span className="text-amber-700">- {formatCurrency(dtMin.discountAmount)} – - {formatCurrency(range.maxDiscountAmount)}</span>
+                              ) : (
+                                <span>- {formatCurrency(dtMin.discountAmount)}</span>
+                              )}
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Total exkl. MwSt</span>
+                              {range ? (
+                                <span className="text-amber-700">{formatCurrency(dtMin.taxableBase)} – {formatCurrency(range.maxTaxableBase)}</span>
+                              ) : (
+                                <span>{formatCurrency(dtMin.taxableBase)}</span>
+                              )}
+                            </div>
+                          </>
+                        ) : null}
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">MwSt. ({offer.vat_rate}%)</span>
                           {range ? (
@@ -987,7 +1015,7 @@ const FirmaOfferteDetail = () => {
 
                   <div className="flex justify-end">
                     <div className="w-72 space-y-2">
-                      {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const itemsSub = computeItemsSubtotal(toSubtotalItems(), "min"); return (
+                      {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
                         <>
                           <div className="flex justify-between text-sm">
                             <span>Zwischensumme</span>
@@ -1003,6 +1031,26 @@ const FirmaOfferteDetail = () => {
                               <span>{formatCurrency(s.amount)}</span>
                             </div>
                           ))}
+                          {offer.discount_percent && offer.discount_percent > 0 ? (
+                            <>
+                              <div className="flex justify-between text-sm">
+                                <span>Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %</span>
+                                {range ? (
+                                  <span className="text-amber-700">- {formatCurrency(dtMin.discountAmount)} – - {formatCurrency(range.maxDiscountAmount)}</span>
+                                ) : (
+                                  <span>- {formatCurrency(dtMin.discountAmount)}</span>
+                                )}
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span>Total exkl. MwSt</span>
+                                {range ? (
+                                  <span className="text-amber-700">{formatCurrency(dtMin.taxableBase)} – {formatCurrency(range.maxTaxableBase)}</span>
+                                ) : (
+                                  <span>{formatCurrency(dtMin.taxableBase)}</span>
+                                )}
+                              </div>
+                            </>
+                          ) : null}
                           <div className="flex justify-between text-sm">
                             <span>MwSt. ({offer.vat_rate}%)</span>
                             {range ? (
