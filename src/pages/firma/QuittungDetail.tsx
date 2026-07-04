@@ -323,11 +323,17 @@ export default function QuittungDetail() {
   }, [isNew, location.state, location.pathname, navigate]);
 
   // Position helpers
+  // A: once a Quittung is signed/sent/paid it is a delivery record — its financial
+  // content must not change (signature integrity). isSigned locks all money mutations.
+  const isSigned = status === "signed" || status === "sent" || status === "paid";
+
   const updatePosition = (pos: Partial<QuittungPosition> & { id: string }) => {
+    if (isSigned) return;
     setPositionen(prev => prev.map(p => p.id === pos.id ? { ...p, ...pos } : p));
   };
 
   const addCustomRow = () => {
+    if (isSigned) return;
     setPositionen(prev => [...prev, {
       id: uuidv4(), beschreibung: "", satz: "", betrag: 0,
       checked: false, is_custom: true,
@@ -335,7 +341,13 @@ export default function QuittungDetail() {
   };
 
   const removeCustomRow = (posId: string) => {
+    if (isSigned) return;
     setPositionen(prev => prev.filter(p => p.id !== posId || !p.is_custom));
+  };
+
+  const setRabattGuarded = (v: number) => {
+    if (isSigned) return;
+    setRabatt(v);
   };
 
   // Save
@@ -460,7 +472,6 @@ export default function QuittungDetail() {
   const cfg = STATUS_CONFIG[status];
   const predefined = positionen.filter(p => !p.is_custom);
   const custom = positionen.filter(p => p.is_custom);
-  const isSigned = status === "signed" || status === "sent" || status === "paid";
 
   return (
     <>
@@ -621,7 +632,14 @@ export default function QuittungDetail() {
 
               {/* ── Line Items ── */}
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Leistungen</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Leistungen</h3>
+                  {isSigned && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700">
+                      🔒 Unterzeichnet — Beträge gesperrt
+                    </span>
+                  )}
+                </div>
                 <div className="rounded-xl border border-slate-200 overflow-hidden">
 
                   {/* Desktop header — hidden on mobile */}
@@ -642,7 +660,7 @@ export default function QuittungDetail() {
                       <div className="sm:hidden px-3 py-3 space-y-2">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <Checkbox checked={pos.checked}
+                            <Checkbox checked={pos.checked} disabled={isSigned}
                               onCheckedChange={v => updatePosition({ id: pos.id, checked: !!v })}
                               className="size-4 shrink-0" />
                             <span className="text-sm font-medium text-slate-800 truncate">{pos.beschreibung}</span>
@@ -650,11 +668,12 @@ export default function QuittungDetail() {
                           <Input
                             type="number" min="0" step="0.01"
                             value={pos.betrag || ""}
+                            disabled={isSigned}
                             onChange={e => updatePosition({ id: pos.id, betrag: parseFloat(e.target.value) || 0 })}
                             className="h-8 w-24 text-sm text-right shrink-0"
                             placeholder="0.00" />
                         </div>
-                        <Input value={pos.satz}
+                        <Input value={pos.satz} disabled={isSigned}
                           onChange={e => updatePosition({ id: pos.id, satz: e.target.value })}
                           placeholder="Satz / Bemerkung (z.B. 3 Std. × CHF 50)"
                           className="h-8 text-xs w-full" />
@@ -664,18 +683,19 @@ export default function QuittungDetail() {
                       <div className="hidden sm:grid sm:grid-cols-[2rem_1fr_1fr_7rem_2rem] gap-3 items-center px-3 py-2">
                         <div className="flex justify-center">
                           <Checkbox
-                            checked={pos.checked}
+                            checked={pos.checked} disabled={isSigned}
                             onCheckedChange={v => updatePosition({ id: pos.id, checked: !!v })}
                             className="size-4 shrink-0" />
                         </div>
                         <span className="text-sm font-medium text-slate-800">{pos.beschreibung}</span>
-                        <Input value={pos.satz}
+                        <Input value={pos.satz} disabled={isSigned}
                           onChange={e => updatePosition({ id: pos.id, satz: e.target.value })}
                           placeholder="z.B. 3 Std. × CHF 50"
                           className="h-7 text-xs border-0 bg-slate-50 px-2" />
                         <Input
                           type="number" min="0" step="0.01"
                           value={pos.betrag || ""}
+                          disabled={isSigned}
                           onChange={e => updatePosition({ id: pos.id, betrag: parseFloat(e.target.value) || 0 })}
                           className="h-7 text-xs text-right border-0 bg-slate-50 px-2" />
                         <div />
@@ -696,7 +716,7 @@ export default function QuittungDetail() {
                       <div className="sm:hidden px-3 py-3 space-y-2">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <Checkbox checked={pos.checked}
+                            <Checkbox checked={pos.checked} disabled={isSigned}
                               onCheckedChange={v => updatePosition({ id: pos.id, checked: !!v })}
                               className="size-4 shrink-0" />
                             <Input value={pos.beschreibung}
@@ -708,6 +728,7 @@ export default function QuittungDetail() {
                             <Input
                               type="number" min="0" step="0.01"
                               value={pos.betrag || ""}
+                            disabled={isSigned}
                               onChange={e => updatePosition({ id: pos.id, betrag: parseFloat(e.target.value) || 0 })}
                               className="h-8 w-24 text-sm text-right"
                               placeholder="0.00" />
@@ -717,7 +738,7 @@ export default function QuittungDetail() {
                             </button>
                           </div>
                         </div>
-                        <Input value={pos.satz}
+                        <Input value={pos.satz} disabled={isSigned}
                           onChange={e => updatePosition({ id: pos.id, satz: e.target.value })}
                           placeholder="Satz / Bemerkung"
                           className="h-8 text-xs w-full" />
@@ -727,7 +748,7 @@ export default function QuittungDetail() {
                       <div className="hidden sm:grid sm:grid-cols-[2rem_1fr_1fr_7rem_2rem] gap-3 items-center px-3 py-2">
                         <div className="flex justify-center">
                           <Checkbox
-                            checked={pos.checked}
+                            checked={pos.checked} disabled={isSigned}
                             onCheckedChange={v => updatePosition({ id: pos.id, checked: !!v })}
                             className="size-4 shrink-0" />
                         </div>
@@ -735,13 +756,14 @@ export default function QuittungDetail() {
                           onChange={e => updatePosition({ id: pos.id, beschreibung: e.target.value })}
                           placeholder="Beschreibung..."
                           className="h-7 text-xs border-0 bg-transparent px-1" />
-                        <Input value={pos.satz}
+                        <Input value={pos.satz} disabled={isSigned}
                           onChange={e => updatePosition({ id: pos.id, satz: e.target.value })}
                           placeholder="Satz / Bemerkung"
                           className="h-7 text-xs border-0 bg-transparent px-1" />
                         <Input
                           type="number" min="0" step="0.01"
                           value={pos.betrag || ""}
+                            disabled={isSigned}
                           onChange={e => updatePosition({ id: pos.id, betrag: parseFloat(e.target.value) || 0 })}
                           className="h-7 text-xs text-right border-0 bg-transparent px-1" />
                         <div className="flex justify-center">
@@ -756,10 +778,12 @@ export default function QuittungDetail() {
 
                   {/* Add row */}
                   <div className="px-3 py-2.5 bg-slate-50">
+                    {!isSigned && (
                     <button onClick={addCustomRow}
                       className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-600 transition-colors">
                       <Plus className="w-3.5 h-3.5" /> Zeile hinzufügen
                     </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -776,7 +800,8 @@ export default function QuittungDetail() {
                       <div className="flex items-center gap-2">
                         <span>Rabatt:</span>
                         <Input type="number" min="0" step="0.01" value={rabatt || ""}
-                          onChange={e => setRabatt(parseFloat(e.target.value) || 0)}
+                          disabled={isSigned}
+                          onChange={e => setRabattGuarded(parseFloat(e.target.value) || 0)}
                           className="h-6 w-20 text-xs text-right py-0 px-1.5" />
                       </div>
                       <span>-{formatChf(rabatt)}</span>
