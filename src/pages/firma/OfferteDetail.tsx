@@ -906,55 +906,74 @@ const FirmaOfferteDetail = () => {
                   <div className="space-y-2 text-sm">
                     {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
                       <>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Zwischensumme</span>
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="text-muted-foreground shrink-0">Zwischensumme</span>
                           {range ? (
-                            <span className="text-amber-700 font-medium">{formatCurrency(itemsSub)} – {formatCurrency(range.maxSubtotal)}</span>
+                            <div className="text-right text-amber-700 font-medium leading-snug">
+                              <div>{formatCurrency(itemsSub)}</div>
+                              <div className="text-xs text-amber-600">– {formatCurrency(range.maxSubtotal)}</div>
+                            </div>
                           ) : (
                             <span>{formatCurrency(itemsSub)}</span>
                           )}
                         </div>
                         {surchargeList.map((s, i) => (
-                          <div key={i} className="flex justify-between">
+                          <div key={i} className="flex items-start justify-between gap-4">
                             <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
-                            <span>{formatCurrency(s.amount)}</span>
+                            <span className="shrink-0">{formatCurrency(s.amount)}</span>
                           </div>
                         ))}
                         {offer.discount_percent && offer.discount_percent > 0 ? (
                           <>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">
+                            <div className="flex items-start justify-between gap-4">
+                              <span className="text-muted-foreground shrink-0">
                                 Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
                               </span>
                               {range ? (
-                                <span className="text-amber-700">- {formatCurrency(dtMin.discountAmount)} – - {formatCurrency(range.maxDiscountAmount)}</span>
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>- {formatCurrency(dtMin.discountAmount)}</div>
+                                  <div className="text-xs text-amber-600">– - {formatCurrency(range.maxDiscountAmount)}</div>
+                                </div>
                               ) : (
                                 <span>- {formatCurrency(dtMin.discountAmount)}</span>
                               )}
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Total exkl. MwSt</span>
+                            <div className="flex items-start justify-between gap-4">
+                              <span className="text-muted-foreground shrink-0">Total exkl. MwSt</span>
                               {range ? (
-                                <span className="text-amber-700">{formatCurrency(dtMin.taxableBase)} – {formatCurrency(range.maxTaxableBase)}</span>
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>{formatCurrency(dtMin.taxableBase)}</div>
+                                  <div className="text-xs text-amber-600">– {formatCurrency(range.maxTaxableBase)}</div>
+                                </div>
                               ) : (
                                 <span>{formatCurrency(dtMin.taxableBase)}</span>
                               )}
                             </div>
                           </>
                         ) : null}
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">MwSt. ({offer.vat_rate}%)</span>
-                          {range ? (
-                            <span className="text-amber-700">{formatCurrency(Number(offer.vat_amount))} – {formatCurrency(range.maxVat)}</span>
-                          ) : (
-                            <span>{formatCurrency(Number(offer.vat_amount))}</span>
-                          )}
-                        </div>
+                        {/* MwSt row only when a rate is active — at 0 % it is omitted entirely
+                            (Zwischensumme = Total), mirroring the PDF/Rechnung rule. */}
+                        {Number(offer.vat_rate) > 0 ? (
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-muted-foreground shrink-0">MwSt. ({offer.vat_rate}%)</span>
+                            {range ? (
+                              <div className="text-right text-amber-700 leading-snug">
+                                <div>{formatCurrency(Number(offer.vat_amount))}</div>
+                                <div className="text-xs text-amber-600">– {formatCurrency(range.maxVat)}</div>
+                              </div>
+                            ) : (
+                              <span>{formatCurrency(Number(offer.vat_amount))}</span>
+                            )}
+                          </div>
+                        ) : null}
                         <Separator />
-                        <div className="flex justify-between font-bold text-base pt-1">
-                          <span>Total</span>
+                        <div className="flex items-start justify-between gap-4 font-bold text-base pt-1">
+                          <span className="shrink-0">Total</span>
                           {range ? (
-                            <span className="text-amber-700">{formatCurrency(Number(offer.total))} – {formatCurrency(range.maxTotal)}</span>
+                            <div className="text-right text-amber-700 leading-snug">
+                              <div>{formatCurrency(Number(offer.total))}</div>
+                              <div className="text-sm font-semibold text-amber-600">– {formatCurrency(Number(range.maxTotal))}</div>
+                            </div>
                           ) : (
                             <span className="text-primary">{formatCurrency(Number(offer.total))}</span>
                           )}
@@ -1028,59 +1047,80 @@ const FirmaOfferteDetail = () => {
                   <div className="flex justify-end">
                     <div className="w-72 space-y-2">
                       {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
-                        <>
-                          <div className="flex justify-between text-sm">
-                            <span>Zwischensumme</span>
-                            {range ? (
-                              <span className="text-amber-700 font-medium">{formatCurrency(itemsSub)} – {formatCurrency(range.maxSubtotal)}</span>
-                            ) : (
-                              <span>{formatCurrency(itemsSub)}</span>
-                            )}
-                          </div>
-                          {surchargeList.map((s, i) => (
-                            <div key={i} className="flex justify-between text-sm">
-                              <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
-                              <span>{formatCurrency(s.amount)}</span>
+                      <>
+                        <div className="flex items-start justify-between gap-4 text-sm">
+                          <span className="text-muted-foreground shrink-0">Zwischensumme</span>
+                          {range ? (
+                            <div className="text-right text-amber-700 font-medium leading-snug">
+                              <div>{formatCurrency(itemsSub)}</div>
+                              <div className="text-xs text-amber-600">– {formatCurrency(range.maxSubtotal)}</div>
                             </div>
-                          ))}
-                          {offer.discount_percent && offer.discount_percent > 0 ? (
-                            <>
-                              <div className="flex justify-between text-sm">
-                                <span>Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %</span>
-                                {range ? (
-                                  <span className="text-amber-700">- {formatCurrency(dtMin.discountAmount)} – - {formatCurrency(range.maxDiscountAmount)}</span>
-                                ) : (
-                                  <span>- {formatCurrency(dtMin.discountAmount)}</span>
-                                )}
-                              </div>
-                              <div className="flex justify-between text-sm">
-                                <span>Total exkl. MwSt</span>
-                                {range ? (
-                                  <span className="text-amber-700">{formatCurrency(dtMin.taxableBase)} – {formatCurrency(range.maxTaxableBase)}</span>
-                                ) : (
-                                  <span>{formatCurrency(dtMin.taxableBase)}</span>
-                                )}
-                              </div>
-                            </>
-                          ) : null}
-                          <div className="flex justify-between text-sm">
-                            <span>MwSt. ({offer.vat_rate}%)</span>
+                          ) : (
+                            <span>{formatCurrency(itemsSub)}</span>
+                          )}
+                        </div>
+                        {surchargeList.map((s, i) => (
+                          <div key={i} className="flex items-start justify-between gap-4 text-sm">
+                            <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
+                            <span className="shrink-0">{formatCurrency(s.amount)}</span>
+                          </div>
+                        ))}
+                        {offer.discount_percent && offer.discount_percent > 0 ? (
+                          <>
+                            <div className="flex items-start justify-between gap-4 text-sm">
+                              <span className="text-muted-foreground shrink-0">
+                                Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
+                              </span>
+                              {range ? (
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>- {formatCurrency(dtMin.discountAmount)}</div>
+                                  <div className="text-xs text-amber-600">– - {formatCurrency(range.maxDiscountAmount)}</div>
+                                </div>
+                              ) : (
+                                <span>- {formatCurrency(dtMin.discountAmount)}</span>
+                              )}
+                            </div>
+                            <div className="flex items-start justify-between gap-4 text-sm">
+                              <span className="text-muted-foreground shrink-0">Total exkl. MwSt</span>
+                              {range ? (
+                                <div className="text-right text-amber-700 leading-snug">
+                                  <div>{formatCurrency(dtMin.taxableBase)}</div>
+                                  <div className="text-xs text-amber-600">– {formatCurrency(range.maxTaxableBase)}</div>
+                                </div>
+                              ) : (
+                                <span>{formatCurrency(dtMin.taxableBase)}</span>
+                              )}
+                            </div>
+                          </>
+                        ) : null}
+                        {/* MwSt row only when a rate is active — at 0 % it is omitted entirely
+                            (Zwischensumme = Total), mirroring the PDF/Rechnung rule. */}
+                        {Number(offer.vat_rate) > 0 ? (
+                          <div className="flex items-start justify-between gap-4 text-sm">
+                            <span className="text-muted-foreground shrink-0">MwSt. ({offer.vat_rate}%)</span>
                             {range ? (
-                              <span className="text-amber-700">{formatCurrency(Number(offer.vat_amount))} – {formatCurrency(range.maxVat)}</span>
+                              <div className="text-right text-amber-700 leading-snug">
+                                <div>{formatCurrency(Number(offer.vat_amount))}</div>
+                                <div className="text-xs text-amber-600">– {formatCurrency(range.maxVat)}</div>
+                              </div>
                             ) : (
                               <span>{formatCurrency(Number(offer.vat_amount))}</span>
                             )}
                           </div>
-                          <Separator />
-                          <div className="flex justify-between font-bold text-lg">
-                            <span>Total</span>
-                            {range ? (
-                              <span className="text-amber-700">{formatCurrency(Number(offer.total))} – {formatCurrency(range.maxTotal)}</span>
-                            ) : (
-                              <span>{formatCurrency(Number(offer.total))}</span>
-                            )}
-                          </div>
-                        </>
+                        ) : null}
+                        <Separator />
+                        <div className="flex items-start justify-between gap-4 font-bold text-lg">
+                          <span className="shrink-0">Total</span>
+                          {range ? (
+                            <div className="text-right text-amber-700 leading-snug">
+                              <div>{formatCurrency(Number(offer.total))}</div>
+                              <div className="text-sm font-semibold text-amber-600">– {formatCurrency(Number(range.maxTotal))}</div>
+                            </div>
+                          ) : (
+                            <span className="">{formatCurrency(Number(offer.total))}</span>
+                          )}
+                        </div>
+                      </>
                       ); })()}
                     </div>
                   </div>

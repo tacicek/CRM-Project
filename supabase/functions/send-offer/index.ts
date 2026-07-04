@@ -725,10 +725,11 @@ const handler = async (req: Request): Promise<Response> => {
               <span style="color: #6b7280;">Zwischensumme:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(itemsSub)}</span>
             </div>${surchargeRows}${discountRows}
+            ${Number(offer.vat_rate) > 0 ? `
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">MwSt. (${offer.vat_rate}%):</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(offer.vat_amount || 0))}</span>
-            </div>
+            </div>` : ''}
             <div style="font-size: 20px; font-weight: bold; color: #1f2937; border-top: 2px solid #e5e7eb; padding-top: 12px;">
               <span>Total:</span>
               <span style="margin-left: 24px;">${fmtCHF(Number(offer.total || (Number(offer.subtotal) + Number(offer.vat_amount || 0))))}</span>
@@ -788,10 +789,11 @@ const handler = async (req: Request): Promise<Response> => {
               <span style="color: #6b7280;">Zwischensumme:</span>
               <span style="margin-left: 24px; color: #b45309; font-weight: 600;">${fmtCHF(minSub)} &ndash; ${fmtCHF(maxSub)}</span>
             </div>${rangeSurchargeRows}${rangeDiscountRows}
+            ${Number(offer.vat_rate) > 0 ? `
             <div style="margin-bottom: 8px;">
               <span style="color: #6b7280;">MwSt. (${offer.vat_rate}%):</span>
               <span style="margin-left: 24px; color: #b45309;">${fmtCHF(minVat)} &ndash; ${fmtCHF(maxVat)}</span>
-            </div>
+            </div>` : ''}
             <div style="font-size: 20px; font-weight: bold; color: #92400e; border-top: 2px solid #fde68a; padding-top: 12px;">
               <span>Total:</span>
               <span style="margin-left: 24px;">${fmtCHF(minTotal)} &ndash; ${fmtCHF(maxTotal)}</span>
