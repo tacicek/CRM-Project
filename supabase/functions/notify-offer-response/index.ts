@@ -75,6 +75,26 @@ serve(async (req) => {
 
     logStep("Token validated", { offerId: request.offerId, responseType: request.responseType });
 
+    // #3 Rate-limit: a valid/leaked token could hammer the Frage/Besichtigung path
+    // (these don't change status, so the terminal guard doesn't stop them). 60s cooldown
+    // per offer via email_logs — the first request goes through, further ones within the
+    // window are rejected. Legitimate use (a question every minute) passes; spam is cut.
+    const rlCutoff = new Date(Date.now() - 60_000).toISOString();
+    const { count: recentCount } = await supabase
+      .from("email_logs")
+      .select("id", { count: "exact", head: true })
+      .eq("email_type", "offer_response")
+      .eq("status", "sent")
+      .gte("created_at", rlCutoff)
+      .filter("metadata->>offerId", "eq", request.offerId);
+    if ((recentCount ?? 0) >= 1) {
+      logStep("Rate-limited", { offerId: request.offerId });
+      return new Response(
+        JSON.stringify({ error: "Zu viele Anfragen. Bitte warten Sie einen Moment." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Get company Resend settings + notification recipient (from DB, not the body)
     let company = null;
     const companyId = offerRow.company_id;
@@ -222,7 +242,7 @@ serve(async (req) => {
         status: "failed",
         errorMessage: JSON.stringify(error),
         companyId: companyId,
-        metadata: { responseType: request.responseType, offerTitle: offerTitle, offerTotal: offerTotal },
+        metadata: { offerId: request.offerId, responseType: request.responseType, offerTitle: offerTitle, offerTotal: offerTotal },
       });
       throw error;
     }
