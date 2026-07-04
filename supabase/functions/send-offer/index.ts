@@ -1058,6 +1058,74 @@ const handler = async (req: Request): Promise<Response> => {
       logStep("Offer status updated to sent");
     }
 
+    // Confirmation copy to the firm (own request 2026-07-04): the customer send has already
+    // succeeded — a failure HERE must not fail the request or revert the status, so this
+    // block is isolated by design (not error suppression; both outcomes are logged).
+    const companyEmail = offer.company?.email;
+    if (companyEmail) {
+      const offerNo = offer.id.slice(0, 8).toUpperCase();
+      const confirmSubject = `Bestätigung: Offerte Nr. ${offerNo} wurde gesendet`;
+      const confirmRow = (label: string, value: string) => `
+            <tr>
+              <td style="padding: 4px 0; color: #6b7280; font-size: 13px; width: 35%;">${label}</td>
+              <td style="padding: 4px 0; color: #111827; font-size: 13px; font-weight: 600;">${value}</td>
+            </tr>`;
+      const confirmHtml = `
+      <div style="font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px 16px;">
+        <div style="border: 1px solid #e5e7eb; border-left: 4px solid ${accent}; border-radius: 8px; padding: 20px 24px;">
+          <p style="margin: 0 0 12px 0; font-size: 15px; font-weight: 700; color: #111827;">
+            Ihre Offerte wurde erfolgreich versendet
+          </p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+            ${confirmRow("Offerte", `Nr. ${offerNo} &ndash; ${escapeHtml(offer.title)}`)}
+            ${confirmRow("Kunde", `${escapeHtml(offer.customer_first_name)} ${escapeHtml(offer.customer_last_name)}`)}
+            ${confirmRow("E-Mail", escapeHtml(offer.customer_email))}
+            ${confirmRow("Total", fmtCHF(Number(offer.total || 0)))}
+            ${confirmRow("Gesendet am", new Date().toLocaleString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }))}
+            ${attachmentNotes.length > 0 ? confirmRow("Anhänge", escapeHtml(attachmentNotes.join(", "))) : ""}
+          </table>
+          <p style="margin: 14px 0 0 0; font-size: 12px; color: #6b7280;">
+            Diese Bestätigung wurde automatisch erstellt. Sie werden ebenfalls benachrichtigt, sobald der Kunde die Offerte ansieht oder beantwortet.
+          </p>
+        </div>
+      </div>`;
+      try {
+        const { error: confirmError } = await resend.emails.send({
+          from: fromAddress,
+          to: [companyEmail],
+          subject: confirmSubject,
+          html: confirmHtml,
+        });
+        if (confirmError) throw confirmError;
+        logStep("Company confirmation email sent", { to: companyEmail });
+        await logEmail({
+          recipientEmail: companyEmail,
+          recipientName: offer.company?.company_name,
+          subject: confirmSubject,
+          emailType: "offer_sent_confirmation",
+          status: "sent",
+          companyId: offer.company_id,
+          leadId: offer.lead_id,
+          metadata: { offer_id: offerId },
+        });
+      } catch (confirmErr) {
+        logStep("Company confirmation email FAILED (customer send unaffected)", { error: String(confirmErr) });
+        await logEmail({
+          recipientEmail: companyEmail,
+          recipientName: offer.company?.company_name,
+          subject: confirmSubject,
+          emailType: "offer_sent_confirmation",
+          status: "failed",
+          errorMessage: String(confirmErr),
+          companyId: offer.company_id,
+          leadId: offer.lead_id,
+          metadata: { offer_id: offerId },
+        });
+      }
+    } else {
+      logStep("No company email — confirmation copy skipped");
+    }
+
     // Schedule besichtigung data cleanup (3 days after offer sent)
     // Non-blocking: failures here should not affect the offer send flow
     try {
