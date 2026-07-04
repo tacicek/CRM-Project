@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "@react-pdf/renderer";
+import { StyleSheet, Text, View, Svg, Path } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData, AddressDetails } from "../types/offer.types";
 import { getServiceLayout } from "../utils/serviceLayout";
@@ -58,11 +58,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingTop: 22, // align with body text area (below header)
-  },
-  arrowText: {
-    fontSize: 18,
-    fontWeight: 700,
-    color: COLORS.gray[300], // inline'da accent ile override
   },
   // Vertical divider between address section and meta section
   verticalDivider: {
@@ -169,10 +164,19 @@ export const AddressComparison = ({ data }: AddressComparisonProps) => {
           </View>
         </View>
 
-        {/* Arrow — only when both addresses exist */}
+        {/* Arrow — SVG (font-unabhängig; Helvetica rendert U+2192 nicht) */}
         {showRoute ? (
           <View style={styles.arrowDivider}>
-            <Text style={[styles.arrowText, { color: accent }]}>→</Text>
+            <Svg width={16} height={12} viewBox="0 0 16 12">
+              <Path
+                d="M2 6 H12 M8 2.5 L12.5 6 L8 9.5"
+                stroke={accent}
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </Svg>
           </View>
         ) : null}
 
