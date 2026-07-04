@@ -111,9 +111,12 @@ const formatAddressLines = (addr?: AddressDetails) => {
   if (typeof addr.rooms === "number") meta.push(`${addr.rooms} Zi.`);
   const floorLabel = formatFloorLabel(addr.floor);
   if (floorLabel) meta.push(floorLabel);
+  // Tri-state: undefined = unknown -> omitted; an explicit false is INFORMATION for the
+  // mover (old Bernova template shows Ja/Nein rows) and must be visible, not hidden.
   if (addr.hasLift === true) meta.push("Lift");
-  if (addr.hasEstrich === true) meta.push("Estrich");
-  if (addr.hasKeller === true) meta.push("Keller");
+  else if (addr.hasLift === false) meta.push("Kein Lift");
+  if (typeof addr.hasEstrich === "boolean") meta.push(`Estrich: ${addr.hasEstrich ? "Ja" : "Nein"}`);
+  if (typeof addr.hasKeller === "boolean") meta.push(`Keller: ${addr.hasKeller ? "Ja" : "Nein"}`);
   if (addr.buildingType) meta.push(addr.buildingType);
   return { street, city, meta };
 };
