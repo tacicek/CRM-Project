@@ -423,11 +423,22 @@ const FirmaOfferteBearbeiten = () => {
     (index: number, field: keyof OfferItem, value: unknown) => {
       setItems((prev) => {
         const newItems = [...prev];
-        newItems[index] = { ...newItems[index], [field]: value };
+        let v = value;
+        // A freshly added Zeitschätzung inherits the known Stundensatz (global Preismodell
+        // rate, else the group's Service-Details rate). Without this the top-down fill only
+        // works for fields that already exist when the rate is typed — ordering trap.
+        if (field === "timeEstimate" && v && typeof v === "object" && !(v as ItemTimeEstimate).hourlyRate) {
+          const seed =
+            (priceModel === "stundenansatz" || priceModel === "kostendach") && hourlyRate.trim() !== ""
+              ? hourlyRate
+              : groupMeta[serviceGroupKey(prev[index]?.serviceType)]?.hourlyRate ?? "";
+          if (seed.trim() !== "") v = { ...(v as ItemTimeEstimate), hourlyRate: seed };
+        }
+        newItems[index] = { ...newItems[index], [field]: v };
         return newItems;
       });
     },
-    []
+    [priceModel, hourlyRate, groupMeta]
   );
 
   const handleDragEnd = (result: DropResult) => {
