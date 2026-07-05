@@ -318,6 +318,20 @@ const FirmaOfferteErstellen = () => {
       ...prev,
       [key]: { ...EMPTY_META_DRAFT, ...prev[key], ...patch },
     }));
+    // Top-down: the group's Stundensatz is the single hourly rate — fill each group item's
+    // pricing rate (Zeitschätzung CHF/Std, or per_hour Preis/Einheit) so it isn't re-typed.
+    if (patch.hourlyRate !== undefined && patch.hourlyRate.trim() !== "") {
+      const rate = patch.hourlyRate;
+      const n = Number(rate.replace(",", "."));
+      setItems((prev) =>
+        prev.map((it) => {
+          if (serviceGroupKey(it.serviceType) !== key) return it;
+          if (it.timeEstimate) return { ...it, timeEstimate: { ...it.timeEstimate, hourlyRate: rate } };
+          if (it.priceType === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n };
+          return it;
+        }),
+      );
+    }
   };
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [briefLayout, setBriefLayout] = useState<boolean>(false);

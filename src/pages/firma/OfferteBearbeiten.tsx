@@ -162,6 +162,20 @@ const FirmaOfferteBearbeiten = () => {
       ...prev,
       [key]: { ...EMPTY_META_DRAFT, ...prev[key], ...patch },
     }));
+    // Top-down: the group's Stundensatz fills each group item's pricing rate
+    // (Zeitschätzung CHF/Std, or per_hour Preis/Einheit) so it isn't re-typed.
+    if (patch.hourlyRate !== undefined && patch.hourlyRate.trim() !== "") {
+      const rate = patch.hourlyRate;
+      const n = Number(rate.replace(",", "."));
+      setItems((prev) =>
+        prev.map((it) => {
+          if (serviceGroupKey(it.serviceType) !== key) return it;
+          if (it.timeEstimate) return { ...it, timeEstimate: { ...it.timeEstimate, hourlyRate: rate } };
+          if (it.price_type === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n };
+          return it;
+        }),
+      );
+    }
   };
 
   // Price model state
@@ -312,19 +326,34 @@ const FirmaOfferteBearbeiten = () => {
           setGroupDates(seeded);
 
           // Seed per-group service meta from the first item of each group that carries a
-          // meta row (invariant: only the group's first billable item holds it).
+          // meta row (invariant: only the group's first billable item holds it). For effort
+          // groups WITHOUT a meta row yet (all pre-feature offers), derive the Stundensatz
+          // from the item's pricing rate (Zeitschätzung CHF/Std, or per_hour Preis/Einheit)
+          // so the badge pre-fills and the rate isn't re-typed.
           const seededMeta: Record<string, GroupMetaDraft> = {};
           for (const item of itemsData as unknown as Array<{
             service_type: string | null;
             effort_meta: Parameters<typeof seedMetaDraft>[0];
             volume_meta: Parameters<typeof seedMetaDraft>[1];
             area_meta: Parameters<typeof seedMetaDraft>[2];
+            time_estimate: { hourlyRate?: number | string | null } | null;
+            price_type: string | null;
+            unit_price: number | null;
           }>) {
             const raw = (item.service_type ?? "").trim().toLowerCase();
             const k = raw === "" ? "null" : raw;
-            if (!seededMeta[k] && (item.effort_meta || item.volume_meta || item.area_meta)) {
-              seededMeta[k] = seedMetaDraft(item.effort_meta, item.volume_meta, item.area_meta);
+            if (seededMeta[k]) continue;
+            let draft =
+              item.effort_meta || item.volume_meta || item.area_meta
+                ? seedMetaDraft(item.effort_meta, item.volume_meta, item.area_meta)
+                : null;
+            if (metaKindForService(item.service_type) === "effort" && !draft?.hourlyRate?.trim()) {
+              const priced = item.time_estimate?.hourlyRate ?? (item.price_type === "per_hour" ? item.unit_price : null);
+              if (priced !== null && priced !== undefined && String(priced) !== "") {
+                draft = { ...(draft ?? EMPTY_META_DRAFT), hourlyRate: String(priced) };
+              }
             }
+            if (draft) seededMeta[k] = draft;
           }
           setGroupMeta(seededMeta);
         }
