@@ -55,6 +55,8 @@ import { useToast } from "@/hooks/use-toast";
 import { sendOffer } from "@/lib/sendOffer";
 import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
 import { OfferteItemRow, type OfferItem } from "@/components/offerte/OfferteItemRow";
+import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
+import { metaKindForService, buildMetaPayload, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
 import { ItemChip } from "@/components/offerte/ItemChip";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
@@ -306,6 +308,30 @@ const FirmaOfferteErstellen = () => {
       ...prev,
       [key]: { date: "", startTime: "", endTime: "", ...prev[key], [field]: value },
     }));
+  };
+
+  // Per-group service meta (effort/area/volume) — shares the group-keyed pattern of
+  // groupDates; attached to the group's first billable item at save (replace_offer_items).
+  const [groupMeta, setGroupMeta] = useState<Record<string, GroupMetaDraft>>({});
+  const updateGroupMeta = (key: string, patch: Partial<GroupMetaDraft>) => {
+    setGroupMeta((prev) => ({
+      ...prev,
+      [key]: { ...EMPTY_META_DRAFT, ...prev[key], ...patch },
+    }));
+    // Top-down: the group's Stundensatz is the single hourly rate — fill each group item's
+    // pricing rate (Zeitschätzung CHF/Std, or per_hour Preis/Einheit) so it isn't re-typed.
+    if (patch.hourlyRate !== undefined && patch.hourlyRate.trim() !== "") {
+      const rate = patch.hourlyRate;
+      const n = Number(rate.replace(",", "."));
+      setItems((prev) =>
+        prev.map((it) => {
+          if (serviceGroupKey(it.serviceType) !== key) return it;
+          if (it.timeEstimate) return { ...it, timeEstimate: { ...it.timeEstimate, hourlyRate: rate } };
+          if (it.priceType === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n };
+          return it;
+        }),
+      );
+    }
   };
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
@@ -1176,9 +1202,22 @@ const FirmaOfferteErstellen = () => {
       // #7b: build the item payload for replace_offer_items (offer_id comes from the RPC
       // parameter, not each row). Same RPC the edit flow uses → atomic (delete+insert in
       // one transaction, no partial items) and no duplicated insert logic.
+      // Meta attaches to the FIRST billable item of each service group (matches the PDF,
+      // which draws the meta card under the group's leading priced position).
+      const firstBillableIdByGroup = new Map<string, string>();
+      for (const it of items) {
+        if (isFreeItem(it.priceType)) continue;
+        const gk = serviceGroupKey(it.serviceType);
+        if (!firstBillableIdByGroup.has(gk)) firstBillableIdByGroup.set(gk, it.id);
+      }
+
       const itemsPayload = items.map((item) => {
         const te = item.timeEstimate;
         const teValid = te && te.minHours && te.maxHours && te.hourlyRate;
+        const gk = serviceGroupKey(item.serviceType);
+        const metaPayload = firstBillableIdByGroup.get(gk) === item.id
+          ? buildMetaPayload(metaKindForService(item.serviceType), groupMeta[gk])
+          : {};
         return {
           position: item.position,
           description: item.details.length > 0
@@ -1203,6 +1242,7 @@ const FirmaOfferteErstellen = () => {
           scheduled_date: groupDates[serviceGroupKey(item.serviceType)]?.date || null,
           scheduled_start_time: groupDates[serviceGroupKey(item.serviceType)]?.startTime || null,
           scheduled_end_time: groupDates[serviceGroupKey(item.serviceType)]?.endTime || null,
+          ...metaPayload,
         };
       });
 
@@ -1979,6 +2019,23 @@ const FirmaOfferteErstellen = () => {
                                     </div>
                                   )}
                                 </div>
+
+                                {/* Per-group service meta (effort/area/volume) — shown on the PDF
+                                    under the group's first priced position. */}
+                                {(() => {
+                                  const metaKind = metaKindForService(group.serviceType);
+                                  if (!metaKind) return null;
+                                  return (
+                                    <div className="rounded-lg border border-dashed px-3 py-2">
+                                      <ServiceMetaFields
+                                        kind={metaKind}
+                                        draft={groupMeta[serviceKey] ?? EMPTY_META_DRAFT}
+                                        onChange={(patch) => updateGroupMeta(serviceKey, patch)}
+                                        idPrefix={`meta-new-${serviceKey}`}
+                                      />
+                                    </div>
+                                  );
+                                })()}
 
                                 {/* Billable positions — full editable cards, drag-sortable within the group */}
                                 <Droppable droppableId={`group-${serviceKey}`}>
