@@ -30,8 +30,11 @@ import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, type SubtotalItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
 import { SERVICE_OPTIONS, groupItemsByService } from "@/lib/offerServiceType";
+import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
+import { metaKindForService, buildMetaPayload, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
+import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
@@ -151,6 +154,16 @@ const FirmaOfferteBearbeiten = () => {
     }));
   };
 
+  // Per-group service meta (effort/area/volume) — seeded from the loaded items, attached
+  // to the group's first billable item on save (replace_offer_items).
+  const [groupMeta, setGroupMeta] = useState<Record<string, GroupMetaDraft>>({});
+  const updateGroupMeta = (key: string, patch: Partial<GroupMetaDraft>) => {
+    setGroupMeta((prev) => ({
+      ...prev,
+      [key]: { ...EMPTY_META_DRAFT, ...prev[key], ...patch },
+    }));
+  };
+
   // Price model state
   const [priceModel, setPriceModel] = useState<PriceModel>('pauschal');
   const [discountPercent, setDiscountPercent] = useState<string>('');
@@ -258,7 +271,7 @@ const FirmaOfferteBearbeiten = () => {
         // Get offer items
         const { data: itemsData, error: itemsError } = await supabase
           .from("offer_items")
-          .select("*")
+          .select(OFFER_ITEMS_PDF_SELECT)
           .eq("offer_id", offerId)
           .order("position", { ascending: true });
 
@@ -297,6 +310,23 @@ const FirmaOfferteBearbeiten = () => {
             }
           }
           setGroupDates(seeded);
+
+          // Seed per-group service meta from the first item of each group that carries a
+          // meta row (invariant: only the group's first billable item holds it).
+          const seededMeta: Record<string, GroupMetaDraft> = {};
+          for (const item of itemsData as unknown as Array<{
+            service_type: string | null;
+            effort_meta: Parameters<typeof seedMetaDraft>[0];
+            volume_meta: Parameters<typeof seedMetaDraft>[1];
+            area_meta: Parameters<typeof seedMetaDraft>[2];
+          }>) {
+            const raw = (item.service_type ?? "").trim().toLowerCase();
+            const k = raw === "" ? "null" : raw;
+            if (!seededMeta[k] && (item.effort_meta || item.volume_meta || item.area_meta)) {
+              seededMeta[k] = seedMetaDraft(item.effort_meta, item.volume_meta, item.area_meta);
+            }
+          }
+          setGroupMeta(seededMeta);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -612,9 +642,21 @@ const FirmaOfferteBearbeiten = () => {
 
       // Atomic replace via RPC — delete + insert in a single transaction
       // Prevents orphan state if insert fails after delete
+      // Meta attaches to the FIRST billable item of each service group (matches the PDF).
+      const firstBillableIdByGroup = new Map<string, string>();
+      for (const it of items) {
+        if (isFreeItem(it.price_type)) continue;
+        const gk = serviceGroupKey(it.serviceType);
+        if (!firstBillableIdByGroup.has(gk)) firstBillableIdByGroup.set(gk, it.id);
+      }
+
       const itemsPayload = items.map((item) => {
         const te = item.timeEstimate;
         const teValid = te && te.minHours && te.maxHours && te.hourlyRate;
+        const gk = serviceGroupKey(item.serviceType);
+        const metaPayload = firstBillableIdByGroup.get(gk) === item.id
+          ? buildMetaPayload(metaKindForService(item.serviceType), groupMeta[gk])
+          : {};
         return {
           position: item.position,
           description: item.description,
@@ -633,6 +675,7 @@ const FirmaOfferteBearbeiten = () => {
           scheduled_date: groupDates[serviceGroupKey(item.serviceType)]?.date || null,
           scheduled_start_time: groupDates[serviceGroupKey(item.serviceType)]?.startTime || null,
           scheduled_end_time: groupDates[serviceGroupKey(item.serviceType)]?.endTime || null,
+          ...metaPayload,
         };
       });
 
@@ -1049,6 +1092,32 @@ const FirmaOfferteBearbeiten = () => {
                           );
                         })}
                         <p className="text-[10px] text-muted-foreground">Leer = globales Ausführungsdatum gilt.</p>
+                      </div>
+                    );
+                  })()}
+                  {(() => {
+                    const groups = groupItemsByService(items.map((it) => ({ ...it, service_type: it.serviceType ?? null })))
+                      .filter((g) => metaKindForService(g.serviceType) !== null);
+                    if (groups.length === 0) return null;
+                    return (
+                      <div className="mb-4 rounded-lg border border-dashed p-3 space-y-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Service-Details</p>
+                        {groups.map((g) => {
+                          const k = g.serviceType ?? "null";
+                          const metaKind = metaKindForService(g.serviceType)!;
+                          return (
+                            <div key={k} className="space-y-1.5">
+                              <span className="text-xs font-medium">{g.label}</span>
+                              <ServiceMetaFields
+                                kind={metaKind}
+                                draft={groupMeta[k] ?? EMPTY_META_DRAFT}
+                                onChange={(patch) => updateGroupMeta(k, patch)}
+                                idPrefix={`meta-edit-${k}`}
+                              />
+                            </div>
+                          );
+                        })}
+                        <p className="text-[10px] text-muted-foreground">Erscheint im PDF unter der ersten Position des Services.</p>
                       </div>
                     );
                   })()}
