@@ -188,6 +188,31 @@ const FirmaOfferteBearbeiten = () => {
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
   const [offerteType, setOfferteType] = useState<'normal' | 'blind'>('normal');
 
+  // Offer-level Stundenansatz (Preismodell) — offer-wide top-down: fills every hourly
+  // position (Zeitschätzung / per_hour) AND mirrors into each effort group's Service-Details
+  // Stundensatz, so the single rate drives price and PDF badge alike.
+  const applyGlobalHourlyRate = (value: string) => {
+    setHourlyRate(value);
+    if (value.trim() === "") return;
+    const n = Number(value.replace(",", "."));
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.timeEstimate) return { ...it, timeEstimate: { ...it.timeEstimate, hourlyRate: value } };
+        if (it.price_type === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n };
+        return it;
+      }),
+    );
+    setGroupMeta((prev) => {
+      const next = { ...prev };
+      for (const it of items) {
+        if (metaKindForService(it.serviceType) !== "effort") continue;
+        const k = serviceGroupKey(it.serviceType);
+        next[k] = { ...EMPTY_META_DRAFT, ...next[k], hourlyRate: value };
+      }
+      return next;
+    });
+  };
+
   // Payment terms
   const [paymentTerms, setPaymentTerms] = useState("Barzahlung nach der Ausführung");
 
@@ -997,7 +1022,7 @@ const FirmaOfferteBearbeiten = () => {
                           min={1}
                           step={1}
                           value={hourlyRate}
-                          onChange={(e) => setHourlyRate(e.target.value)}
+                          onChange={(e) => applyGlobalHourlyRate(e.target.value)}
                           placeholder="z.B. 120"
                           className="h-9 sm:h-10 text-sm"
                         />
