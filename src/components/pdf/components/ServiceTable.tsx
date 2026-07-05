@@ -411,7 +411,8 @@ const ItemRow = ({ item }: RowProps) => {
         {r ? (
           <>
             <Text style={[cardStyles.posPrice, { color: "#B45309" }]}>{formatCurrency(r.min)}</Text>
-            <Text style={cardStyles.posPriceSub}>{"–"} {formatCurrency(r.max)}</Text>
+            {/* "bis", not a dash — a stacked leading "–" reads as subtraction/negative */}
+            <Text style={cardStyles.posPriceSub}>bis {formatCurrency(r.max)}</Text>
           </>
         ) : (
           <Text style={cardStyles.posPrice}>{formatCurrency(item.total)}</Text>
@@ -609,7 +610,7 @@ export const ServiceTable = ({
                     {formatCurrency(data.pricing.subtotal)}
                   </Text>
                   <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                    {"\u2013"} {formatCurrency(data.pricing.maxSubtotal)}
+                    bis {formatCurrency(data.pricing.maxSubtotal)}
                   </Text>
                 </View>
               </View>
@@ -643,7 +644,7 @@ export const ServiceTable = ({
                         {`- ${formatCurrency(data.pricing.discountAmount ?? 0)}`}
                       </Text>
                       <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                        {"\u2013"} {`- ${formatCurrency(data.pricing.maxDiscountAmount)}`}
+                        bis {`- ${formatCurrency(data.pricing.maxDiscountAmount)}`}
                       </Text>
                     </View>
                   ) : (
@@ -658,7 +659,7 @@ export const ServiceTable = ({
                         {formatCurrency(data.pricing.taxableBase ?? 0)}
                       </Text>
                       <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                        {"\u2013"} {formatCurrency(data.pricing.maxTaxableBase)}
+                        bis {formatCurrency(data.pricing.maxTaxableBase)}
                       </Text>
                     </View>
                   ) : (
@@ -682,7 +683,7 @@ export const ServiceTable = ({
                       {formatCurrency(data.pricing.mwstAmount)}
                     </Text>
                     <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                      {"\u2013"} {formatCurrency(data.pricing.maxMwstAmount)}
+                      bis {formatCurrency(data.pricing.maxMwstAmount)}
                     </Text>
                   </View>
                 </View>
@@ -704,7 +705,7 @@ export const ServiceTable = ({
                       {formatCurrency(data.pricing.total)}
                     </Text>
                     <Text style={{ fontSize: FONT_SIZES.xs, color: "#F1F5F9" }}>
-                      {"\u2013"} {formatCurrency(data.pricing.maxTotal)}
+                      bis {formatCurrency(data.pricing.maxTotal)}
                     </Text>
                   </View>
                 ) : (

@@ -913,7 +913,7 @@ const PublicOfferView = () => {
                           {isRange ? (
                             <div className="text-right text-amber-700 font-medium leading-snug">
                               <div>{formatCurrency(minItemsSub)}</div>
-                              <div className="text-xs text-amber-600">– {formatCurrency(maxItemsSub)}</div>
+                              <div className="text-xs text-amber-600">bis {formatCurrency(maxItemsSub)}</div>
                             </div>
                           ) : (
                             <span>{formatCurrency(minItemsSub)}</span>
@@ -934,7 +934,7 @@ const PublicOfferView = () => {
                               {isRange ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>- {formatCurrency(minTotals.discountAmount)}</div>
-                                  <div className="text-xs text-amber-600">– - {formatCurrency(maxTotals.discountAmount)}</div>
+                                  <div className="text-xs text-amber-600">bis - {formatCurrency(maxTotals.discountAmount)}</div>
                                 </div>
                               ) : (
                                 <span>- {formatCurrency(minTotals.discountAmount)}</span>
@@ -945,7 +945,7 @@ const PublicOfferView = () => {
                               {isRange ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>{formatCurrency(minTotals.taxableBase)}</div>
-                                  <div className="text-xs text-amber-600">– {formatCurrency(maxTotals.taxableBase)}</div>
+                                  <div className="text-xs text-amber-600">bis {formatCurrency(maxTotals.taxableBase)}</div>
                                 </div>
                               ) : (
                                 <span>{formatCurrency(minTotals.taxableBase)}</span>
@@ -961,7 +961,7 @@ const PublicOfferView = () => {
                             {isRange ? (
                               <div className="text-right text-amber-700 leading-snug">
                                 <div>{formatCurrency(Number(offer.vat_amount))}</div>
-                                <div className="text-xs text-amber-600">– {formatCurrency(maxTotals.vatAmount)}</div>
+                                <div className="text-xs text-amber-600">bis {formatCurrency(maxTotals.vatAmount)}</div>
                               </div>
                             ) : (
                               <span>{formatCurrency(Number(offer.vat_amount))}</span>
@@ -974,7 +974,7 @@ const PublicOfferView = () => {
                           {isRange ? (
                             <div className="text-right text-amber-700 leading-snug">
                               <div>{formatCurrency(Number(offer.total))}</div>
-                              <div className="text-sm font-semibold text-amber-600">– {formatCurrency(maxTotals.total)}</div>
+                              <div className="text-sm font-semibold text-amber-600">bis {formatCurrency(maxTotals.total)}</div>
                             </div>
                           ) : (
                             <span className="text-secondary">{formatCurrency(Number(offer.total))}</span>

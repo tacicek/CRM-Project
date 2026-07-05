@@ -54,7 +54,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { sendOffer } from "@/lib/sendOffer";
 import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
-import { OfferteItemRow, type OfferItem } from "@/components/offerte/OfferteItemRow";
+import { OfferteItemRow, type OfferItem, type ItemTimeEstimate } from "@/components/offerte/OfferteItemRow";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
 import { metaKindForService, buildMetaPayload, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
 import { ItemChip } from "@/components/offerte/ItemChip";
@@ -828,10 +828,21 @@ const FirmaOfferteErstellen = () => {
   const updateItem = useCallback((index: number, field: keyof OfferItem, value: unknown) => {
     setItems((prev) => {
       const newItems = [...prev];
-      newItems[index] = { ...newItems[index], [field]: value };
+      let v = value;
+      // A freshly added Zeitschätzung inherits the known Stundensatz (global Preismodell
+      // rate, else the group's Service-Details rate). Without this the top-down fill only
+      // works for fields that already exist when the rate is typed — ordering trap.
+      if (field === "timeEstimate" && v && typeof v === "object" && !(v as ItemTimeEstimate).hourlyRate) {
+        const seed =
+          (priceModel === "stundenansatz" || priceModel === "kostendach") && hourlyRate.trim() !== ""
+            ? hourlyRate
+            : groupMeta[serviceGroupKey(prev[index]?.serviceType)]?.hourlyRate ?? "";
+        if (seed.trim() !== "") v = { ...(v as ItemTimeEstimate), hourlyRate: seed };
+      }
+      newItems[index] = { ...newItems[index], [field]: v };
       return newItems;
     });
-  }, []);
+  }, [priceModel, hourlyRate, groupMeta]);
 
   const addDetail = (itemIndex: number) => {
     setItems((prev) => {

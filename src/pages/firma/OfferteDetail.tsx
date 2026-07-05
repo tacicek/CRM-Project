@@ -948,7 +948,7 @@ const FirmaOfferteDetail = () => {
                           {range ? (
                             <div className="text-right text-amber-700 font-medium leading-snug">
                               <div>{formatCurrency(itemsSub)}</div>
-                              <div className="text-xs text-amber-600">– {formatCurrency(range.maxSubtotal)}</div>
+                              <div className="text-xs text-amber-600">bis {formatCurrency(range.maxSubtotal)}</div>
                             </div>
                           ) : (
                             <span>{formatCurrency(itemsSub)}</span>
@@ -969,7 +969,7 @@ const FirmaOfferteDetail = () => {
                               {range ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>- {formatCurrency(dtMin.discountAmount)}</div>
-                                  <div className="text-xs text-amber-600">– - {formatCurrency(range.maxDiscountAmount)}</div>
+                                  <div className="text-xs text-amber-600">bis - {formatCurrency(range.maxDiscountAmount)}</div>
                                 </div>
                               ) : (
                                 <span>- {formatCurrency(dtMin.discountAmount)}</span>
@@ -980,7 +980,7 @@ const FirmaOfferteDetail = () => {
                               {range ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>{formatCurrency(dtMin.taxableBase)}</div>
-                                  <div className="text-xs text-amber-600">– {formatCurrency(range.maxTaxableBase)}</div>
+                                  <div className="text-xs text-amber-600">bis {formatCurrency(range.maxTaxableBase)}</div>
                                 </div>
                               ) : (
                                 <span>{formatCurrency(dtMin.taxableBase)}</span>
@@ -996,7 +996,7 @@ const FirmaOfferteDetail = () => {
                             {range ? (
                               <div className="text-right text-amber-700 leading-snug">
                                 <div>{formatCurrency(Number(offer.vat_amount))}</div>
-                                <div className="text-xs text-amber-600">– {formatCurrency(range.maxVat)}</div>
+                                <div className="text-xs text-amber-600">bis {formatCurrency(range.maxVat)}</div>
                               </div>
                             ) : (
                               <span>{formatCurrency(Number(offer.vat_amount))}</span>
@@ -1009,7 +1009,7 @@ const FirmaOfferteDetail = () => {
                           {range ? (
                             <div className="text-right text-amber-700 leading-snug">
                               <div>{formatCurrency(Number(offer.total))}</div>
-                              <div className="text-sm font-semibold text-amber-600">– {formatCurrency(Number(range.maxTotal))}</div>
+                              <div className="text-sm font-semibold text-amber-600">bis {formatCurrency(Number(range.maxTotal))}</div>
                             </div>
                           ) : (
                             <span className="text-primary">{formatCurrency(Number(offer.total))}</span>
@@ -1095,7 +1095,7 @@ const FirmaOfferteDetail = () => {
                           {range ? (
                             <div className="text-right text-amber-700 font-medium leading-snug">
                               <div>{formatCurrency(itemsSub)}</div>
-                              <div className="text-xs text-amber-600">– {formatCurrency(range.maxSubtotal)}</div>
+                              <div className="text-xs text-amber-600">bis {formatCurrency(range.maxSubtotal)}</div>
                             </div>
                           ) : (
                             <span>{formatCurrency(itemsSub)}</span>
@@ -1116,7 +1116,7 @@ const FirmaOfferteDetail = () => {
                               {range ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>- {formatCurrency(dtMin.discountAmount)}</div>
-                                  <div className="text-xs text-amber-600">– - {formatCurrency(range.maxDiscountAmount)}</div>
+                                  <div className="text-xs text-amber-600">bis - {formatCurrency(range.maxDiscountAmount)}</div>
                                 </div>
                               ) : (
                                 <span>- {formatCurrency(dtMin.discountAmount)}</span>
@@ -1127,7 +1127,7 @@ const FirmaOfferteDetail = () => {
                               {range ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>{formatCurrency(dtMin.taxableBase)}</div>
-                                  <div className="text-xs text-amber-600">– {formatCurrency(range.maxTaxableBase)}</div>
+                                  <div className="text-xs text-amber-600">bis {formatCurrency(range.maxTaxableBase)}</div>
                                 </div>
                               ) : (
                                 <span>{formatCurrency(dtMin.taxableBase)}</span>
@@ -1143,7 +1143,7 @@ const FirmaOfferteDetail = () => {
                             {range ? (
                               <div className="text-right text-amber-700 leading-snug">
                                 <div>{formatCurrency(Number(offer.vat_amount))}</div>
-                                <div className="text-xs text-amber-600">– {formatCurrency(range.maxVat)}</div>
+                                <div className="text-xs text-amber-600">bis {formatCurrency(range.maxVat)}</div>
                               </div>
                             ) : (
                               <span>{formatCurrency(Number(offer.vat_amount))}</span>
@@ -1156,7 +1156,7 @@ const FirmaOfferteDetail = () => {
                           {range ? (
                             <div className="text-right text-amber-700 leading-snug">
                               <div>{formatCurrency(Number(offer.total))}</div>
-                              <div className="text-sm font-semibold text-amber-600">– {formatCurrency(Number(range.maxTotal))}</div>
+                              <div className="text-sm font-semibold text-amber-600">bis {formatCurrency(Number(range.maxTotal))}</div>
                             </div>
                           ) : (
                             <span className="">{formatCurrency(Number(offer.total))}</span>
