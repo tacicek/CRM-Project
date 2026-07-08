@@ -922,6 +922,7 @@ const FirmaOfferteErstellen = () => {
             hourlyRate: parseFloat(item.timeEstimate.hourlyRate),
           }
         : null,
+      amountBasis: item.amountBasis ?? null,
     }));
 
   const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
@@ -1262,7 +1263,7 @@ const FirmaOfferteErstellen = () => {
           // M2: blind (time-estimate) items are priced as minHours*hourlyRate for the whole
           // position, so quantity must be 1 — otherwise the GENERATED total (quantity*unit_price)
           // double-counts. Mirrors the "inkl" handling.
-          quantity: item.priceType === "inkl" || teValid ? 1 : item.quantity,
+          quantity: item.priceType === "inkl" || teValid || item.amountBasis === "rate" ? 1 : item.quantity,
           unit: item.priceType === "inkl" ? "inkl." : item.unit,
           unit_price: teValid
             ? parseFloat(te!.minHours) * parseFloat(te!.hourlyRate)
@@ -1278,6 +1279,8 @@ const FirmaOfferteErstellen = () => {
           scheduled_date: groupDates[serviceGroupKey(item.serviceType)]?.date || null,
           scheduled_start_time: groupDates[serviceGroupKey(item.serviceType)]?.startTime || null,
           scheduled_end_time: groupDates[serviceGroupKey(item.serviceType)]?.endTime || null,
+          amount_basis: item.amountBasis ?? "fixed",
+          kostendach_max: item.amountBasis === "rate" ? (item.kostendachMax ?? null) : null,
           ...metaPayload,
         };
       });
@@ -2449,6 +2452,9 @@ const FirmaOfferteErstellen = () => {
                           vatRate={mwstEnabled ? vatRate : 0}
                           vatAmount={calculateVat()}
                           total={calculateTotal()}
+                          priceModel={priceModel}
+                          hourlyRate={hourlyRate ? Number(hourlyRate) : null}
+                          kostendachMax={kostendachMax ? Number(kostendachMax) : null}
                           serviceDate={serviceDate}
                           validUntil={validUntil}
                           paymentTerms={paymentTerms}
@@ -2540,6 +2546,9 @@ const FirmaOfferteErstellen = () => {
                       vatRate={mwstEnabled ? vatRate : 0}
                       vatAmount={calculateVat()}
                       total={calculateTotal()}
+                      priceModel={priceModel}
+                      hourlyRate={hourlyRate ? Number(hourlyRate) : null}
+                      kostendachMax={kostendachMax ? Number(kostendachMax) : null}
                       serviceDate={serviceDate}
                       validUntil={validUntil}
                       paymentTerms={paymentTerms}

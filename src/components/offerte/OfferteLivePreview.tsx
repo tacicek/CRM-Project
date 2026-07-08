@@ -326,6 +326,7 @@ export const OfferteLivePreview = ({
           const te = item.timeEstimate;
           const display = itemAmountDisplay({
             priceType: item.priceType,
+            amountBasis: item.amountBasis ?? null,
             quantity: item.quantity,
             unitPrice: item.unit_price,
             unit: item.unit,
