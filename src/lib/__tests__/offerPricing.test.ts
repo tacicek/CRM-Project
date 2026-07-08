@@ -9,6 +9,7 @@ import {
   computeDiscountAmount,
   computeDisplayTotals,
   resolveAmountBasis,
+  toAmountBasis,
   itemAmountDisplay,
   type SubtotalItem,
   type AmountDisplayItem,
@@ -195,6 +196,21 @@ describe("computeTotalsFromSubtotal", () => {
     // VAT 0, surcharge 0 → total range 1200 – 1400
     expect(computeTotalsFromSubtotal(minItems, 0, 0).total).toBe(1200);
     expect(computeTotalsFromSubtotal(maxItems, 0, 0).total).toBe(1400);
+  });
+});
+
+describe("toAmountBasis (DB string normalizer)", () => {
+  it("valid values pass through", () => {
+    expect(toAmountBasis("fixed")).toBe("fixed");
+    expect(toAmountBasis("rate")).toBe("rate");
+    expect(toAmountBasis("range")).toBe("range");
+  });
+
+  it("unknown/empty/null/undefined → null (→ legacy derivation)", () => {
+    expect(toAmountBasis("pauschal")).toBeNull();
+    expect(toAmountBasis("")).toBeNull();
+    expect(toAmountBasis(null)).toBeNull();
+    expect(toAmountBasis(undefined)).toBeNull();
   });
 });
 

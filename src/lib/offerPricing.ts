@@ -56,6 +56,21 @@ export const hourlyRange = (
 // - range: bestimmte Min/Max-Spanne → als Spanne in der Summe (Min im 'min'-, Max im 'max'-Modus).
 export type AmountBasis = "fixed" | "rate" | "range";
 
+/**
+ * Normalisiert einen (DB-)String auf AmountBasis. Unbekannt/leer/null → null (→ Legacy-Ableitung
+ * in resolveAmountBasis). Defensiv gegen unerwartete DB-Werte, ohne Cast (Switch-Narrowing).
+ */
+export const toAmountBasis = (value: string | null | undefined): AmountBasis | null => {
+  switch (value) {
+    case "fixed":
+    case "rate":
+    case "range":
+      return value;
+    default:
+      return null;
+  }
+};
+
 export interface SubtotalItem {
   priceType: string; // 'pauschale' | 'per_unit' | 'per_hour' | 'optional' | 'inkl'
   quantity: number;
