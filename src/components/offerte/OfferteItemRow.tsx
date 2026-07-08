@@ -86,6 +86,14 @@ export const OfferteItemRow = ({
   offerteType,
 }: OfferteItemRowProps) => {
   const te = item.timeEstimate;
+  // Zeitschätzungs-Range nur anzeigen, wenn Min/Max/Ansatz gültige positive Zahlen sind
+  // (sonst wäre die „min – max"-Zeile 0.00 oder NaN). Spiegelt hourlyRange-Semantik.
+  const teValid = !!(
+    te &&
+    parseFloat(te.minHours) > 0 &&
+    parseFloat(te.maxHours) > 0 &&
+    parseFloat(te.hourlyRate) > 0
+  );
   // SINGLE SOURCE fuer die Total-Anzeige (fixed | rate | range) — kein eigenes 0.00-Rechnen mehr.
   const amountDisplay = itemAmountDisplay({
     priceType: item.priceType,
