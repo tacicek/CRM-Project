@@ -61,7 +61,7 @@ import { ItemChip } from "@/components/offerte/ItemChip";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerAmountShape, type SubtotalItem, KOSTENDACH_RANGE_NOTE, UNCAPPED_RATE_NOTE } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerHasRateItem, type SubtotalItem, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -932,17 +932,18 @@ const FirmaOfferteErstellen = () => {
           }
         : null,
       amountBasis: item.amountBasis ?? null,
-      kostendachMax: item.kostendachMax ?? null,
     }));
 
   const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
 
-  // Range greift bei Stunden-Spanne ODER gedeckeltem rate-Posten (0..Cap) — offerAmountShape
-  // ist SINGLE SOURCE (ersetzt das frühere reine timeEstimate-Gate).
+  // Blind/Stunden-Spanne (nur fixed+range). rate-Posten → gar keine Aggregatsumme (Box ausgeblendet).
   const calculateMaxSubtotal = (): number | null => {
-    if (!offerAmountShape(toSubtotalItems()).hasRange) return null;
+    const hasAny = items.some(i => i.timeEstimate && i.timeEstimate.maxHours && i.timeEstimate.hourlyRate);
+    if (!hasAny) return null;
     return computeItemsSubtotal(toSubtotalItems(), "max");
   };
+
+  const hasRateItem = () => offerHasRateItem(toSubtotalItems());
 
   // Steuerbare Basis = Positionen + Zuschläge. Entspricht offers.subtotal →
   // GENERATED vat_amount/total (subtotal * vat_rate / 100). Vorschau = gespeicherte Offerte.
@@ -2185,9 +2186,15 @@ const FirmaOfferteErstellen = () => {
                     </div>
                   )}
 
-                  {/* Totals */}
+                  {/* Totals — bei rate-Posten keine Aggregat-Box, nur Hinweis */}
                   <div className="flex justify-end">
                     <div className="w-full sm:w-72 space-y-2">
+                      {hasRateItem() ? (
+                        <div className="text-right text-xs sm:text-sm text-muted-foreground leading-snug">
+                          {RATE_AGGREGATE_NOTE}
+                        </div>
+                      ) : (
+                      <>
                       {/* Zwischensumme */}
                       <div className="flex justify-between items-start text-xs sm:text-sm">
                         <span className="shrink-0">Zwischensumme</span>
@@ -2279,12 +2286,8 @@ const FirmaOfferteErstellen = () => {
                           <span className="text-secondary">{formatCurrency(calculateTotal())}</span>
                         )}
                       </div>
-                      {(() => { const shape = offerAmountShape(toSubtotalItems()); return (shape.hasRange || shape.hasUncappedRate) ? (
-                        <div className="text-right text-[10px] sm:text-xs text-muted-foreground leading-snug pt-1">
-                          {shape.hasRange ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
-                          {shape.hasUncappedRate ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
-                        </div>
-                      ) : null; })()}
+                      </>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -2472,8 +2475,7 @@ const FirmaOfferteErstellen = () => {
                           maxSubtotal={calculateMaxSubtotal()}
                           maxVat={calculateMaxVat()}
                           maxTotal={calculateMaxTotal()}
-                          showKostendachRangeNote={offerAmountShape(toSubtotalItems()).hasRange}
-                          showUncappedRateNote={offerAmountShape(toSubtotalItems()).hasUncappedRate}
+                          hasRateItem={hasRateItem()}
                           priceModel={priceModel}
                           hourlyRate={hourlyRate ? Number(hourlyRate) : null}
                           kostendachMax={kostendachMax ? Number(kostendachMax) : null}
@@ -2571,8 +2573,7 @@ const FirmaOfferteErstellen = () => {
                       maxSubtotal={calculateMaxSubtotal()}
                       maxVat={calculateMaxVat()}
                       maxTotal={calculateMaxTotal()}
-                      showKostendachRangeNote={offerAmountShape(toSubtotalItems()).hasRange}
-                      showUncappedRateNote={offerAmountShape(toSubtotalItems()).hasUncappedRate}
+                      hasRateItem={hasRateItem()}
                       priceModel={priceModel}
                       hourlyRate={hourlyRate ? Number(hourlyRate) : null}
                       kostendachMax={kostendachMax ? Number(kostendachMax) : null}

@@ -50,7 +50,7 @@ import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeDisplayTotals, isFreeItem, itemAmountDisplay, offerAmountShape, toAmountBasis, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT, KOSTENDACH_RANGE_NOTE, UNCAPPED_RATE_NOTE } from "@/lib/offerPricing";
+import { computeDisplayTotals, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 
 interface OfferItem {
@@ -931,16 +931,19 @@ const PublicOfferView = () => {
                   {(() => {
                     const surchargeList = parseSurcharges(offer.surcharges);
                     const surchargesSum = sumSurchargeAmounts(surchargeList);
-                    // P3b-2a: Zwischensumme comes from the ITEMS (raw, undiscounted) — never
-                    // derived back from offers.subtotal (which stores the discounted base).
+                    // rate-Posten → gar keine Aggregatsumme; nur RATE_AGGREGATE_NOTE.
                     const subtotalItems = items.map((it): SubtotalItem => ({
                       priceType: it.price_type ?? "",
                       quantity: Number(it.quantity),
                       unitPrice: Number(it.unit_price),
                       timeEstimate: it.time_estimate ?? null,
                       amountBasis: toAmountBasis(it.amount_basis),
-                      kostendachMax: it.kostendach_max ?? null,
                     }));
+                    if (offerHasRateItem(subtotalItems)) {
+                      return <div className="text-sm text-muted-foreground leading-snug">{RATE_AGGREGATE_NOTE}</div>;
+                    }
+                    // P3b-2a: Zwischensumme comes from the ITEMS (raw, undiscounted) — never
+                    // derived back from offers.subtotal (which stores the discounted base).
                     const minTotals = computeDisplayTotals(
                       subtotalItems, surchargesSum, Number(offer.vat_rate), offer.discount_percent, "min",
                     );
@@ -949,10 +952,8 @@ const PublicOfferView = () => {
                     );
                     const minItemsSub = minTotals.subtotal;
                     const maxItemsSub = maxTotals.subtotal;
-                    // Range greift bei Stunden-Spanne ODER gedeckeltem rate-Posten (0..Cap) —
-                    // nicht mehr nur bei blind. offerAmountShape ist SINGLE SOURCE.
-                    const shape = offerAmountShape(subtotalItems);
-                    const isRange = shape.hasRange;
+                    // Blind/Stunden-Spanne (nur fixed+range) — unverändert.
+                    const isRange = offer.offerte_type === "blind" && maxItemsSub !== minItemsSub;
                     return (
                       <>
                         <div className="flex items-start justify-between gap-4">
@@ -1027,12 +1028,6 @@ const PublicOfferView = () => {
                             <span className="text-secondary">{formatCurrency(Number(offer.total))}</span>
                           )}
                         </div>
-                        {shape.hasRange || shape.hasUncappedRate ? (
-                          <div className="text-right text-xs text-muted-foreground leading-snug pt-1">
-                            {shape.hasRange ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
-                            {shape.hasUncappedRate ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
-                          </div>
-                        ) : null}
                       </>
                     );
                   })()}
@@ -1201,36 +1196,23 @@ const PublicOfferView = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 rounded-lg bg-muted/50">
-              <p className="text-sm text-muted-foreground">Gesamtbetrag</p>
               {(() => {
-                // Muss den Gesamtbetrag-Block oben spiegeln: bei gedeckelten rate-Posten /
-                // Stunden-Spanne den Bereich „min – max" zeigen, nicht nur den Boden (offer.total).
+                // Kritischste Stelle (Kunde bestätigt hier): bei rate-Posten KEINE Summe/Zahl,
+                // die einen Endpreis suggeriert — nur RATE_AGGREGATE_NOTE. Sonst wie bisher offer.total.
                 const subtotalItems = items.map((it): SubtotalItem => ({
                   priceType: it.price_type ?? "",
                   quantity: Number(it.quantity),
                   unitPrice: Number(it.unit_price),
                   timeEstimate: it.time_estimate ?? null,
                   amountBasis: toAmountBasis(it.amount_basis),
-                  kostendachMax: it.kostendach_max ?? null,
                 }));
-                const shape = offerAmountShape(subtotalItems);
-                if (!shape.hasRange && !shape.hasUncappedRate) {
-                  return <p className="text-2xl font-bold text-secondary">{formatCurrency(Number(offer.total))}</p>;
+                if (offerHasRateItem(subtotalItems)) {
+                  return <p className="text-sm text-muted-foreground leading-snug">{RATE_AGGREGATE_NOTE}</p>;
                 }
-                const surchargesSum = sumSurchargeAmounts(parseSurcharges(offer.surcharges));
-                const maxTotal = computeDisplayTotals(
-                  subtotalItems, surchargesSum, Number(offer.vat_rate), offer.discount_percent, "max",
-                ).total;
                 return (
                   <>
-                    <p className="text-2xl font-bold text-secondary">
-                      {shape.hasRange
-                        ? `${formatCurrency(Number(offer.total))} – ${formatCurrency(maxTotal)}`
-                        : formatCurrency(Number(offer.total))}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {shape.hasRange ? KOSTENDACH_RANGE_NOTE : UNCAPPED_RATE_NOTE}
-                    </p>
+                    <p className="text-sm text-muted-foreground">Gesamtbetrag</p>
+                    <p className="text-2xl font-bold text-secondary">{formatCurrency(Number(offer.total))}</p>
                   </>
                 );
               })()}

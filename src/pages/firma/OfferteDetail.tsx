@@ -70,7 +70,7 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeDisplayTotals, isFreeItem, itemAmountDisplay, offerAmountShape, toAmountBasis, KOSTENDACH_RANGE_NOTE, UNCAPPED_RATE_NOTE } from "@/lib/offerPricing";
+import { computeDisplayTotals, hourlyRange, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { useAuth } from "@/hooks/useAuth";
@@ -425,15 +425,15 @@ const FirmaOfferteDetail = () => {
       unitPrice: Number(it.unit_price) || 0,
       timeEstimate: it.time_estimate ?? null,
       amountBasis: toAmountBasis(it.amount_basis),
-      kostendachMax: it.kostendach_max ?? null,
     }));
 
-  // Betrags-Range der Offerte: greift bei gültiger Stunden-Spanne ODER gedeckeltem rate-Posten
-  // (0..Cap) — nicht mehr nur bei blind. offerAmountShape ist SINGLE SOURCE (kein offerte_type-Gate).
+  const hasRateItem = () => offerHasRateItem(toSubtotalItems());
+
+  // Blind/Stunden-Spanne (nur fixed+range). rate-Posten → gar keine Aggregatsumme (Box ausgeblendet).
   const getBlindRange = () => {
-    if (!offer) return null;
+    if (offer?.offerte_type !== 'blind') return null;
     const subtotalItems = toSubtotalItems();
-    if (!offerAmountShape(subtotalItems).hasRange) return null;
+    if (!subtotalItems.some((it) => hourlyRange(it.timeEstimate) !== null)) return null;
     const surchargesSum = sumSurchargeAmounts(parseSurcharges(offer.surcharges));
     // P3b-2a: consolidated read chain — the discount now also caps the max side.
     // maxSubtotal is the RAW max items sum (Zwischensumme upper bound, items only —
@@ -972,7 +972,7 @@ const FirmaOfferteDetail = () => {
                   <Separator className="my-3" />
 
                   <div className="space-y-2 text-sm">
-                    {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
+                    {(() => { if (hasRateItem()) return (<div className="text-muted-foreground leading-snug">{RATE_AGGREGATE_NOTE}</div>); const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
                       <>
                         <div className="flex items-start justify-between gap-4">
                           <span className="text-muted-foreground shrink-0">Zwischensumme</span>
@@ -1046,12 +1046,6 @@ const FirmaOfferteDetail = () => {
                             <span className="text-primary">{formatCurrency(Number(offer.total))}</span>
                           )}
                         </div>
-                        {(() => { const shape = offerAmountShape(toSubtotalItems()); return (shape.hasRange || shape.hasUncappedRate) ? (
-                          <div className="text-right text-xs text-muted-foreground leading-snug pt-1">
-                            {shape.hasRange ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
-                            {shape.hasUncappedRate ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
-                          </div>
-                        ) : null; })()}
                       </>
                     ); })()}
                   </div>
@@ -1150,7 +1144,7 @@ const FirmaOfferteDetail = () => {
 
                   <div className="flex justify-end">
                     <div className="w-72 space-y-2">
-                      {(() => { const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
+                      {(() => { if (hasRateItem()) return (<div className="text-sm text-muted-foreground leading-snug">{RATE_AGGREGATE_NOTE}</div>); const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
                       <>
                         <div className="flex items-start justify-between gap-4 text-sm">
                           <span className="text-muted-foreground shrink-0">Zwischensumme</span>
@@ -1224,12 +1218,6 @@ const FirmaOfferteDetail = () => {
                             <span className="">{formatCurrency(Number(offer.total))}</span>
                           )}
                         </div>
-                        {(() => { const shape = offerAmountShape(toSubtotalItems()); return (shape.hasRange || shape.hasUncappedRate) ? (
-                          <div className="text-right text-xs text-muted-foreground leading-snug pt-1">
-                            {shape.hasRange ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
-                            {shape.hasUncappedRate ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
-                          </div>
-                        ) : null; })()}
                       </>
                       ); })()}
                     </div>

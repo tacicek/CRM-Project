@@ -3,6 +3,7 @@ import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
 import { formatCurrency, formatDate } from "../utils/formatters";
 import { lightenHex } from "../utils/colors";
+import { RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
 
 const styles = StyleSheet.create({
   titleText: {
@@ -188,11 +189,15 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
         {data.executionDate ? (
           <Text style={styles.summaryLine}>Ausführungsdatum: {formatDate(data.executionDate)}</Text>
         ) : null}
-        <Text style={styles.summaryTotal}>
-          {data.pricing.maxTotal !== null && data.pricing.maxTotal !== undefined
-            ? `Gesamtbetrag: ${formatCurrency(data.pricing.total)} – ${formatCurrency(data.pricing.maxTotal)}`
-            : `Gesamtbetrag: ${formatCurrency(data.pricing.total)}`}
-        </Text>
+        {data.pricing.hasRateItem ? (
+          <Text style={styles.summaryLine}>{RATE_AGGREGATE_NOTE}</Text>
+        ) : (
+          <Text style={styles.summaryTotal}>
+            {data.pricing.maxTotal !== null && data.pricing.maxTotal !== undefined
+              ? `Gesamtbetrag: ${formatCurrency(data.pricing.total)} – ${formatCurrency(data.pricing.maxTotal)}`
+              : `Gesamtbetrag: ${formatCurrency(data.pricing.total)}`}
+          </Text>
+        )}
       </View>
     </View>
   );

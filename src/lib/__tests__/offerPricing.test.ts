@@ -12,7 +12,7 @@ import {
   toAmountBasis,
   defaultAmountBasisForPriceType,
   itemAmountDisplay,
-  offerAmountShape,
+  offerHasRateItem,
   type SubtotalItem,
   type AmountDisplayItem,
   BLIND_DISCLAIMER_LABEL,
@@ -317,86 +317,57 @@ describe("computeItemsSubtotal — amount_basis", () => {
   });
 });
 
-describe("computeItemsSubtotal — rate item-level Kostendach (max side)", () => {
-  it("rate WITH cap: min excludes it, max adds the cap (0..Cap range)", () => {
-    const items: SubtotalItem[] = [
-      { priceType: "pauschale", quantity: 1, unitPrice: 800, timeEstimate: null },
-      { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null, kostendachMax: 3150 },
-    ];
-    expect(computeItemsSubtotal(items, "min")).toBe(800); // cap NOT in the floor
-    expect(computeItemsSubtotal(items, "max")).toBe(3950); // 800 + 3150 ceiling
-  });
-
-  it("rate WITHOUT cap stays excluded in both modes (unchanged)", () => {
+describe("computeItemsSubtotal — rate is ALWAYS excluded (Kostendach irrelevant)", () => {
+  it("rate WITH cap is still excluded in both modes (no cap-based range)", () => {
     const items: SubtotalItem[] = [
       { priceType: "pauschale", quantity: 1, unitPrice: 800, timeEstimate: null },
       { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null },
     ];
     expect(computeItemsSubtotal(items, "min")).toBe(800);
-    expect(computeItemsSubtotal(items, "max")).toBe(800);
+    expect(computeItemsSubtotal(items, "max")).toBe(800); // cap never re-enters the sum
   });
 
-  it("cap of 0 or negative is treated as no cap", () => {
-    const zero: SubtotalItem[] = [
-      { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null, kostendachMax: 0 },
-    ];
-    expect(computeItemsSubtotal(zero, "max")).toBe(0);
-  });
-
-  it("MIXED fixed + range + capped rate: full min/max", () => {
+  it("MIXED fixed + range + rate: rate never counts, range still min/max", () => {
     const items: SubtotalItem[] = [
       { priceType: "pauschale", amountBasis: "fixed", quantity: 1, unitPrice: 800, timeEstimate: null },
       { priceType: "per_hour", amountBasis: "range", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 3, maxHours: 5, hourlyRate: 90 } },
-      { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null, kostendachMax: 3150 },
+      { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null },
     ];
     expect(computeItemsSubtotal(items, "min")).toBe(1070); // 800 + 270
-    expect(computeItemsSubtotal(items, "max")).toBe(4400); // 800 + 450 + 3150
+    expect(computeItemsSubtotal(items, "max")).toBe(1250); // 800 + 450 (rate excluded)
   });
 });
 
-describe("offerAmountShape (range/note decision — single source)", () => {
-  it("no rate/range → no range, no uncapped", () => {
+describe("offerHasRateItem (aggregate-box hide decision — single source)", () => {
+  it("no rate → false", () => {
     const items: SubtotalItem[] = [
       { priceType: "pauschale", quantity: 1, unitPrice: 800, timeEstimate: null },
+      { priceType: "per_hour", amountBasis: "range", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 3, maxHours: 5, hourlyRate: 90 } },
     ];
-    expect(offerAmountShape(items)).toEqual({ hasRange: false, hasUncappedRate: false });
+    expect(offerHasRateItem(items)).toBe(false);
   });
 
-  it("capped rate → hasRange, not uncapped", () => {
-    const items: SubtotalItem[] = [
-      { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null, kostendachMax: 3150 },
-    ];
-    expect(offerAmountShape(items)).toEqual({ hasRange: true, hasUncappedRate: false });
-  });
-
-  it("uncapped rate → hasUncappedRate, not hasRange", () => {
+  it("rate WITH cap → true (Kostendach irrelevant)", () => {
     const items: SubtotalItem[] = [
       { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null },
     ];
-    expect(offerAmountShape(items)).toEqual({ hasRange: false, hasUncappedRate: true });
+    expect(offerHasRateItem(items)).toBe(true);
   });
 
-  it("valid hourly range → hasRange", () => {
+  it("rate WITHOUT cap → true", () => {
     const items: SubtotalItem[] = [
-      { priceType: "per_hour", amountBasis: "range", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 3, maxHours: 5, hourlyRate: 90 } },
-    ];
-    expect(offerAmountShape(items)).toEqual({ hasRange: true, hasUncappedRate: false });
-  });
-
-  it("capped AND uncapped rate together → both flags true", () => {
-    const items: SubtotalItem[] = [
-      { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null, kostendachMax: 3150 },
+      { priceType: "pauschale", quantity: 1, unitPrice: 800, timeEstimate: null },
       { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 200, timeEstimate: null },
     ];
-    expect(offerAmountShape(items)).toEqual({ hasRange: true, hasUncappedRate: true });
+    expect(offerHasRateItem(items)).toBe(true);
   });
 
-  it("free items are ignored", () => {
+  it("free (optional/inkl) rate items are ignored", () => {
     const items: SubtotalItem[] = [
       { priceType: "optional", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null },
       { priceType: "inkl", quantity: 1, unitPrice: 50, timeEstimate: null },
     ];
-    expect(offerAmountShape(items)).toEqual({ hasRange: false, hasUncappedRate: false });
+    expect(offerHasRateItem(items)).toBe(false);
   });
 });
 

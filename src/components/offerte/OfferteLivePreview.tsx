@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { OfferItem } from "./OfferteItemRow";
 import { getServiceLabel } from "@/lib/serviceLabels";
-import { itemAmountDisplay, KOSTENDACH_RANGE_NOTE, UNCAPPED_RATE_NOTE } from "@/lib/offerPricing";
+import { itemAmountDisplay, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
 
 interface Company {
   company_name: string;
@@ -73,13 +73,12 @@ interface OfferteLivePreviewProps {
   vatRate: number;
   vatAmount: number;
   total: number;
-  /** Obergrenzen der Betrags-Range (Stunden-Spanne / gedeckelte rate-Posten). null = keine Range. */
+  /** Obergrenzen der Blind-/Stunden-Spanne (nur fixed+range). null = keine Spanne. */
   maxSubtotal?: number | null;
   maxVat?: number | null;
   maxTotal?: number | null;
-  /** Hinweise unter der Total-Zeile (offerAmountShape). */
-  showKostendachRangeNote?: boolean;
-  showUncappedRateNote?: boolean;
+  /** rate-Posten vorhanden → Aggregat-Box ausblenden, RATE_AGGREGATE_NOTE zeigen. */
+  hasRateItem?: boolean;
   /** Computed surcharge amounts, rendered between Zwischensumme and MwSt. */
   surcharges?: { label: string; amount: number }[];
   /** Preismodell — mirrors the PDF/OfferView so the preview stays WYSIWYG. */
@@ -106,8 +105,7 @@ export const OfferteLivePreview = ({
   maxSubtotal = null,
   maxVat = null,
   maxTotal = null,
-  showKostendachRangeNote = false,
-  showUncappedRateNote = false,
+  hasRateItem = false,
   surcharges,
   priceModel = 'pauschal',
   hourlyRate = null,
@@ -381,35 +379,35 @@ export const OfferteLivePreview = ({
         })}
       </div>
 
-      {/* Totals */}
-      <div className="flex justify-end mb-3">
-        <div className="w-36 space-y-0.5 text-[8px]">
-          <div className="flex justify-between">
-            <span>Zwischensumme:</span>
-            <span>{maxSubtotal !== null ? `${formatCurrency(subtotal)}–${formatCurrency(maxSubtotal)}` : formatCurrency(subtotal)}</span>
-          </div>
-          {surcharges?.map((s, i) => (
-            <div key={i} className="flex justify-between">
-              <span>{s.label || "Zuschlag"}:</span>
-              <span>{formatCurrency(s.amount)}</span>
-            </div>
-          ))}
-          <div className="flex justify-between">
-            <span>MwSt. ({vatRate}%):</span>
-            <span>{maxVat !== null ? `${formatCurrency(vatAmount)}–${formatCurrency(maxVat)}` : formatCurrency(vatAmount)}</span>
-          </div>
-          <div className="flex justify-between font-bold text-[10px] border-t pt-1">
-            <span>Total:</span>
-            <span>{maxTotal !== null ? `${formatCurrency(total)}–${formatCurrency(maxTotal)}` : formatCurrency(total)}</span>
-          </div>
-          {showKostendachRangeNote || showUncappedRateNote ? (
-            <div className="text-right text-muted-foreground pt-0.5 leading-tight">
-              {showKostendachRangeNote ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
-              {showUncappedRateNote ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
-            </div>
-          ) : null}
+      {/* Totals — bei rate-Posten keine Aggregat-Box, nur Hinweis */}
+      {hasRateItem ? (
+        <div className="mb-3 text-[8px] text-muted-foreground leading-tight">
+          {RATE_AGGREGATE_NOTE}
         </div>
-      </div>
+      ) : (
+        <div className="flex justify-end mb-3">
+          <div className="w-36 space-y-0.5 text-[8px]">
+            <div className="flex justify-between">
+              <span>Zwischensumme:</span>
+              <span>{maxSubtotal !== null ? `${formatCurrency(subtotal)}–${formatCurrency(maxSubtotal)}` : formatCurrency(subtotal)}</span>
+            </div>
+            {surcharges?.map((s, i) => (
+              <div key={i} className="flex justify-between">
+                <span>{s.label || "Zuschlag"}:</span>
+                <span>{formatCurrency(s.amount)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between">
+              <span>MwSt. ({vatRate}%):</span>
+              <span>{maxVat !== null ? `${formatCurrency(vatAmount)}–${formatCurrency(maxVat)}` : formatCurrency(vatAmount)}</span>
+            </div>
+            <div className="flex justify-between font-bold text-[10px] border-t pt-1">
+              <span>Total:</span>
+              <span>{maxTotal !== null ? `${formatCurrency(total)}–${formatCurrency(maxTotal)}` : formatCurrency(total)}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Preismodell — mirrors ServiceTable/OfferView so the preview matches the sent offer */}
       {priceModel === "stundenansatz" && hourlyRate !== null && (

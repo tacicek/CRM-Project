@@ -88,9 +88,6 @@ export interface SubtotalItem {
   // Optional: fehlt sie, wird der Modus abgeleitet (siehe resolveAmountBasis) — dadurch bleibt
   // das Verhalten vor der DB-Spalte (Phase 2) identisch zu heute.
   amountBasis?: AmountBasis | null;
-  // Item-level Kostendach (max. CHF, netto) für 'rate'-Posten. Nur im 'max'-Modus relevant:
-  // ein rate-Posten mit Cap verhält sich wie eine Spanne 0..kostendachMax (min 0, max Cap).
-  kostendachMax?: number | null;
 }
 
 // Item types not included in the subtotal (shown but not summed): optional, inkl.
@@ -156,15 +153,14 @@ export const resolveAmountBasis = (item: {
 /**
  * Computes the subtotal of an item list (pure — does not parse, expects numbers).
  * - priceType ∈ {optional, inkl} → skipped (isFreeItem).
- * - amountBasis 'rate' → skipped in the 'min' mode; im 'max'-Modus fliesst das item-level
- *   Kostendach (kostendachMax) als Obergrenze ein — ein rate-Posten mit Cap ist strukturell
- *   eine Spanne 0..Cap. Ohne Cap bleibt 'rate' in beiden Modi ausgeschlossen (unbestimmt).
+ * - amountBasis 'rate' → skipped (Menge/Dauer unbestimmt, kein bestimmter Betrag — NIE in der Summe,
+ *   auch nicht mit item-level Kostendach: eine Offerte mit rate-Posten zeigt gar keine Aggregatsumme,
+ *   siehe offerHasRateItem / RATE_AGGREGATE_NOTE).
  * - amountBasis 'range' (bzw. gültiges timeEstimate) → mode 'min' lower bound, 'max' upper bound.
  * - otherwise (fixed) quantity * unitPrice.
  *
  * Rückwärtskompatibilität: solange amountBasis nirgends gesetzt ist, ist das Ergebnis identisch
- * zum vorherigen Stand (range bei gültigem timeEstimate, sonst quantity * unitPrice). Ein
- * rate-Posten OHNE kostendachMax verhält sich weiterhin wie bisher (nie in der Summe).
+ * zum vorherigen Stand (range bei gültigem timeEstimate, sonst quantity * unitPrice).
  */
 export const computeItemsSubtotal = (
   items: SubtotalItem[],
@@ -173,11 +169,7 @@ export const computeItemsSubtotal = (
   items.reduce((sum, item) => {
     if (isFreeItem(item.priceType)) return sum;
     const basis = resolveAmountBasis(item);
-    if (basis === "rate") {
-      const cap = item.kostendachMax;
-      if (mode === "max" && typeof cap === "number" && cap > 0) return sum + cap;
-      return sum;
-    }
+    if (basis === "rate") return sum;
     if (basis === "range") {
       const r = hourlyRange(item.timeEstimate);
       if (r) return sum + (mode === "min" ? r.min : r.max);
@@ -273,46 +265,21 @@ export function computeDisplayTotals(
 }
 
 /**
- * Bestimmt die Betrags-„Form" einer Offerte — SINGLE SOURCE für die Frage, OB und WIE die
- * Gesamtsumme als Spanne dargestellt wird. Alle Read-Flächen (PDF, Detail, OfferView, Email,
- * LivePreview) leiten ihre „Range anzeigen?"- und „welcher Hinweis?"-Entscheidung hieraus ab,
- * statt sie je selbst zu bilden (Lesson #8: doppelte Ableitung driftet auseinander).
+ * Hat die Offerte mindestens einen 'rate'-Posten (Stunden-/m³-Ansatz, Menge/Dauer unbestimmt)?
+ * SINGLE SOURCE für die Frage, OB überhaupt eine Aggregatsumme angezeigt wird.
  *
- * - hasRange: mindestens ein Posten erzeugt min≠max — gültige Stunden-Spanne (hourlyRange) ODER
- *   ein 'rate'-Posten mit Kostendach (0..Cap). Dann Gesamtbetrag als „CHF min – CHF max".
- * - hasUncappedRate: mindestens ein 'rate'-Posten OHNE Kostendach (unbestimmte Obergrenze).
- *   Keine Spanne (falsche Sicherheit vermeiden), stattdessen Hinweis „zzgl. nach Aufwand".
- *
- * Die beiden Flags sind unabhängig: eine Offerte kann sowohl gedeckelte als auch ungedeckelte
- * rate-Posten enthalten (dann Spanne UND Aufwand-Hinweis).
+ * Regel (bewusst einfach, Kostendach IRRELEVANT): sobald EIN Posten 'rate' ist, ergibt eine
+ * Gesamtbetrag-/Zwischensumme-Box keinen Sinn (sie würde einen Endpreis suggerieren, den es
+ * nicht gibt) — alle Read-Flächen blenden die Box dann komplett aus und zeigen stattdessen
+ * RATE_AGGREGATE_NOTE. Nur fixed+range → normale Summe/Spanne (unverändert, Blind-Logik intakt).
  */
-export interface AmountShape {
-  hasRange: boolean;
-  hasUncappedRate: boolean;
-}
+export const offerHasRateItem = (items: SubtotalItem[]): boolean =>
+  items.some((item) => !isFreeItem(item.priceType) && resolveAmountBasis(item) === "rate");
 
-export const offerAmountShape = (items: SubtotalItem[]): AmountShape => {
-  let hasRange = false;
-  let hasUncappedRate = false;
-  for (const item of items) {
-    if (isFreeItem(item.priceType)) continue;
-    const basis = resolveAmountBasis(item);
-    if (basis === "range") {
-      if (hourlyRange(item.timeEstimate)) hasRange = true;
-    } else if (basis === "rate") {
-      const cap = item.kostendachMax;
-      if (typeof cap === "number" && cap > 0) hasRange = true;
-      else hasUncappedRate = true;
-    }
-  }
-  return { hasRange, hasUncappedRate };
-};
-
-// Hinweistexte unter der Total-Zeile — SINGLE SOURCE, damit alle Flächen wörtlich gleich sind.
-export const KOSTENDACH_RANGE_NOTE =
-  "Maximalbetrag inkl. Kostendach für Stundenansatz-Positionen.";
-export const UNCAPPED_RATE_NOTE =
-  "zzgl. Positionen nach Aufwand (siehe oben).";
+// Hinweis anstelle der ausgeblendeten Gesamtbetrag-/Zwischensumme-Box — SINGLE SOURCE,
+// damit alle Flächen (PDF, OfferView, Detail, Email, LivePreview, Erstellen/Bearbeiten) wörtlich gleich sind.
+export const RATE_AGGREGATE_NOTE =
+  "Der Gesamtpreis ergibt sich aus den Positionen nach Aufwand (siehe Details oben) zzgl. allfälliger Fixpositionen.";
 
 // ---------------------------------------------------------------------------
 // Zeilen-Anzeige — SINGLE SOURCE für die Betragsdarstellung einer Position.

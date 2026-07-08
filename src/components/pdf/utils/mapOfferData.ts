@@ -6,7 +6,7 @@ import {
   OfferItemBreakdownEntry,
   OfferItemLeistungEntry,
 } from "../types/offer.types";
-import { computeDisplayTotals, offerAmountShape, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
+import { computeDisplayTotals, offerHasRateItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
 
 export interface LegacyOfferData {
   id: string;
@@ -334,18 +334,18 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
         unitPrice: item.unit_price,
         timeEstimate: item.time_estimate ?? null,
         amountBasis: toAmountBasis(item.amount_basis),
-        kostendachMax: item.kostendach_max ?? null,
       }));
-      // Range zeigen, sobald irgendein Posten min≠max erzeugt: Stunden-Spanne ODER gedeckelter
-      // rate-Posten (0..Cap). Ungedeckelte rate-Posten erzeugen KEINE Spanne (nur Hinweis).
-      const shape = offerAmountShape(subtotalItems);
+      // Blind/Stunden-Spanne wie bisher (nur fixed+range). rate-Posten → gar keine Aggregatsumme
+      // (ServiceTable blendet die Box aus, zeigt RATE_AGGREGATE_NOTE).
+      const hasItemTe = offer.items.some(i => i.time_estimate && i.time_estimate.maxHours && i.time_estimate.hourlyRate);
+      const hasRateItem = offerHasRateItem(subtotalItems);
       const minTotals = computeDisplayTotals(
         subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "min",
       );
       const itemsSubtotal = minTotals.subtotal;
       let maxDiscountAmount: number | null = null;
       let maxTaxableBase: number | null = null;
-      if (shape.hasRange) {
+      if (hasItemTe) {
         const maxTotals = computeDisplayTotals(
           subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "max",
         );
@@ -372,9 +372,8 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
         maxDiscountAmount,
         taxableBase: minTotals.taxableBase,
         maxTaxableBase,
-        // Hinweis-Flags für die Total-Zeile (SINGLE SOURCE offerAmountShape).
-        showKostendachRangeNote: shape.hasRange,
-        showUncappedRateNote: shape.hasUncappedRate,
+        // Bei rate-Posten wird die gesamte Aggregat-Box ausgeblendet (RATE_AGGREGATE_NOTE stattdessen).
+        hasRateItem,
       };
     })(),
     timeEstimate: null,

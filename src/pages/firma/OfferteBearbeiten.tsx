@@ -30,7 +30,7 @@ import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerAmountShape, toAmountBasis, type SubtotalItem, KOSTENDACH_RANGE_NOTE, UNCAPPED_RATE_NOTE } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type SubtotalItem, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
 import { cn } from "@/lib/utils";
 import { SERVICE_OPTIONS, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
@@ -475,17 +475,18 @@ const FirmaOfferteBearbeiten = () => {
           }
         : null,
       amountBasis: toAmountBasis(item.amount_basis),
-      kostendachMax: item.kostendach_max ?? null,
     }));
 
   const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
 
-  // Range greift bei Stunden-Spanne ODER gedeckeltem rate-Posten (0..Cap) — offerAmountShape
-  // ist SINGLE SOURCE (ersetzt das frühere reine timeEstimate-Gate).
+  // Blind/Stunden-Spanne (nur fixed+range). rate-Posten → gar keine Aggregatsumme (Box ausgeblendet).
   const calculateMaxSubtotal = (): number | null => {
-    if (!offerAmountShape(toSubtotalItems()).hasRange) return null;
+    const hasAny = items.some(i => i.timeEstimate && i.timeEstimate.maxHours && i.timeEstimate.hourlyRate);
+    if (!hasAny) return null;
     return computeItemsSubtotal(toSubtotalItems(), "max");
   };
+
+  const hasRateItem = () => offerHasRateItem(toSubtotalItems());
 
   // Steuerbare Basis = Positionen + Zuschläge → offers.subtotal (GENERATED vat/total).
   // #7: Rabatt is now editable in the form (single parse source, like OfferteErstellen).
@@ -1545,6 +1546,12 @@ const FirmaOfferteBearbeiten = () => {
                     <CardTitle className="text-sm sm:text-base">Zusammenfassung</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
+                    {hasRateItem() ? (
+                      <div className="text-sm text-muted-foreground leading-snug">
+                        {RATE_AGGREGATE_NOTE}
+                      </div>
+                    ) : (
+                    <>
                     <div className="flex justify-between items-start text-xs sm:text-sm">
                       <span className="text-muted-foreground shrink-0">Zwischensumme</span>
                       {calculateMaxSubtotal() !== null ? (
@@ -1645,12 +1652,8 @@ const FirmaOfferteBearbeiten = () => {
                         <span className="text-primary">{formatCurrency(calculateTotal())}</span>
                       )}
                     </div>
-                    {(() => { const shape = offerAmountShape(toSubtotalItems()); return (shape.hasRange || shape.hasUncappedRate) ? (
-                      <div className="text-right text-xs text-muted-foreground leading-snug pt-1">
-                        {shape.hasRange ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
-                        {shape.hasUncappedRate ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
-                      </div>
-                    ) : null; })()}
+                    </>
+                    )}
                   </CardContent>
                 </Card>
 
