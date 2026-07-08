@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { OfferItem } from "./OfferteItemRow";
 import { getServiceLabel } from "@/lib/serviceLabels";
+import { itemAmountDisplay } from "@/lib/offerPricing";
 
 interface Company {
   company_name: string;
@@ -74,6 +75,10 @@ interface OfferteLivePreviewProps {
   total: number;
   /** Computed surcharge amounts, rendered between Zwischensumme and MwSt. */
   surcharges?: { label: string; amount: number }[];
+  /** Preismodell — mirrors the PDF/OfferView so the preview stays WYSIWYG. */
+  priceModel?: 'pauschal' | 'stundenansatz' | 'kostendach';
+  hourlyRate?: number | null;
+  kostendachMax?: number | null;
   serviceDate: string;
   validUntil: string;
   paymentTerms: string;
@@ -92,6 +97,9 @@ export const OfferteLivePreview = ({
   vatAmount,
   total,
   surcharges,
+  priceModel = 'pauschal',
+  hourlyRate = null,
+  kostendachMax = null,
   serviceDate,
   validUntil,
   paymentTerms,
@@ -312,7 +320,22 @@ export const OfferteLivePreview = ({
           <div className="col-span-2 text-right">Menge</div>
           <div className="col-span-2 text-right">Preis</div>
         </div>
-        {items.map((item) => (
+        {items.map((item) => {
+          // SINGLE SOURCE: Betragsdarstellung ueber itemAmountDisplay (kein amount_basis im
+          // Formular-Item → Legacy-Ableitung; sobald 3d das Feld ergaenzt, wirkt rate automatisch).
+          const te = item.timeEstimate;
+          const display = itemAmountDisplay({
+            priceType: item.priceType,
+            amountBasis: item.amountBasis ?? null,
+            quantity: item.quantity,
+            unitPrice: item.unit_price,
+            unit: item.unit,
+            timeEstimate:
+              te && te.minHours && te.hourlyRate
+                ? { minHours: Number(te.minHours), maxHours: Number(te.maxHours), hourlyRate: Number(te.hourlyRate) }
+                : null,
+          });
+          return (
           <div
             key={item.id}
             className={cn(
@@ -330,17 +353,20 @@ export const OfferteLivePreview = ({
               ))}
             </div>
             <div className="col-span-2 text-right">
-              {item.priceType !== "inkl" ? `${item.quantity} ${item.unit}` : "-"}
+              {display.kind === "free" || display.kind === "rate" ? "-" : `${item.quantity} ${item.unit}`}
             </div>
             <div className="col-span-2 text-right font-medium">
-              {item.priceType === "inkl"
-                ? "Inkl."
-                : item.priceType === "optional"
-                ? "Optional"
-                : formatCurrency(item.quantity * item.unit_price)}
+              {display.kind === "free"
+                ? item.priceType === "inkl" ? "Inkl." : "Optional"
+                : display.kind === "range"
+                ? `${formatCurrency(display.min)}–${formatCurrency(display.max)}`
+                : display.kind === "rate"
+                ? `${formatCurrency(display.unitPrice)}/${display.unit}`
+                : formatCurrency(display.amount)}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Totals */}
@@ -366,6 +392,28 @@ export const OfferteLivePreview = ({
           </div>
         </div>
       </div>
+
+      {/* Preismodell — mirrors ServiceTable/OfferView so the preview matches the sent offer */}
+      {priceModel === "stundenansatz" && hourlyRate !== null && (
+        <div className="mb-3 rounded border border-sky-300 bg-sky-50 p-2 text-[8px]">
+          <p className="font-bold text-sky-700">
+            Preismodell: Stundenansatz — CHF {Number(hourlyRate).toLocaleString("de-CH")} / Std.
+          </p>
+          <p className="text-muted-foreground">
+            Die Endsumme richtet sich nach dem tatsächlichen Zeitaufwand.
+          </p>
+        </div>
+      )}
+      {priceModel === "kostendach" && hourlyRate !== null && kostendachMax !== null && (
+        <div className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-[8px]">
+          <p className="font-bold text-amber-800">
+            Preismodell: Stundenansatz CHF {Number(hourlyRate).toLocaleString("de-CH")} / Std. — Kostendach max. CHF {Number(kostendachMax).toLocaleString("de-CH")}
+          </p>
+          <p className="text-amber-800">
+            Sie zahlen maximal CHF {Number(kostendachMax).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.
+          </p>
+        </div>
+      )}
 
       {/* Payment Terms */}
       <div className="p-2 bg-muted/50 rounded text-[8px] mb-3">

@@ -6,7 +6,7 @@ import {
   OfferItemBreakdownEntry,
   OfferItemLeistungEntry,
 } from "../types/offer.types";
-import { computeDisplayTotals, type SubtotalItem } from "@/lib/offerPricing";
+import { computeDisplayTotals, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
 
 export interface LegacyOfferData {
   id: string;
@@ -60,6 +60,10 @@ export interface LegacyOfferItem {
   service_type?: string | null;
   // ── Data-bridge P1a (Katman 1-4) — DB snake_case; carried, not yet mapped/rendered ──
   price_type?: string | null;
+  /** Betrags-Achse (offer_items.amount_basis): fixed | rate | range */
+  amount_basis?: string | null;
+  /** Item-/Service-level Kostendach (offer_items.kostendach_max) */
+  kostendach_max?: number | null;
   scheduled_date?: string | null;
   scheduled_start_time?: string | null;
   scheduled_end_time?: string | null;
@@ -257,6 +261,8 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       serviceType: item.service_type ?? null,
       // ── Data-bridge P1b — carried, NOT yet rendered (ServiceTable ignores these) ──
       priceType: item.price_type ?? null,
+      amountBasis: item.amount_basis ?? null,
+      kostendachMax: item.kostendach_max ?? null,
       scheduledDate: item.scheduled_date ?? null,
       scheduledStartTime: item.scheduled_start_time ?? null,
       scheduledEndTime: item.scheduled_end_time ?? null,
@@ -329,6 +335,7 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
         quantity: item.quantity,
         unitPrice: item.unit_price,
         timeEstimate: item.time_estimate ?? null,
+        amountBasis: toAmountBasis(item.amount_basis),
       }));
       const minTotals = computeDisplayTotals(
         subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "min",

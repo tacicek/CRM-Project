@@ -50,11 +50,35 @@ export const hourlyRange = (
 // Solution: a single pure fn; exclusion by SEMANTIC price_type, not by the unit string.
 // ---------------------------------------------------------------------------
 
+// Betrags-Achse (orthogonal zu price_type = Einheit/frei und offers.price_model = offer-level).
+// - fixed: bestimmter Betrag → zählt zur Summe (heutiges Standardverhalten).
+// - rate:  nur Einheitspreis, Menge/Dauer unbestimmt → NIE in der Summe (nur "CHF X / Einheit").
+// - range: bestimmte Min/Max-Spanne → als Spanne in der Summe (Min im 'min'-, Max im 'max'-Modus).
+export type AmountBasis = "fixed" | "rate" | "range";
+
+/**
+ * Normalisiert einen (DB-)String auf AmountBasis. Unbekannt/leer/null → null (→ Legacy-Ableitung
+ * in resolveAmountBasis). Defensiv gegen unerwartete DB-Werte, ohne Cast (Switch-Narrowing).
+ */
+export const toAmountBasis = (value: string | null | undefined): AmountBasis | null => {
+  switch (value) {
+    case "fixed":
+    case "rate":
+    case "range":
+      return value;
+    default:
+      return null;
+  }
+};
+
 export interface SubtotalItem {
   priceType: string; // 'pauschale' | 'per_unit' | 'per_hour' | 'optional' | 'inkl'
   quantity: number;
   unitPrice: number;
   timeEstimate: TimeEstimate | null;
+  // Optional: fehlt sie, wird der Modus abgeleitet (siehe resolveAmountBasis) — dadurch bleibt
+  // das Verhalten vor der DB-Spalte (Phase 2) identisch zu heute.
+  amountBasis?: AmountBasis | null;
 }
 
 // Item types not included in the subtotal (shown but not summed): optional, inkl.
@@ -103,10 +127,29 @@ export const derivePriceTypeFromCatalog = (item: {
 };
 
 /**
+ * Löst den effektiven Betrags-Modus eines Items auf — SINGLE SOURCE für Summe und Anzeige.
+ *
+ * Explizit gesetzte amountBasis gewinnt immer. Fehlt sie (Zustand vor der DB-Spalte, Phase 2),
+ * wird das heutige Verhalten exakt reproduziert: gültiges timeEstimate → 'range', sonst 'fixed'.
+ * 'rate' entsteht NIE aus der Ableitung — es ist der neue, ausschliesslich explizite Zustand.
+ */
+export const resolveAmountBasis = (item: {
+  amountBasis?: AmountBasis | null;
+  timeEstimate: TimeEstimate | null;
+}): AmountBasis => {
+  if (item.amountBasis) return item.amountBasis;
+  return hourlyRange(item.timeEstimate) ? "range" : "fixed";
+};
+
+/**
  * Computes the subtotal of an item list (pure — does not parse, expects numbers).
  * - priceType ∈ {optional, inkl} → skipped (isFreeItem).
- * - if timeEstimate is valid (hourlyRange) → mode 'min' lower bound, 'max' upper bound.
- * - otherwise quantity * unitPrice.
+ * - amountBasis 'rate' → skipped (Menge/Dauer unbestimmt, kein bestimmter Betrag).
+ * - amountBasis 'range' (bzw. gültiges timeEstimate) → mode 'min' lower bound, 'max' upper bound.
+ * - otherwise (fixed) quantity * unitPrice.
+ *
+ * Rückwärtskompatibilität: solange amountBasis nirgends gesetzt ist, ist das Ergebnis identisch
+ * zum vorherigen Stand (range bei gültigem timeEstimate, sonst quantity * unitPrice).
  */
 export const computeItemsSubtotal = (
   items: SubtotalItem[],
@@ -114,8 +157,12 @@ export const computeItemsSubtotal = (
 ): number =>
   items.reduce((sum, item) => {
     if (isFreeItem(item.priceType)) return sum;
-    const r = hourlyRange(item.timeEstimate);
-    if (r) return sum + (mode === "min" ? r.min : r.max);
+    const basis = resolveAmountBasis(item);
+    if (basis === "rate") return sum;
+    if (basis === "range") {
+      const r = hourlyRange(item.timeEstimate);
+      if (r) return sum + (mode === "min" ? r.min : r.max);
+    }
     return sum + item.quantity * item.unitPrice;
   }, 0);
 
@@ -205,6 +252,56 @@ export function computeDisplayTotals(
     total: round2(taxableBase + vatAmount),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Zeilen-Anzeige — SINGLE SOURCE für die Betragsdarstellung einer Position.
+//
+// Alle Render-Flächen (PDF ServiceTable, OfferView, OfferteDetail, OfferteLivePreview,
+// OfferteItemRow) leiten die Zeilen-Darstellung aus DIESER Funktion ab, statt sie je selbst zu
+// bilden (Lesson #8: doppelte Ableitung driftet auseinander). Gibt strukturierte Zahlen zurück,
+// KEINE fertigen Strings — Formatierung (formatCurrency, Farben, "bis"/"/Std") bleibt pro Fläche.
+// ---------------------------------------------------------------------------
+
+export interface AmountDisplayItem {
+  priceType: string;
+  quantity: number;
+  unitPrice: number;
+  timeEstimate: TimeEstimate | null;
+  amountBasis?: AmountBasis | null;
+  unit?: string | null;
+  // Gespeicherter Zeilenbetrag (z. B. rabattierter Positionswert); für 'fixed' bevorzugt vor
+  // quantity * unitPrice, damit die Zeilenanzeige der Read-Flächen unverändert bleibt.
+  total?: number | null;
+}
+
+export type AmountDisplay =
+  | { kind: "free"; priceType: string }
+  | { kind: "fixed"; amount: number }
+  | { kind: "rate"; unitPrice: number; unit: string }
+  | { kind: "range"; min: number; max: number };
+
+/**
+ * Bestimmt, WIE der Betrag einer Position angezeigt wird:
+ * - free  (inkl/optional): kein Betrag (Chip/Leistungsumfang) — priceType zur Label-Wahl.
+ * - rate:  Einheitspreis "CHF unitPrice / unit" (nicht summiert).
+ * - range: Spanne min–max (aus timeEstimate).
+ * - fixed: einzelner Betrag (total ?? quantity * unitPrice).
+ *
+ * Konsistent mit computeItemsSubtotal: ein als 'range' markiertes Item ohne berechenbare Spanne
+ * fällt auf 'fixed' zurück (identischer Fallback wie in der Summe).
+ */
+export const itemAmountDisplay = (item: AmountDisplayItem): AmountDisplay => {
+  if (isFreeItem(item.priceType)) return { kind: "free", priceType: item.priceType ?? "" };
+  const basis = resolveAmountBasis(item);
+  if (basis === "rate") {
+    return { kind: "rate", unitPrice: item.unitPrice, unit: (item.unit ?? "").trim() };
+  }
+  if (basis === "range") {
+    const r = hourlyRange(item.timeEstimate);
+    if (r) return { kind: "range", min: r.min, max: r.max };
+  }
+  return { kind: "fixed", amount: item.total ?? item.quantity * item.unitPrice };
+};
 
 // Blind offer disclaimer — PDF (BlindOfferteDisclaimer) + OfferView (DOM) use the same text.
 export const BLIND_DISCLAIMER_LABEL = "Wichtiger Hinweis";

@@ -75,21 +75,16 @@ export const buildOfferEmailAttachments = async (
     payment_terms: offerData.payment_terms ?? null,
     service_start_time: offerData.service_start_time ?? null,
     service_end_time: offerData.service_end_time ?? null,
-    items: itemsData.map(
-      (item: {
-        description: string;
-        quantity: number;
-        unit: string;
-        unit_price: number;
-        total: number;
-      }) => ({
-        description: item.description,
-        quantity: item.quantity,
-        unit: item.unit,
-        unit_price: item.unit_price,
-        total: Number(item.total),
-      })
-    ),
+    // Full pass-through (mirror OfferteDetail.buildOfferPayload spread): the email PDF must carry
+    // the SAME fields as the download PDF — service_type (Gruppierung), price_type, time_estimate,
+    // amount_basis, kostendach_max, effort/volume/area_meta, scheduled_*, list_price,
+    // discount_percent, breakdown, leistung. itemsData selektiert sie bereits (OFFER_ITEMS_PDF_SELECT);
+    // die alte 5-Feld-Map liess alles ausser Betrag/Menge fallen (kein Multi-Service, kein rate).
+    items: itemsData.map((item) => ({
+      ...item,
+      unit: item.unit ?? "",
+      total: Number(item.total),
+    })),
     company: {
       company_name: companyData.company_name,
       street: companyData.street || undefined,

@@ -3248,6 +3248,7 @@ export type Database = {
       }
       offer_items: {
         Row: {
+          amount_basis: string
           created_at: string
           description: string
           discount_amount: number | null
@@ -3255,6 +3256,7 @@ export type Database = {
           id: string
           is_highlighted: boolean | null
           is_optional: boolean | null
+          kostendach_max: number | null
           list_price: number | null
           offer_id: string
           position: number
@@ -3270,6 +3272,7 @@ export type Database = {
           unit_price: number
         }
         Insert: {
+          amount_basis?: string
           created_at?: string
           description: string
           discount_amount?: number | null
@@ -3277,6 +3280,7 @@ export type Database = {
           id?: string
           is_highlighted?: boolean | null
           is_optional?: boolean | null
+          kostendach_max?: number | null
           list_price?: number | null
           offer_id: string
           position?: number
@@ -3292,6 +3296,7 @@ export type Database = {
           unit_price?: number
         }
         Update: {
+          amount_basis?: string
           created_at?: string
           description?: string
           discount_amount?: number | null
@@ -3299,6 +3304,7 @@ export type Database = {
           id?: string
           is_highlighted?: boolean | null
           is_optional?: boolean | null
+          kostendach_max?: number | null
           list_price?: number | null
           offer_id?: string
           position?: number
@@ -6170,10 +6176,12 @@ export type Database = {
       get_offer_items_by_token: {
         Args: { p_access_token: string }
         Returns: {
+          amount_basis: string
           description: string
           id: string
           is_highlighted: boolean
           is_optional: boolean
+          kostendach_max: number
           offer_id: string
           position: number
           price_type: string

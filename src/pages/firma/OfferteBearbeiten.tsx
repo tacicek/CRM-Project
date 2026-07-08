@@ -30,7 +30,7 @@ import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
 import { SERVICE_OPTIONS, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
 import { metaKindForService, buildMetaPayload, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
@@ -68,6 +68,8 @@ interface OfferItem {
   is_optional?: boolean;
   timeEstimate?: ItemTimeEstimate | null;
   serviceType?: string | null; // multi-service clean base; null = Allgemein
+  amount_basis?: string | null;   // preserve-only im Edit (kein Selektor hier; 3d = create-flow)
+  kostendach_max?: number | null;
 }
 
 // Common unit options for offer items
@@ -332,6 +334,10 @@ const FirmaOfferteBearbeiten = () => {
                 : null,
               // PRESERVE: the loaded item keeps its own stamp (old/null items stay Allgemein)
               serviceType: item.service_type ?? null,
+              // PRESERVE (delete+insert RPC trap): ohne Mitschicken wuerde amount_basis auf
+              // 'fixed' zurueckfallen. Kein Selektor im Edit — nur bewahren.
+              amount_basis: item.amount_basis ?? null,
+              kostendach_max: item.kostendach_max ?? null,
             }))
           );
           // Seed per-group dates from the first item of each group (the invariant
@@ -465,6 +471,7 @@ const FirmaOfferteBearbeiten = () => {
             hourlyRate: parseFloat(item.timeEstimate.hourlyRate),
           }
         : null,
+      amountBasis: toAmountBasis(item.amount_basis),
     }));
 
   const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
@@ -740,6 +747,8 @@ const FirmaOfferteBearbeiten = () => {
           scheduled_date: groupDates[serviceGroupKey(item.serviceType)]?.date || null,
           scheduled_start_time: groupDates[serviceGroupKey(item.serviceType)]?.startTime || null,
           scheduled_end_time: groupDates[serviceGroupKey(item.serviceType)]?.endTime || null,
+          amount_basis: item.amount_basis ?? "fixed",
+          kostendach_max: item.kostendach_max ?? null,
           ...metaPayload,
         };
       });

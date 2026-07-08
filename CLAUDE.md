@@ -201,10 +201,15 @@ Login akışı: `Auth.tsx` → `fetchSingleCompanyForUser` →
 > Özet:
 > - Sunucu: `213.199.45.205`, Coolify path: `/data/coolify/services/aw0c0w440o8k0cccokow0csw/`
 > - **SSH tüneli zorunlu**: `ssh -L 5433:10.0.2.9:5432 root@213.199.45.205 -N`
->   - ⚠️ Hedef IP `10.0.2.9` — sunucudaki **CRM DB container'ının Docker network IP'si**.
+>   - ⚠️ Hedef IP (örn. `10.0.2.9`) — sunucudaki **CRM DB container'ının Docker network IP'si**.
 >     `localhost:5432`'ye yönlendirme yaparsan başka bir proje'nin proxy container'ına düşersin
->     ("server closed the connection unexpectedly" hatası bu yüzden). IP değişirse:
+>     ("server closed the connection unexpectedly" hatası bu yüzden).
+>   - ⚠️ **IP Coolify restart'larında DEĞİŞİR** (2026-07 itibarıyla `10.0.2.4`, eskiden `10.0.2.9`).
+>     Stale IP'ye tünel kurarsan hata **sessiz**: TCP açılır (port bağlanır) ama gerçek postgres
+>     protokolü **reset** yer ("connection reset by peer"/"closed before the server responded").
+>     Tünel kurmadan ÖNCE IP'yi doğrula:
 >     `ssh root@213.199.45.205 "docker inspect supabase-db-aw0c0w440o8k0cccokow0csw --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'"`
+>     (Migration'ı `docker exec` ile isimle uygularsan IP'den bağımsızdır — tünel sorunu sadece gen-types/psql/MCP'yi etkiler.)
 > - **MCP** (Claude Code): `crm-postgres` server `~/.claude.json`'da kayıtlı, `postgres-mcp` (crystaldba)
 >   `--access-mode=restricted` (read-only). Tunnel açıksa Claude Code restart sonrası kullanılabilir.
 >   Schema değişikliği gerekirse `--access-mode=unrestricted`'a geçir.
@@ -214,10 +219,19 @@ Login akışı: `Auth.tsx` → `fetchSingleCompanyForUser` →
 > - **Edge fn `.env` değişikliği** → `docker restart` yetmez, Coolify Redeploy gerek
 
 - 22+ tablo, hepsinde **RLS aktif**. Şema referansı: [supabase-schema-needed.md](supabase-schema-needed.md).
-- Tipler `src/integrations/supabase/types.ts` içinde auto-generated (~5200 satır) —
+- Tipler `src/integrations/supabase/types.ts` içinde auto-generated (~5200+ satır) —
   elle düzenleme. Şema değişti mi → SSH tüneli açıkken
   `npx supabase gen types typescript --db-url 'postgresql://postgres:***@localhost:5433/postgres'`
   ile yenile (cloud `--linked` çalışmaz).
+  - ⚠️ **supabase CLI 2.x gen-types'ı Docker container içinde koşar** (`postgres-meta`); o container
+    host'un `127.0.0.1:5433` tünelini görmez ve `PGPASSWORD` env ona geçmez (SASL "password must be
+    a string"). Host-tünel bazlı regen için **1.x kullan** (doğrudan pgx, host'tan): config'siz bir
+    dizinden (`major_version=17` reddini atlamak için) `PGPASSWORD=... npx supabase@1 gen types
+    typescript --db-url 'postgresql://postgres@127.0.0.1:5433/postgres?sslmode=disable'`.
+  - ⚠️ **Sürüm uyuşmazlığı**: mevcut `types.ts`'i üreten CLI ile 1.x farklı formatlar (~1500 satır
+    gürültü: `graphql_public` şeması, alan sıralaması). Tek kolon eklerken **full overwrite YAPMA** —
+    cerrahi olarak sadece ilgili `Row/Insert/Update` satırlarını ekle (sürüm-uyumlu regen'in üreteceği
+    tam delta). Prensip: types.ts manuel-edit, gürültülü regen yok.
 - Önemli tablolar: `companies`, `company_members`, `user_roles`, `leads`, `offers`,
   `offer_items`, `auftraege`, `appointments`, `quittungen`, `checklist_templates`,
   `company_service_items`, `leistungsuebersicht_templates`, `firma_resources`,

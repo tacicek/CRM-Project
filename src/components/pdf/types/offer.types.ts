@@ -55,6 +55,10 @@ export interface OfferData {
     // ── Data-bridge P1a (Katman 1-4) — carried for the redesign, NOT yet rendered ──
     /** Price semantics: pauschale | per_unit | per_hour | inkl | optional */
     priceType?: string | null;
+    /** Betrags-Achse: fixed | rate | range (offer_items.amount_basis) */
+    amountBasis?: string | null;
+    /** Item-/Service-level Kostendach (offer_items.kostendach_max) */
+    kostendachMax?: number | null;
     /** Original catalog price before item discount (Katman 1c) */
     listPrice?: number | null;
     /** Item-level discount % (Katman 1c) */
