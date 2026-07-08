@@ -543,9 +543,13 @@ const handler = async (req: Request): Promise<Response> => {
       const sub = rest.join(" ").trim();
       return `<span style="font-weight: 700;">${escapeHtml(main)}</span>${sub ? `<br><span style="font-size: 12px; color: #6b7280;">${escapeHtml(sub)}</span>` : ""}`;
     };
+    // amount_basis 'rate' (Ansatz): Preisspalte zeigt Einheitspreis "CHF X / Einheit" statt eines
+    // bestimmten Totals; nicht in der Summe (Total-Zeile = "nach Aufwand"). Kein src/-Import in Deno,
+    // daher hier dupliziert (wie isFreeItem oben). item-level Kostendach als Inline-Notiz.
     const itemsHtml = billableItems.map(item => {
       const te = item.time_estimate;
       const hasTE = te && te.minHours > 0 && te.hourlyRate > 0;
+      const isRate = item.amount_basis === "rate";
       const minTotal = hasTE ? te!.minHours * te!.hourlyRate : item.quantity * item.unit_price;
       const maxTotal = hasTE ? te!.maxHours * te!.hourlyRate : null;
       return `
@@ -564,6 +568,10 @@ const handler = async (req: Request): Promise<Response> => {
               <td colspan="2" style="padding: 2px 0; color: #b45309; font-size: 12px;">
                 ${te!.minHours} &ndash; ${te!.maxHours} Std. &times; ${fmtCHF(te!.hourlyRate)} / Std.
               </td>
+            </tr>` : isRate ? `
+            <tr>
+              <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">Ansatz</td>
+              <td style="padding: 2px 0; color: #111827; font-size: 14px; text-align: right;">${fmtCHF(Number(item.unit_price))} / ${escapeHtml(item.unit || "Std.")}</td>
             </tr>` : `
             <tr>
               <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">Menge</td>
@@ -575,10 +583,18 @@ const handler = async (req: Request): Promise<Response> => {
             </tr>`}
             <tr>
               <td style="padding: 6px 0 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap; font-weight: 600;">Total</td>
-              <td style="padding: 6px 0 2px 0; font-size: 15px; font-weight: 700; text-align: right; ${hasTE ? 'color: #b45309;' : 'color: #111827;'}">
-                ${maxTotal !== null ? `${fmtCHF(minTotal)} &ndash; ${fmtCHF(maxTotal)}` : fmtCHF(minTotal)}
+              <td style="padding: 6px 0 2px 0; font-size: 15px; font-weight: 700; text-align: right; ${hasTE ? 'color: #b45309;' : isRate ? 'color: #6b7280;' : 'color: #111827;'}">
+                ${hasTE ? `${fmtCHF(minTotal)} &ndash; ${fmtCHF(maxTotal!)}` : isRate ? 'nach Aufwand' : fmtCHF(minTotal)}
               </td>
             </tr>
+            ${isRate && item.kostendach_max != null ? `
+            <tr>
+              <td colspan="2" style="padding: 8px 0 2px 0;">
+                <div style="padding: 8px 10px; background-color: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px; color: #92400e; font-size: 12px;">
+                  <strong>Kostendach:</strong> max. ${fmtCHF(Number(item.kostendach_max))} &mdash; Sie zahlen maximal diesen Betrag, unabh&auml;ngig vom tats&auml;chlichen Zeitaufwand.
+                </div>
+              </td>
+            </tr>` : ``}
           </table>
         </td>
       </tr>`;
@@ -816,8 +832,8 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
           ` : ''}
 
-          ${offer.price_model === 'kostendach' && offer.hourly_rate != null && offer.kostendach_max != null ? `
-          <!-- Preismodell: Kostendach -->
+          ${offer.price_model === 'kostendach' && offer.hourly_rate != null && offer.kostendach_max != null && !(items ?? []).some((i) => i.kostendach_max != null) ? `
+          <!-- Preismodell: Kostendach (offer-level, nur Fallback ohne item-level Cap) -->
           <div style="margin: 0 0 24px 0; padding: 16px; background-color: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b;">
             <p style="margin: 0 0 6px 0; font-weight: 700; color: #92400e; font-size: 14px;">
               Preismodell: Stundenansatz mit Kostendach
