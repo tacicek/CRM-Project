@@ -72,6 +72,143 @@ interface AgbSectionEditorProps {
 }
 
 // Default AGB templates for different services
+
+// ASTAG Standard-Umzugsbedingungen (Fachgruppe Möbeltransporte des Schweizerischen
+// Nutzfahrzeugverbandes ASTAG, Stand 01.01.2006). Offizielle Branchenvorlage — wird
+// für service_type "umzug" als Default geladen. Wortlaut unverändert übernommen.
+const astagUmzugTemplates: Omit<AgbSection, 'id' | 'company_id' | 'service_type'>[] = [
+  {
+    title: "Allgemeine Umzugsbedingungen der Fachgruppe Möbeltransporte des Schweizerischen Nutzfahrzeugverbandes ASTAG",
+    content: `Stand: 01.01.2006 · © ASTAG`,
+    display_order: 0,
+    is_active: true,
+  },
+  {
+    title: "Art. 1 Geltungsbereich",
+    content: `Die Ausführung eines Auftrages erfolgt zu den nachstehenden Bedingungen der Fachgruppe Möbeltransporte des Schweizerischen Nutzfahrzeugverbandes ASTAG soweit ihnen nicht zwingende gesetzliche Vorschriften entgegenstehen. Grundlage der Bedingungen bilden die Bestimmungen des Schweizerischen Obligationenrechts (OR) sowie das Abkommen zwischen der Schweizerischen Eidgenossenschaft und der Europäischen Gemeinschaft über den Güter- und Personenverkehr auf Schiene und Strasse (AS 2002, 1649). Die Allgemeinen Bedingungen dienen dazu, die gesetzlichen Bestimmungen zu ergänzen. Von den Bedingungen abweichende Vereinbarungen sind schriftlich zu treffen.`,
+    display_order: 1,
+    is_active: true,
+  },
+  {
+    title: "Art. 2 Allgemeines",
+    content: `Der Auftrag hat alle für eine ordentliche Ausführung notwendigen Angaben, wie Hinweise auf reglementierte Güter (z.B. Gefahrengut) sowie solche, die einer besonderen Behandlung bedürfen, zu enthalten.
+
+Der Frachtführer überprüft den ihm erteilten Auftrag sorgfältig; er ist jedoch nicht verpflichtet, den Inhalt von Transportgefässen oder Sendungen zu überprüfen, noch Gewichts- oder Masskontrollen vorzunehmen. Stellt der Frachtführer Unklarheiten fest, so klärt er sie raschmöglichst mit dem Auftraggeber ab. Der über das mit dem Auftraggeber vereinbarte Volumen hinausgehende Laderaum bleibt zur Verfügung des Frachtführers. Dieser ist berechtigt, die Ausführung des übernommenen Auftrages einem anderen Frachtführer zu übertragen.`,
+    display_order: 2,
+    is_active: true,
+  },
+  {
+    title: "Art. 3 Transportübernahme im Allgemeinen",
+    content: `Jeder Auftrag setzt voraus, dass er unter normalen Verhältnissen durchgeführt werden kann; Die Hauptverkehrsstrassen sowie die Strassen und Wege zu den Häusern, wo Belad und Entlad stattfinden, müssen für die Transportfahrzeuge befahrbar sein.
+
+Bei Vorgärten und dergleichen gelten als normale Zufahrtsverhältnisse höchstens 15 Meter Distanz zwischen Fahrzeug und Hauseingang. Korridore, Treppen usw. sollen einen reibungslosen Transport ermöglichen. Ferner wird vorausgesetzt, dass die behördlichen Bestimmungen die Ausführung in der vorgesehenen Weise zulassen.
+
+In allen anderen Fällen erhöht sich der Umzugspreis nach Massgabe der Mehraufwendungen.`,
+    display_order: 3,
+    is_active: true,
+  },
+  {
+    title: "Art. 4 Pflichten des Frachtführers",
+    content: `Der Frachtführer ist dazu verpflichtet, die für die Ausführung des Auftrages notwendigen Transportmittel auf den vereinbarten Zeitpunkt bereitzustellen. Der Frachtführer führt den Auftrag vertragsgemäss und mit der notwendigen Sorgfalt aus. Die Ablieferung des Frachtgutes am Bestimmungsort hat sofort nach Ankunft des Transportes oder nach Vereinbarung zu erfolgen.`,
+    display_order: 4,
+    is_active: true,
+  },
+  {
+    title: "Art. 5 Pflichten des Auftraggebers",
+    content: `Der Auftraggeber hat für geeignete Verpackung zu sorgen. Er hat dem Frachtführer rechtzeitig die Adresse des Empfängers, den Ort der Ablieferung und die örtlichen Verhältnisse genau zu bezeichnen.
+
+Der Auftraggeber ist verpflichtet, den Frachtführer auf die besondere Beschaffenheit des Transportgutes und dessen Schadenanfälligkeit aufmerksam zu machen. Der Auftraggeber hat dafür zu sorgen, dass die Transportarbeiten, die Ver- und Entladung im vereinbarten Zeitpunkt bzw. sofort nach Eintreffen der Transportfahrzeuge begonnen werden können.
+
+Vorbehältlich anderer Vereinbarung obliegt die Besorgung aller für die Durchführung des Transportes erforderlichen Dokumente, Bewilligungen und Absperrungen dem Auftraggeber. Der Auftraggeber ist zur wahrheitsgetreuen Deklaration des Transportgutes verpflichtet und übernimmt gegenüber dem Frachtführer sowie den Bahn- und Zollorganen oder weiteren Behörden die volle Verantwortung. Ohne diesbezügliche Weisung durch den Auftraggeber ist der Frachtführer berechtigt, das Transportgut als Übersiedlungsgut zu behandeln.
+
+Der Auftraggeber hat für die Beschaffung der erforderlichen Zolldokumente besorgt zu sein und ist für deren Richtigkeit verantwortlich. Für alle Folgen, die durch das Fehlen, die verspätete Zustellung und die Unvollständigkeit oder Unrichtigkeit dieser Dokumente entstehen, hat der Auftraggeber aufzukommen. Er haftet dem Frachtführer für alle sich aus der Zollbehandlung des Transportgutes ergebenden Auslagen. Der Preis für die Zollabfertigungskosten setzt eine normale Abwicklung voraus. Verlängerte Zollaufenthalte und besondere Verhandlungen mit den zuständigen Behörden sind dem Frachtführer entsprechend zu vergüten. Der Frachtführer ist nicht verpflichtet, Frachten, Zölle und Abgaben zu bevorschussen. Er kann vom Auftraggeber Vorschüsse in der jeweiligen Währung verlangen. Tritt der Frachtführer in Vorlage, so sind ihm Vorlageprovision und Zins sowie ein angemessener Kursverlust zu ersetzen. Für alle Umtriebe und Mehrkosten, die infolge verspäteter Abnahme des Transportgutes durch den Auftraggeber entstehen, hat dieser aufzukommen. Kann innerhalb einer Wartezeit von vier Stunden die Entladung nicht begonnen werden, ist der Frachtführer berechtigt, auf Rechnung und Gefahr des Auftraggebers das Transportgut einzulagern. Dabei beschränkt sich seine Haftung auf die sorgfältige Auswahl des Einlagerungsortes. Ausdrücklich vom Transport ausgeschlossen sind Bargeld, Inhaberpapiere, inklusive Effekten im Sinne des Börsengesetzes, die Inhabereigenschaften haben, oder Edelmetalle.`,
+    display_order: 5,
+    is_active: true,
+  },
+  {
+    title: "Art. 6 Preise",
+    content: `Der Preis berechnet sich nach Aufwand oder pauschal. Im Preis nicht eingeschlossen sind dagegen, besondere Vereinbarungen vorbehalten, folgende Aufwendungen:
+a) das Ein- und Auspacken des Umzugsgutes, insbesondere für Verpackungsarbeiten, die am Umzugstag durch den Frachtführer vorgenommen werden müssen.
+b) spezieller Hin- oder Rücktransport von Packmaterial sowie dessen Miete oder Kauf;
+c) das Demontieren und Montieren von komplizierten oder neuen Möbeln, die besonderen Zeitaufwand oder den Beizug eines Spezialisten benötigen;
+d) der Transport von Kühlschränken/Truhen von über 200 l, Klavieren, Flügeln, Kassenschränken und anderen Gegenständen vom mehr als 100 kg Eigengewicht;
+e) das Abnehmen und Anbringen von Bildern, Spiegeln, Uhren, Lampen, Vorhängen, Einbauten usw.;
+f) der Mehraufwand für Gegenstände, deren Transport durch Fenster oder über Balkone zu erfolgen hat;
+g) die Prämien von Transportversicherungen;
+h) Zollabfertigung, Zoll und Zollspesen;
+i) Strassensteuern und Fährkosten sowie amtliche Gebühren aller Art;
+j) Mehraufwendungen bzw. Mehrleistungen im Interesse des Umzuges auch ohne besonderen Auftrag;
+k) Mehraufwendungen durch Witterungsverhältnisse oder falls in gesperrten oder aufgerissenen Strassen das Transportfahrzeug nicht vor das Haus gefahren werden kann, desgleichen für Wartezeiten des Transportfahrzeuges und des Personals, das der Frachtführer nicht verschuldet hat;
+l) ferner angemessene Zuschläge für das Tragen der Güter auf weiten oder ungewöhnlichen Wegen, soweit nicht bei der Preisvereinbarung eine ausdrückliche Berücksichtigung dieser Umstände stattgefunden hat sowie Mehrkosten, die durch Umwege entstehen, falls die direkten Wege gesperrt oder nicht benutzbar sind;
+
+Das Abnehmen und Anbringen von Beleuchtungskörpern und anderen an das Stromnetz angeschlossenen Apparaten darf zufolge gesetzlicher Bestimmungen nicht durch das Transportpersonal vorgenommen werden.`,
+    display_order: 6,
+    is_active: true,
+  },
+  {
+    title: "Art. 7 Bezahlung",
+    content: `Umzüge sind grundsätzlich bar zu bezahlen. Der Transportpreis ist vor dem Auslad fällig. Bei Transporten ins Ausland ist Vorauszahlung zu leisten.`,
+    display_order: 7,
+    is_active: true,
+  },
+  {
+    title: "Art. 8 Umdisponierung / Rücktritt des Auftraggebers",
+    content: `Der Auftraggeber hat das Recht, einen in Ausführung begriffenen Transport umzudisponieren, gegen vollständige Abgeltung des dadurch dem Frachtführer entstehenden Schadens.
+
+Ein allfälliger Rücktritt des Auftraggebers hat schriftlich zu erfolgen. Bei Rücktritt innerhalb von 14 Kalendertagen vor dem geplanten Umzug sind 30 % des in der Offerte gestellten Betrages im Sinne einer pauschalierten Abgeltung für Aufwendungen, Bemühungen und Umtriebe geschuldet.
+
+Bei Rücktritt des Auftraggebers innerhalb von 48 Stunden vor dem geplanten Umzug sind 80 % des in der Offerte gestellten Betrages geschuldet. Beweist der Frachtführer einen grösseren Schaden ist auch dieser zu entschädigen.`,
+    display_order: 8,
+    is_active: true,
+  },
+  {
+    title: "Art. 9 Retentionsrecht",
+    content: `Wenn das Frachtgut nicht angenommen oder die Zahlung der auf demselben haftenden Forderungen nicht geleistet wird, kann der Frachtführer das Frachtgut bis zum Wert des geschuldeten Betrages retinieren oder auf Kosten des Auftraggebers hinterlegen. Es gelten insbesondere die Bestimmungen von Art. 444, 445 und 451 OR.
+
+In diesem Fall kann der Frachtführer den Auftraggeber schriftlich auffordern, die Forderung innerhalb von 30 Tagen zu begleichen. Diese Aufforderung hat die Androhung zu enthalten, dass der Frachtführer das Recht hat, bei Unterlassung der Zahlung, die betreffenden Güter ohne weitere Formalitäten freihändig bestens zu verwerten (nach eigenem Ermessen freihändiger Verkauf oder, falls die Güter keinen materiellen Wert aufweisen, Entsorgung).`,
+    display_order: 9,
+    is_active: true,
+  },
+  {
+    title: "Art. 10 Haftung",
+    content: `Der Frachtführer haftet nur für Schäden, die nachweisbar durch grobe Fahrlässigkeit seines Personals verursacht worden sind. Er haftet nur, soweit er nicht nachweist, dass er alle nach den Umständen gebotene Sorgfalt angewendet hat, um einen Schaden dieser Art zu verhüten oder dass der Schaden auch bei Anwendung dieser Sorgfalt eingetreten wäre. Seine Haftung reicht in keinem Falle weiter als diejenige der am Transport beteiligten Transportanstalten (Eisenbahn, Schifffahrts- oder Luftverkehrsgesellschaft, Post usw.).
+
+Der Frachtführer haftet nur für Transportgut, dessen Verpackung den normalen Transportanforderungen entspricht. So bedürfen zerbrechliche Gegenstände, Lampen, Lampenschirme, Pflanzen, technische Geräte (Fernseher, Computer usw.) einer geeigneten Verpackung (Art. 442 OR). Bei Beschädigungen des Inhalts von Kisten und anderen Behältnissen haftet der Frachtführer nur, wenn deren Ein- und Auspacken durch seine eigenen oder von ihm beauftragten Hilfspersonen besorgt worden sind. Die Haftung des Frachtführers beschränkt sich in jedem Fall auf die Kosten einer allfälligen möglichen Reparatur oder einer Entschädigung für Wertminderung, unter Ausschluss jeglicher Ersatzleistung.
+
+Die Haftung des Frachtführers beginnt mit der Übernahme des Transportgutes und endigt in der Regel mit dessen Ablieferung am Bestimmungsort des Auftraggebers, der Einlagerung in einem Lagerhaus oder der Übergabe der Ladung an einen anderen Frachtführer. Soweit der Frachtführer den Auftrag hat, die Güter einer anderen Transportanstalt zu übergeben, erlischt seine Haftung mit Übergabe der Güter. Die Haftung des Frachtführers bei Beschädigung oder Verlust ist limitiert auf den allgemein üblichen Handelswert der Ware zur Zeit der Beschädigung oder des Verlustes und beträgt höchstens CHF 500.– je m3 des beschädigten bzw. verloren gegangenen Gutes. Teile eines Kubikmeters werden proportional angerechnet.
+
+Pro Ereignis ist die Haftung des Frachtführers auf CHF 25'000.– beschränkt. Vorbehalten bleiben besonders vereinbarte Versicherungsabsprachen (Art. 12 nachfolgend).`,
+    display_order: 10,
+    is_active: true,
+  },
+  {
+    title: "Art. 11 Haftungsausschluss",
+    content: `Der Frachtführer ist von seiner Haftung befreit, wenn Verlust oder Beschädigung durch ein Verschulden des Auftraggebers, eine von ihm ohne Zutun des Frachtführers erteilte Weisung, eigene Mängel des Umzugsgutes oder durch Umstände verursacht wurde, auf welche der Unternehmer keinen Einfluss hat. Bei Bruch oder Beschädigung besonders gefährdeter Sachen wie Marmor, Glas- und Porzellanplatten, Stuckrahmen, Leuchter, Lampenschirme, Radio- und Fernsehgeräte, Computer-Hard- und Software sowie Datenverluste und anderen Gegenständen von grosser Empfindlichkeit (Pflanzen, Tiere etc.), ist der Frachtführer von der Haftung befreit, vorausgesetzt, dass er die üblichen Vorsichtsmassnahmen angewandt hat. Bargeld und Werttitel sind von der Haftung ausgeschlossen (Art. 5 Abs. 7 oben). Für Kostbarkeiten wie Schmuck, Dokumente, Kunstgegenstände, Antiquitäten, Sammlerobjekte übernimmt der Frachtführer keine Haftung. Wird dem Frachtführer ein Verzeichnis solcher Gegenstände mit detaillierter Wertangabe übergeben und anhand dieser Unterlagen eine Transportversicherung abgeschlossen, so geniesst der Auftraggeber diesen Versicherungsschutz. Der Frachtführer haftet nicht für Beschädigungen der Güter während des Be- und Entladens, Ab- und Aufseilens, wenn ihre Grösse oder Schwere den Raumverhältnissen an der Be- oder Entladestelle nicht entspricht, der Frachtführer den Auftraggeber oder Empfänger vorher darauf hingewiesen, der Auftraggeber aber auf Durchführung der Leistung bestanden hat oder für Beschädigungen an Wänden, Fenstern, Böden oder Stiegengeländer, wenn die Grösse oder Schwere der zu transportierenden Güter dem Raumverhältnis nicht entsprechen. Der Frachtführer haftet nicht für Schäden am Frachtgut, die durch Feuer, Unfälle, Kriege, Streiks, höhere Gewalt oder einen dem Transportmittel durch Dritte verursachten Schaden entstehen. Wird die Beladung oder Ablieferung wegen Panne, Unfall, Witterungseinflüssen oder aus anderen Gründen, für welche den Frachtführer keine Schuld trifft, verzögert, hat der Auftraggeber keinerlei Anspruch auf irgendwelche Entschädigung. Ohne gegenseitige Vereinbarung ist der Frachtführer für Verzögerungen, die durch nicht rechtzeitige Bereitstellung von Transportmitteln oder durch Nichteinhaltung der reglementarischen Fristen durch andere am Transport beteiligte Transportanstalten entstehen, nicht haftbar. Die dadurch entstandenen Kosten (Standgelder, Zwischenlagerungen usw.) gehen zulasten des Auftraggebers. Auch haftet der Frachtführer nicht für Schäden und Verluste, die aus solchen Umständen entstehen können.`,
+    display_order: 11,
+    is_active: true,
+  },
+  {
+    title: "Art. 12 Transportversicherung",
+    content: `Zur Deckung der Transportrisiken lässt der Frachtführer den Auftraggeber auf dessen ausdrückliche Weisung und gegen Bezahlung der Mehrkosten an einer entsprechenden Versicherung teilhaben. Eine Versicherung des Bruchrisikos setzt voraus, dass die betreffenden Gegenstände vom Frachtführer oder seinen Beauftragten ein- und ausgepackt werden. Die Versicherungssummen sind durch den Auftraggeber festzusetzen. Die Versicherung gilt in jedem Fall zu den üblichen Klauseln der in der Schweiz jeweils angewandten „Allgemeinen Bedingungen für die Versicherung von Gütertransporten" (ABVT) für gebrauchtes Umzugsgut. Lässt der Auftraggeber keine Versicherung abschliessen, so trägt er selbst alle Risiken, für die der Frachtführer nach dem Wortlaut dieser Bedingungen nicht haftet.`,
+    display_order: 12,
+    is_active: true,
+  },
+  {
+    title: "Art. 13 Mängelrüge",
+    content: `Der Auftraggeber hat das Frachtgut sofort nach Auslad zu prüfen. Reklamationen wegen Verlust oder Beschädigung sind sofort bei Ablieferung des Transportgutes anzubringen und überdies dem Frachtführer innerhalb von drei Tagen schriftlich zu bestätigen. Äusserlich nicht sofort erkennbare Schäden sind dem Frachtführer innerhalb von drei Tagen seit Erbringen der Dienstleistung schriftlich anzuzeigen. Nach Ablauf dieser Fristen können keine Reklamationen mehr berücksichtigt werden.`,
+    display_order: 13,
+    is_active: true,
+  },
+  {
+    title: "Art. 14 Gerichtsstand und anwendbares Recht",
+    content: `Für die Beurteilung aller zwischen den Vertragsparteien strittigen Ansprüche gilt der Sitz des Frachtführers als Gerichtsstand.
+
+Es gilt schweizerisches Recht.`,
+    display_order: 14,
+    is_active: true,
+  },
+];
+
 const getDefaultAgbTemplates = (serviceType: string): Omit<AgbSection, 'id' | 'company_id' | 'service_type'>[] => {
   const commonTemplates = [
     {
@@ -208,8 +345,8 @@ Wir freuen uns sehr Sie als unserer Kunde zählen zu dürfen und garantieren Ihn
     ];
   }
 
-  // Default: Umzug templates
-  return commonTemplates;
+  // Default: Umzug — ASTAG Standard-Umzugsbedingungen (ersetzt die frühere Eigenvorlage)
+  return astagUmzugTemplates;
 };
 
 export const AgbSectionEditor = ({
