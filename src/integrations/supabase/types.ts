@@ -6176,10 +6176,12 @@ export type Database = {
       get_offer_items_by_token: {
         Args: { p_access_token: string }
         Returns: {
+          amount_basis: string
           description: string
           id: string
           is_highlighted: boolean
           is_optional: boolean
+          kostendach_max: number
           offer_id: string
           position: number
           price_type: string
