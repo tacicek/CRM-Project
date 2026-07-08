@@ -591,7 +591,7 @@ const handler = async (req: Request): Promise<Response> => {
             <tr>
               <td colspan="2" style="padding: 8px 0 2px 0;">
                 <div style="padding: 8px 10px; background-color: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px; color: #92400e; font-size: 12px;">
-                  <strong>Kostendach:</strong> max. ${fmtCHF(Number(item.kostendach_max))} &mdash; Sie zahlen maximal diesen Betrag, unabh&auml;ngig vom tats&auml;chlichen Zeitaufwand.
+                  <strong>Kostendach:</strong> max. ${fmtCHF(Number(item.kostendach_max))}${Number(item.unit_price) > 0 ? ` (${+(Number(item.kostendach_max) / Number(item.unit_price)).toFixed(1)} Std)` : ""} &mdash; Sie zahlen maximal diesen Betrag, unabh&auml;ngig vom tats&auml;chlichen Zeitaufwand.
                 </div>
               </td>
             </tr>` : ``}

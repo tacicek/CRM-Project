@@ -866,7 +866,7 @@ const PublicOfferView = () => {
                                 <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-1">
                                   <div>
                                     <span className="font-medium">Kostendach:</span>{" "}
-                                    {groupRate !== null ? `Stundenansatz CHF ${Number(groupRate).toLocaleString("de-CH")} / Std. — ` : ""}max. CHF {Number(groupCap).toLocaleString("de-CH")}
+                                    {groupRate !== null ? `Stundenansatz CHF ${Number(groupRate).toLocaleString("de-CH")} / Std. — ` : ""}max. CHF {Number(groupCap).toLocaleString("de-CH")}{groupRate !== null && Number(groupRate) > 0 ? ` (${+(Number(groupCap) / Number(groupRate)).toFixed(1)} Std)` : ""}
                                   </div>
                                   <p className="text-emerald-700 text-xs pt-0.5">
                                     Sie zahlen maximal CHF {Number(groupCap).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.

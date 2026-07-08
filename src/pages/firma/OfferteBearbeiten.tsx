@@ -140,6 +140,8 @@ const FirmaOfferteBearbeiten = () => {
   const [vatRate, setVatRate] = useState(8.1);
   const [mwstEnabled, setMwstEnabled] = useState(true);
   const [items, setItems] = useState<OfferItem[]>([]);
+  // Kostendach-Eingabe-Einheit je Item (Std/CHF) — nur UI, gespeichert wird immer CHF.
+  const [kdUnitById, setKdUnitById] = useState<Record<string, "std" | "chf">>({});
   // Per-service dates: one date per service group (invariant — copied to every item of
   // the group on save via replace_offer_items). Seeded from the loaded items.
   const [groupDates, setGroupDates] = useState<Record<string, { date: string; startTime: string; endTime: string }>>({});
@@ -1331,21 +1333,48 @@ const FirmaOfferteBearbeiten = () => {
                                             </SelectContent>
                                           </Select>
                                         </div>
-                                        {item.amount_basis === "rate" && (
+                                        {item.amount_basis === "rate" && (() => {
+                                          const kdUnit = kdUnitById[item.id] ?? "std";
+                                          const c = item.kostendach_max;
+                                          const kdVal = (c === null || c === undefined)
+                                            ? ""
+                                            : (kdUnit === "std" && item.unit_price > 0 ? String(+(c / item.unit_price).toFixed(2)) : String(c));
+                                          return (
                                           <div className="space-y-1">
-                                            <Label className="text-xs sm:text-sm">Kostendach (max. CHF)</Label>
-                                            <Input
-                                              type="number"
-                                              min={0}
-                                              step={0.01}
-                                              value={item.kostendach_max ?? ""}
-                                              onChange={(e) => updateItem(index, "kostendach_max", e.target.value === "" ? null : Number(e.target.value))}
-                                              onFocus={(e) => e.target.select()}
-                                              placeholder="z.B. 2500"
-                                              className="h-8 sm:h-10 text-sm"
-                                            />
+                                            <Label className="text-xs sm:text-sm">Kostendach (optional)</Label>
+                                            <div className="flex gap-2 items-center">
+                                              <Input
+                                                type="text"
+                                                inputMode="decimal"
+                                                value={kdVal}
+                                                onChange={(e) => {
+                                                  const raw = e.target.value;
+                                                  const v = parseFloat(raw.replace(",", "."));
+                                                  if (raw.trim() === "" || !isFinite(v) || v < 0) { updateItem(index, "kostendach_max", null); return; }
+                                                  const chf = kdUnit === "std" ? (item.unit_price > 0 ? v * item.unit_price : 0) : v;
+                                                  updateItem(index, "kostendach_max", Math.round(chf * 100) / 100);
+                                                }}
+                                                onFocus={(e) => e.target.select()}
+                                                placeholder={kdUnit === "std" ? "z.B. 9" : "z.B. 3105"}
+                                                className="h-8 sm:h-10 text-sm flex-1"
+                                              />
+                                              <div className="flex rounded-md border overflow-hidden text-xs shrink-0">
+                                                {(["std", "chf"] as const).map((u) => (
+                                                  <button key={u} type="button"
+                                                    onClick={() => setKdUnitById((p) => ({ ...p, [item.id]: u }))}
+                                                    className={cn("px-2.5 py-1.5", kdUnit === u ? "bg-secondary text-secondary-foreground" : "bg-background text-muted-foreground")}
+                                                  >{u === "std" ? "Std" : "CHF"}</button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                            {(c ?? null) !== null && (
+                                              <p className="text-[10px] text-muted-foreground">
+                                                {`= ${formatCurrency(Number(c))}`}{item.unit_price > 0 ? ` (${+(Number(c) / item.unit_price).toFixed(2)} Std × ${formatCurrency(item.unit_price)})` : ""}
+                                              </p>
+                                            )}
                                           </div>
-                                        )}
+                                          );
+                                        })()}
                                       </div>
                                     )}
 
