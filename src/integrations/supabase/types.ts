@@ -3248,6 +3248,7 @@ export type Database = {
       }
       offer_items: {
         Row: {
+          amount_basis: string
           created_at: string
           description: string
           discount_amount: number | null
@@ -3270,6 +3271,7 @@ export type Database = {
           unit_price: number
         }
         Insert: {
+          amount_basis?: string
           created_at?: string
           description: string
           discount_amount?: number | null
@@ -3292,6 +3294,7 @@ export type Database = {
           unit_price?: number
         }
         Update: {
+          amount_basis?: string
           created_at?: string
           description?: string
           discount_amount?: number | null
