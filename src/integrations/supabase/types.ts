@@ -3256,6 +3256,7 @@ export type Database = {
           id: string
           is_highlighted: boolean | null
           is_optional: boolean | null
+          kostendach_max: number | null
           list_price: number | null
           offer_id: string
           position: number
@@ -3279,6 +3280,7 @@ export type Database = {
           id?: string
           is_highlighted?: boolean | null
           is_optional?: boolean | null
+          kostendach_max?: number | null
           list_price?: number | null
           offer_id: string
           position?: number
@@ -3302,6 +3304,7 @@ export type Database = {
           id?: string
           is_highlighted?: boolean | null
           is_optional?: boolean | null
+          kostendach_max?: number | null
           list_price?: number | null
           offer_id?: string
           position?: number
