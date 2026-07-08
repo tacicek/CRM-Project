@@ -50,7 +50,7 @@ import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { hourlyRange, computeDisplayTotals, isFreeItem, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
+import { computeDisplayTotals, isFreeItem, itemAmountDisplay, toAmountBasis, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 
 interface OfferItem {
@@ -67,6 +67,8 @@ interface OfferItem {
   scheduled_start_time?: string | null;
   scheduled_end_time?: string | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
+  amount_basis?: string | null;
+  kostendach_max?: number | null;
 }
 
 interface Offer {
@@ -773,7 +775,11 @@ const PublicOfferView = () => {
                     {(() => {
                       const groups = groupItemsByService(items);
                       const multi = groups.length > 1;
-                      return groups.map((group) => (
+                      return groups.map((group) => {
+                        // Item-/Service-level Kostendach: greift, sobald ein Posten der Gruppe einen Cap traegt.
+                        const groupCap = group.items.map((i) => i.kostendach_max).find((v) => (v ?? null) !== null) ?? null;
+                        const groupRate = group.items.find((i) => toAmountBasis(i.amount_basis) === "rate")?.unit_price ?? null;
+                        return (
                         <Fragment key={group.serviceType ?? "allgemein"}>
                           {multi && (
                             <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -801,12 +807,21 @@ const PublicOfferView = () => {
                             </TableRow>
                           )}
                           {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => {
-                            const r = hourlyRange(item.time_estimate);
+                            // SINGLE SOURCE fuer die Betragsdarstellung (fixed | rate | range).
+                            const display = itemAmountDisplay({
+                              priceType: item.price_type ?? "",
+                              amountBasis: toAmountBasis(item.amount_basis),
+                              quantity: Number(item.quantity),
+                              unitPrice: Number(item.unit_price),
+                              unit: item.unit ?? "",
+                              timeEstimate: item.time_estimate ?? null,
+                              total: Number(item.total),
+                            });
                             return (
                             <TableRow key={item.id}>
                               <TableCell className="text-center">{item.position}</TableCell>
                               <TableCell><PositionDescription text={item.description} /></TableCell>
-                              {r ? (
+                              {display.kind === "range" ? (
                                 <>
                                   <TableCell className="text-right">
                                     {item.time_estimate!.minHours}–{item.time_estimate!.maxHours} Std.
@@ -816,8 +831,18 @@ const PublicOfferView = () => {
                                     {formatCurrency(Number(item.time_estimate!.hourlyRate))}/Std.
                                   </TableCell>
                                   <TableCell className="text-right font-medium text-amber-700">
-                                    {formatCurrency(r.min)} – {formatCurrency(r.max)}
+                                    {formatCurrency(display.min)} – {formatCurrency(display.max)}
                                   </TableCell>
+                                </>
+                              ) : display.kind === "rate" ? (
+                                <>
+                                  {/* rate: Einheitspreis statt Betrag — Menge/Dauer unbestimmt, nicht in der Summe */}
+                                  <TableCell className="text-right text-muted-foreground">n. Aufwand</TableCell>
+                                  <TableCell>{display.unit}</TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {formatCurrency(display.unitPrice)} / {display.unit}
+                                  </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">n. Aufwand</TableCell>
                                 </>
                               ) : (
                                 <>
@@ -827,13 +852,29 @@ const PublicOfferView = () => {
                                     {formatCurrency(Number(item.unit_price))}
                                   </TableCell>
                                   <TableCell className="text-right font-medium">
-                                    {formatCurrency(Number(item.total))}
+                                    {formatCurrency(display.kind === "fixed" ? display.amount : Number(item.total))}
                                   </TableCell>
                                 </>
                               )}
                             </TableRow>
                             );
                           })}
+                          {groupCap !== null && (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell />
+                              <TableCell colSpan={5} className="py-2">
+                                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-1">
+                                  <div>
+                                    <span className="font-medium">Kostendach:</span>{" "}
+                                    {groupRate !== null ? `Stundenansatz CHF ${Number(groupRate).toLocaleString("de-CH")} / Std. — ` : ""}max. CHF {Number(groupCap).toLocaleString("de-CH")}
+                                  </div>
+                                  <p className="text-emerald-700 text-xs pt-0.5">
+                                    Sie zahlen maximal CHF {Number(groupCap).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.
+                                  </p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
                           {group.items.some((item) => isFreeItem(item.price_type)) && (
                             <TableRow className="hover:bg-transparent">
                               <TableCell />
@@ -843,7 +884,8 @@ const PublicOfferView = () => {
                             </TableRow>
                           )}
                         </Fragment>
-                      ));
+                        );
+                      });
                     })()}
                   </TableBody>
                 </Table>
@@ -868,7 +910,7 @@ const PublicOfferView = () => {
                   CHF {Number(offer.hourly_rate).toLocaleString('de-CH')} / Std.
                 </div>
               )}
-              {offer.price_model === 'kostendach' && offer.hourly_rate !== null && offer.hourly_rate !== undefined && offer.kostendach_max !== null && offer.kostendach_max !== undefined && (
+              {offer.price_model === 'kostendach' && offer.hourly_rate !== null && offer.hourly_rate !== undefined && offer.kostendach_max !== null && offer.kostendach_max !== undefined && !items.some((it) => (it.kostendach_max ?? null) !== null) && (
                 <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-1">
                   <div>
                     <span className="font-medium">Stundenansatz:</span>{" "}
@@ -896,6 +938,7 @@ const PublicOfferView = () => {
                       quantity: Number(it.quantity),
                       unitPrice: Number(it.unit_price),
                       timeEstimate: it.time_estimate ?? null,
+                      amountBasis: toAmountBasis(it.amount_basis),
                     }));
                     const minTotals = computeDisplayTotals(
                       subtotalItems, surchargesSum, Number(offer.vat_rate), offer.discount_percent, "min",
