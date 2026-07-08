@@ -30,7 +30,7 @@ import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
 import { SERVICE_OPTIONS, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
 import { metaKindForService, buildMetaPayload, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
@@ -1285,21 +1285,69 @@ const FirmaOfferteBearbeiten = () => {
                                       <div className="flex items-end">
                                         <div className="text-right w-full">
                                           <Label className="text-xs sm:text-sm text-muted-foreground">Total</Label>
-                                          {item.timeEstimate && item.timeEstimate.minHours && item.timeEstimate.maxHours && item.timeEstimate.hourlyRate ? (
-                                            <p className="font-semibold text-sm sm:text-base text-amber-700">
-                                              {formatCurrency(parseFloat(item.timeEstimate.minHours) * parseFloat(item.timeEstimate.hourlyRate))}
-                                              {' –'}
-                                              <br className="sm:hidden" />
-                                              {' '}{formatCurrency(parseFloat(item.timeEstimate.maxHours) * parseFloat(item.timeEstimate.hourlyRate))}
-                                            </p>
-                                          ) : (
-                                            <p className="font-semibold text-sm sm:text-base">
-                                              {formatCurrency(item.quantity * item.unit_price)}
-                                            </p>
-                                          )}
+                                          {(() => {
+                                            const te = item.timeEstimate;
+                                            const disp = itemAmountDisplay({
+                                              priceType: item.price_type ?? "",
+                                              amountBasis: toAmountBasis(item.amount_basis),
+                                              quantity: Number(item.quantity),
+                                              unitPrice: Number(item.unit_price),
+                                              unit: item.unit,
+                                              timeEstimate: te && te.minHours && te.maxHours && te.hourlyRate
+                                                ? { minHours: Number(te.minHours), maxHours: Number(te.maxHours), hourlyRate: Number(te.hourlyRate) }
+                                                : null,
+                                            });
+                                            if (disp.kind === "range") return (
+                                              <p className="font-semibold text-sm sm:text-base text-amber-700">
+                                                {formatCurrency(disp.min)}{' –'}<br className="sm:hidden" />{' '}{formatCurrency(disp.max)}
+                                              </p>
+                                            );
+                                            if (disp.kind === "rate") return (
+                                              <p className="font-semibold text-sm sm:text-base">{formatCurrency(disp.unitPrice)} / {disp.unit}</p>
+                                            );
+                                            return (
+                                              <p className="font-semibold text-sm sm:text-base">
+                                                {formatCurrency(disp.kind === "fixed" ? disp.amount : item.quantity * item.unit_price)}
+                                              </p>
+                                            );
+                                          })()}
                                         </div>
                                       </div>
                                     </div>
+
+                                    {item.price_type !== "inkl" && item.price_type !== "optional" && (
+                                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                                        <div className="space-y-1">
+                                          <Label className="text-xs sm:text-sm">Preisbasis</Label>
+                                          <Select
+                                            value={item.amount_basis ?? "fixed"}
+                                            onValueChange={(v) => updateItem(index, "amount_basis", v)}
+                                          >
+                                            <SelectTrigger className="h-8 sm:h-10 text-sm"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="fixed">Fester Betrag</SelectItem>
+                                              <SelectItem value="rate">Ansatz (nach Aufwand)</SelectItem>
+                                              <SelectItem value="range">Spanne (min–max)</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                        {item.amount_basis === "rate" && (
+                                          <div className="space-y-1">
+                                            <Label className="text-xs sm:text-sm">Kostendach (max. CHF)</Label>
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              step={0.01}
+                                              value={item.kostendach_max ?? ""}
+                                              onChange={(e) => updateItem(index, "kostendach_max", e.target.value === "" ? null : Number(e.target.value))}
+                                              onFocus={(e) => e.target.select()}
+                                              placeholder="z.B. 2500"
+                                              className="h-8 sm:h-10 text-sm"
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
 
                                     <div className="space-y-1">
                                       <Label className="text-xs sm:text-sm">Service (Gruppierung)</Label>
