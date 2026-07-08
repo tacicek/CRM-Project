@@ -30,7 +30,7 @@ const setActiveCompanyId = (id: string) => {
 // ---------------------------------------------------------------------------
 
 export const CompanyProvider = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [companies, setCompanies] = useState<CompanyData[]>([]);
   const [memberships, setMemberships] = useState<Map<string, string>>(new Map());
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(
@@ -41,10 +41,17 @@ export const CompanyProvider = ({ children }: { children: React.ReactNode }) => 
   const fetchCompanies = useCallback(async () => {
     if (!user) {
       setCompanies([]);
-      setLoading(false);
+      setMemberships(new Map());
+      // Solange Auth noch auflöst, NICHT „fertig" melden — sonst blitzt „Keine Firma gefunden"
+      // auf, sobald der User gleich gesetzt wird und der Firmen-Fetch noch läuft. Erst wenn Auth
+      // definitiv ohne User settled ist (logged out), ist loading=false → FirmaLayout → /auth.
+      setLoading(authLoading);
       return;
     }
 
+    // Authentifiziert → wir laden (erneut) Firmen. Ohne dieses setLoading(true) bliebe loading
+    // aus dem no-user-Lauf false und die ~1s DB-Abfrage würde als „keine Firma" fehlinterpretiert.
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from("company_members")
@@ -81,7 +88,7 @@ export const CompanyProvider = ({ children }: { children: React.ReactNode }) => 
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
     fetchCompanies();
