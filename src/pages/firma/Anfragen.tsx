@@ -28,7 +28,9 @@ import {
   RefreshCw,
   CheckCircle2,
   CalendarPlus,
+  Pencil,
 } from "lucide-react";
+import AnfrageEditDialog from "@/components/firma/AnfrageEditDialog";
 import { getServiceLabel } from "@/lib/serviceLabels";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
@@ -113,6 +115,7 @@ export default function FirmaAnfragen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [serviceFilter, setServiceFilter] = useState("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [editLead, setEditLead] = useState<Lead | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   // lead_id → existing offer (badge + "Offerte ansehen")
   const [leadOffers, setLeadOffers] = useState<Record<string, { id: string; offer_number: number | null; status: string }>>({});
@@ -517,6 +520,16 @@ export default function FirmaAnfragen() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => setEditLead(lead)}
+                        className="h-8 gap-1.5 rounded-lg px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
+                        title="Anfrage bearbeiten"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Bearbeiten
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="ml-auto h-8 rounded-lg px-2 text-folk-ink3 hover:bg-folk-coral-bg hover:text-folk-coral"
                         onClick={() => handleDelete(lead.id)}
                         disabled={isDeleting === lead.id}
@@ -655,6 +668,18 @@ export default function FirmaAnfragen() {
                 </Button>
                 <Button
                   variant="outline"
+                  onClick={() => {
+                    setEditLead(selectedLead);
+                    setSelectedLead(null);
+                  }}
+                  className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-folk-ink2 hover:bg-folk-bg-warm"
+                  title="Bearbeiten"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Bearbeiten
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => handleDelete(selectedLead.id)}
                   disabled={isDeleting === selectedLead.id}
                   className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-folk-coral hover:bg-folk-coral-bg"
@@ -666,6 +691,18 @@ export default function FirmaAnfragen() {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Edit Dialog */}
+      {editLead && (
+        <AnfrageEditDialog
+          lead={editLead}
+          onClose={() => setEditLead(null)}
+          onSaved={() => {
+            setEditLead(null);
+            fetchLeads();
+          }}
+        />
       )}
     </>
   );
