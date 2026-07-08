@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { SERVICE_OPTIONS } from "@/lib/offerServiceType";
+import { itemAmountDisplay, type AmountBasis } from "@/lib/offerPricing";
 import { useState, useEffect, useRef } from "react";
 
 export interface ItemTimeEstimate {
@@ -32,6 +33,8 @@ export interface OfferItem {
   details: string[];
   timeEstimate?: ItemTimeEstimate | null;
   serviceType?: string | null; // clean base (output of normalizeToCatalogBase), null = Allgemein
+  amountBasis?: AmountBasis;    // fixed = Betrag in Summe | rate = nur Ansatz (nicht in Summe) | range = min–max
+  kostendachMax?: number | null; // Item-/Service-level Kostendach (nur bei rate relevant)
 }
 
 // Price type options with their auto-derived units
@@ -83,13 +86,18 @@ export const OfferteItemRow = ({
   offerteType,
 }: OfferteItemRowProps) => {
   const te = item.timeEstimate;
-  const teValid = te && te.minHours && te.maxHours && te.hourlyRate;
-  const itemTotal = teValid
-    ? parseFloat(te!.minHours) * parseFloat(te!.hourlyRate)
-    : item.quantity * item.unit_price;
-  const itemMaxTotal = teValid
-    ? parseFloat(te!.maxHours) * parseFloat(te!.hourlyRate)
-    : null;
+  // SINGLE SOURCE fuer die Total-Anzeige (fixed | rate | range) — kein eigenes 0.00-Rechnen mehr.
+  const amountDisplay = itemAmountDisplay({
+    priceType: item.priceType,
+    amountBasis: item.amountBasis ?? null,
+    quantity: item.quantity,
+    unitPrice: item.unit_price,
+    unit: item.unit,
+    timeEstimate:
+      te && te.minHours && te.maxHours && te.hourlyRate
+        ? { minHours: Number(te.minHours), maxHours: Number(te.maxHours), hourlyRate: Number(te.hourlyRate) }
+        : null,
+  });
   const [isExpanded, setIsExpanded] = useState(true);
 
   // Local string states so decimals like "1." don't get swallowed by parseFloat
@@ -200,6 +208,24 @@ export const OfferteItemRow = ({
                     </SelectContent>
                   </Select>
                 </div>
+                {item.priceType !== "inkl" && item.priceType !== "optional" && (
+                  <div className="space-y-1">
+                    <Label className="text-[10px] sm:text-xs text-muted-foreground">Preisbasis</Label>
+                    <Select
+                      value={item.amountBasis ?? "fixed"}
+                      onValueChange={(v) => onUpdate(index, "amountBasis", v as AmountBasis)}
+                    >
+                      <SelectTrigger className="h-9 sm:h-10 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fester Betrag</SelectItem>
+                        <SelectItem value="rate">Ansatz (nach Aufwand)</SelectItem>
+                        <SelectItem value="range">Spanne (min–max)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               {/* Expand/Collapse Toggle - Mobile Only */}
@@ -330,16 +356,40 @@ export const OfferteItemRow = ({
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] sm:text-xs text-muted-foreground">Total</Label>
-                      {itemMaxTotal !== null ? (
+                      {amountDisplay.kind === "range" ? (
                         <p className="font-bold text-sm sm:text-base h-8 sm:h-10 flex items-center text-amber-700">
-                          {formatCurrency(itemTotal)} – {formatCurrency(itemMaxTotal)}
+                          {formatCurrency(amountDisplay.min)} – {formatCurrency(amountDisplay.max)}
+                        </p>
+                      ) : amountDisplay.kind === "rate" ? (
+                        <p className="font-bold text-sm sm:text-base h-8 sm:h-10 flex items-center">
+                          {formatCurrency(amountDisplay.unitPrice)} / {amountDisplay.unit}
                         </p>
                       ) : (
                         <p className="font-bold text-sm sm:text-lg h-8 sm:h-10 flex items-center">
-                          {formatCurrency(itemTotal)}
+                          {formatCurrency(amountDisplay.kind === "fixed" ? amountDisplay.amount : item.quantity * item.unit_price)}
                         </p>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Item-/Service-level Kostendach — nur bei Preisbasis 'Ansatz' (rate) */}
+                {item.priceType !== "inkl" && item.amountBasis === "rate" && (
+                  <div className="space-y-1 max-w-[240px]">
+                    <Label className="text-[10px] sm:text-xs text-muted-foreground">Kostendach (max. CHF, optional)</Label>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      defaultValue={String(item.kostendachMax ?? "")}
+                      onBlur={(e) => {
+                        const raw = e.target.value.trim();
+                        const parsed = parseFloat(raw);
+                        onUpdate(index, "kostendachMax", raw === "" || !isFinite(parsed) || parsed < 0 ? null : parsed);
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="z.B. 2500"
+                      className="h-8 sm:h-10 text-sm"
+                    />
                   </div>
                 )}
 
