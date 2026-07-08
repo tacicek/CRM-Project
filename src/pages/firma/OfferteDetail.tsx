@@ -70,7 +70,7 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeDisplayTotals, hourlyRange, isFreeItem } from "@/lib/offerPricing";
+import { computeDisplayTotals, hourlyRange, isFreeItem, itemAmountDisplay, toAmountBasis } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { useAuth } from "@/hooks/useAuth";
@@ -102,6 +102,8 @@ interface OfferItem {
   scheduled_end_time?: string | null;
   price_type?: string | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
+  amount_basis?: string | null;
+  kostendach_max?: number | null;
 }
 
 const PdfPreviewDialog = lazy(async () => {
@@ -422,6 +424,7 @@ const FirmaOfferteDetail = () => {
       quantity: Number(it.quantity) || 0,
       unitPrice: Number(it.unit_price) || 0,
       timeEstimate: it.time_estimate ?? null,
+      amountBasis: toAmountBasis(it.amount_basis),
     }));
 
   const getBlindRange = () => {
@@ -917,18 +920,43 @@ const FirmaOfferteDetail = () => {
                             )}
                           </div>
                         )}
-                        {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => (
+                        {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => {
+                          const display = itemAmountDisplay({
+                            priceType: item.price_type ?? "",
+                            amountBasis: toAmountBasis(item.amount_basis),
+                            quantity: Number(item.quantity),
+                            unitPrice: Number(item.unit_price),
+                            unit: item.unit ?? "",
+                            timeEstimate: item.time_estimate ?? null,
+                            total: Number(item.total),
+                          });
+                          return (
                           <div key={item.id} className="border rounded-lg p-3 space-y-2">
                             <div className="flex items-start gap-2">
                               <Badge variant="outline" className="shrink-0 text-xs">{item.position}</Badge>
                               <div className="text-sm min-w-0"><PositionDescription text={item.description} /></div>
                             </div>
                             <div className="flex justify-between text-sm text-muted-foreground">
-                              <span>{item.quantity} {item.unit} × {formatCurrency(Number(item.unit_price))}</span>
-                              <span className="font-semibold text-foreground">{formatCurrency(Number(item.total))}</span>
+                              {display.kind === "range" ? (
+                                <>
+                                  <span>{item.time_estimate!.minHours}–{item.time_estimate!.maxHours} Std. × {formatCurrency(Number(item.time_estimate!.hourlyRate))}/Std.</span>
+                                  <span className="font-semibold text-amber-700">{formatCurrency(display.min)} – {formatCurrency(display.max)}</span>
+                                </>
+                              ) : display.kind === "rate" ? (
+                                <>
+                                  <span>nach Aufwand</span>
+                                  <span className="font-semibold text-foreground">{formatCurrency(display.unitPrice)} / {display.unit}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>{item.quantity} {item.unit} × {formatCurrency(Number(item.unit_price))}</span>
+                                  <span className="font-semibold text-foreground">{formatCurrency(display.kind === "fixed" ? display.amount : Number(item.total))}</span>
+                                </>
+                              )}
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                         {group.items.some((item) => isFreeItem(item.price_type)) && (
                           <div className="rounded-lg bg-muted/30 p-3">
                             <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
@@ -1056,20 +1084,45 @@ const FirmaOfferteDetail = () => {
                                 </TableCell>
                               </TableRow>
                             )}
-                            {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => (
+                            {group.items.filter((item) => !isFreeItem(item.price_type)).map((item) => {
+                              const display = itemAmountDisplay({
+                                priceType: item.price_type ?? "",
+                                amountBasis: toAmountBasis(item.amount_basis),
+                                quantity: Number(item.quantity),
+                                unitPrice: Number(item.unit_price),
+                                unit: item.unit ?? "",
+                                timeEstimate: item.time_estimate ?? null,
+                                total: Number(item.total),
+                              });
+                              return (
                               <TableRow key={item.id}>
                                 <TableCell className="text-center">{item.position}</TableCell>
                                 <TableCell><PositionDescription text={item.description} /></TableCell>
-                                <TableCell className="text-right">{item.quantity}</TableCell>
-                                <TableCell>{item.unit}</TableCell>
-                                <TableCell className="text-right">
-                                  {formatCurrency(Number(item.unit_price))}
-                                </TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {formatCurrency(Number(item.total))}
-                                </TableCell>
+                                {display.kind === "range" ? (
+                                  <>
+                                    <TableCell className="text-right">{item.time_estimate!.minHours}–{item.time_estimate!.maxHours} Std.</TableCell>
+                                    <TableCell>Std.</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(Number(item.time_estimate!.hourlyRate))}/Std.</TableCell>
+                                    <TableCell className="text-right font-medium text-amber-700">{formatCurrency(display.min)} – {formatCurrency(display.max)}</TableCell>
+                                  </>
+                                ) : display.kind === "rate" ? (
+                                  <>
+                                    <TableCell className="text-right text-muted-foreground">n. Aufwand</TableCell>
+                                    <TableCell>{display.unit}</TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(display.unitPrice)} / {display.unit}</TableCell>
+                                    <TableCell className="text-right text-muted-foreground">n. Aufwand</TableCell>
+                                  </>
+                                ) : (
+                                  <>
+                                    <TableCell className="text-right">{item.quantity}</TableCell>
+                                    <TableCell>{item.unit}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(Number(item.unit_price))}</TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(display.kind === "fixed" ? display.amount : Number(item.total))}</TableCell>
+                                  </>
+                                )}
                               </TableRow>
-                            ))}
+                              );
+                            })}
                             {group.items.some((item) => isFreeItem(item.price_type)) && (
                               <TableRow className="hover:bg-transparent">
                                 <TableCell />
