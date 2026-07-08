@@ -188,7 +188,11 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
         {data.executionDate ? (
           <Text style={styles.summaryLine}>Ausführungsdatum: {formatDate(data.executionDate)}</Text>
         ) : null}
-        <Text style={styles.summaryTotal}>Gesamtbetrag: {formatCurrency(data.pricing.total)}</Text>
+        <Text style={styles.summaryTotal}>
+          {data.pricing.maxTotal !== null && data.pricing.maxTotal !== undefined
+            ? `Gesamtbetrag: ${formatCurrency(data.pricing.total)} – ${formatCurrency(data.pricing.maxTotal)}`
+            : `Gesamtbetrag: ${formatCurrency(data.pricing.total)}`}
+        </Text>
       </View>
     </View>
   );

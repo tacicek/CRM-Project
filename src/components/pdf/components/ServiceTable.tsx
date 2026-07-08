@@ -8,7 +8,7 @@ import {
 } from "../types/offer.types";
 import { formatCurrency, formatDate, formatTime } from "../utils/formatters";
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
-import { isFreeItem, itemAmountDisplay, toAmountBasis } from "@/lib/offerPricing";
+import { isFreeItem, itemAmountDisplay, toAmountBasis, KOSTENDACH_RANGE_NOTE, UNCAPPED_RATE_NOTE } from "@/lib/offerPricing";
 import { groupItemsByService, groupScheduled, serviceTerminLabel } from "@/lib/offerServiceType";
 
 const DARK = "#1C1C27";
@@ -771,6 +771,22 @@ export const ServiceTable = ({
                 )}
               </View>
             </View>
+
+            {/* Hinweis unter dem Gesamtbetrag — Kostendach-Range bzw. ungedeckelte rate-Posten. */}
+            {data.pricing.showKostendachRangeNote || data.pricing.showUncappedRateNote ? (
+              <View style={{ marginTop: 4, paddingHorizontal: SPACING.sm }}>
+                {data.pricing.showKostendachRangeNote ? (
+                  <Text style={{ fontSize: FONT_SIZES.xs, color: COLORS.text.secondary, textAlign: "right" }}>
+                    {KOSTENDACH_RANGE_NOTE}
+                  </Text>
+                ) : null}
+                {data.pricing.showUncappedRateNote ? (
+                  <Text style={{ fontSize: FONT_SIZES.xs, color: COLORS.text.secondary, textAlign: "right" }}>
+                    {UNCAPPED_RATE_NOTE}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
 
             {/* Valid until note */}
             {data.validUntil ? (

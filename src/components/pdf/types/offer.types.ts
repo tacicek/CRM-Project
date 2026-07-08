@@ -105,6 +105,10 @@ export interface OfferData {
     /** Discounted base ("Total exkl. MwSt") — equals offers.subtotal on the min side. */
     taxableBase?: number;
     maxTaxableBase?: number | null;
+    /** Hinweis unter der Total-Zeile: Range enthält item-level Kostendach (offerAmountShape). */
+    showKostendachRangeNote?: boolean;
+    /** Hinweis unter der Total-Zeile: ungedeckelte rate-Posten (nach Aufwand). */
+    showUncappedRateNote?: boolean;
   };
   /** Blind Offerte only — time-range estimate data */
   timeEstimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;

@@ -70,6 +70,10 @@ interface OfferItem {
   total?: number;
   price_type?: string | null;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
+  // Betrags-Achse (offer_items.amount_basis): fixed | rate | range.
+  amount_basis?: string | null;
+  // Item-level Kostendach (offer_items.kostendach_max, max. CHF, netto) für rate-Posten.
+  kostendach_max?: number | null;
 }
 
 interface LeistungItem {
@@ -537,6 +541,55 @@ const handler = async (req: Request): Promise<Response> => {
     const isFreeItem = (pt: string | null | undefined) => pt === "inkl" || pt === "optional";
     const billableItems = (items ?? []).filter((i) => !isFreeItem(i.price_type));
     const freeItems = (items ?? []).filter((i) => isFreeItem(i.price_type));
+
+    // Betrags-Achse + Summen-/Range-Logik — 1:1 gespiegelt aus src/lib/offerPricing
+    // (computeItemsSubtotal, resolveAmountBasis, offerAmountShape). Deno kann src/ nicht
+    // importieren, daher hier dupliziert. SINGLE SOURCE der Regeln bleibt offerPricing.ts.
+    const validTE = (te: OfferItem["time_estimate"]) =>
+      !!(te && te.minHours > 0 && te.hourlyRate > 0);
+    const itemBasis = (item: OfferItem): "fixed" | "rate" | "range" => {
+      const b = item.amount_basis;
+      if (b === "fixed" || b === "rate" || b === "range") return b;
+      return validTE(item.time_estimate) ? "range" : "fixed";
+    };
+    // Beitrag einer Position zur Summe im min-/max-Modus. rate: min 0, max = Kostendach (0 ohne Cap).
+    const itemSub = (item: OfferItem, mode: "min" | "max"): number => {
+      const basis = itemBasis(item);
+      if (basis === "rate") {
+        const cap = Number(item.kostendach_max);
+        return mode === "max" && Number.isFinite(cap) && cap > 0 ? cap : 0;
+      }
+      if (basis === "range" && validTE(item.time_estimate)) {
+        const te = item.time_estimate!;
+        return (mode === "min" ? te.minHours : te.maxHours) * te.hourlyRate;
+      }
+      return Number(item.quantity) * Number(item.unit_price);
+    };
+    const minSubAll = billableItems.reduce((s, it) => s + itemSub(it, "min"), 0);
+    const maxSubAll = billableItems.reduce((s, it) => s + itemSub(it, "max"), 0);
+    // Range-/Hinweis-Form der Offerte (offerAmountShape-Äquivalent).
+    const amountShape = billableItems.reduce(
+      (acc, it) => {
+        const basis = itemBasis(it);
+        if (basis === "range" && validTE(it.time_estimate)) acc.hasRange = true;
+        else if (basis === "rate") {
+          const cap = Number(it.kostendach_max);
+          if (Number.isFinite(cap) && cap > 0) acc.hasRange = true;
+          else acc.hasUncappedRate = true;
+        }
+        return acc;
+      },
+      { hasRange: false, hasUncappedRate: false },
+    );
+    // Hinweistexte — wörtlich identisch zu src/lib/offerPricing (KOSTENDACH_RANGE_NOTE / UNCAPPED_RATE_NOTE).
+    const KOSTENDACH_RANGE_NOTE = "Maximalbetrag inkl. Kostendach für Stundenansatz-Positionen.";
+    const UNCAPPED_RATE_NOTE = "zzgl. Positionen nach Aufwand (siehe oben).";
+    const totalNoteHtml = amountShape.hasRange || amountShape.hasUncappedRate
+      ? `<div style="text-align: right; margin: -12px 0 20px 0; font-size: 12px; color: #6b7280;">
+          ${amountShape.hasRange ? `<div>${KOSTENDACH_RANGE_NOTE}</div>` : ""}
+          ${amountShape.hasUncappedRate ? `<div>${UNCAPPED_RATE_NOTE}</div>` : ""}
+        </div>`
+      : "";
     // First description line = bold main title, remaining lines = muted sub-line.
     const descHtml = (desc: string) => {
       const [main, ...rest] = (desc ?? "").split("\n");
@@ -712,13 +765,15 @@ const handler = async (req: Request): Promise<Response> => {
           
           <!-- Totals -->
           ${(() => {
-            const hasItemTE = items?.some(i => i.time_estimate && i.time_estimate.maxHours > 0 && i.time_estimate.hourlyRate > 0);
-            if (!hasItemTE) {
+            // Range zeigen bei Stunden-Spanne ODER gedeckeltem rate-Posten (offerAmountShape).
+            if (!amountShape.hasRange) {
               // P4a: Zwischensumme comes from the ITEMS (raw, free items excluded) — never
               // derived back from offers.subtotal, which stores the DISCOUNTED base (P3b-1).
+              // rate-Posten sind NICHT in der Summe (minSubAll schliesst sie aus — behebt den
+              // früheren Fehler, dass qty*unit_price eines rate-Postens die Zwischensumme aufblähte).
               const surchargeArr = Array.isArray(offer.surcharges) ? offer.surcharges : [];
               const surchargesSum = surchargeArr.reduce((sum, x) => sum + (Number(x?.amount) || 0), 0);
-              const itemsSub = billableItems.reduce((sum, i) => sum + Number(i.quantity) * Number(i.unit_price), 0);
+              const itemsSub = minSubAll;
               const hasDiscount = Number(offer.discount_percent) > 0;
               // Discounted base = exactly what the save flow wrote to offers.subtotal.
               const discountRows = hasDiscount ? `
@@ -750,7 +805,7 @@ const handler = async (req: Request): Promise<Response> => {
               <span>Total:</span>
               <span style="margin-left: 24px;">${fmtCHF(Number(offer.total || (Number(offer.subtotal) + Number(offer.vat_amount || 0))))}</span>
             </div>
-          </div>`;
+          </div>${totalNoteHtml}`;
             }
             // Per-item time estimates — compute range totals (P4a: free items excluded,
             // discount applied between the raw base and the VAT — mirrors offerPricing
@@ -758,16 +813,10 @@ const handler = async (req: Request): Promise<Response> => {
             const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
             const dPct = Number(offer.discount_percent) > 0 ? Number(offer.discount_percent) : 0;
             const applyD = (n: number) => (dPct > 0 ? round2(n * (1 - dPct / 100)) : n);
-            const minSub = billableItems.reduce((sum, item) => {
-              const te = item.time_estimate;
-              if (te && te.minHours > 0 && te.hourlyRate > 0) return sum + te.minHours * te.hourlyRate;
-              return sum + item.quantity * item.unit_price;
-            }, 0);
-            const maxSub = billableItems.reduce((sum, item) => {
-              const te = item.time_estimate;
-              if (te && te.maxHours > 0 && te.hourlyRate > 0) return sum + te.maxHours * te.hourlyRate;
-              return sum + item.quantity * item.unit_price;
-            }, 0);
+            // minSubAll/maxSubAll = SINGLE-SOURCE-Spiegel: rate min 0 / max = Kostendach,
+            // range min/max = Stunden × Ansatz, sonst qty × unit_price.
+            const minSub = minSubAll;
+            const maxSub = maxSubAll;
             // Zuschläge: Zwischensumme-Range bleibt Positionen; Zuschläge fix dazwischen, MwSt auf (Sub + Zuschläge).
             const rangeSurcharges = Array.isArray(offer.surcharges) ? offer.surcharges : [];
             const rangeSurchargesSum = rangeSurcharges.reduce((sum, x) => sum + (Number(x?.amount) || 0), 0);
@@ -814,7 +863,7 @@ const handler = async (req: Request): Promise<Response> => {
               <span>Total:</span>
               <span style="margin-left: 24px;">${fmtCHF(minTotal)} &ndash; ${fmtCHF(maxTotal)}</span>
             </div>
-          </div>`;
+          </div>${totalNoteHtml}`;
           })()}
 
           ${offer.price_model === 'stundenansatz' && offer.hourly_rate != null ? `

@@ -70,7 +70,7 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeDisplayTotals, hourlyRange, isFreeItem, itemAmountDisplay, toAmountBasis } from "@/lib/offerPricing";
+import { computeDisplayTotals, isFreeItem, itemAmountDisplay, offerAmountShape, toAmountBasis, KOSTENDACH_RANGE_NOTE, UNCAPPED_RATE_NOTE } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { useAuth } from "@/hooks/useAuth";
@@ -425,12 +425,15 @@ const FirmaOfferteDetail = () => {
       unitPrice: Number(it.unit_price) || 0,
       timeEstimate: it.time_estimate ?? null,
       amountBasis: toAmountBasis(it.amount_basis),
+      kostendachMax: it.kostendach_max ?? null,
     }));
 
+  // Betrags-Range der Offerte: greift bei gültiger Stunden-Spanne ODER gedeckeltem rate-Posten
+  // (0..Cap) — nicht mehr nur bei blind. offerAmountShape ist SINGLE SOURCE (kein offerte_type-Gate).
   const getBlindRange = () => {
-    if (offer?.offerte_type !== 'blind') return null;
+    if (!offer) return null;
     const subtotalItems = toSubtotalItems();
-    if (!subtotalItems.some((it) => hourlyRange(it.timeEstimate) !== null)) return null;
+    if (!offerAmountShape(subtotalItems).hasRange) return null;
     const surchargesSum = sumSurchargeAmounts(parseSurcharges(offer.surcharges));
     // P3b-2a: consolidated read chain — the discount now also caps the max side.
     // maxSubtotal is the RAW max items sum (Zwischensumme upper bound, items only —
@@ -1043,6 +1046,12 @@ const FirmaOfferteDetail = () => {
                             <span className="text-primary">{formatCurrency(Number(offer.total))}</span>
                           )}
                         </div>
+                        {(() => { const shape = offerAmountShape(toSubtotalItems()); return (shape.hasRange || shape.hasUncappedRate) ? (
+                          <div className="text-right text-xs text-muted-foreground leading-snug pt-1">
+                            {shape.hasRange ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
+                            {shape.hasUncappedRate ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
+                          </div>
+                        ) : null; })()}
                       </>
                     ); })()}
                   </div>
@@ -1215,6 +1224,12 @@ const FirmaOfferteDetail = () => {
                             <span className="">{formatCurrency(Number(offer.total))}</span>
                           )}
                         </div>
+                        {(() => { const shape = offerAmountShape(toSubtotalItems()); return (shape.hasRange || shape.hasUncappedRate) ? (
+                          <div className="text-right text-xs text-muted-foreground leading-snug pt-1">
+                            {shape.hasRange ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
+                            {shape.hasUncappedRate ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
+                          </div>
+                        ) : null; })()}
                       </>
                       ); })()}
                     </div>

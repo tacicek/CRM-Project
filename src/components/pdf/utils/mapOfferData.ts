@@ -6,7 +6,7 @@ import {
   OfferItemBreakdownEntry,
   OfferItemLeistungEntry,
 } from "../types/offer.types";
-import { computeDisplayTotals, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
+import { computeDisplayTotals, offerAmountShape, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
 
 export interface LegacyOfferData {
   id: string;
@@ -317,8 +317,6 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
     addresses: fromAddress || toAddress ? { from: fromAddress, to: toAddress } : undefined,
     items,
     pricing: (() => {
-      // Compute max totals from per-item time estimates
-      const hasItemTe = offer.items.some(i => i.time_estimate && i.time_estimate.maxHours && i.time_estimate.hourlyRate);
       let maxSubtotal: number | null = null;
       let maxMwstAmount: number | null = null;
       let maxTotal: number | null = null;
@@ -336,14 +334,18 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
         unitPrice: item.unit_price,
         timeEstimate: item.time_estimate ?? null,
         amountBasis: toAmountBasis(item.amount_basis),
+        kostendachMax: item.kostendach_max ?? null,
       }));
+      // Range zeigen, sobald irgendein Posten min≠max erzeugt: Stunden-Spanne ODER gedeckelter
+      // rate-Posten (0..Cap). Ungedeckelte rate-Posten erzeugen KEINE Spanne (nur Hinweis).
+      const shape = offerAmountShape(subtotalItems);
       const minTotals = computeDisplayTotals(
         subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "min",
       );
       const itemsSubtotal = minTotals.subtotal;
       let maxDiscountAmount: number | null = null;
       let maxTaxableBase: number | null = null;
-      if (hasItemTe) {
+      if (shape.hasRange) {
         const maxTotals = computeDisplayTotals(
           subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "max",
         );
@@ -370,6 +372,9 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
         maxDiscountAmount,
         taxableBase: minTotals.taxableBase,
         maxTaxableBase,
+        // Hinweis-Flags für die Total-Zeile (SINGLE SOURCE offerAmountShape).
+        showKostendachRangeNote: shape.hasRange,
+        showUncappedRateNote: shape.hasUncappedRate,
       };
     })(),
     timeEstimate: null,

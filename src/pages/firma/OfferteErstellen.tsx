@@ -61,7 +61,7 @@ import { ItemChip } from "@/components/offerte/ItemChip";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerAmountShape, type SubtotalItem, KOSTENDACH_RANGE_NOTE, UNCAPPED_RATE_NOTE } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -932,13 +932,15 @@ const FirmaOfferteErstellen = () => {
           }
         : null,
       amountBasis: item.amountBasis ?? null,
+      kostendachMax: item.kostendachMax ?? null,
     }));
 
   const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
 
+  // Range greift bei Stunden-Spanne ODER gedeckeltem rate-Posten (0..Cap) — offerAmountShape
+  // ist SINGLE SOURCE (ersetzt das frühere reine timeEstimate-Gate).
   const calculateMaxSubtotal = (): number | null => {
-    const hasAny = items.some(i => i.timeEstimate && i.timeEstimate.maxHours && i.timeEstimate.hourlyRate);
-    if (!hasAny) return null;
+    if (!offerAmountShape(toSubtotalItems()).hasRange) return null;
     return computeItemsSubtotal(toSubtotalItems(), "max");
   };
 
@@ -2277,6 +2279,12 @@ const FirmaOfferteErstellen = () => {
                           <span className="text-secondary">{formatCurrency(calculateTotal())}</span>
                         )}
                       </div>
+                      {(() => { const shape = offerAmountShape(toSubtotalItems()); return (shape.hasRange || shape.hasUncappedRate) ? (
+                        <div className="text-right text-[10px] sm:text-xs text-muted-foreground leading-snug pt-1">
+                          {shape.hasRange ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
+                          {shape.hasUncappedRate ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
+                        </div>
+                      ) : null; })()}
                     </div>
                   </div>
                 </CardContent>
@@ -2461,6 +2469,11 @@ const FirmaOfferteErstellen = () => {
                           vatRate={mwstEnabled ? vatRate : 0}
                           vatAmount={calculateVat()}
                           total={calculateTotal()}
+                          maxSubtotal={calculateMaxSubtotal()}
+                          maxVat={calculateMaxVat()}
+                          maxTotal={calculateMaxTotal()}
+                          showKostendachRangeNote={offerAmountShape(toSubtotalItems()).hasRange}
+                          showUncappedRateNote={offerAmountShape(toSubtotalItems()).hasUncappedRate}
                           priceModel={priceModel}
                           hourlyRate={hourlyRate ? Number(hourlyRate) : null}
                           kostendachMax={kostendachMax ? Number(kostendachMax) : null}
@@ -2555,6 +2568,11 @@ const FirmaOfferteErstellen = () => {
                       vatRate={mwstEnabled ? vatRate : 0}
                       vatAmount={calculateVat()}
                       total={calculateTotal()}
+                      maxSubtotal={calculateMaxSubtotal()}
+                      maxVat={calculateMaxVat()}
+                      maxTotal={calculateMaxTotal()}
+                      showKostendachRangeNote={offerAmountShape(toSubtotalItems()).hasRange}
+                      showUncappedRateNote={offerAmountShape(toSubtotalItems()).hasUncappedRate}
                       priceModel={priceModel}
                       hourlyRate={hourlyRate ? Number(hourlyRate) : null}
                       kostendachMax={kostendachMax ? Number(kostendachMax) : null}

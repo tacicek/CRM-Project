@@ -30,7 +30,7 @@ import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerAmountShape, toAmountBasis, type SubtotalItem, KOSTENDACH_RANGE_NOTE, UNCAPPED_RATE_NOTE } from "@/lib/offerPricing";
 import { SERVICE_OPTIONS, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
 import { metaKindForService, buildMetaPayload, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
@@ -474,13 +474,15 @@ const FirmaOfferteBearbeiten = () => {
           }
         : null,
       amountBasis: toAmountBasis(item.amount_basis),
+      kostendachMax: item.kostendach_max ?? null,
     }));
 
   const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
 
+  // Range greift bei Stunden-Spanne ODER gedeckeltem rate-Posten (0..Cap) — offerAmountShape
+  // ist SINGLE SOURCE (ersetzt das frühere reine timeEstimate-Gate).
   const calculateMaxSubtotal = (): number | null => {
-    const hasAny = items.some(i => i.timeEstimate && i.timeEstimate.maxHours && i.timeEstimate.hourlyRate);
-    if (!hasAny) return null;
+    if (!offerAmountShape(toSubtotalItems()).hasRange) return null;
     return computeItemsSubtotal(toSubtotalItems(), "max");
   };
 
@@ -1642,6 +1644,12 @@ const FirmaOfferteBearbeiten = () => {
                         <span className="text-primary">{formatCurrency(calculateTotal())}</span>
                       )}
                     </div>
+                    {(() => { const shape = offerAmountShape(toSubtotalItems()); return (shape.hasRange || shape.hasUncappedRate) ? (
+                      <div className="text-right text-xs text-muted-foreground leading-snug pt-1">
+                        {shape.hasRange ? <div>{KOSTENDACH_RANGE_NOTE}</div> : null}
+                        {shape.hasUncappedRate ? <div>{UNCAPPED_RATE_NOTE}</div> : null}
+                      </div>
+                    ) : null; })()}
                   </CardContent>
                 </Card>
 
