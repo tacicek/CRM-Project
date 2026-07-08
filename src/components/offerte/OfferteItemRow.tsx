@@ -123,6 +123,29 @@ export const OfferteItemRow = ({
   const currentPriceType = priceTypeOptions.find(o => o.value === item.priceType);
   const unitIsFixed = currentPriceType?.fixedUnit ?? true;
 
+  // Kostendach-Eingabe: Std oder CHF. Gespeichert wird IMMER CHF (= Std × Ansatz/unit_price),
+  // kein Schema-Change. Std wird beim Anzeigen aus CHF/Ansatz zurueckgerechnet.
+  const kdInit = (() => {
+    const c = item.kostendachMax;
+    if (c === null || c === undefined) return "";
+    return item.unit_price > 0 ? String(+(c / item.unit_price).toFixed(2)) : String(c);
+  })();
+  const [kdUnit, setKdUnit] = useState<"std" | "chf">("std");
+  const [kdStr, setKdStr] = useState<string>(kdInit);
+  const commitKostendach = (str: string, unit: "std" | "chf") => {
+    const v = parseFloat(str.replace(",", "."));
+    if (str.trim() === "" || !isFinite(v) || v < 0) { onUpdate(index, "kostendachMax", null); return; }
+    const chf = unit === "std" ? (item.unit_price > 0 ? v * item.unit_price : 0) : v;
+    onUpdate(index, "kostendachMax", Math.round(chf * 100) / 100);
+  };
+  const switchKdUnit = (u: "std" | "chf") => {
+    if (u === kdUnit) return;
+    const c = item.kostendachMax;
+    setKdUnit(u);
+    if (c === null || c === undefined) return;
+    setKdStr(u === "std" && item.unit_price > 0 ? String(+(c / item.unit_price).toFixed(2)) : String(c));
+  };
+
   return (
     <Draggable draggableId={item.id} index={index}>
       {(provided, snapshot) => (
@@ -373,23 +396,43 @@ export const OfferteItemRow = ({
                   </div>
                 )}
 
-                {/* Item-/Service-level Kostendach — nur bei Preisbasis 'Ansatz' (rate) */}
+                {/* Item-/Service-level Kostendach — nur bei Preisbasis 'Ansatz' (rate). Std ODER CHF. */}
                 {item.priceType !== "inkl" && item.amountBasis === "rate" && (
-                  <div className="space-y-1 max-w-[240px]">
-                    <Label className="text-[10px] sm:text-xs text-muted-foreground">Kostendach (max. CHF, optional)</Label>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      defaultValue={String(item.kostendachMax ?? "")}
-                      onBlur={(e) => {
-                        const raw = e.target.value.trim();
-                        const parsed = parseFloat(raw);
-                        onUpdate(index, "kostendachMax", raw === "" || !isFinite(parsed) || parsed < 0 ? null : parsed);
-                      }}
-                      onFocus={(e) => e.target.select()}
-                      placeholder="z.B. 2500"
-                      className="h-8 sm:h-10 text-sm"
-                    />
+                  <div className="space-y-1 max-w-[340px]">
+                    <Label className="text-[10px] sm:text-xs text-muted-foreground">Kostendach (optional)</Label>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={kdStr}
+                        onChange={(e) => setKdStr(e.target.value)}
+                        onBlur={(e) => commitKostendach(e.target.value, kdUnit)}
+                        onFocus={(e) => e.target.select()}
+                        placeholder={kdUnit === "std" ? "z.B. 9" : "z.B. 3105"}
+                        className="h-8 sm:h-10 text-sm flex-1"
+                      />
+                      <div className="flex rounded-md border overflow-hidden text-xs shrink-0">
+                        {(["std", "chf"] as const).map((u) => (
+                          <button
+                            key={u}
+                            type="button"
+                            onClick={() => switchKdUnit(u)}
+                            className={cn(
+                              "px-2.5 py-1.5",
+                              kdUnit === u ? "bg-secondary text-secondary-foreground" : "bg-background text-muted-foreground",
+                            )}
+                          >
+                            {u === "std" ? "Std" : "CHF"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {(item.kostendachMax ?? null) !== null && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {`= ${formatCurrency(Number(item.kostendachMax))}`}
+                        {item.unit_price > 0 ? ` (${+(Number(item.kostendachMax) / item.unit_price).toFixed(2)} Std × ${formatCurrency(item.unit_price)})` : ""}
+                      </p>
+                    )}
                   </div>
                 )}
 

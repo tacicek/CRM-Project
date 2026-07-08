@@ -634,8 +634,8 @@ export const ServiceTable = ({
                   <View style={styles.priceModelRow}>
                     <Text style={[styles.priceModelLabel, { color: "#92400E" }]}>Kostendach:</Text>
                     <Text style={[styles.priceModelValue, { color: "#92400E" }]}>
-                      {isSet(groupRate)
-                        ? `Stundenansatz CHF ${Number(groupRate).toLocaleString("de-CH")} / Std. — max. CHF ${Number(groupCap).toLocaleString("de-CH")}`
+                      {isSet(groupRate) && Number(groupRate) > 0
+                        ? `Stundenansatz CHF ${Number(groupRate).toLocaleString("de-CH")} / Std. — max. CHF ${Number(groupCap).toLocaleString("de-CH")} (${+(Number(groupCap) / Number(groupRate)).toFixed(1)} Std)`
                         : `max. CHF ${Number(groupCap).toLocaleString("de-CH")}`}
                     </Text>
                   </View>
