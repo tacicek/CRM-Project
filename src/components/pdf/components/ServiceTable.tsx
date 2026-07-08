@@ -8,7 +8,7 @@ import {
 } from "../types/offer.types";
 import { formatCurrency, formatDate, formatTime } from "../utils/formatters";
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
-import { hourlyRange, isFreeItem } from "@/lib/offerPricing";
+import { isFreeItem, itemAmountDisplay, toAmountBasis } from "@/lib/offerPricing";
 import { groupItemsByService, groupScheduled, serviceTerminLabel } from "@/lib/offerServiceType";
 
 const DARK = "#1C1C27";
@@ -363,7 +363,24 @@ interface RowProps {
 // presentation collapses from the old 5 columns to 2. No POS badge (screenshot pattern).
 const ItemRow = ({ item }: RowProps) => {
   const te = item.timeEstimate;
-  const r = hourlyRange(te);
+  // Ansatz + Einheit fuer rate-Posten aus effort/volume-Meta bzw. unit_price ableiten.
+  const rateUnit =
+    item.volumeMeta?.rate_unit === "monthly" ? "Monat" : (item.unit?.trim() || "Std.");
+  const rateValue = isSet(item.effortMeta?.hourly_rate)
+    ? Number(item.effortMeta?.hourly_rate)
+    : isSet(item.volumeMeta?.rate)
+      ? Number(item.volumeMeta?.rate)
+      : item.price;
+  // SINGLE SOURCE fuer die Betragsdarstellung (fixed | rate | range | free).
+  const display = itemAmountDisplay({
+    priceType: item.priceType ?? "",
+    amountBasis: toAmountBasis(item.amountBasis),
+    quantity: item.quantity,
+    unitPrice: rateValue,
+    unit: rateUnit,
+    timeEstimate: te ?? null,
+    total: item.total,
+  });
   // Meta lines render only when they carry actual content (embeds can exist all-null).
   const effort =
     item.effortMeta &&
@@ -384,13 +401,16 @@ const ItemRow = ({ item }: RowProps) => {
       ? item.volumeMeta
       : null;
   // Menge/Einzel context, folded into a small sub-line under the description.
-  const sub = r
-    ? `${te!.minHours}–${te!.maxHours} Std. à ${formatCurrency(te!.hourlyRate)}/Std.`
-    : item.priceType === "pauschale"
-      ? "Pauschal"
-      : item.quantity !== 1
-        ? `${formatQuantityUnit(item.quantity, item.unit)} à ${formatCurrency(item.price)}`
-        : formatQuantityUnit(item.quantity, item.unit);
+  const sub =
+    display.kind === "range" && te
+      ? `${te.minHours}–${te.maxHours} Std. à ${formatCurrency(te.hourlyRate)}/Std.`
+      : display.kind === "rate"
+        ? null // Preisspalte zeigt den Ansatz; keine irrefuehrende Menge-Zeile
+        : item.priceType === "pauschale"
+          ? "Pauschal"
+          : item.quantity !== 1
+            ? `${formatQuantityUnit(item.quantity, item.unit)} à ${formatCurrency(item.price)}`
+            : formatQuantityUnit(item.quantity, item.unit);
 
   return (
     <View style={cardStyles.posRow} wrap={false}>
@@ -408,14 +428,22 @@ const ItemRow = ({ item }: RowProps) => {
         {volume ? <VolumeLine volume={volume} /> : null}
       </View>
       <View style={cardStyles.posRight}>
-        {r ? (
+        {display.kind === "range" ? (
           <>
-            <Text style={[cardStyles.posPrice, { color: "#B45309" }]}>{formatCurrency(r.min)}</Text>
+            <Text style={[cardStyles.posPrice, { color: "#B45309" }]}>{formatCurrency(display.min)}</Text>
             {/* "bis", not a dash — a stacked leading "–" reads as subtraction/negative */}
-            <Text style={cardStyles.posPriceSub}>bis {formatCurrency(r.max)}</Text>
+            <Text style={cardStyles.posPriceSub}>bis {formatCurrency(display.max)}</Text>
+          </>
+        ) : display.kind === "rate" ? (
+          <>
+            {/* rate: Einheitspreis statt Betrag — Menge/Dauer unbestimmt, nicht in der Summe */}
+            <Text style={cardStyles.posPrice}>{formatCurrency(display.unitPrice)}</Text>
+            <Text style={cardStyles.posPriceSub}>{`/ ${display.unit}`}</Text>
           </>
         ) : (
-          <Text style={cardStyles.posPrice}>{formatCurrency(item.total)}</Text>
+          <Text style={cardStyles.posPrice}>
+            {formatCurrency(display.kind === "fixed" ? display.amount : item.total)}
+          </Text>
         )}
       </View>
     </View>
@@ -577,6 +605,10 @@ export const ServiceTable = ({
       {groups.map((group, gi) => {
         const billable = group.items.filter((it) => !isFreeItem(it.priceType));
         const leistungLines = buildLeistungLines(group.items);
+        // Item-/Service-level Kostendach: greift, sobald ein Posten dieser Gruppe einen Cap traegt.
+        const groupCap = billable.map((it) => it.kostendachMax).find(isSet) ?? null;
+        const groupRate =
+          billable.map((it) => it.effortMeta?.hourly_rate ?? it.volumeMeta?.rate ?? null).find(isSet) ?? null;
         return (
           // wrap={false}: keep the whole card together on one page (group-aware chunking in
           // P2b-i already sizes groups to fit; rare oversized groups still degrade gracefully).
@@ -591,6 +623,26 @@ export const ServiceTable = ({
               ))}
               {leistungLines.length > 0 ? (
                 <LeistungsumfangBlock lines={leistungLines} accent={accent} />
+              ) : null}
+              {/* Service-block Kostendach: nur wenn ein rate-Posten dieser Gruppe ein Item-Cap traegt.
+                  Das globale offer-level Kostendach (unten) rendert dann als Fallback nicht mehr. */}
+              {isSet(groupCap) ? (
+                <View
+                  style={[styles.priceModelBox, { borderColor: "#D97706", backgroundColor: "#FFFBEB", marginTop: 8 }]}
+                  wrap={false}
+                >
+                  <View style={styles.priceModelRow}>
+                    <Text style={[styles.priceModelLabel, { color: "#92400E" }]}>Kostendach:</Text>
+                    <Text style={[styles.priceModelValue, { color: "#92400E" }]}>
+                      {isSet(groupRate)
+                        ? `Stundenansatz CHF ${Number(groupRate).toLocaleString("de-CH")} / Std. — max. CHF ${Number(groupCap).toLocaleString("de-CH")}`
+                        : `max. CHF ${Number(groupCap).toLocaleString("de-CH")}`}
+                    </Text>
+                  </View>
+                  <Text style={[styles.priceModelNote, { color: "#92400E" }]}>
+                    {`Sie zahlen maximal CHF ${Number(groupCap).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.`}
+                  </Text>
+                </View>
               ) : null}
             </View>
           </View>
@@ -770,11 +822,13 @@ export const ServiceTable = ({
           </View>
         )}
 
-      {/* Price model: Kostendach */}
+      {/* Price model: Kostendach (offer-level) — nur als FALLBACK, wenn KEIN Posten ein
+          item-/service-level Kostendach traegt (dann rendert es der Service-Block oben). */}
       {showTotalsBlock &&
         data.pricing.priceModel === "kostendach" &&
         data.pricing.hourlyRate !== null &&
-        data.pricing.kostendachMax !== null && (
+        data.pricing.kostendachMax !== null &&
+        !items.some((it) => isSet(it.kostendachMax)) && (
           <View
             style={[styles.priceModelBox, { borderColor: "#D97706", backgroundColor: "#FFFBEB" }]}
             wrap={false}
