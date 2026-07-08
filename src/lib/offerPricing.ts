@@ -281,6 +281,10 @@ export const offerHasRateItem = (items: SubtotalItem[]): boolean =>
 export const RATE_AGGREGATE_NOTE =
   "Der Gesamtpreis ergibt sich aus den Positionen nach Aufwand (siehe Details oben) zzgl. allfälliger Fixpositionen.";
 
+// Kompakt-Variante für enge Flächen (Offerten-Liste Betrag-Spalte) — statt eines irreführenden
+// Fix-Summen-Betrags bei Offerten mit rate-Posten. Gleiche Semantik wie RATE_AGGREGATE_NOTE.
+export const RATE_AGGREGATE_SHORT = "nach Aufwand";
+
 // ---------------------------------------------------------------------------
 // Zeilen-Anzeige — SINGLE SOURCE für die Betragsdarstellung einer Position.
 //

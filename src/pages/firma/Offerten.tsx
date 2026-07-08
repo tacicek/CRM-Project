@@ -63,6 +63,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { getServiceLabel } from "@/lib/serviceLabels";
 import { sendOffer } from "@/lib/sendOffer";
+import { RATE_AGGREGATE_SHORT } from "@/lib/offerPricing";
 
 interface Offer {
   id: string;
@@ -230,6 +231,9 @@ const FirmaOfferten = () => {
   const [isResending, setIsResending] = useState<string | null>(null);
   const [auftragOffer, setAuftragOffer] = useState<Offer | null>(null);
   const [offersWithAuftrag, setOffersWithAuftrag] = useState<Set<string>>(new Set());
+  // Offerten mit mindestens einem rate-Posten (amount_basis='rate') — Betrag-Spalte zeigt dann
+  // „nach Aufwand" statt einer irreführenden Fix-Summe (spiegelt offerHasRateItem).
+  const [rateOfferIds, setRateOfferIds] = useState<Set<string>>(new Set());
   const [_checklistMap, setChecklistMap] = useState<Record<string, string>>({});
   const [_leadServiceTypes, setLeadServiceTypes] = useState<Record<string, string>>({});
   const [leadInfoMap, setLeadInfoMap] = useState<Record<string, LeadInfo>>({});
@@ -333,6 +337,21 @@ const FirmaOfferten = () => {
         if (!isMounted) return;
 
         setOffers(offersData || []);
+
+        // Welche dieser Offerten haben mindestens einen rate-Posten? amount_basis='rate' ist die
+        // exakte DB-Projektion der resolveAmountBasis-'rate'-Regel (rate ist immer explizit).
+        const allOfferIds = (offersData || []).map((o: Offer) => o.id).filter(Boolean);
+        if (allOfferIds.length > 0) {
+          const { data: rateItemsData } = await supabase
+            .from("offer_items")
+            .select("offer_id")
+            .eq("amount_basis", "rate")
+            .in("offer_id", allOfferIds);
+          if (!isMounted) return;
+          setRateOfferIds(
+            new Set<string>((rateItemsData || []).map((r: { offer_id: string }) => r.offer_id).filter(Boolean)),
+          );
+        }
 
         const offersArr = offersData || [];
         const calculatedStats: OfferStats = {
@@ -595,7 +614,9 @@ const FirmaOfferten = () => {
             onClick={() => navigate(`/firma/offerten/${offer.id}`)}
           >
             <span className="font-sans text-xl font-bold tracking-tight text-folk-ink">
-              {formatCurrency(Number(offer.total))}
+              {rateOfferIds.has(offer.id)
+                ? <span className="text-base font-semibold text-folk-ink3">{RATE_AGGREGATE_SHORT}</span>
+                : formatCurrency(Number(offer.total))}
             </span>
             <span className="font-mono text-[13px] text-folk-ink4">{formatDate(offer.created_at)}</span>
           </div>
@@ -897,7 +918,9 @@ const FirmaOfferten = () => {
                                     )}
                                   </TableCell>
                                   <TableCell className="text-right font-sans text-[15px] font-bold tracking-tight text-folk-ink">
-                                    {formatCurrency(Number(offer.total))}
+                                    {rateOfferIds.has(offer.id)
+                                      ? <span className="text-[13px] font-semibold text-folk-ink3">{RATE_AGGREGATE_SHORT}</span>
+                                      : formatCurrency(Number(offer.total))}
                                   </TableCell>
                                   <TableCell>
                                     <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${status.bg} ${status.color}`}>
