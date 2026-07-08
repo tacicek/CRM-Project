@@ -8,7 +8,10 @@ import {
   applyDiscount,
   computeDiscountAmount,
   computeDisplayTotals,
+  resolveAmountBasis,
+  itemAmountDisplay,
   type SubtotalItem,
+  type AmountDisplayItem,
   BLIND_DISCLAIMER_LABEL,
   BLIND_DISCLAIMER_TEXT,
 } from "@/lib/offerPricing";
@@ -192,6 +195,127 @@ describe("computeTotalsFromSubtotal", () => {
     // VAT 0, surcharge 0 → total range 1200 – 1400
     expect(computeTotalsFromSubtotal(minItems, 0, 0).total).toBe(1200);
     expect(computeTotalsFromSubtotal(maxItems, 0, 0).total).toBe(1400);
+  });
+});
+
+describe("resolveAmountBasis (amount_basis axis)", () => {
+  it("explicit basis wins (fixed/rate/range)", () => {
+    expect(resolveAmountBasis({ amountBasis: "fixed", timeEstimate: null })).toBe("fixed");
+    expect(resolveAmountBasis({ amountBasis: "rate", timeEstimate: null })).toBe("rate");
+    expect(resolveAmountBasis({ amountBasis: "range", timeEstimate: null })).toBe("range");
+  });
+
+  it("explicit basis wins even against a present timeEstimate", () => {
+    const te = { minHours: 2, maxHours: 4, hourlyRate: 100 };
+    expect(resolveAmountBasis({ amountBasis: "fixed", timeEstimate: te })).toBe("fixed");
+    expect(resolveAmountBasis({ amountBasis: "rate", timeEstimate: te })).toBe("rate");
+  });
+
+  it("no basis + valid timeEstimate → range (legacy behaviour)", () => {
+    expect(resolveAmountBasis({ timeEstimate: { minHours: 2, maxHours: 4, hourlyRate: 100 } })).toBe("range");
+  });
+
+  it("no basis + no/invalid timeEstimate → fixed (legacy behaviour)", () => {
+    expect(resolveAmountBasis({ timeEstimate: null })).toBe("fixed");
+    expect(resolveAmountBasis({ timeEstimate: { minHours: 0, maxHours: 4, hourlyRate: 100 } })).toBe("fixed");
+  });
+
+  it("never infers 'rate' — it is an explicit-only state", () => {
+    expect(resolveAmountBasis({ timeEstimate: null })).not.toBe("rate");
+    expect(resolveAmountBasis({ amountBasis: null, timeEstimate: null })).not.toBe("rate");
+  });
+});
+
+describe("computeItemsSubtotal — amount_basis", () => {
+  it("BACKWARD COMPAT: items without amountBasis behave exactly like before", () => {
+    // identical fixture/expectations as the legacy 'mixed' suite above
+    const legacy: SubtotalItem[] = [
+      { priceType: "pauschale", quantity: 1, unitPrice: 1000, timeEstimate: null },
+      { priceType: "optional", quantity: 1, unitPrice: 200, timeEstimate: null },
+      { priceType: "inkl", quantity: 1, unitPrice: 50, timeEstimate: null },
+      { priceType: "per_hour", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 2, maxHours: 4, hourlyRate: 100 } },
+    ];
+    expect(computeItemsSubtotal(legacy, "min")).toBe(1200);
+    expect(computeItemsSubtotal(legacy, "max")).toBe(1400);
+  });
+
+  it("rate item is NEVER summed (the CHF 0.00 root-cause fix)", () => {
+    const items: SubtotalItem[] = [
+      { priceType: "pauschale", quantity: 1, unitPrice: 800, timeEstimate: null },
+      // rate: crew/hours indeterminate — unitPrice is the Stundenansatz, must not enter the sum
+      { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null },
+    ];
+    expect(computeItemsSubtotal(items, "min")).toBe(800);
+    expect(computeItemsSubtotal(items, "max")).toBe(800);
+  });
+
+  it("range item is summed as min/max even when explicitly flagged", () => {
+    const items: SubtotalItem[] = [
+      { priceType: "pauschale", quantity: 1, unitPrice: 800, timeEstimate: null },
+      { priceType: "per_hour", amountBasis: "range", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 3, maxHours: 5, hourlyRate: 100 } },
+    ];
+    expect(computeItemsSubtotal(items, "min")).toBe(1100); // 800 + 3*100
+    expect(computeItemsSubtotal(items, "max")).toBe(1300); // 800 + 5*100
+  });
+
+  it("explicit fixed with a timeEstimate uses quantity*unitPrice, not the range", () => {
+    const items: SubtotalItem[] = [
+      { priceType: "pauschale", amountBasis: "fixed", quantity: 2, unitPrice: 100, timeEstimate: { minHours: 3, maxHours: 5, hourlyRate: 100 } },
+    ];
+    expect(computeItemsSubtotal(items, "min")).toBe(200);
+    expect(computeItemsSubtotal(items, "max")).toBe(200);
+  });
+
+  it("range flagged but no computable estimate → fixed fallback (matches display helper)", () => {
+    const items: SubtotalItem[] = [
+      { priceType: "per_hour", amountBasis: "range", quantity: 2, unitPrice: 150, timeEstimate: null },
+    ];
+    expect(computeItemsSubtotal(items, "min")).toBe(300);
+  });
+
+  it("SUMMARY RULE: Gesamtbetrag = fixed + range only (rate excluded)", () => {
+    const items: SubtotalItem[] = [
+      { priceType: "pauschale", amountBasis: "fixed", quantity: 1, unitPrice: 800, timeEstimate: null },
+      { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, timeEstimate: null },
+      { priceType: "per_hour", amountBasis: "range", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 3, maxHours: 5, hourlyRate: 90 } },
+      { priceType: "optional", quantity: 1, unitPrice: 200, timeEstimate: null },
+    ];
+    expect(computeItemsSubtotal(items, "min")).toBe(1070); // 800 + 270 (rate & optional excluded)
+    expect(computeItemsSubtotal(items, "max")).toBe(1250); // 800 + 450
+  });
+});
+
+describe("itemAmountDisplay", () => {
+  const base = { quantity: 1, unitPrice: 0, timeEstimate: null } as const;
+
+  it("free (inkl/optional) → kind 'free' with priceType", () => {
+    expect(itemAmountDisplay({ ...base, priceType: "inkl" })).toEqual({ kind: "free", priceType: "inkl" });
+    expect(itemAmountDisplay({ ...base, priceType: "optional" })).toEqual({ kind: "free", priceType: "optional" });
+  });
+
+  it("rate → unitPrice + trimmed unit (the '/ Std' / '/ m³' case)", () => {
+    const item: AmountDisplayItem = { priceType: "per_hour", amountBasis: "rate", quantity: 1, unitPrice: 350, unit: " Std. ", timeEstimate: null };
+    expect(itemAmountDisplay(item)).toEqual({ kind: "rate", unitPrice: 350, unit: "Std." });
+  });
+
+  it("range → min/max from timeEstimate", () => {
+    const item: AmountDisplayItem = { priceType: "per_hour", amountBasis: "range", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 3, maxHours: 5, hourlyRate: 100 } };
+    expect(itemAmountDisplay(item)).toEqual({ kind: "range", min: 300, max: 500 });
+  });
+
+  it("fixed → prefers stored total, falls back to quantity*unitPrice", () => {
+    expect(itemAmountDisplay({ priceType: "pauschale", quantity: 1, unitPrice: 800, timeEstimate: null, total: 720 })).toEqual({ kind: "fixed", amount: 720 });
+    expect(itemAmountDisplay({ priceType: "pauschale", quantity: 3, unitPrice: 50, timeEstimate: null })).toEqual({ kind: "fixed", amount: 150 });
+  });
+
+  it("legacy (no amountBasis) + valid timeEstimate → range; else fixed", () => {
+    expect(itemAmountDisplay({ priceType: "per_hour", quantity: 1, unitPrice: 0, timeEstimate: { minHours: 2, maxHours: 4, hourlyRate: 100 } })).toEqual({ kind: "range", min: 200, max: 400 });
+    expect(itemAmountDisplay({ priceType: "per_unit", quantity: 4, unitPrice: 20, timeEstimate: null })).toEqual({ kind: "fixed", amount: 80 });
+  });
+
+  it("range flagged but no estimate → fixed fallback (consistent with subtotal)", () => {
+    const item: AmountDisplayItem = { priceType: "per_hour", amountBasis: "range", quantity: 2, unitPrice: 150, timeEstimate: null };
+    expect(itemAmountDisplay(item)).toEqual({ kind: "fixed", amount: 300 });
   });
 });
 
