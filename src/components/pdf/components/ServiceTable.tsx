@@ -607,8 +607,12 @@ export const ServiceTable = ({
         const leistungLines = buildLeistungLines(group.items);
         // Item-/Service-level Kostendach: greift, sobald ein Posten dieser Gruppe einen Cap traegt.
         const groupCap = billable.map((it) => it.kostendachMax).find(isSet) ?? null;
+        // Ansatz fuer die Std-Ableitung im Kostendach: effort/volume-Meta ODER (UI-erstellte
+        // rate-Posten ohne Meta) der Einzelpreis des rate-Postens (= Ansatz in unit_price).
         const groupRate =
-          billable.map((it) => it.effortMeta?.hourly_rate ?? it.volumeMeta?.rate ?? null).find(isSet) ?? null;
+          billable
+            .map((it) => it.effortMeta?.hourly_rate ?? it.volumeMeta?.rate ?? (toAmountBasis(it.amountBasis) === "rate" ? it.price : null))
+            .find(isSet) ?? null;
         return (
           // wrap={false}: keep the whole card together on one page (group-aware chunking in
           // P2b-i already sizes groups to fit; rare oversized groups still degrade gracefully).
