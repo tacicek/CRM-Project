@@ -10,6 +10,7 @@ import {
   computeDisplayTotals,
   resolveAmountBasis,
   toAmountBasis,
+  defaultAmountBasisForPriceType,
   itemAmountDisplay,
   type SubtotalItem,
   type AmountDisplayItem,
@@ -211,6 +212,20 @@ describe("toAmountBasis (DB string normalizer)", () => {
     expect(toAmountBasis("")).toBeNull();
     expect(toAmountBasis(null)).toBeNull();
     expect(toAmountBasis(undefined)).toBeNull();
+  });
+});
+
+describe("defaultAmountBasisForPriceType (Item-Erstellung)", () => {
+  it("per_hour → rate (Stundenansatz)", () => {
+    expect(defaultAmountBasisForPriceType("per_hour")).toBe("rate");
+  });
+  it("alle anderen → fixed", () => {
+    expect(defaultAmountBasisForPriceType("pauschale")).toBe("fixed");
+    expect(defaultAmountBasisForPriceType("per_unit")).toBe("fixed");
+    expect(defaultAmountBasisForPriceType("inkl")).toBe("fixed");
+    expect(defaultAmountBasisForPriceType("optional")).toBe("fixed");
+    expect(defaultAmountBasisForPriceType(null)).toBe("fixed");
+    expect(defaultAmountBasisForPriceType(undefined)).toBe("fixed");
   });
 });
 

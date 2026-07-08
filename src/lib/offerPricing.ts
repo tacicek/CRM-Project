@@ -71,6 +71,15 @@ export const toAmountBasis = (value: string | null | undefined): AmountBasis | n
   }
 };
 
+/**
+ * Default-amount_basis bei der ITEM-ERSTELLUNG (Katalog/Rechner/Stundenansatz-Anwendung).
+ * per_hour = Stundenansatz → 'rate' (unbestimmte Dauer, nicht in der Summe); sonst 'fixed'.
+ * NUR fuer neue Items — die Ableitung (resolveAmountBasis) bleibt unberuehrt, damit Bestands-
+ * items nicht rueckwirkend umklassifiziert werden.
+ */
+export const defaultAmountBasisForPriceType = (priceType: string | null | undefined): AmountBasis =>
+  priceType === "per_hour" ? "rate" : "fixed";
+
 export interface SubtotalItem {
   priceType: string; // 'pauschale' | 'per_unit' | 'per_hour' | 'optional' | 'inkl'
   quantity: number;

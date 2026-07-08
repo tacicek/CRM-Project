@@ -61,7 +61,7 @@ import { ItemChip } from "@/components/offerte/ItemChip";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, type SubtotalItem } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -327,7 +327,7 @@ const FirmaOfferteErstellen = () => {
         prev.map((it) => {
           if (serviceGroupKey(it.serviceType) !== key) return it;
           if (it.timeEstimate) return { ...it, timeEstimate: { ...it.timeEstimate, hourlyRate: rate } };
-          if (it.priceType === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n };
+          if (it.priceType === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n, amountBasis: "rate" as const };
           return it;
         }),
       );
@@ -344,7 +344,7 @@ const FirmaOfferteErstellen = () => {
     setItems((prev) =>
       prev.map((it) => {
         if (it.timeEstimate) return { ...it, timeEstimate: { ...it.timeEstimate, hourlyRate: value } };
-        if (it.priceType === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n };
+        if (it.priceType === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n, amountBasis: "rate" as const };
         return it;
       }),
     );
@@ -717,19 +717,24 @@ const FirmaOfferteErstellen = () => {
   const handleCatalogServicesSelected = (services: ServiceItem[]) => {
     if (services.length === 0) return;
 
-    const newItems: OfferItem[] = services.map((service, index) => ({
-      id: generateItemId(),
-      position: items.length + index + 1,
-      description: service.name + (service.description ? `\n${service.description}` : ""),
-      quantity: 1,
-      unit: service.unit || "Pauschale",
-      unit_price: service.default_price || 0,
-      priceType: derivePriceTypeFromCatalog(service),
-      highlighted: false,
-      details: [],
-      // A catalog row's service_type may be RAW → reduce to the clean base (Lesson #2); otherwise primary.
-      serviceType: normalizeToCatalogBase(service.service_type) ?? primaryBase,
-    }));
+    const newItems: OfferItem[] = services.map((service, index) => {
+      const pt = derivePriceTypeFromCatalog(service);
+      return {
+        id: generateItemId(),
+        position: items.length + index + 1,
+        description: service.name + (service.description ? `\n${service.description}` : ""),
+        quantity: 1,
+        unit: service.unit || "Pauschale",
+        unit_price: service.default_price || 0,
+        priceType: pt,
+        // per_hour (Stundenansatz) → rate: nicht in der Summe, zeigt "CHF X / Std".
+        amountBasis: defaultAmountBasisForPriceType(pt),
+        highlighted: false,
+        details: [],
+        // A catalog row's service_type may be RAW → reduce to the clean base (Lesson #2); otherwise primary.
+        serviceType: normalizeToCatalogBase(service.service_type) ?? primaryBase,
+      };
+    });
 
     setItems([...items, ...newItems]);
 
@@ -784,19 +789,23 @@ const FirmaOfferteErstellen = () => {
       return;
     }
 
-    const newItems: OfferItem[] = servicesToAdd.map((item, index) => ({
-      id: generateItemId(),
-      position: items.length + index + 1,
-      description: item.name + (item.description ? `\n${item.description}` : ""),
-      quantity: 1,
-      unit: item.unit || "Pauschale",
-      unit_price: item.default_price || 0,
-      priceType: derivePriceTypeFromCatalog(item),
-      highlighted: false,
-      details: [],
-      // An optional catalog item's service_type may be RAW → clean base (Lesson #2); otherwise primary.
-      serviceType: normalizeToCatalogBase(item.service_type) ?? primaryBase,
-    }));
+    const newItems: OfferItem[] = servicesToAdd.map((item, index) => {
+      const pt = derivePriceTypeFromCatalog(item);
+      return {
+        id: generateItemId(),
+        position: items.length + index + 1,
+        description: item.name + (item.description ? `\n${item.description}` : ""),
+        quantity: 1,
+        unit: item.unit || "Pauschale",
+        unit_price: item.default_price || 0,
+        priceType: pt,
+        amountBasis: defaultAmountBasisForPriceType(pt),
+        highlighted: false,
+        details: [],
+        // An optional catalog item's service_type may be RAW → clean base (Lesson #2); otherwise primary.
+        serviceType: normalizeToCatalogBase(item.service_type) ?? primaryBase,
+      };
+    });
 
     setItems([...items, ...newItems]);
 
