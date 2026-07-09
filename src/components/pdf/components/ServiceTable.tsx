@@ -196,6 +196,25 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     marginBottom: 2,
   },
+  // rate-Posten: Hinweiszeile statt Aggregat-Box — Note links, Gültigkeit rechts (design v2)
+  rateNoteRow: {
+    marginTop: SPACING.xs,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  rateNoteText: {
+    flex: 1,
+    maxWidth: "62%",
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text.secondary,
+    lineHeight: 1.5,
+  },
+  rateNoteValid: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.text.secondary,
+    textAlign: "right",
+  },
 });
 
 // ─── Service grouping (Faz 3) ───────────────────────────────────────────────
@@ -430,19 +449,19 @@ const ItemRow = ({ item }: RowProps) => {
       <View style={cardStyles.posRight}>
         {display.kind === "range" ? (
           <>
-            <Text style={[cardStyles.posPrice, { color: "#B45309" }]}>{formatCurrency(display.min)}</Text>
+            <Text style={[cardStyles.posPrice, { color: "#B45309" }]}>{formatRate(display.min)}</Text>
             {/* "bis", not a dash — a stacked leading "–" reads as subtraction/negative */}
-            <Text style={cardStyles.posPriceSub}>bis {formatCurrency(display.max)}</Text>
+            <Text style={[cardStyles.posPriceSub, { color: "#B45309" }]}>bis {formatRate(display.max)}</Text>
           </>
         ) : display.kind === "rate" ? (
           <>
             {/* rate: Einheitspreis statt Betrag — Menge/Dauer unbestimmt, nicht in der Summe */}
-            <Text style={cardStyles.posPrice}>{formatCurrency(display.unitPrice)}</Text>
+            <Text style={cardStyles.posPrice}>{formatRate(display.unitPrice)}</Text>
             <Text style={cardStyles.posPriceSub}>{`/ ${display.unit}`}</Text>
           </>
         ) : (
           <Text style={cardStyles.posPrice}>
-            {formatCurrency(display.kind === "fixed" ? display.amount : item.total)}
+            {formatRate(display.kind === "fixed" ? display.amount : item.total)}
           </Text>
         )}
       </View>
@@ -513,15 +532,15 @@ const cardStyles = StyleSheet.create({
   card: {
     marginBottom: SPACING.base,
     borderWidth: 1,
-    borderColor: COLORS.gray[200],
-    borderRadius: 4,
+    borderColor: COLORS.gray[100],
+    borderRadius: 6,
   },
   cardBand: {
     backgroundColor: DARK,
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: SPACING.sm,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
+    borderTopLeftRadius: 5,
+    borderTopRightRadius: 5,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -534,7 +553,7 @@ const cardStyles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: FONT_SIZES.sm,
     fontWeight: 700,
-    letterSpacing: 0.5,
+    letterSpacing: 1.2,
   },
   cardBody: {
     paddingHorizontal: SPACING.sm,
@@ -553,8 +572,8 @@ const cardStyles = StyleSheet.create({
   posDesc: { fontSize: FONT_SIZES.sm, fontWeight: 700, color: COLORS.text.primary },
   posSub: { fontSize: FONT_SIZES.xs, color: COLORS.text.secondary, marginTop: 1 },
   posRight: { minWidth: 78, alignItems: "flex-end" },
-  posPrice: { fontSize: FONT_SIZES.sm, fontWeight: 700, color: COLORS.text.primary },
-  posPriceSub: { fontSize: FONT_SIZES.xs, color: "#B45309" },
+  posPrice: { fontSize: FONT_SIZES.base, fontWeight: 700, color: COLORS.text.primary },
+  posPriceSub: { fontSize: FONT_SIZES.xs, color: COLORS.text.secondary },
 });
 
 /** Active offer-level discount or null — gates the Rabatt/Total-exkl. rows. */
@@ -618,7 +637,7 @@ export const ServiceTable = ({
           // P2b-i already sizes groups to fit; rare oversized groups still degrade gracefully).
           <View key={`group-${gi}`} style={cardStyles.card} wrap={false}>
             <View style={cardStyles.cardBand}>
-              <Text style={cardStyles.cardBandText}>{group.label}</Text>
+              <Text style={cardStyles.cardBandText}>{group.label.toUpperCase()}</Text>
               {bandDate(group) ? <Text style={cardStyles.cardBandDate}>{bandDate(group)}</Text> : null}
             </View>
             <View style={cardStyles.cardBody}>
@@ -632,14 +651,14 @@ export const ServiceTable = ({
                   Das globale offer-level Kostendach (unten) rendert dann als Fallback nicht mehr. */}
               {isSet(groupCap) ? (
                 <View
-                  style={[styles.priceModelBox, { borderColor: "#D97706", backgroundColor: "#FFFBEB", marginTop: 8 }]}
+                  style={[styles.priceModelBox, { borderColor: "#FDE68A", backgroundColor: "#FFFBEB", marginTop: 8 }]}
                   wrap={false}
                 >
                   <View style={styles.priceModelRow}>
-                    <Text style={[styles.priceModelLabel, { color: "#92400E" }]}>Kostendach:</Text>
-                    <Text style={[styles.priceModelValue, { color: "#92400E" }]}>
+                    <Text style={[styles.priceModelLabel, { color: "#B45309" }]}>Kostendach:</Text>
+                    <Text style={[styles.priceModelValue, { color: "#B45309" }]}>
                       {isSet(groupRate) && Number(groupRate) > 0
-                        ? `Stundenansatz CHF ${Number(groupRate).toLocaleString("de-CH")} / Std. — max. CHF ${Number(groupCap).toLocaleString("de-CH")} (${+(Number(groupCap) / Number(groupRate)).toFixed(1)} Std)`
+                        ? `Stundenansatz ${formatRate(Number(groupRate))}/Std. — max. CHF ${Number(groupCap).toLocaleString("de-CH")} (${+(Number(groupCap) / Number(groupRate)).toFixed(1)} Std.)`
                         : `max. CHF ${Number(groupCap).toLocaleString("de-CH")}`}
                     </Text>
                   </View>
@@ -653,19 +672,21 @@ export const ServiceTable = ({
         );
       })}
 
-      {/* Totals block */}
-      {showTotalsBlock ? (
+      {/* rate-Posten → keine Aggregatsumme; Hinweis links, Gültigkeit rechts (design v2). */}
+      {showTotalsBlock && data.pricing.hasRateItem ? (
+        <View style={styles.rateNoteRow} wrap={false}>
+          <Text style={styles.rateNoteText}>{RATE_AGGREGATE_NOTE}</Text>
+          {data.validUntil ? (
+            <Text style={styles.rateNoteValid}>{`Angebot gültig bis ${formatDate(data.validUntil)}`}</Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {/* Totals block (nur ohne rate-Posten) */}
+      {showTotalsBlock && !data.pricing.hasRateItem ? (
         <View style={styles.totalsOuter} wrap={false}>
           <View style={styles.totalsBox}>
-            {data.pricing.hasRateItem ? (
-              /* rate-Posten → keine Aggregatsumme; nur Hinweis (RATE_AGGREGATE_NOTE). */
-              <View style={{ paddingHorizontal: SPACING.sm }}>
-                <Text style={{ fontSize: FONT_SIZES.sm, color: COLORS.text.secondary }}>
-                  {RATE_AGGREGATE_NOTE}
-                </Text>
-              </View>
-            ) : (
-              <>
+            <>
             {/* Zwischensumme */}
             {data.pricing.maxSubtotal !== null ? (
               <View style={styles.totalRow}>
@@ -780,8 +801,7 @@ export const ServiceTable = ({
                 )}
               </View>
             </View>
-              </>
-            )}
+            </>
 
             {/* Valid until note */}
             {data.validUntil ? (
@@ -794,11 +814,7 @@ export const ServiceTable = ({
                   paddingHorizontal: SPACING.sm,
                 }}
               >
-                {`Angebot gültig bis ${new Date(data.validUntil).toLocaleDateString("de-CH", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}`}
+                {`Angebot gültig bis ${formatDate(data.validUntil)}`}
               </Text>
             ) : null}
           </View>

@@ -8,32 +8,30 @@ const styles = StyleSheet.create({
   wrapper: {
     backgroundColor: "#FFFFFF",
     paddingTop: 24,
-    paddingBottom: 14,
-    paddingHorizontal: 24,
+    paddingBottom: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginHorizontal: -24, // bleed to page edges
-    borderBottomWidth: 3,
+    borderBottomWidth: 2.5,
     borderBottomColor: ACCENT, // overridden inline with the company accent
   },
   leftCol: {
     flex: 1,
-    flexDirection: "column",
-    justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
   },
   logo: {
-    width: 130,
+    width: 34,
     height: 34,
     objectFit: "contain",
     objectPositionX: "left",
-    marginBottom: 4,
+    marginRight: 9,
+    borderRadius: 6,
   },
   companyName: {
-    fontSize: FONT_SIZES["2xl"],
+    fontSize: FONT_SIZES.xl,
     fontWeight: 700,
     color: "#111827",
-    letterSpacing: 1,
   },
   tagline: {
     fontSize: FONT_SIZES.xs,
@@ -50,15 +48,15 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   titleMain: {
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: 700,
     color: "#111827",
-    letterSpacing: 3,
+    letterSpacing: 2,
   },
   titleAccent: {
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: 700,
-    letterSpacing: 3,
+    letterSpacing: 2,
   },
   offerNumber: {
     fontSize: FONT_SIZES.sm,
@@ -66,11 +64,9 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: 4,
   },
-  dateText: {
-    fontSize: FONT_SIZES.xs,
-    color: "#6B7280",
-    textAlign: "right",
-    marginTop: 1,
+  offerNumberValue: {
+    fontWeight: 700,
+    color: "#111827",
   },
 });
 
@@ -101,20 +97,19 @@ export const Header = ({ data }: HeaderProps) => {
 
   return (
     <View style={[styles.wrapper, { borderBottomColor: accent }]}>
-      {/* LEFT — logo or company name */}
+      {/* LEFT — logo (if any) next to company name + address */}
       <View style={styles.leftCol}>
-        {hasValidLogo ? (
-          <Image style={styles.logo} src={company.logo} cache={false} />
-        ) : (
-          <Text style={styles.companyName}>{company.name.toUpperCase()}</Text>
-        )}
-        {company.phone || company.address ? (
-          <Text style={styles.tagline}>
-            {[company.address, company.zip && company.city ? `${company.zip} ${company.city}` : company.city]
-              .filter(Boolean)
-              .join(" · ")}
-          </Text>
-        ) : null}
+        {hasValidLogo ? <Image style={styles.logo} src={company.logo} cache={false} /> : null}
+        <View>
+          <Text style={styles.companyName}>{company.name}</Text>
+          {company.address || company.city ? (
+            <Text style={styles.tagline}>
+              {[company.address, company.zip && company.city ? `${company.zip} ${company.city}` : company.city]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+          ) : null}
+        </View>
       </View>
 
       {/* RIGHT — title + number */}
@@ -123,7 +118,11 @@ export const Header = ({ data }: HeaderProps) => {
           <Text style={styles.titleMain}>{titleBase}</Text>
           <Text style={[styles.titleAccent, { color: accent }]}>{titleEnd}</Text>
         </View>
-        <Text style={styles.offerNumber}>{`Nr. ${offerNumber}  ·  ${formatShortDate(createdDate)}`}</Text>
+        <Text style={styles.offerNumber}>
+          {"Nr. "}
+          <Text style={styles.offerNumberValue}>{offerNumber}</Text>
+          {`  ·  ${formatShortDate(createdDate)}`}
+        </Text>
       </View>
     </View>
   );

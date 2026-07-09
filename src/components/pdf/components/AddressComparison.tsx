@@ -10,87 +10,81 @@ const ORANGE = "#F97316";
 const styles = StyleSheet.create({
   container: {
     marginTop: SPACING.base,
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  // Address cards — separate rounded cards, accent header band
+  addrCard: {
+    flex: 1,
     borderWidth: 1,
     borderColor: COLORS.gray[200],
-    borderRadius: 4,
+    borderRadius: 6,
     overflow: "hidden",
   },
-  // Top row: addresses + optional meta cells
-  topRow: {
-    flexDirection: "row",
-    minHeight: 70,
-  },
-  // Address columns
-  addrCol: {
-    flex: 1,
-  },
   addrHeader: {
-    paddingVertical: 4,
+    paddingVertical: 5,
     paddingHorizontal: SPACING.sm,
   },
   addrHeaderText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: 700,
     color: "#FFFFFF",
-    letterSpacing: 0.8,
+    letterSpacing: 1,
   },
   addrBody: {
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
+    paddingVertical: 7,
   },
   addrStreet: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.base,
     fontWeight: 700,
     color: COLORS.text.primary,
-    marginBottom: 1,
+    marginBottom: 2,
   },
   addrCity: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.text.secondary,
-    marginBottom: 2,
+    marginBottom: 3,
   },
   addrMeta: {
     fontSize: FONT_SIZES.xs,
     color: COLORS.text.secondary,
   },
-  // Arrow divider
+  // Arrow divider — accent circle with white arrow
   arrowDivider: {
-    width: 24,
+    width: 30,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 22, // align with body text area (below header)
   },
-  // Vertical divider between address section and meta section
-  verticalDivider: {
-    width: 1,
-    backgroundColor: COLORS.gray[200],
+  arrowCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  // Meta cells row (TERMIN, FLÄCHE etc.)
+  // Meta cells (TERMIN, FLÄCHE) — free-standing, no border (design v2)
   metaSection: {
     flexDirection: "column",
-    width: 130,
+    width: 96,
+    justifyContent: "center",
+    paddingLeft: SPACING.sm,
   },
   metaCell: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray[200],
-  },
-  metaCellLast: {
-    borderBottomWidth: 0,
+    paddingVertical: 4,
   },
   metaLabel: {
     fontSize: 7,
+    fontWeight: 700,
     color: COLORS.text.secondary,
-    letterSpacing: 0.5,
-    marginBottom: 2,
+    letterSpacing: 1,
+    marginBottom: 3,
     textAlign: "center",
   },
   metaValue: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.lg,
     fontWeight: 700,
     color: COLORS.text.primary,
     textAlign: "center",
@@ -164,30 +158,30 @@ export const AddressComparison = ({ data }: AddressComparisonProps) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topRow}>
-        {/* FROM address */}
-        <View style={styles.addrCol}>
-          <View style={[styles.addrHeader, { backgroundColor: accent }]}>
-            <Text style={styles.addrHeaderText}>
-              {layout.primaryAddressLabel.toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.addrBody}>
-            {fromFmt.street ? <Text style={styles.addrStreet}>{fromFmt.street}</Text> : null}
-            {fromFmt.city ? <Text style={styles.addrCity}>{fromFmt.city}</Text> : null}
-            {fromFmt.meta.length > 0 ? (
-              <Text style={styles.addrMeta}>{fromFmt.meta.join(" · ")}</Text>
-            ) : null}
-          </View>
+      {/* FROM address */}
+      <View style={styles.addrCard}>
+        <View style={[styles.addrHeader, { backgroundColor: accent }]}>
+          <Text style={styles.addrHeaderText}>
+            {layout.primaryAddressLabel.toUpperCase()}
+          </Text>
         </View>
+        <View style={styles.addrBody}>
+          {fromFmt.street ? <Text style={styles.addrStreet}>{fromFmt.street}</Text> : null}
+          {fromFmt.city ? <Text style={styles.addrCity}>{fromFmt.city}</Text> : null}
+          {fromFmt.meta.length > 0 ? (
+            <Text style={styles.addrMeta}>{fromFmt.meta.join(" · ")}</Text>
+          ) : null}
+        </View>
+      </View>
 
-        {/* Arrow — SVG (font-unabhängig; Helvetica rendert U+2192 nicht) */}
-        {showRoute ? (
-          <View style={styles.arrowDivider}>
-            <Svg width={16} height={12} viewBox="0 0 16 12">
+      {/* Arrow — accent circle, white SVG arrow (font-unabhängig; Helvetica rendert U+2192 nicht) */}
+      {showRoute ? (
+        <View style={styles.arrowDivider}>
+          <View style={[styles.arrowCircle, { backgroundColor: accent }]}>
+            <Svg width={11} height={9} viewBox="0 0 16 12">
               <Path
                 d="M2 6 H12 M8 2.5 L12.5 6 L8 9.5"
-                stroke={accent}
+                stroke="#FFFFFF"
                 strokeWidth={1.8}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -195,48 +189,39 @@ export const AddressComparison = ({ data }: AddressComparisonProps) => {
               />
             </Svg>
           </View>
-        ) : null}
+        </View>
+      ) : null}
 
-        {/* TO address — only when both exist */}
-        {showRoute ? (
-          <View style={styles.addrCol}>
-            <View style={[styles.addrHeader, { backgroundColor: accent }]}>
-              <Text style={styles.addrHeaderText}>
-                {layout.secondaryAddressLabel.toUpperCase()}
-              </Text>
-            </View>
-            <View style={styles.addrBody}>
-              {toFmt.street ? <Text style={styles.addrStreet}>{toFmt.street}</Text> : null}
-              {toFmt.city ? <Text style={styles.addrCity}>{toFmt.city}</Text> : null}
-              {toFmt.meta.length > 0 ? (
-                <Text style={styles.addrMeta}>{toFmt.meta.join(" · ")}</Text>
-              ) : null}
-            </View>
+      {/* TO address — only when both exist */}
+      {showRoute ? (
+        <View style={styles.addrCard}>
+          <View style={[styles.addrHeader, { backgroundColor: accent }]}>
+            <Text style={styles.addrHeaderText}>
+              {layout.secondaryAddressLabel.toUpperCase()}
+            </Text>
           </View>
-        ) : null}
+          <View style={styles.addrBody}>
+            {toFmt.street ? <Text style={styles.addrStreet}>{toFmt.street}</Text> : null}
+            {toFmt.city ? <Text style={styles.addrCity}>{toFmt.city}</Text> : null}
+            {toFmt.meta.length > 0 ? (
+              <Text style={styles.addrMeta}>{toFmt.meta.join(" · ")}</Text>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
 
-        {/* Meta cells — TERMIN, FLÄCHE */}
-        {metaCells.length > 0 ? (
-          <>
-            <View style={styles.verticalDivider} />
-            <View style={styles.metaSection}>
-              {metaCells.map((cell, i) => (
-                <View
-                  key={cell.label}
-                  style={[
-                    styles.metaCell,
-                    i === metaCells.length - 1 ? styles.metaCellLast : {},
-                  ]}
-                >
-                  <Text style={styles.metaLabel}>{cell.label}</Text>
-                  <Text style={styles.metaValue}>{cell.value}</Text>
-                  {cell.unit ? <Text style={styles.metaUnit}>{cell.unit}</Text> : null}
-                </View>
-              ))}
+      {/* Meta cells — TERMIN, FLÄCHE (free-standing, right of the cards) */}
+      {metaCells.length > 0 ? (
+        <View style={styles.metaSection}>
+          {metaCells.map((cell) => (
+            <View key={cell.label} style={styles.metaCell}>
+              <Text style={styles.metaLabel}>{cell.label}</Text>
+              <Text style={styles.metaValue}>{cell.value}</Text>
+              {cell.unit ? <Text style={styles.metaUnit}>{cell.unit}</Text> : null}
             </View>
-          </>
-        ) : null}
-      </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 };

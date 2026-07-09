@@ -138,12 +138,10 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
       <View style={styles.mainRow}>
         {/* Left: confirmation text + signature grid */}
         <View style={styles.leftCol}>
+          {/* Ein zusammenhängender String — JSX-Interpolation erzeugt separate Text-Runs,
+              deren Grenzen react-pdf als Umbruchstellen mit Trennstrich behandelt ("10035-)"). */}
           <Text style={styles.legalText}>
-            Hiermit erteile ich der Firma {data.company.name} den in dieser Offerte (Nr. {data.offerNumber})
-            beschriebenen Auftrag.
-            {"\n\n"}
-            Ich bestätige, dass ich die Offerte sowie die allgemeinen Geschäftsbedingungen gelesen und verstanden
-            habe und mit allen Punkten einverstanden bin.
+            {`Hiermit erteile ich der Firma ${data.company.name} den in dieser Offerte (Nr. ${data.offerNumber}) beschriebenen Auftrag.\n\nIch bestätige, dass ich die Offerte sowie die allgemeinen Geschäftsbedingungen gelesen und verstanden habe und mit allen Punkten einverstanden bin.`}
           </Text>
 
           <View style={styles.signatureRow}>
@@ -167,7 +165,7 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
           <View style={styles.qrCard}>
             <Text style={[styles.qrCardTitle, { color: primary }]}>ONLINE OFFERTE ANNEHMEN</Text>
             <Image style={styles.qr} src={data.qrCodeUrl} />
-            <Text style={styles.qrScan}>Mit Handy scannen</Text>
+            <Text style={styles.qrScan}>Mit dem Handy scannen</Text>
             {shortUrl ? <Text style={styles.qrCaption}>{shortUrl}</Text> : null}
             {data.acceptanceUrl ? (
               <Link src={data.acceptanceUrl} style={[styles.button, { backgroundColor: primary }]}>

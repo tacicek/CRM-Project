@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Font, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { Header } from "./components/Header";
 import { CustomerSection } from "./components/CustomerSection";
 import { AddressComparison } from "./components/AddressComparison";
@@ -11,6 +11,7 @@ import { OfferPDFBrief } from "./OfferPDFBrief";
 import { OfferPDFModern } from "./OfferPDFModern";
 import { OfferData } from "./types/offer.types";
 import { COLORS, FONT_SIZES, SPACING } from "./styles/constants";
+import { lightenHex } from "./utils/colors";
 import { chunkOfferTableItems } from "./utils/chunkOfferItems";
 
 /** Rows on first page (space left after header blocks) */
@@ -19,6 +20,10 @@ const TABLE_ROWS_FIRST_PAGE = 5;
 const TABLE_ROWS_CONTINUATION = 11;
 
 const ACCENT_DEFAULT = "#F97316";
+
+// Keine Silbentrennung: Wörter werden als Ganzes umbrochen (design v2). Verhindert
+// Brüche wie "(Nr. 10035-)" im Bestätigungstext; gilt für alle Offerte-PDF-Vorlagen.
+Font.registerHyphenationCallback((word) => [word]);
 
 const styles = StyleSheet.create({
   page: {
@@ -40,10 +45,8 @@ const styles = StyleSheet.create({
     gap: 8,
     alignItems: "flex-start",
     padding: SPACING.sm,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderColor: COLORS.gray[200],
-    backgroundColor: COLORS.gray[50],
+    borderRadius: 4,
+    backgroundColor: COLORS.gray[50], // ZAHLUNG/VERSICHERUNG: inline mint override (accent tint)
   },
   infoBoxAccent: {
     width: 3,
@@ -123,6 +126,7 @@ const BottomSection = ({ data, accent }: BottomSectionProps) => {
   const insuranceText = data.includedServices?.find((s) =>
     /versicherung|haftpflicht/i.test(s)
   );
+  const accentTint = lightenHex(accent, 0.93);
 
   // Only render if there's something to show
   if (!paymentText && !insuranceText && !data.description) return null;
@@ -130,20 +134,20 @@ const BottomSection = ({ data, accent }: BottomSectionProps) => {
   return (
     <View style={styles.bottomSection} wrap={false}>
       {paymentText ? (
-        <View style={styles.infoBox}>
+        <View style={[styles.infoBox, { backgroundColor: accentTint }]}>
           <View style={[styles.infoBoxAccent, { backgroundColor: accent }]} />
           <View style={styles.infoBoxContent}>
-            <Text style={[styles.infoBoxTitle, { color: COLORS.text.secondary }]}>ZAHLUNG</Text>
+            <Text style={[styles.infoBoxTitle, { color: accent }]}>ZAHLUNG</Text>
             <Text style={styles.infoBoxText}>{paymentText}</Text>
           </View>
         </View>
       ) : null}
 
       {insuranceText ? (
-        <View style={styles.infoBox}>
+        <View style={[styles.infoBox, { backgroundColor: accentTint }]}>
           <View style={[styles.infoBoxAccent, { backgroundColor: accent }]} />
           <View style={styles.infoBoxContent}>
-            <Text style={[styles.infoBoxTitle, { color: COLORS.text.secondary }]}>VERSICHERUNG</Text>
+            <Text style={[styles.infoBoxTitle, { color: accent }]}>VERSICHERUNG</Text>
             <Text style={styles.infoBoxText}>{insuranceText}</Text>
           </View>
         </View>

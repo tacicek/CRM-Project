@@ -823,10 +823,9 @@ export const OfferPDFModern = ({ data }: OfferPDFModernProps) => {
           <Text style={styles.confirmTitle}>Auftragsbestätigung</Text>
           <View style={styles.confirmRow}>
             <View style={styles.confirmLeft}>
+              {/* Ein zusammenhängender String — JSX-Runs erzeugen sonst Trennstrich-Umbrüche ("10035-)") */}
               <Text style={styles.confirmText}>
-                Hiermit erteile ich der Firma {data.company.name} den in dieser Offerte (Nr. {data.offerNumber})
-                beschriebenen Auftrag und bestätige, dass ich die Offerte sowie die allgemeinen
-                Geschäftsbedingungen gelesen und verstanden habe und mit allen Punkten einverstanden bin.
+                {`Hiermit erteile ich der Firma ${data.company.name} den in dieser Offerte (Nr. ${data.offerNumber}) beschriebenen Auftrag und bestätige, dass ich die Offerte sowie die allgemeinen Geschäftsbedingungen gelesen und verstanden habe und mit allen Punkten einverstanden bin.`}
               </Text>
               <View style={styles.signatureRow}>
                 <View style={styles.signatureCol}>
