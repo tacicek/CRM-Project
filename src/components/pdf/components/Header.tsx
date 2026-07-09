@@ -20,16 +20,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   logo: {
-    width: 160,
-    height: 40,
+    width: 240,
+    height: 72,
     objectFit: "contain",
     objectPositionX: "left",
-    marginBottom: 5,
-  },
-  companyName: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 700,
-    color: "#111827",
+    marginBottom: 6,
   },
   tagline: {
     fontSize: FONT_SIZES.xs,
@@ -95,17 +90,15 @@ export const Header = ({ data }: HeaderProps) => {
 
   return (
     <View style={[styles.wrapper, { borderBottomColor: accent }]}>
-      {/* LEFT — grosses Logo, Firmenname klein in der Adresszeile darunter;
-          ohne Logo: Name als Text (wie zuvor) */}
+      {/* LEFT — grosses Logo; Firmenname klein in der Adresszeile darunter
+          (gleiche Schriftgrösse wie Adresse). Kein grosser Firmenname mehr. */}
       <View style={styles.leftCol}>
-        {hasValidLogo ? (
+        {hasValidLogo && (
           <Image style={styles.logo} src={company.logo} cache={false} />
-        ) : (
-          <Text style={styles.companyName}>{company.name}</Text>
         )}
         <Text style={styles.tagline}>
           {[
-            hasValidLogo ? company.name : null,
+            company.name,
             company.address,
             company.zip && company.city ? `${company.zip} ${company.city}` : company.city,
           ]
