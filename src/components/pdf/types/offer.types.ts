@@ -116,6 +116,8 @@ export interface OfferData {
   qrCodeUrl?: string;
   /** When true, render with SN 010 130 Swiss letter standard layout */
   briefLayout?: boolean;
+  /** Company-level PDF template (companies.pdf_template): classic (default) | modern (v2 design) */
+  pdfTemplate?: "classic" | "modern";
   /** 'blind' = created without on-site visit | 'normal' (default) = after visit */
   offerteType?: 'normal' | 'blind';
   /** Explicit salutation from form (e.g. "Herr", "Frau") — used for gender-aware greeting */

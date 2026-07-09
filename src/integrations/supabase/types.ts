@@ -1088,6 +1088,7 @@ export type Database = {
           mwst_number: string | null
           notification_email: string | null
           notification_phone: string | null
+          pdf_template: string
           phone: string | null
           plz: string
           primary_color: string | null
@@ -1143,6 +1144,7 @@ export type Database = {
           mwst_number?: string | null
           notification_email?: string | null
           notification_phone?: string | null
+          pdf_template?: string
           phone?: string | null
           plz: string
           primary_color?: string | null
@@ -1198,6 +1200,7 @@ export type Database = {
           mwst_number?: string | null
           notification_email?: string | null
           notification_phone?: string | null
+          pdf_template?: string
           phone?: string | null
           plz?: string
           primary_color?: string | null
@@ -6209,6 +6212,7 @@ export type Database = {
           house_number: string
           id: string
           logo_url: string
+          pdf_template: string
           phone: string
           plz: string
           primary_color: string

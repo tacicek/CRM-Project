@@ -90,6 +90,8 @@ export interface LegacyCompanyInfo {
   logo_url?: string;
   primary_color?: string;
   iban?: string;
+  /** Offerte-PDF Vorlage (companies.pdf_template): 'classic' | 'modern' */
+  pdf_template?: string | null;
 }
 
 export interface LegacyAddress {
@@ -387,6 +389,8 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
     acceptanceUrl,
     qrCodeUrl,
     briefLayout: offer.brief_layout ?? false,
+    // Unbekannte/fehlende DB-Werte fallen defensiv auf die Standard-Vorlage zurück.
+    pdfTemplate: offer.company.pdf_template === "modern" ? "modern" : "classic",
     customerSalutation: offer.customer_salutation ?? null,
     offerteType: offer.offerte_type ?? 'normal',
     // ── Data-bridge P1b (offer-level) — carried, NOT yet rendered ──

@@ -97,6 +97,7 @@ export const buildOfferEmailAttachments = async (
       mwst_number: companyData.mwst_number || undefined,
       logo_url: companyData.logo_url || undefined,
       primary_color: companyData.primary_color || undefined,
+      pdf_template: companyData.pdf_template ?? null,
     },
     customer_address: leadData
       ? {

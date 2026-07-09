@@ -8,6 +8,7 @@ import { SignaturePage } from "./components/SignaturePage";
 import { BlindOfferteDisclaimer } from "./components/BlindOfferteDisclaimer";
 import { TimeEstimateBlock } from "./components/TimeEstimateBlock";
 import { OfferPDFBrief } from "./OfferPDFBrief";
+import { OfferPDFModern } from "./OfferPDFModern";
 import { OfferData } from "./types/offer.types";
 import { COLORS, FONT_SIZES, SPACING } from "./styles/constants";
 import { chunkOfferTableItems } from "./utils/chunkOfferItems";
@@ -163,6 +164,12 @@ const BottomSection = ({ data, accent }: BottomSectionProps) => {
 export const OfferPDF = ({ data }: OfferPDFProps) => {
   if (data.briefLayout) {
     return <OfferPDFBrief data={data} />;
+  }
+
+  // Firmenweite Vorlagen-Wahl (Einstellungen → Offerte PDF-Vorlage). Das offer-level
+  // brief_layout bleibt als explizite Einzelfall-Wahl übergeordnet (Zweig oben).
+  if (data.pdfTemplate === "modern") {
+    return <OfferPDFModern data={data} />;
   }
 
   const accent = data.company.primaryColor || ACCENT_DEFAULT;

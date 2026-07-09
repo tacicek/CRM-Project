@@ -155,6 +155,7 @@ interface Company {
   primary_color: string | null;
   signature_url?: string | null;
   slogan?: string | null;
+  pdf_template?: string | null;
 }
 
 interface LeadAddress {
@@ -532,6 +533,7 @@ const PublicOfferView = () => {
         logo_url: company.logo_url || undefined,
         primary_color: company.primary_color || undefined,
         signature_url: company.signature_url || undefined,
+        pdf_template: company.pdf_template ?? null,
       },
       customer_address: leadAddress ? {
         street: leadAddress.from_street || undefined,

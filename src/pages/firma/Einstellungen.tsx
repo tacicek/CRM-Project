@@ -37,6 +37,7 @@ interface Company {
   default_terms_and_conditions: string | null;
   default_payment_terms: string | null;
   primary_color: string | null;
+  pdf_template: string | null;
   twilio_enabled: boolean | null;
   twilio_account_sid: string | null;
   twilio_auth_token: string | null;
@@ -61,7 +62,7 @@ const PROFILE_DRAFT_FIELDS = [
   "notification_email", "notification_phone",
   "mwst_number", "iban",
   "default_terms_and_conditions", "default_payment_terms",
-  "primary_color",
+  "primary_color", "pdf_template",
 ] as const;
 
 const FirmaEinstellungen = () => {
@@ -203,6 +204,8 @@ const FirmaEinstellungen = () => {
           default_terms_and_conditions: company.default_terms_and_conditions,
           default_payment_terms: company.default_payment_terms,
           primary_color: company.primary_color,
+          // Spalte ist NOT NULL DEFAULT 'classic' — null (z. B. alter Draft) fällt auf den Default zurück
+          pdf_template: company.pdf_template ?? "classic",
         })
         .eq("id", company.id);
 
@@ -514,6 +517,41 @@ const FirmaEinstellungen = () => {
                         maxLength={7}
                         placeholder="#3b82f6"
                       />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Offerte PDF-Vorlage */}
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Offerte PDF-Vorlage</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Layout, mit dem Ihre Offerten-PDFs erstellt werden (Download, Versand und Kundenansicht)
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {([
+                        { id: "classic", label: "Klassisch", desc: "Bewährtes Standard-Layout mit Leistungstabelle" },
+                        { id: "modern", label: "Modern", desc: "Neues Design mit «Auf einen Blick»-Übersicht und Service-Karten" },
+                      ] as const).map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setProfileField("pdf_template", t.id)}
+                          className={`flex flex-col items-start p-3 rounded-lg border-2 text-left transition-all ${
+                            (company.pdf_template ?? "classic") === t.id
+                              ? "bg-gradient-to-br from-teal-50 to-emerald-50 border-teal-300"
+                              : "border-border hover:border-muted-foreground/30"
+                          }`}
+                        >
+                          <span className="font-medium text-sm">{t.label}</span>
+                          <span className="text-xs text-muted-foreground mt-0.5">{t.desc}</span>
+                          {(company.pdf_template ?? "classic") === t.id && (
+                            <CheckCircle className="w-4 h-4 mt-1 text-primary" />
+                          )}
+                        </button>
+                      ))}
                     </div>
                   </div>
 

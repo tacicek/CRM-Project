@@ -180,6 +180,7 @@ interface Company {
   logo_url: string | null;
   primary_color: string | null;
   signature_url: string | null;
+  pdf_template: string | null;
 }
 
 interface EmailLog {
@@ -544,6 +545,7 @@ const FirmaOfferteDetail = () => {
                 logo_url: company.logo_url || undefined,
                 primary_color: company.primary_color || undefined,
                 iban: company.iban || undefined,
+                pdf_template: company.pdf_template,
               },
       // Address priority: frozen (offer.frozen_*) > lead (fallback). This preserves the offer
       // address even if the lead is deleted; no visible difference since 16/16 already have frozen filled.
@@ -1631,6 +1633,7 @@ const FirmaOfferteDetail = () => {
                   mwst_number: company.mwst_number || undefined,
                   logo_url: company.logo_url || undefined,
                   primary_color: company.primary_color || undefined,
+                  pdf_template: company.pdf_template,
                 },
                 access_token: offer.access_token,
                 baseUrl: window.location.origin,
