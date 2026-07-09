@@ -27,7 +27,9 @@ Font.registerHyphenationCallback((word) => [word]);
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 0, // header bleeds to edge — no top padding
+    // Header blutet nicht mehr zum Rand — alle Seiten (auch Fortsetzungen) starten
+    // mit demselben oberen Abstand.
+    paddingTop: 24,
     paddingHorizontal: 24,
     paddingBottom: PDF_FOOTER_RESERVE_PT,
     fontSize: FONT_SIZES.base,

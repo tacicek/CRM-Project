@@ -7,7 +7,6 @@ const ACCENT = "#F97316"; // orange — overridden by company.primaryColor if se
 const styles = StyleSheet.create({
   wrapper: {
     backgroundColor: "#FFFFFF",
-    paddingTop: 24,
     paddingBottom: 12,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -17,16 +16,15 @@ const styles = StyleSheet.create({
   },
   leftCol: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "column",
+    justifyContent: "center",
   },
   logo: {
-    width: 34,
-    height: 34,
+    width: 160,
+    height: 40,
     objectFit: "contain",
     objectPositionX: "left",
-    marginRight: 9,
-    borderRadius: 6,
+    marginBottom: 5,
   },
   companyName: {
     fontSize: FONT_SIZES.xl,
@@ -97,19 +95,23 @@ export const Header = ({ data }: HeaderProps) => {
 
   return (
     <View style={[styles.wrapper, { borderBottomColor: accent }]}>
-      {/* LEFT — logo (if any) next to company name + address */}
+      {/* LEFT — grosses Logo, Firmenname klein in der Adresszeile darunter;
+          ohne Logo: Name als Text (wie zuvor) */}
       <View style={styles.leftCol}>
-        {hasValidLogo ? <Image style={styles.logo} src={company.logo} cache={false} /> : null}
-        <View>
+        {hasValidLogo ? (
+          <Image style={styles.logo} src={company.logo} cache={false} />
+        ) : (
           <Text style={styles.companyName}>{company.name}</Text>
-          {company.address || company.city ? (
-            <Text style={styles.tagline}>
-              {[company.address, company.zip && company.city ? `${company.zip} ${company.city}` : company.city]
-                .filter(Boolean)
-                .join(" · ")}
-            </Text>
-          ) : null}
-        </View>
+        )}
+        <Text style={styles.tagline}>
+          {[
+            hasValidLogo ? company.name : null,
+            company.address,
+            company.zip && company.city ? `${company.zip} ${company.city}` : company.city,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </Text>
       </View>
 
       {/* RIGHT — title + number */}
