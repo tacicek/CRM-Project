@@ -36,9 +36,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // -------------------------------------------------------------------------
 
   useEffect(() => {
+    // Referenz-stabiler User: onAuthStateChange feuert bei jedem Tab-Fokus
+    // (TOKEN_REFRESHED/SIGNED_IN) und liefert dabei ein NEUES User-Objekt für denselben
+    // User. Würden wir es ungeprüft setzen, ändert sich die Objekt-Identität → alle
+    // [user]-Effekte der App (CompanyProvider-Refetch, Seiten-Initial-Loads) laufen
+    // erneut, FirmaLayout zeigt den Vollbild-Loader und unmountet die offene Seite —
+    // Formulareingaben gehen verloren. Gleicher User (id) → alte Referenz behalten.
+    const applyUser = (nextUser: User | null) => {
+      setUser((prev) => (prev && nextUser && prev.id === nextUser.id ? prev : nextUser));
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
-      setUser(newSession?.user ?? null);
+      applyUser(newSession?.user ?? null);
 
       if (event === "PASSWORD_RECOVERY") {
         window.location.href = "/auth/reset-password";
@@ -51,7 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Eager session restore on mount
     supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
       setSession(existingSession);
-      setUser(existingSession?.user ?? null);
+      applyUser(existingSession?.user ?? null);
       setIsLoading(false);
     });
 

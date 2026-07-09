@@ -38,8 +38,14 @@ export const CompanyProvider = ({ children }: { children: React.ReactNode }) => 
   );
   const [loading, setLoading] = useState(true);
 
+  // Semantische Abhängigkeit ist die USER-ID, nicht die Objekt-Referenz: onAuthStateChange
+  // liefert bei Tab-Fokus (TOKEN_REFRESHED) neue User-Objekte für denselben User — ein
+  // [user]-Dep würde dann refetchen, loading=true setzen und via FirmaLayout die offene
+  // Seite unmounten (Formular-Reset).
+  const userId = user?.id ?? null;
+
   const fetchCompanies = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setCompanies([]);
       setMemberships(new Map());
       // Solange Auth noch auflöst, NICHT „fertig" melden — sonst blitzt „Keine Firma gefunden"
@@ -56,7 +62,7 @@ export const CompanyProvider = ({ children }: { children: React.ReactNode }) => 
       const { data, error } = await supabase
         .from("company_members")
         .select(`company_id, role, companies!inner(id, company_name, logo_url, is_verified)`)
-        .eq("user_id", user.id);
+        .eq("user_id", userId);
 
       if (error) throw error;
 
@@ -88,7 +94,7 @@ export const CompanyProvider = ({ children }: { children: React.ReactNode }) => 
     } finally {
       setLoading(false);
     }
-  }, [user, authLoading]);
+  }, [userId, authLoading]);
 
   useEffect(() => {
     fetchCompanies();
