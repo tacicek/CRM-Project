@@ -77,8 +77,25 @@ export default defineConfig(({ mode }) => {
             return 'assets/[name]-[hash][extname]';
           },
           manualChunks: (id) => {
+            // Vite's __vitePreload helper is used by every lazy route import()
+            // in the entry. If it lands in a heavy lazy vendor chunk (e.g.
+            // vendor-pdf), that whole chunk gets modulepreloaded on first paint.
+            // Pin it to the always-eager React chunk so it costs nothing extra.
+            if (id.includes('vite/preload-helper')) {
+              return 'vendor-react';
+            }
+            // The Buffer polyfill is imported eagerly by main.tsx (needed as a
+            // global for the lazy qrcode/@react-pdf code). Keep it and its
+            // transitive deps (base64-js, ieee754) in a small dedicated chunk so
+            // they don't ride along inside the 500 KB lazy vendor-qr chunk and
+            // drag it into the initial modulepreload set.
+            if (id.includes('node_modules/buffer/') ||
+                id.includes('node_modules/base64-js') ||
+                id.includes('node_modules/ieee754')) {
+              return 'vendor-polyfill';
+            }
             // Core React - loaded first, cached long-term
-            if (id.includes('node_modules/react/') || 
+            if (id.includes('node_modules/react/') ||
                 id.includes('node_modules/react-dom/') || 
                 id.includes('node_modules/scheduler/')) {
               return 'vendor-react';
