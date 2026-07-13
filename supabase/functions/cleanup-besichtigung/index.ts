@@ -11,6 +11,7 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isCronRequest, unauthorizedResponse } from "../_shared/cronAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,18 +24,9 @@ serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  if (!cronSecret) {
-    console.error("INTERNAL_CRON_SECRET not configured — refusing to run (fail closed)");
-    return new Response(JSON.stringify({ error: "Server misconfigured" }), {
-      status: 500, headers: { "Content-Type": "application/json" },
-    });
-  }
-  const providedSecret = req.headers.get("x-internal-secret");
-  if (providedSecret !== cronSecret) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { "Content-Type": "application/json" },
-    });
+  // Only the pg_cron job (service_role bearer) may trigger the cleanup.
+  if (!isCronRequest(req)) {
+    return unauthorizedResponse(corsHeaders);
   }
 
   try {
