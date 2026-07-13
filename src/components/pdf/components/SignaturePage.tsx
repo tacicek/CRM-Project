@@ -129,7 +129,12 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
       : undefined;
   const primary = data.company.primaryColor || COLORS.primary;
   const primaryLight = data.company.primaryColor ? lightenHex(data.company.primaryColor, 0.9) : "#F0F9FF";
-  const shortUrl = data.acceptanceUrl ? data.acceptanceUrl.replace(/^https?:\/\//, "") : "";
+  // The acceptance URL ends in a long random token with no spaces or hyphens, and react-pdf can
+  // only break a line at a word boundary — printed in full it runs off the QR card. Show host and
+  // path only; the token is carried by the QR code and the button below it.
+  const shortUrl = data.acceptanceUrl
+    ? `${data.acceptanceUrl.replace(/^https?:\/\//, "").split("/").slice(0, 2).join("/")}/…`
+    : "";
 
   return (
     <View>
