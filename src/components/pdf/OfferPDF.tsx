@@ -13,6 +13,7 @@ import { OfferData } from "./types/offer.types";
 import { COLORS, FONT_SIZES, SPACING } from "./styles/constants";
 import { lightenHex } from "./utils/colors";
 import { chunkOfferTableItems } from "./utils/chunkOfferItems";
+import { documentI18nFor } from "@/i18n/documentLocale";
 
 /** Rows on first page (space left after header blocks) */
 const TABLE_ROWS_FIRST_PAGE = 5;
@@ -124,7 +125,10 @@ interface BottomSectionProps {
 }
 
 const BottomSection = ({ data, accent }: BottomSectionProps) => {
+  const { t } = documentI18nFor(data.locale);
   const paymentText = data.paymentTerms?.trim();
+  // Matches the German insurance entry of the Leistungsübersicht — that list is
+  // DB-authored, so the probe stays German (see report).
   const insuranceText = data.includedServices?.find((s) =>
     /versicherung|haftpflicht/i.test(s)
   );
@@ -139,7 +143,9 @@ const BottomSection = ({ data, accent }: BottomSectionProps) => {
         <View style={[styles.infoBox, { backgroundColor: accentTint }]}>
           <View style={[styles.infoBoxAccent, { backgroundColor: accent }]} />
           <View style={styles.infoBoxContent}>
-            <Text style={[styles.infoBoxTitle, { color: accent }]}>ZAHLUNG</Text>
+            <Text style={[styles.infoBoxTitle, { color: accent }]}>
+              {t("doc.offer.section.payment")}
+            </Text>
             <Text style={styles.infoBoxText}>{paymentText}</Text>
           </View>
         </View>
@@ -149,7 +155,9 @@ const BottomSection = ({ data, accent }: BottomSectionProps) => {
         <View style={[styles.infoBox, { backgroundColor: accentTint }]}>
           <View style={[styles.infoBoxAccent, { backgroundColor: accent }]} />
           <View style={styles.infoBoxContent}>
-            <Text style={[styles.infoBoxTitle, { color: accent }]}>VERSICHERUNG</Text>
+            <Text style={[styles.infoBoxTitle, { color: accent }]}>
+              {t("doc.offer.section.insurance")}
+            </Text>
             <Text style={styles.infoBoxText}>{insuranceText}</Text>
           </View>
         </View>
@@ -157,7 +165,7 @@ const BottomSection = ({ data, accent }: BottomSectionProps) => {
 
       {data.description ? (
         <View style={styles.descBox}>
-          <Text style={styles.descLabel}>BEMERKUNGEN</Text>
+          <Text style={styles.descLabel}>{t("doc.offer.section.remarks")}</Text>
           <Text style={styles.descText}>{data.description}</Text>
         </View>
       ) : null}
@@ -178,6 +186,7 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
     return <OfferPDFModern data={data} />;
   }
 
+  const { t } = documentI18nFor(data.locale);
   const accent = data.company.primaryColor || ACCENT_DEFAULT;
 
   const chunks = chunkOfferTableItems(data.items, TABLE_ROWS_FIRST_PAGE, TABLE_ROWS_CONTINUATION);
@@ -201,13 +210,15 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
                 <AddressComparison data={data} />
 
                 {/* Blind offerte disclaimer + time estimate note */}
-                {data.offerteType === "blind" && <BlindOfferteDisclaimer />}
+                {data.offerteType === "blind" && <BlindOfferteDisclaimer locale={data.locale} />}
                 <TimeEstimateBlock data={data} />
               </>
             ) : (
               <View style={styles.continuationBanner}>
-                <Text style={styles.continuationTitle}>Leistungstabelle — Fortsetzung</Text>
-                <Text style={styles.continuationSub}>{`Offerte Nr. ${data.offerNumber}`}</Text>
+                <Text style={styles.continuationTitle}>{t("doc.offer.tableContinued")}</Text>
+                <Text style={styles.continuationSub}>
+                  {t("doc.offer.numbered", { number: data.offerNumber })}
+                </Text>
               </View>
             )}
 

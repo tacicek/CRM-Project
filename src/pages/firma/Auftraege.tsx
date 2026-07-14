@@ -48,11 +48,13 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, isPast, addDays } from "date-fns";
-import { de } from "date-fns/locale";
 import { AuftragModal } from "@/components/firma/AuftragModal";
 import { AuftragAbschlussDialog } from "@/components/firma/AuftragAbschlussDialog";
 import { SahaExtrasModal } from "@/components/firma/SahaExtrasModal";
 import { generateAuftragPdf } from "@/lib/generateAuftragPdf";
+import { resolveDocumentLocale } from "@/i18n/documentLocale";
+import { getAuftragStatusLabel } from "@/i18n/domain";
+import { useI18n, useT } from "@/i18n/useI18n";
 import { canTransitionAuftrag } from "@/lib/auftragStatus";
 import { erstelleRechnungAusAuftrag, type OfferItemInput } from "@/lib/erstelleRechnung";
 import {
@@ -88,6 +90,8 @@ interface ExtraService {
 interface Auftrag {
   id: string;
   auftrag_nummer: string;
+  /** Customer language, inherited from the offer/lead (auftraege.language). */
+  language: string;
   offer_id: string | null;
   lead_id: string | null;
   appointment_id?: string | null;
@@ -143,19 +147,22 @@ interface Stats {
   overdue: number;
 }
 
-// Folk status mapping
-const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  geplant:        { label: "Geplant",        color: "text-folk-sky",    bg: "bg-folk-sky-bg" },
-  bestaetigt:     { label: "Bestätigt",      color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
-  in_bearbeitung: { label: "In Bearbeitung", color: "text-folk-lemon",  bg: "bg-folk-lemon-bg" },
-  abgeschlossen:  { label: "Abgeschlossen",  color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
-  storniert:      { label: "Storniert",      color: "text-folk-coral",  bg: "bg-folk-coral-bg" },
+// Folk status mapping — visual only. The label comes from getAuftragStatusLabel(status, locale),
+// so the operator's dashboard language decides it (the old map hardcoded German).
+const STATUS_META: Record<string, { color: string; bg: string }> = {
+  geplant:        { color: "text-folk-sky",    bg: "bg-folk-sky-bg" },
+  bestaetigt:     { color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
+  in_bearbeitung: { color: "text-folk-lemon",  bg: "bg-folk-lemon-bg" },
+  abgeschlossen:  { color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
+  storniert:      { color: "text-folk-coral",  bg: "bg-folk-coral-bg" },
 };
 
 const FirmaAuftraege = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [auftraege, setAuftraege] = useState<Auftrag[]>([]);
   const [docsForAuftrag, setDocsForAuftrag] = useState<Record<string, { quittung: boolean; rechnung: boolean }>>({});
@@ -202,7 +209,8 @@ const FirmaAuftraege = () => {
           iban,
           logo_url,
           primary_color,
-          signature_url
+          signature_url,
+          default_language
         `)
         .eq("id", companyId)
         .single();
@@ -248,18 +256,20 @@ const FirmaAuftraege = () => {
         service_details: auftrag.service_details,
         team_leader: auftrag.team_leader,
         assigned_team_members_data: teamMembersData,
+        // Work order language = the customer's language (the customer signs it on site).
+        locale: resolveDocumentLocale(auftrag, companyData),
         company: companyData,
       });
 
       toast({
-        title: "Erfolg",
-        description: "PDF wurde heruntergeladen.",
+        title: t("common.success"),
+        description: t("auftrag.toast.pdfDownloaded"),
       });
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast({
-        title: "Fehler",
-        description: "PDF konnte nicht erstellt werden.",
+        title: t("common.error"),
+        description: t("auftrag.toast.pdfFailed"),
         variant: "destructive",
       });
     } finally {
@@ -339,14 +349,14 @@ const FirmaAuftraege = () => {
     } catch (error) {
       console.error("Error fetching auftraege:", error);
       toast({
-        title: "Fehler",
-        description: "Aufträge konnten nicht geladen werden.",
+        title: t("common.error"),
+        description: t("auftrag.toast.loadFailed"),
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  }, [user, toast]);
+  }, [user, toast, t]);
 
   useEffect(() => {
     fetchData();
@@ -373,14 +383,14 @@ const FirmaAuftraege = () => {
       }));
 
       toast({
-        title: "Erfolg",
-        description: "Auftrag wurde archiviert.",
+        title: t("common.success"),
+        description: t("auftrag.toast.archived"),
       });
     } catch (error) {
       console.error("Error deleting auftrag:", error);
       toast({
-        title: "Fehler",
-        description: "Auftrag konnte nicht gelöscht werden.",
+        title: t("common.error"),
+        description: t("auftrag.toast.deleteFailed"),
         variant: "destructive",
       });
       fetchData();
@@ -400,7 +410,15 @@ const FirmaAuftraege = () => {
     // canTransitionAuftrag, but guard the handler too so a stale/programmatic call
     // can't push an illegal status straight to the DB (no DB-level state machine).
     if (!canTransitionAuftrag(original.status, newStatus)) {
-      toast.error(`Ungültiger Statuswechsel: ${original.status} → ${newStatus}`);
+      // `toast` from useToast() is a plain function (no `.error` member) — the previous
+      // `toast.error(...)` call threw a TypeError instead of showing the message.
+      toast({
+        title: t("auftrag.toast.invalidTransition", {
+          from: getAuftragStatusLabel(original.status, locale),
+          to: getAuftragStatusLabel(newStatus, locale),
+        }),
+        variant: "destructive",
+      });
       return;
     }
 
@@ -436,8 +454,8 @@ const FirmaAuftraege = () => {
       });
 
       toast({
-        title: "Erfolg",
-        description: "Status wurde aktualisiert.",
+        title: t("common.success"),
+        description: t("auftrag.toast.statusUpdated"),
       });
     } catch (error) {
       console.error("Error updating status:", error);
@@ -445,8 +463,8 @@ const FirmaAuftraege = () => {
         prev.map((a) => (a.id === auftragId ? original : a))
       );
       toast({
-        title: "Fehler",
-        description: "Status konnte nicht aktualisiert werden.",
+        title: t("common.error"),
+        description: t("auftrag.toast.statusFailed"),
         variant: "destructive",
       });
     } finally {
@@ -485,8 +503,8 @@ const FirmaAuftraege = () => {
     const iban = comp?.iban ?? "";
     if (!iban) {
       toast({
-        title: "IBAN fehlt",
-        description: "Bitte IBAN in den Einstellungen hinterlegen, bevor Sie eine QR-Rechnung erstellen.",
+        title: t("auftrag.toast.ibanMissing"),
+        description: t("auftrag.toast.ibanMissingHint"),
         variant: "destructive",
       });
       return;
@@ -527,17 +545,21 @@ const FirmaAuftraege = () => {
         offerItems,
         { iban },
       );
-      navigate("/firma/rechnungen/neu", { state: { fromRechnung: neueRechnung } });
+      // The customer's language travels with the invoice — NeueRechnung itself carries no
+      // language field (see report), so it is passed alongside and applied in RechnungDetail.
+      navigate("/firma/rechnungen/neu", {
+        state: { fromRechnung: neueRechnung, documentLanguage: auftrag.language },
+      });
     } catch (e) {
-      toast({ title: "Fehler", description: (e as Error).message, variant: "destructive" });
+      toast({ title: t("common.error"), description: (e as Error).message, variant: "destructive" });
     }
   };
 
   const getStatusChip = (status: string) => {
-    const meta = STATUS_META[status] ?? { label: status, color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
+    const meta = STATUS_META[status] ?? { color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
     return (
       <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${meta.bg} ${meta.color}`}>
-        {meta.label}
+        {getAuftragStatusLabel(status, locale)}
       </span>
     );
   };
@@ -550,13 +572,13 @@ const FirmaAuftraege = () => {
     }
 
     if (isToday(date)) {
-      return <span className="inline-flex items-center rounded-md bg-folk-coral px-2 py-0.5 text-[13px] font-semibold text-white">Heute</span>;
+      return <span className="inline-flex items-center rounded-md bg-folk-coral px-2 py-0.5 text-[13px] font-semibold text-white">{t("auftrag.badge.today")}</span>;
     }
     if (isTomorrow(date)) {
-      return <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[13px] font-semibold text-folk-lemon">Morgen</span>;
+      return <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[13px] font-semibold text-folk-lemon">{t("auftrag.badge.tomorrow")}</span>;
     }
     if (isPast(date) && !isToday(date)) {
-      return <span className="inline-flex items-center rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">Überfällig</span>;
+      return <span className="inline-flex items-center rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">{t("auftrag.badge.overdue")}</span>;
     }
     return null;
   };
@@ -588,16 +610,16 @@ const FirmaAuftraege = () => {
   });
 
   const kpiTiles = [
-    { emoji: "📅", label: "Heute",        value: stats.today,                       highlight: stats.today > 0 },
-    { emoji: "⏰", label: "Morgen",       value: stats.tomorrow,                    highlight: false },
-    { emoji: "📋", label: "Geplant",      value: stats.geplant + stats.bestaetigt,  highlight: false },
-    { emoji: "✅", label: "Abgeschlossen", value: stats.abgeschlossen,              highlight: false },
+    { emoji: "📅", label: t("auftrag.kpi.today"),     value: stats.today,                       highlight: stats.today > 0 },
+    { emoji: "⏰", label: t("auftrag.kpi.tomorrow"),  value: stats.tomorrow,                    highlight: false },
+    { emoji: "📋", label: t("auftrag.kpi.planned"),   value: stats.geplant + stats.bestaetigt,  highlight: false },
+    { emoji: "✅", label: t("auftrag.kpi.completed"), value: stats.abgeschlossen,               highlight: false },
   ];
 
   return (
     <>
       <Helmet>
-        <title>Aufträge · CRM</title>
+        <title>{t("auftrag.pageTitle")}</title>
       </Helmet>
 
       <div className="space-y-5">
@@ -606,13 +628,13 @@ const FirmaAuftraege = () => {
           <span className="text-4xl leading-none">✅</span>
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Aufträge</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("auftrag.title")}</h1>
               <span className="text-[15px] text-folk-ink3">
-                <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.today}</span> heute · <span className="font-mono">{stats.this_week}</span> diese Woche
+                {t("auftrag.summary", { total: stats.total, today: stats.today, week: stats.this_week })}
               </span>
             </div>
             <p className="mt-1 text-[15px] text-folk-ink2">
-              Arbeitsaufträge und Team-Zuweisungen — Übersicht über alle geplanten Einsätze.
+              {t("auftrag.subtitle")}
             </p>
           </div>
           <Button
@@ -623,7 +645,7 @@ const FirmaAuftraege = () => {
             className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
           >
             <Plus className="h-3.5 w-3.5" />
-            Neuer Auftrag
+            {t("auftrag.new")}
           </Button>
         </div>
 
@@ -650,7 +672,7 @@ const FirmaAuftraege = () => {
           <div className="flex items-center gap-3 rounded-xl border border-folk-coral/30 bg-folk-coral-bg px-4 py-3">
             <AlertTriangle className="h-5 w-5 shrink-0 text-folk-coral" />
             <span className="text-[15px] font-semibold text-folk-coral">
-              <span className="font-mono">{stats.overdue}</span> überfällige{stats.overdue === 1 ? "r" : ""} Auftrag{stats.overdue === 1 ? "" : "e"}
+              {t("auftrag.overdue", { count: stats.overdue })}
             </span>
           </div>
         )}
@@ -663,11 +685,11 @@ const FirmaAuftraege = () => {
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
                   <TabsList className="h-auto w-max min-w-full gap-1 bg-folk-bg-warm p-1 sm:w-full">
                     {[
-                      { v: "alle",          label: "Alle",         count: stats.total },
-                      { v: "heute",         label: "Heute",        count: stats.today },
-                      { v: "morgen",        label: "Morgen",       count: stats.tomorrow },
-                      { v: "geplant",       label: "Geplant",      count: stats.geplant + stats.bestaetigt },
-                      { v: "abgeschlossen", label: "Erledigt",     count: stats.abgeschlossen },
+                      { v: "alle",          label: t("auftrag.tab.all"),      count: stats.total },
+                      { v: "heute",         label: t("auftrag.tab.today"),    count: stats.today },
+                      { v: "morgen",        label: t("auftrag.tab.tomorrow"), count: stats.tomorrow },
+                      { v: "geplant",       label: t("auftrag.tab.planned"),  count: stats.geplant + stats.bestaetigt },
+                      { v: "abgeschlossen", label: t("auftrag.tab.done"),     count: stats.abgeschlossen },
                     ].map((tab) => (
                       <TabsTrigger
                         key={tab.v}
@@ -684,7 +706,7 @@ const FirmaAuftraege = () => {
               <div className="relative w-full">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-folk-ink3" />
                 <Input
-                  placeholder="In Aufträgen suchen …"
+                  placeholder={t("auftrag.searchPlaceholder")}
                   className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 text-[15px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -701,14 +723,14 @@ const FirmaAuftraege = () => {
             ) : filteredAuftraege.length === 0 ? (
               <div className="py-12 text-center">
                 <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">📋</div>
-                <p className="text-[15px] text-folk-ink3">Keine Aufträge gefunden</p>
+                <p className="text-[15px] text-folk-ink3">{t("auftrag.empty")}</p>
                 <Button
                   variant="outline"
                   className="mt-3 h-9 rounded-lg border-folk-line bg-folk-card text-[15px] text-folk-ink2 hover:bg-folk-bg-warm"
                   onClick={() => setIsModalOpen(true)}
                 >
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Ersten Auftrag erstellen
+                  {t("auftrag.emptyAction")}
                 </Button>
               </div>
             ) : (
@@ -716,11 +738,11 @@ const FirmaAuftraege = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-folk-line hover:bg-transparent">
-                      <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Auftrag</TableHead>
-                      <TableHead className="hidden text-[13px] font-semibold uppercase tracking-wider text-folk-ink3 sm:table-cell">Kunde</TableHead>
-                      <TableHead className="hidden text-[13px] font-semibold uppercase tracking-wider text-folk-ink3 md:table-cell">Datum/Zeit</TableHead>
-                      <TableHead className="hidden text-[13px] font-semibold uppercase tracking-wider text-folk-ink3 lg:table-cell">Team</TableHead>
-                      <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Status</TableHead>
+                      <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("auftrag.table.auftrag")}</TableHead>
+                      <TableHead className="hidden text-[13px] font-semibold uppercase tracking-wider text-folk-ink3 sm:table-cell">{t("auftrag.table.customer")}</TableHead>
+                      <TableHead className="hidden text-[13px] font-semibold uppercase tracking-wider text-folk-ink3 md:table-cell">{t("auftrag.table.dateTime")}</TableHead>
+                      <TableHead className="hidden text-[13px] font-semibold uppercase tracking-wider text-folk-ink3 lg:table-cell">{t("auftrag.table.team")}</TableHead>
+                      <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("common.status")}</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -734,7 +756,7 @@ const FirmaAuftraege = () => {
                             <div className="mt-1 flex flex-wrap items-center gap-1.5 md:hidden">
                               <Calendar className="h-3 w-3 shrink-0 text-folk-ink4" />
                               <p className="font-mono text-[13px] text-folk-ink3">
-                                {format(new Date(auftrag.scheduled_date), "dd.MM.yy", { locale: de })}
+                                {format(new Date(auftrag.scheduled_date), "dd.MM.yy", { locale: dateLocale })}
                                 {auftrag.scheduled_time && ` · ${auftrag.scheduled_time.substring(0, 5)}`}
                               </p>
                               {getDateBadge(auftrag.scheduled_date, auftrag.status)}
@@ -771,14 +793,14 @@ const FirmaAuftraege = () => {
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <p className="font-mono text-[15px] font-medium text-folk-ink">
-                                {format(new Date(auftrag.scheduled_date), "dd.MM.yyyy", { locale: de })}
+                                {format(new Date(auftrag.scheduled_date), "dd.MM.yyyy", { locale: dateLocale })}
                               </p>
                               {getDateBadge(auftrag.scheduled_date, auftrag.status)}
                             </div>
                             {auftrag.scheduled_time && (
                               <p className="flex items-center gap-1 text-[13px] text-folk-ink3">
                                 <Clock className="h-3 w-3" />
-                                <span className="font-mono">{auftrag.scheduled_time.substring(0, 5)}</span> Uhr
+                                <span className="font-mono">{auftrag.scheduled_time.substring(0, 5)}</span> {t("auftrag.time.oclock")}
                               </p>
                             )}
                             {auftrag.estimated_duration_minutes && (
@@ -797,20 +819,20 @@ const FirmaAuftraege = () => {
                                 {auftrag.team_reminder_sent && (
                                   <span className="mt-0.5 inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-1.5 py-0.5 text-[10px] font-semibold text-folk-mint">
                                     <Mail className="h-2.5 w-2.5" />
-                                    Benachrichtigt
+                                    {t("auftrag.team.notified")}
                                   </span>
                                 )}
                               </div>
                             </div>
                           ) : (
-                            <span className="text-[13px] italic text-folk-ink4">Nicht zugewiesen</span>
+                            <span className="text-[13px] italic text-folk-ink4">{t("auftrag.team.unassigned")}</span>
                           )}
                         </TableCell>
                         <TableCell>{getStatusChip(auftrag.status)}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md text-folk-ink3 hover:bg-folk-card hover:text-folk-ink2" aria-label="Auftrag Optionen">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md text-folk-ink3 hover:bg-folk-card hover:text-folk-ink2" aria-label={t("auftrag.menu.aria")}>
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -820,14 +842,14 @@ const FirmaAuftraege = () => {
                                 setIsModalOpen(true);
                               }}>
                                 <Edit className="mr-2 h-4 w-4" />
-                                Bearbeiten
+                                {t("common.edit")}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => setExtrasAuftragId(auftrag.id)}
                                 className="text-folk-violet"
                               >
                                 <Package className="mr-2 h-4 w-4" />
-                                Saha Extras
+                                {t("auftrag.menu.sahaExtras")}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDownloadPdf(auftrag)}
@@ -838,12 +860,12 @@ const FirmaAuftraege = () => {
                                 ) : (
                                   <Download className="mr-2 h-4 w-4" />
                                 )}
-                                PDF herunterladen
+                                {t("auftrag.menu.downloadPdf")}
                               </DropdownMenuItem>
                               {auftrag.offer && (
                                 <DropdownMenuItem onClick={() => window.open(`/firma/offerten/${auftrag.offer?.id}`, "_blank")}>
                                   <Eye className="mr-2 h-4 w-4" />
-                                  Offerte anzeigen
+                                  {t("auftrag.menu.viewOffer")}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
@@ -851,7 +873,9 @@ const FirmaAuftraege = () => {
                                 className="text-folk-mint"
                               >
                                 <FileText className="mr-2 h-4 w-4" />
-                                {docsForAuftrag[auftrag.id]?.quittung ? "Weitere Quittung (bereits vorhanden)" : "Quittung erstellen"}
+                                {docsForAuftrag[auftrag.id]?.quittung
+                                  ? t("auftrag.menu.anotherQuittung")
+                                  : t("auftrag.menu.createQuittung")}
                               </DropdownMenuItem>
                               {auftrag.status === "abgeschlossen" && (
                                 <DropdownMenuItem
@@ -860,32 +884,34 @@ const FirmaAuftraege = () => {
                                   className="text-folk-coral"
                                 >
                                   <Receipt className="mr-2 h-4 w-4" />
-                                  {docsForAuftrag[auftrag.id]?.rechnung ? "Rechnung bereits erstellt" : "Rechnung erstellen"}
+                                  {docsForAuftrag[auftrag.id]?.rechnung
+                                    ? t("auftrag.menu.rechnungExists")
+                                    : t("auftrag.menu.createRechnung")}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />
                               {canTransitionAuftrag(auftrag.status, "bestaetigt") && (
                                 <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "bestaetigt")}>
                                   <CheckCircle className="mr-2 h-4 w-4 text-folk-mint" />
-                                  Als bestätigt markieren
+                                  {t("auftrag.menu.markConfirmed")}
                                 </DropdownMenuItem>
                               )}
                               {canTransitionAuftrag(auftrag.status, "in_bearbeitung") && (
                                 <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "in_bearbeitung")}>
                                   <Clock className="mr-2 h-4 w-4 text-folk-lemon" />
-                                  In Bearbeitung
+                                  {t("auftrag.menu.inProgress")}
                                 </DropdownMenuItem>
                               )}
                               {canTransitionAuftrag(auftrag.status, "abgeschlossen") && (
                                 <DropdownMenuItem onClick={() => setCompletionAuftrag(auftrag)}>
                                   <CheckCircle className="mr-2 h-4 w-4 text-folk-mint" />
-                                  Abschliessen …
+                                  {t("auftrag.menu.complete")}
                                 </DropdownMenuItem>
                               )}
                               {auftrag.status === "storniert" && canTransitionAuftrag(auftrag.status, "geplant") && (
                                 <DropdownMenuItem onClick={() => handleStatusChange(auftrag.id, "geplant")}>
                                   <RotateCcw className="mr-2 h-4 w-4 text-folk-sky" />
-                                  Reaktivieren
+                                  {t("auftrag.menu.reactivate")}
                                 </DropdownMenuItem>
                               )}
                               {canTransitionAuftrag(auftrag.status, "storniert") && (
@@ -894,7 +920,7 @@ const FirmaAuftraege = () => {
                                   className="text-folk-coral"
                                 >
                                   <XCircle className="mr-2 h-4 w-4" />
-                                  Stornieren
+                                  {t("auftrag.menu.cancel")}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />
@@ -903,7 +929,7 @@ const FirmaAuftraege = () => {
                                 onClick={() => setDeleteAuftrag(auftrag)}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
-                                Archivieren
+                                {t("auftrag.menu.archive")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -932,13 +958,13 @@ const FirmaAuftraege = () => {
       <AlertDialog open={!!deleteAuftrag} onOpenChange={() => setDeleteAuftrag(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Auftrag archivieren?</AlertDialogTitle>
+            <AlertDialogTitle>{t("auftrag.archive.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Möchten Sie den Auftrag "{deleteAuftrag?.title}" wirklich archivieren? Der Auftrag wird aus der Liste entfernt, bleibt aber für die Nachvollziehbarkeit gespeichert.
+              {t("auftrag.archive.description", { title: deleteAuftrag?.title ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
@@ -947,10 +973,10 @@ const FirmaAuftraege = () => {
               {isDeleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Wird gelöscht...
+                  {t("auftrag.archive.deleting")}
                 </>
               ) : (
-                "Löschen"
+                t("common.delete")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

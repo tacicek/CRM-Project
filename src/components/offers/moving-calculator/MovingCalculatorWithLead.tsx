@@ -15,6 +15,7 @@ import { ExtraServicesForm } from './ExtraServicesForm';
 import { PricingSummary } from './PricingSummary';
 import { CalculationResult, PricingConfig } from './types';
 import { calculateNetVolume, formatCHF, formatTime } from './calculation-utils';
+import { useI18n } from "@/i18n/useI18n";
 import {
   Package,
   Building2,
@@ -62,6 +63,8 @@ export function MovingCalculatorWithLead({
 }: MovingCalculatorWithLeadProps) {
   // Always call hooks unconditionally
   const calculator = useMovingCalculator(pricingConfig);
+  // Calculator panel = operator chrome → dashboard locale.
+  const { locale } = useI18n();
   const {
     isLoading,
     error,
@@ -478,7 +481,7 @@ export function MovingCalculatorWithLead({
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
-                {formatTime(calculator.result.timeBreakdown.totalTime)}
+                {formatTime(calculator.result.timeBreakdown.totalTime, locale)}
               </span>
               <span className="flex items-center gap-1">
                 <Package className="w-3.5 h-3.5" />

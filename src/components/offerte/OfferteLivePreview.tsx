@@ -1,7 +1,11 @@
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { OfferItem } from "./OfferteItemRow";
-import { getServiceLabel } from "@/lib/serviceLabels";
-import { itemAmountDisplay, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
+import { getAddressLabels, getAppointmentLabel, getLetterSalutation, getServiceLabel } from "@/i18n/domain";
+import { itemAmountDisplay } from "@/lib/offerPricing";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Locale } from "@/i18n/locale";
+import { formatCurrency as formatCurrencyI18n, formatDate as formatDateI18n, formatNumber, formatPercent } from "@/i18n/format";
 
 interface Company {
   company_name: string;
@@ -65,6 +69,15 @@ interface OfferDetails {
 }
 
 interface OfferteLivePreviewProps {
+  /**
+   * Sprache des DOKUMENTS (offers.language / lead.language) — NICHT die des Dashboards.
+   *
+   * Dieses Panel zeigt, was der KUNDE bekommt. Zeichnete es sich in der Sprache des
+   * Operators, sähe eine französische Firma einen französischen Rahmen um deutsche Daten
+   * (Titel, Einheiten, Zahlungskondition) — und hielte die Offerte für französisch,
+   * obwohl der Kunde eine deutsche erhält. Genau dieser Fehler ist aufgetreten.
+   */
+  documentLocale: Locale;
   company: Company | null;
   lead: Lead;
   title: string;
@@ -116,58 +129,42 @@ export const OfferteLivePreview = ({
   termsAndConditions,
   offerNumber,
   offerDetails,
+  documentLocale,
 }: OfferteLivePreviewProps) => {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("de-CH", {
-      style: "currency",
-      currency: "CHF",
-    }).format(amount);
-  };
+  // WYSIWYG-Vorschau des KUNDEN-Dokuments → Dokumentsprache, exakt wie das PDF.
+  // Kein useT() hier: das wäre die Sprache des Operators und würde ihm eine Offerte in
+  // seiner eigenen Sprache zeigen, die der Kunde nie zu sehen bekommt.
+  const { t, locale, dateLocale } = documentI18nFor(documentLocale);
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("de-CH", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
+  const formatCurrency = (amount: number) => formatCurrencyI18n(amount, locale);
+
+  const formatDate = (dateString: string) => (dateString ? formatDateI18n(dateString, locale) : "-");
 
   const formatDateWithDay = (dateString: string) => {
     if (!dateString) return "-";
-    const date = new Date(dateString);
-    const dayName = date.toLocaleDateString("de-CH", { weekday: "long" });
-    const formattedDate = date.toLocaleDateString("de-CH", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-    return `${dayName}, ${formattedDate}`;
+    return format(new Date(dateString), "PPPP", { locale: dateLocale });
   };
 
-  const formatTime = (time: string) => {
-    if (!time) return "";
-    return `${time} Uhr`;
-  };
+  const formatTime = (time: string) => (time ? t("doc.time.oclock", { time }) : "");
 
   // Determine service type display
-  const serviceTypeLabel = getServiceLabel(lead.service_type);
+  const serviceTypeLabel = getServiceLabel(lead.service_type, locale);
   const hasSecondaryService = offerDetails?.secondaryServiceType && offerDetails?.secondaryServiceDate;
-  const secondaryServiceLabel = hasSecondaryService ? getServiceLabel(offerDetails.secondaryServiceType!) : "";
+  const secondaryServiceLabel = hasSecondaryService ? getServiceLabel(offerDetails.secondaryServiceType!, locale) : "";
 
   // Build title based on services
-  const displayTitle = title || (hasSecondaryService 
-    ? `${serviceTypeLabel}s- und ${secondaryServiceLabel}sofferte`
-    : `${serviceTypeLabel}sofferte`);
+  const displayTitle = title || (hasSecondaryService
+    ? `${t("doc.offer.titleFor", { service: serviceTypeLabel })} / ${secondaryServiceLabel}`
+    : t("doc.offer.titleFor", { service: serviceTypeLabel }));
 
   // Check if we need address display (for moving and some transport services)
   const needsAddressDisplay = ["umzug", "umzug_privat", "umzug_firma", "klaviertransport", "usm_transport", "wasserbett_transport"].some(
     (s) => lead.service_type?.toLowerCase().includes(s.toLowerCase())
   );
+  const addressLabels = getAddressLabels(lead.service_type, locale);
 
-  // Customer salutation
+  // Customer salutation (raw stored value, printed as-is in the header block below)
   const salutation = offerDetails?.customerSalutation || "";
-  const customerName = `${salutation ? salutation + " " : ""}${lead.customer_first_name} ${lead.customer_last_name}`;
 
   // Floor and lift info
   const fromFloor = offerDetails?.serviceDetails?.floors?.from ?? lead.from_floor;
@@ -176,8 +173,8 @@ export const OfferteLivePreview = ({
   const toHasLift = offerDetails?.serviceDetails?.lifts?.to ?? lead.to_has_lift;
 
   // Property info
-  const propertyType = offerDetails?.serviceDetails?.propertyType || 
-    (lead.from_rooms ? `${lead.from_rooms}-Zimmer-Wohnung` : "");
+  const propertyType = offerDetails?.serviceDetails?.propertyType ||
+    (lead.from_rooms ? t("offer.preview.propertyRooms", { rooms: lead.from_rooms }) : "");
   const livingSpace = offerDetails?.serviceDetails?.livingSpaceM2 ?? lead.from_living_space_m2;
 
   return (
@@ -187,14 +184,14 @@ export const OfferteLivePreview = ({
         <div className="flex justify-between items-start">
           {/* Left - Company Info */}
           <div className="space-y-0.5">
-            <p className="font-bold text-[8px] text-muted-foreground">Unsere Referenz:</p>
+            <p className="font-bold text-[8px] text-muted-foreground">{t("offer.details.field.reference")}:</p>
             <p className="text-[9px]">{offerDetails?.companyReference || company?.company_name}</p>
-            <p className="font-bold text-[8px] text-muted-foreground mt-1">Ihre Referenz:</p>
+            <p className="font-bold text-[8px] text-muted-foreground mt-1">{t("offer.preview.yourReference")}:</p>
             <p className="text-[9px]">{lead.customer_phone}</p>
             <p className="text-[9px]">{lead.customer_email}</p>
             {company?.mwst_number && (
               <p className="text-[9px] mt-2">
-                <span className="font-bold">Mwst:</span> {company.mwst_number}
+                {t("offer.form.company.vat", { number: company.mwst_number })}
               </p>
             )}
           </div>
@@ -205,10 +202,10 @@ export const OfferteLivePreview = ({
             <p className="font-medium text-[10px]">{lead.customer_first_name} {lead.customer_last_name}</p>
             <p className="text-[9px]">{lead.from_street} {lead.from_house_number}</p>
             <p className="text-[9px]">{lead.from_plz} {lead.from_city}</p>
-            
+
             <div className="mt-3 text-left">
               {offerNumber && (
-                <p className="font-bold text-[10px]">Offerte Nr. #{offerNumber}</p>
+                <p className="font-bold text-[10px]">{t("doc.offer.numbered", { number: offerNumber })}</p>
               )}
               <p className="text-[9px]">{formatDateWithDay(new Date().toISOString().split("T")[0])}</p>
             </div>
@@ -218,30 +215,30 @@ export const OfferteLivePreview = ({
 
       {/* Title */}
       <h2 className="font-bold text-[14px] mb-2">{displayTitle}</h2>
-      
+
       {/* Greeting */}
-      <p className="text-[9px] mb-1">Sehr geehrte{salutation === "Herr" ? "r" : ""} {customerName}</p>
+      <p className="text-[9px] mb-1">{getLetterSalutation(offerDetails?.customerSalutation, lead.customer_last_name, locale)}</p>
       <p className="text-[9px] mb-3 text-muted-foreground">
-        Vielen Dank für Ihre Anfrage. Wir freuen uns, Ihnen heute die folgende Offerte unterbreiten zu dürfen
+        {t("doc.offer.intro")}
       </p>
 
       {/* Address Display - for Moving Services */}
       {needsAddressDisplay && lead.to_city && (
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <p className="font-bold text-[10px] border-b pb-1 mb-1">Auszugsadresse</p>
+            <p className="font-bold text-[10px] border-b pb-1 mb-1">{addressLabels.primary}</p>
             <p className="text-[9px]">
-              {fromFloor !== null && fromFloor !== undefined ? `${fromFloor}. Stock` : ""} 
-              {fromFloor !== null && fromFloor !== undefined ? ` ${fromHasLift ? "(mit Lift)" : "(ohne Lift)"}` : ""}
+              {fromFloor !== null && fromFloor !== undefined ? t("offer.leadDetail.floor.nth", { floor: fromFloor }) : ""}
+              {fromFloor !== null && fromFloor !== undefined ? ` (${fromHasLift ? t("offer.leadDetail.floor.withLift") : t("offer.leadDetail.floor.withoutLift")})` : ""}
             </p>
             <p className="text-[9px]">{lead.from_street} {lead.from_house_number}</p>
             <p className="text-[9px]">{lead.from_plz} {lead.from_city}</p>
           </div>
           <div>
-            <p className="font-bold text-[10px] border-b pb-1 mb-1">Einzugsadresse</p>
+            <p className="font-bold text-[10px] border-b pb-1 mb-1">{addressLabels.secondary}</p>
             <p className="text-[9px]">
-              {toFloor !== null && toFloor !== undefined ? `${toFloor}. Stock` : ""} 
-              {toFloor !== null && toFloor !== undefined ? ` ${toHasLift ? "(mit Lift)" : "(ohne Lift)"}` : ""}
+              {toFloor !== null && toFloor !== undefined ? t("offer.leadDetail.floor.nth", { floor: toFloor }) : ""}
+              {toFloor !== null && toFloor !== undefined ? ` (${toHasLift ? t("offer.leadDetail.floor.withLift") : t("offer.leadDetail.floor.withoutLift")})` : ""}
             </p>
             <p className="text-[9px]">{lead.to_street} {lead.to_house_number}</p>
             <p className="text-[9px]">{lead.to_plz} {lead.to_city}</p>
@@ -254,14 +251,14 @@ export const OfferteLivePreview = ({
         {/* Service Date & Time */}
         {serviceDate && (
           <div className="flex">
-            <span className="font-bold w-28 text-[9px]">{serviceTypeLabel}stermin:</span>
+            <span className="font-bold w-28 text-[9px]">{getAppointmentLabel(lead.service_type, locale)}:</span>
             <span className="text-[9px]">{formatDateWithDay(serviceDate)}</span>
           </div>
         )}
-        
+
         {offerDetails?.serviceStartTime && (
           <div className="flex">
-            <span className="font-bold w-28 text-[9px]">Beginn bei Kunde:</span>
+            <span className="font-bold w-28 text-[9px]">{t("offer.preview.arrivalTime")}:</span>
             <span className="text-[9px]">{formatTime(offerDetails.serviceStartTime)}</span>
           </div>
         )}
@@ -269,7 +266,7 @@ export const OfferteLivePreview = ({
         {/* Property Info */}
         {(propertyType || livingSpace) && (
           <div className="flex">
-            <span className="font-bold w-28 text-[9px]">{serviceTypeLabel}sgut:</span>
+            <span className="font-bold w-28 text-[9px]">{t("offer.create.overview.object")}:</span>
             <span className="text-[9px]">
               {propertyType}{livingSpace ? ` ${livingSpace} m²` : ""}
             </span>
@@ -279,7 +276,7 @@ export const OfferteLivePreview = ({
         {/* Resources - Vehicles & Personnel */}
         {offerDetails?.resources?.vehicles && offerDetails.resources.vehicles.length > 0 && (
           <div className="flex">
-            <span className="font-bold w-28 text-[9px]">{serviceTypeLabel}starif:</span>
+            <span className="font-bold w-28 text-[9px]">{t("offer.preview.rateLabel")}:</span>
             <span className="text-[9px]">
               {offerDetails.resources.vehicles.map((v, i) => (
                 <span key={i}>
@@ -288,9 +285,9 @@ export const OfferteLivePreview = ({
                 </span>
               ))}
               {offerDetails.resources.personnel && offerDetails.resources.personnel.count > 0 && (
-                <span> mit {offerDetails.resources.personnel.count} Mitarbeiter</span>
+                <span> {t("offer.preview.withCrew", { count: offerDetails.resources.personnel.count })}</span>
               )}
-              <span> Inkl. {vatRate}% Mwst</span>
+              <span> {t("offer.preview.vatIncluded", { rate: formatPercent(vatRate, locale) })}</span>
             </span>
           </div>
         )}
@@ -300,7 +297,7 @@ export const OfferteLivePreview = ({
           <div className="space-y-0.5 mt-1">
             {offerDetails.highlightedItems.map((item, index) => (
               <div key={index} className="bg-yellow-100 px-1.5 py-0.5 text-[8px] font-medium">
-                {item.startsWith("inkl.") ? item : `inkl. ${item}`}
+                {item.startsWith("inkl.") ? item : `${t("offer.preview.inclPrefix")} ${item}`}
               </div>
             ))}
           </div>
@@ -312,10 +309,10 @@ export const OfferteLivePreview = ({
             <div className="border-t my-2" />
             <div className="flex">
               <span className="font-bold w-28 text-[9px]">{secondaryServiceLabel}:</span>
-              <span className="text-[9px]">Bitte Datum mitteilen</span>
+              <span className="text-[9px]">{t("offer.preview.dateToBeAnnounced")}</span>
             </div>
             <div className="flex">
-              <span className="font-bold w-28 text-[9px]">{secondaryServiceLabel} Abgabe:</span>
+              <span className="font-bold w-28 text-[9px]">{t("offer.preview.handoverLabel", { service: secondaryServiceLabel })}:</span>
               <span className="text-[9px]">{formatDateWithDay(offerDetails.secondaryServiceDate!)}</span>
             </div>
           </>
@@ -325,10 +322,10 @@ export const OfferteLivePreview = ({
       {/* Items Table */}
       <div className="border rounded overflow-hidden mb-3">
         <div className="bg-secondary text-secondary-foreground p-1.5 text-[8px] font-bold grid grid-cols-12 gap-1">
-          <div className="col-span-1">Pos.</div>
-          <div className="col-span-7">Beschreibung</div>
-          <div className="col-span-2 text-right">Menge</div>
-          <div className="col-span-2 text-right">Preis</div>
+          <div className="col-span-1">{t("offer.detail.column.position")}</div>
+          <div className="col-span-7">{t("common.description")}</div>
+          <div className="col-span-2 text-right">{t("offer.detail.column.quantity")}</div>
+          <div className="col-span-2 text-right">{t("offer.detail.column.price")}</div>
         </div>
         {items.map((item) => {
           // SINGLE SOURCE: Betragsdarstellung ueber itemAmountDisplay (kein amount_basis im
@@ -367,7 +364,7 @@ export const OfferteLivePreview = ({
             </div>
             <div className="col-span-2 text-right font-medium">
               {display.kind === "free"
-                ? item.priceType === "inkl" ? "Inkl." : "Optional"
+                ? item.priceType === "inkl" ? t("doc.offer.includedShort") : t("common.optional")
                 : display.kind === "range"
                 ? `${formatCurrency(display.min)}–${formatCurrency(display.max)}`
                 : display.kind === "rate"
@@ -382,27 +379,27 @@ export const OfferteLivePreview = ({
       {/* Totals — bei rate-Posten keine Aggregat-Box, nur Hinweis */}
       {hasRateItem ? (
         <div className="mb-3 text-[8px] text-muted-foreground leading-tight">
-          {RATE_AGGREGATE_NOTE}
+          {t("doc.offer.rateAggregateNote")}
         </div>
       ) : (
         <div className="flex justify-end mb-3">
           <div className="w-36 space-y-0.5 text-[8px]">
             <div className="flex justify-between">
-              <span>Zwischensumme:</span>
+              <span>{t("doc.offer.subtotal")}:</span>
               <span>{maxSubtotal !== null ? `${formatCurrency(subtotal)}–${formatCurrency(maxSubtotal)}` : formatCurrency(subtotal)}</span>
             </div>
             {surcharges?.map((s, i) => (
               <div key={i} className="flex justify-between">
-                <span>{s.label || "Zuschlag"}:</span>
+                <span>{s.label || t("doc.offer.surcharge")}:</span>
                 <span>{formatCurrency(s.amount)}</span>
               </div>
             ))}
             <div className="flex justify-between">
-              <span>MwSt. ({vatRate}%):</span>
+              <span>{t("offer.detail.vatRow", { rate: formatPercent(vatRate, locale) })}:</span>
               <span>{maxVat !== null ? `${formatCurrency(vatAmount)}–${formatCurrency(maxVat)}` : formatCurrency(vatAmount)}</span>
             </div>
             <div className="flex justify-between font-bold text-[10px] border-t pt-1">
-              <span>Total:</span>
+              <span>{t("doc.offer.glance.total")}:</span>
               <span>{maxTotal !== null ? `${formatCurrency(total)}–${formatCurrency(maxTotal)}` : formatCurrency(total)}</span>
             </div>
           </div>
@@ -413,34 +410,34 @@ export const OfferteLivePreview = ({
       {priceModel === "stundenansatz" && hourlyRate !== null && (
         <div className="mb-3 rounded border border-sky-300 bg-sky-50 p-2 text-[8px]">
           <p className="font-bold text-sky-700">
-            Preismodell: Stundenansatz — CHF {Number(hourlyRate).toLocaleString("de-CH")} / Std.
+            {t("doc.offer.priceModel")} {t("doc.offer.hourlyRate", { rate: formatNumber(Number(hourlyRate), locale) })}
           </p>
           <p className="text-muted-foreground">
-            Die Endsumme richtet sich nach dem tatsächlichen Zeitaufwand.
+            {t("doc.offer.hourlyRateNote")}
           </p>
         </div>
       )}
       {priceModel === "kostendach" && hourlyRate !== null && kostendachMax !== null && (
         <div className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-[8px]">
           <p className="font-bold text-amber-800">
-            Preismodell: Stundenansatz CHF {Number(hourlyRate).toLocaleString("de-CH")} / Std. — Kostendach max. CHF {Number(kostendachMax).toLocaleString("de-CH")}
+            {t("doc.offer.priceModel")} {t("doc.offer.hourlyWithCap", { rate: formatNumber(Number(hourlyRate), locale), cap: formatNumber(Number(kostendachMax), locale) })}
           </p>
           <p className="text-amber-800">
-            Sie zahlen maximal CHF {Number(kostendachMax).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.
+            {t("doc.offer.costCapNote", { cap: formatNumber(Number(kostendachMax), locale) })}
           </p>
         </div>
       )}
 
       {/* Payment Terms */}
       <div className="p-2 bg-muted/50 rounded text-[8px] mb-3">
-        <p className="font-bold">Zahlungskondition:</p>
+        <p className="font-bold">{t("doc.offer.paymentTerms")}</p>
         <p>{paymentTerms}</p>
       </div>
 
       {/* Valid Until — only shown when explicitly set */}
       {validUntil && (
         <p className="text-[8px] text-muted-foreground text-center mb-3">
-          Diese Offerte ist gültig bis {formatDate(validUntil)}
+          {t("doc.offer.offerValidUntil", { date: formatDate(validUntil) })}
         </p>
       )}
 
@@ -449,17 +446,17 @@ export const OfferteLivePreview = ({
         <>
           <div className="border-t-2 border-dashed border-muted-foreground/30 my-3 pt-3">
             <p className="text-[7px] text-muted-foreground text-center mb-2">
-              — Seite 2: Geschäftsbedingungen —
+              {t("offer.preview.page2Marker")}
             </p>
           </div>
           <div className="p-2 bg-muted/30 rounded text-[8px]">
-            <p className="font-bold text-[10px] mb-2">Allgemeine Geschäftsbedingungen</p>
+            <p className="font-bold text-[10px] mb-2">{t("offer.form.agb.title")}</p>
             <p className="text-muted-foreground whitespace-pre-line line-clamp-6">
               {termsAndConditions}
             </p>
             {termsAndConditions.length > 300 && (
               <p className="text-[7px] text-muted-foreground italic mt-1">
-                ... (vollständiger Text im PDF)
+                {t("offer.preview.fullTextInPdf")}
               </p>
             )}
           </div>
@@ -469,24 +466,24 @@ export const OfferteLivePreview = ({
       {/* Page 3 Preview - Acceptance */}
       <div className="border-t-2 border-dashed border-muted-foreground/30 my-3 pt-3">
         <p className="text-[7px] text-muted-foreground text-center mb-2">
-          — Seite 3: Auftragsbestätigung —
+          {t("offer.preview.page3Marker")}
         </p>
       </div>
       <div className="p-2 bg-muted/30 rounded text-[8px] space-y-2">
-        <p className="font-bold text-[10px] text-center">Auftragsbestätigung</p>
+        <p className="font-bold text-[10px] text-center">{t("doc.offer.confirm.title")}</p>
         <p className="text-muted-foreground text-[7px]">
-          Hiermit erteile ich der Firma {company?.company_name || "..."} den in dieser Offerte beschriebenen Auftrag.
+          {t("offer.preview.confirmGrant", { company: company?.company_name || "..." })}
         </p>
         <div className="grid grid-cols-2 gap-2 mt-3">
           <div className="space-y-1">
-            <p className="text-[7px] text-muted-foreground">Ort, Datum:</p>
+            <p className="text-[7px] text-muted-foreground">{t("doc.offer.confirm.placeDate")}:</p>
             <div className="border-b border-foreground/50 h-4"></div>
-            <p className="text-[6px] text-muted-foreground">Unterschrift Auftraggeber</p>
+            <p className="text-[6px] text-muted-foreground">{t("offer.preview.signatureCustomer")}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-[7px] text-muted-foreground">Ort, Datum:</p>
+            <p className="text-[7px] text-muted-foreground">{t("doc.offer.confirm.placeDate")}:</p>
             <div className="border-b border-foreground/50 h-4"></div>
-            <p className="text-[6px] text-muted-foreground">Unterschrift Auftragnehmer</p>
+            <p className="text-[6px] text-muted-foreground">{t("offer.preview.signatureContractor")}</p>
           </div>
         </div>
       </div>

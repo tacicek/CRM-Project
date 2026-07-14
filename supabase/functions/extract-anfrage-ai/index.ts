@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createExtractLeadPrompt } from "../_shared/prompts.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
+import { isLocale, toLocale, type Locale } from "../_shared/i18n/locale.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,13 @@ const corsHeaders = {
 // Base fields for all service types
 interface BaseExtractedData {
   detected_service_type: string;
+  /**
+   * DOCUMENT locale — the language the CUSTOMER wrote in, detected by the model.
+   * Start of the language propagation chain:
+   *   leads.language → offers.language → auftraege / rechnungen / quittungen / appointments.
+   * Never the operator's dashboard language.
+   */
+  language: Locale;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -241,7 +249,7 @@ serve(async (req) => {
     // Check company has manual import enabled
     const { data: company, error: companyError } = await supabase
       .from("companies")
-      .select("id, company_name, crm_enabled")
+      .select("id, company_name, crm_enabled, default_language")
       .eq("id", company_id)
       .single();
 
@@ -415,12 +423,15 @@ serve(async (req) => {
       );
     }
 
-    // Validate and clean extracted data based on service type
-    const validatedData = validateAndCleanData(extractedData);
-    
-    logStep("Extraction complete", { 
+    // Validate and clean extracted data based on service type.
+    // The company default is the fallback when the model returns no / an unsupported
+    // language — a lead must always end up with a usable document locale.
+    const validatedData = validateAndCleanData(extractedData, toLocale(company.default_language));
+
+    logStep("Extraction complete", {
       confidence: validatedData.confidence_score,
-      service_type: validatedData.detected_service_type
+      service_type: validatedData.detected_service_type,
+      language: validatedData.language
     });
 
     return new Response(
@@ -656,12 +667,15 @@ function sanitizeBase<T extends BaseExtractedData>(data: T): T {
   return data;
 }
 
-function validateAndCleanData(data: ExtractedData): ExtractedData {
+function validateAndCleanData(data: ExtractedData, fallbackLocale: Locale): ExtractedData {
   const serviceType = data.detected_service_type || "umzug_privat";
-  
+
   // Base data with defaults
   const baseData: BaseExtractedData = sanitizeBase({
     detected_service_type: serviceType,
+    // The model is instructed to return de|fr|en. Anything else (other language,
+    // hallucinated code, missing field) degrades to the company's default language.
+    language: isLocale(data.language) ? data.language : fallbackLocale,
     first_name: data.first_name || null,
     last_name: data.last_name || null,
     email: data.email || null,

@@ -7,9 +7,17 @@ import {
   OfferItemLeistungEntry,
 } from "../types/offer.types";
 import { computeDisplayTotals, offerHasRateItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
+import { resolveDocumentLocale } from "@/i18n/documentLocale";
+import { normalizeServiceKey } from "@/i18n/domain";
 
 export interface LegacyOfferData {
   id: string;
+  /**
+   * offers.language — the customer's language, frozen from the lead. Optional because a
+   * caller may still be on the old payload shape; resolveDocumentLocale then falls back to
+   * companies.default_language and finally to German. A missing language must never throw.
+   */
+  language?: string | null;
   title: string;
   description?: string;
   customer_first_name: string;
@@ -92,6 +100,8 @@ export interface LegacyCompanyInfo {
   iban?: string;
   /** Offerte-PDF Vorlage (companies.pdf_template): 'classic' | 'modern' */
   pdf_template?: string | null;
+  /** companies.default_language — fallback when the offer row carries no language. */
+  default_language?: string | null;
 }
 
 export interface LegacyAddress {
@@ -210,19 +220,14 @@ function applyResourcestoIncludedServices(
 const resolveValidUntil = (validUntil?: string | null): string | undefined =>
   validUntil || undefined;
 
-const mapServiceType = (rawType: string | undefined, title: string): PdfOfferData["service"]["type"] => {
-  const value = (rawType || title || "").toLowerCase();
-  if (value.includes("firma")) return "Firmenumzug";
-  if (value.includes("büro")) return "Büroumzug";
-  if (value.includes("reinigung")) return "Reinigung";
-  if (value.includes("räum") || value.includes("raeum")) return "Räumung";
-  if (value.includes("entsorgung")) return "Entsorgung";
-  if (value.includes("lagerung")) return "Lagerung";
-  if (value.includes("klavier")) return "Klaviertransport";
-  if (value.includes("möbellift") || value.includes("moebellift")) return "Möbellift";
-  if (value.includes("umzug")) return "Privatumzug";
-  return "Umzug";
-};
+/**
+ * The DB really does hold German free text here ("Privatumzug", "umzug_privat", the offer
+ * title). The German substring matching therefore stays — but it normalises to a catalog
+ * KEY instead of returning a German display name that was previously printed verbatim.
+ * The renderers turn the key into text with getServiceLabel(key, locale).
+ */
+const mapServiceType = (rawType: string | undefined, title: string): string =>
+  normalizeServiceKey(rawType || title);
 
 const mapAddress = (addr?: LegacyAddress): PdfOfferData["addresses"]["from"] | undefined => {
   if (!addr) return undefined;
@@ -256,6 +261,8 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       description: mainDesc,
       details: parts.length > 1 ? parts.slice(1) : undefined,
       quantity: item.quantity,
+      // "Pauschale" is the internal default UNIT KEY, not display text: formatQuantityUnit
+      // resolves it through domain.unit.flatRate into the customer's language.
       unit: item.unit || "Pauschale",
       price: item.unit_price,
       total: item.total || item.quantity * item.unit_price,
@@ -282,6 +289,8 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
   const toAddress = mapAddress(offer.customer_destination);
 
   return {
+    // The customer's language — offers.language, else companies.default_language, else 'de'.
+    locale: resolveDocumentLocale(offer, offer.company),
     company: {
       name: offer.company.company_name,
       logo: offer.company.logo_url,
@@ -305,6 +314,7 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
     description: offer.description ?? null,
     customer: {
       name: `${offer.customer_first_name} ${offer.customer_last_name}`,
+      lastName: offer.customer_last_name,
       email: offer.customer_email,
       phone: offer.customer_phone,
       address: fromAddress

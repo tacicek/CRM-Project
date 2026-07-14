@@ -230,6 +230,12 @@ export interface PublicBesichtigungSession {
   from_plz: string | null;
   from_city: string | null;
   expires_at: string;
+  /**
+   * Sprache des KUNDEN, serverseitig aufgelöst (Offerte → Lead → Firmen-Default) von
+   * `validate-besichtigung-token`. Die Seite hat keinen eingeloggten Operator und darf
+   * die Sprache deshalb nirgendwo anders herholen.
+   */
+  language: string;
   company: {
     name: string;
     logo_url: string | null;

@@ -5,6 +5,14 @@ import { logEmail } from "../_shared/logEmail.ts";
 import { getDefaultFrom, getDashAppUrl, getAppName } from "../_shared/envConfig.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
+import {
+  createTranslator,
+  formatCurrency,
+  formatDate as formatDateLocale,
+  formatDateTime,
+  formatNumber,
+  toLocale,
+} from "../_shared/i18n/index.ts";
 // jsPDF and QRCode removed - ALL PDFs are now generated on the frontend
 // using @react-pdf/renderer and passed to this edge function as base64.
 // This keeps the edge function lightweight and ensures identical PDFs.
@@ -54,6 +62,8 @@ interface CompanyInfo {
   signature_url?: string | null;
   default_payment_terms?: string | null;
   default_terms_and_conditions?: string | null;
+  /** Dashboard language of the firm — governs the confirmation copy sent back to the company. */
+  default_language?: string | null;
   resend_enabled?: boolean | null;
   resend_api_key?: string | null;
   resend_from_email?: string | null;
@@ -242,7 +252,7 @@ const handler = async (req: Request): Promise<Response> => {
       .from("offers")
       .select(`
         *,
-        company:companies(id, company_name, email, phone, street, house_number, plz, city, website, logo_url, mwst_number, iban, primary_color, signature_url, default_payment_terms, default_terms_and_conditions, resend_enabled, resend_api_key, resend_from_email, resend_from_name),
+        company:companies(id, company_name, email, phone, street, house_number, plz, city, website, logo_url, mwst_number, iban, primary_color, signature_url, default_payment_terms, default_terms_and_conditions, default_language, resend_enabled, resend_api_key, resend_from_email, resend_from_name),
         lead:leads(
           service_type,
           from_street,
@@ -528,13 +538,24 @@ const handler = async (req: Request): Promise<Response> => {
       logStep("WARNING: No pre-generated PDF provided. Email sent without offer PDF attachment.", { fileName: offerFileName });
     }
 
+    // ── Locales ────────────────────────────────────────────────────────────────
+    // Two recipients, two languages: the customer reads the offer in the DOCUMENT language
+    // (offers.language, frozen at creation), while the confirmation copy that goes back to the
+    // firm stays in the COMPANY language (companies.default_language).
+    const customerLocale = toLocale(offer.language);
+    const companyLocale = toLocale(offer.company?.default_language);
+    const tCustomer = createTranslator(customerLocale);
+    const tCompany = createTranslator(companyLocale);
+
     // Generate offer view URL
     const offerViewUrl = `${getDashAppUrl()}/offerte/${offer.access_token}`;
     // Brand color (company.primary_color) — for email header/CTA/table heading
     const accent = offer.company?.primary_color || "#4f46e5";
 
-    // Build items HTML (mobile-safe stacked layout)
-    const fmtCHF = (n: number) => 'CHF ' + n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // Build items HTML (mobile-safe stacked layout). Currency is always CHF; only the number
+    // formatting follows the reader's locale.
+    const fmtCHF = (n: number) => formatCurrency(n, customerLocale);
+    const fmtCHFCompany = (n: number) => formatCurrency(n, companyLocale);
     // Free items (inkl/optional) are NOT priced rows — they resurface as a \u2713 "Inklusive"
     // block below the billable rows (mirrors PDF P2a + Detail view; single-source semantics
     // of src/lib/offerPricing isFreeItem, duplicated here because Deno cannot import src/).
@@ -552,10 +573,10 @@ const handler = async (req: Request): Promise<Response> => {
       return validTE(item.time_estimate) ? "range" : "fixed";
     };
     // rate-Posten (Menge/Dauer unbestimmt) → gar keine Aggregatsumme. Sobald EIN Posten 'rate' ist,
-    // wird die gesamte Total-/Zwischensumme-Box ausgeblendet und stattdessen RATE_AGGREGATE_NOTE gezeigt.
+    // wird die gesamte Total-/Zwischensumme-Box ausgeblendet und stattdessen der Hinweis
+    // email.offer.rateAggregateNote gezeigt.
     const hasRateItem = billableItems.some((it) => itemBasis(it) === "rate");
-    const RATE_AGGREGATE_NOTE = "Der Gesamtpreis ergibt sich aus den Positionen nach Aufwand (siehe Details oben) zzgl. allfälliger Fixpositionen.";
-    const rateAggregateNoteHtml = `<div style="text-align: right; margin: 24px 0; font-size: 13px; color: #6b7280;">${RATE_AGGREGATE_NOTE}</div>`;
+    const rateAggregateNoteHtml = `<div style="text-align: right; margin: 24px 0; font-size: 13px; color: #6b7280;">${tCustomer("email.offer.rateAggregateNote")}</div>`;
     // First description line = bold main title, remaining lines = muted sub-line.
     const descHtml = (desc: string) => {
       const [main, ...rest] = (desc ?? "").split("\n");
@@ -576,7 +597,7 @@ const handler = async (req: Request): Promise<Response> => {
         <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb;">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; width: 100%;">
             <tr>
-              <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">Pos.</td>
+              <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">${tCustomer("email.offer.itemPosition")}</td>
               <td style="padding: 2px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${item.position}</td>
             </tr>
             <tr>
@@ -585,32 +606,36 @@ const handler = async (req: Request): Promise<Response> => {
             ${hasTE ? `
             <tr>
               <td colspan="2" style="padding: 2px 0; color: #b45309; font-size: 12px;">
-                ${te!.minHours} &ndash; ${te!.maxHours} Std. &times; ${fmtCHF(te!.hourlyRate)} / Std.
+                ${tCustomer("email.offer.timeEstimate", {
+                  minHours: te!.minHours,
+                  maxHours: te!.maxHours,
+                  rate: fmtCHF(te!.hourlyRate),
+                })}
               </td>
             </tr>` : isRate ? `
             <tr>
-              <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">Ansatz</td>
-              <td style="padding: 2px 0; color: #111827; font-size: 14px; text-align: right;">${fmtCHF(Number(item.unit_price))} / ${escapeHtml(item.unit || "Std.")}</td>
+              <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">${tCustomer("email.offer.itemRate")}</td>
+              <td style="padding: 2px 0; color: #111827; font-size: 14px; text-align: right;">${fmtCHF(Number(item.unit_price))} / ${escapeHtml(item.unit || tCustomer("email.offer.unitHour"))}</td>
             </tr>` : `
             <tr>
-              <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">Menge</td>
-              <td style="padding: 2px 0; color: #111827; font-size: 14px; text-align: right;">${item.quantity} ${item.unit || "Stk."}</td>
+              <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">${tCustomer("email.offer.itemQuantity")}</td>
+              <td style="padding: 2px 0; color: #111827; font-size: 14px; text-align: right;">${item.quantity} ${escapeHtml(item.unit || tCustomer("email.offer.unitPiece"))}</td>
             </tr>
             <tr>
-              <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">Preis</td>
+              <td style="padding: 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap;">${tCustomer("email.offer.itemPrice")}</td>
               <td style="padding: 2px 0; color: #111827; font-size: 14px; text-align: right;">${fmtCHF(Number(item.unit_price))}</td>
             </tr>`}
             <tr>
-              <td style="padding: 6px 0 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap; font-weight: 600;">Total</td>
+              <td style="padding: 6px 0 2px 0; color: #6b7280; font-size: 12px; width: 30%; white-space: nowrap; font-weight: 600;">${tCustomer("email.offer.itemTotal")}</td>
               <td style="padding: 6px 0 2px 0; font-size: 15px; font-weight: 700; text-align: right; ${hasTE ? 'color: #b45309;' : isRate ? 'color: #6b7280;' : 'color: #111827;'}">
-                ${hasTE ? `${fmtCHF(minTotal)} &ndash; ${fmtCHF(maxTotal!)}` : isRate ? 'nach Aufwand' : fmtCHF(minTotal)}
+                ${hasTE ? `${fmtCHF(minTotal)} &ndash; ${fmtCHF(maxTotal!)}` : isRate ? tCustomer("email.offer.itemOnDemand") : fmtCHF(minTotal)}
               </td>
             </tr>
             ${isRate && item.kostendach_max != null ? `
             <tr>
               <td colspan="2" style="padding: 8px 0 2px 0;">
                 <div style="padding: 8px 10px; background-color: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px; color: #92400e; font-size: 12px;">
-                  <strong>Kostendach:</strong> max. ${fmtCHF(Number(item.kostendach_max))}${Number(item.unit_price) > 0 ? ` (${+(Number(item.kostendach_max) / Number(item.unit_price)).toFixed(1)} Std)` : ""} &mdash; Sie zahlen maximal diesen Betrag, unabh&auml;ngig vom tats&auml;chlichen Zeitaufwand.
+                  <strong>${tCustomer("email.offer.kostendachLabel")}:</strong> ${tCustomer("email.offer.kostendachValue", { amount: fmtCHF(Number(item.kostendach_max)) })}${Number(item.unit_price) > 0 ? ` ${tCustomer("email.offer.kostendachHours", { hours: +(Number(item.kostendach_max) / Number(item.unit_price)).toFixed(1) })}` : ""} &mdash; ${tCustomer("email.offer.kostendachExplain")}
                 </div>
               </td>
             </tr>` : ``}
@@ -620,43 +645,46 @@ const handler = async (req: Request): Promise<Response> => {
     }).join("") + (freeItems.length > 0 ? `
       <tr>
         <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">
-          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #6b7280; margin-bottom: 6px;">INKLUSIVE</div>
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #6b7280; margin-bottom: 6px;">${tCustomer("email.offer.itemIncluded")}</div>
           ${freeItems.map((i) => `<span style="display: inline-block; margin: 2px 14px 2px 0; font-size: 13px; color: #111827;"><span style="color: ${accent}; font-weight: 700;">&#10003;</span>&nbsp;${escapeHtml((i.description ?? "").split("\n")[0])}</span>`).join("")}
         </td>
       </tr>` : "");
 
     const formatDate = (dateStr: string | null) => {
-      if (!dateStr) return "-";
-      return new Date(dateStr).toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+      if (!dateStr) return tCustomer("common.notSpecified");
+      return formatDateLocale(dateStr, customerLocale);
     };
 
-    // Note about PDF attachments in email
+    // Note about PDF attachments in email. The list is joined with the locale's own conjunction
+    // ("und" / "et" / "and") rather than a hardcoded German one.
     const attachmentNotes: string[] = [];
     if (offerPdfBase64) {
-      attachmentNotes.push("die Offerte als PDF");
+      attachmentNotes.push(tCustomer("email.offer.attachmentOfferPdf"));
     }
     if (agbPdfBase64) {
-      attachmentNotes.push("unsere AGB");
+      attachmentNotes.push(tCustomer("email.offer.attachmentAgb"));
     }
     if (checklistPdfBase64) {
-      attachmentNotes.push("eine hilfreiche Checkliste zur Vorbereitung");
+      attachmentNotes.push(tCustomer("email.offer.attachmentChecklist"));
     }
-    
+
+    const attachmentList = attachmentNotes.join(` ${tCustomer("email.offer.attachmentConjunction")} `);
+
     const pdfAttachmentNote = attachmentNotes.length > 0 ? `
       <div style="margin-top: 20px; padding: 16px; background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #22c55e;">
         <p style="margin: 0; color: #166534; font-size: 14px;">
-          📎 <strong>Anhänge:</strong> Im Anhang dieser E-Mail finden Sie ${attachmentNotes.join(" und ")}.
+          📎 <strong>${tCustomer("common.attachments")}:</strong> ${tCustomer("email.offer.attachmentsNote", { list: attachmentList })}
         </p>
       </div>
     ` : "";
 
     const emailHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="${customerLocale}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Ihre Offerte von ${escapeHtml(offer.company?.company_name)}</title>
+      <title>${tCustomer("email.offer.documentTitle", { companyName: escapeHtml(offer.company?.company_name) })}</title>
       <style>
         body { margin: 0; padding: 0; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
         table { border-spacing: 0; border-collapse: collapse; }
@@ -685,43 +713,43 @@ const handler = async (req: Request): Promise<Response> => {
       <div class="container" style="width: 100%; max-width: 100%; margin: 0 auto; background-color: #ffffff;">
         <!-- Header -->
         <div class="header" style="background: ${accent}; padding: 24px 20px; text-align: center;">
-          <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Ihre Offerte</h1>
-          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">von ${escapeHtml(offer.company?.company_name)}</p>
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px;">${tCustomer("email.offer.headerTitle")}</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">${tCustomer("email.offer.headerFrom", { companyName: escapeHtml(offer.company?.company_name) })}</p>
         </div>
 
         <!-- Content -->
         <div class="content" style="padding: 24px 20px;">
           <p style="font-size: 16px; color: #1f2937; margin-bottom: 24px;">
-            Guten Tag ${escapeHtml(offer.customer_first_name)} ${escapeHtml(offer.customer_last_name)},
+            ${tCustomer("common.greeting", { name: `${escapeHtml(offer.customer_first_name)} ${escapeHtml(offer.customer_last_name)}` })}
           </p>
-          
+
           <p style="font-size: 16px; color: #4b5563; line-height: 1.6;">
-            vielen Dank für Ihre Anfrage. Anbei erhalten Sie unsere Offerte für die gewünschten Leistungen.
+            ${tCustomer("email.offer.intro")}
           </p>
-          
+
           ${pdfAttachmentNote}
-          
+
           <!-- Offer Summary Card -->
           <div style="background-color: #f9fafb; border-radius: 8px; padding: 24px; margin: 24px 0;">
             <h2 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px;">${escapeHtml(offer.title)}</h2>
             ${offer.description ? `<p style="color: #6b7280; margin: 0 0 16px 0;">${escapeHtml(offer.description)}</p>` : ""}
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; border-collapse: collapse;">
               <tr>
-                <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 50%;">Ausführungsdatum:</td>
+                <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 50%;">${tCustomer("email.offer.serviceDate")}:</td>
                 <td style="padding: 6px 0; color: #1f2937; font-weight: 700; text-align: right;">${formatDate(offer.service_date)}</td>
               </tr>
               <tr>
-                <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 50%;">Gültig bis:</td>
+                <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 50%;">${tCustomer("email.offer.validUntil")}:</td>
                 <td style="padding: 6px 0; color: #1f2937; font-weight: 700; text-align: right;">${formatDate(offer.valid_until)}</td>
               </tr>
             </table>
           </div>
-          
+
           <!-- Items Table -->
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; margin: 24px 0; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px;">
             <thead>
               <tr>
-                <th style="padding: 12px 14px; text-align: left; background-color: ${accent}; color: #ffffff; font-size: 14px;">Leistungspositionen</th>
+                <th style="padding: 12px 14px; text-align: left; background-color: ${accent}; color: #ffffff; font-size: 14px;">${tCustomer("email.offer.itemsHeading")}</th>
               </tr>
             </thead>
             <tbody>
@@ -731,7 +759,7 @@ const handler = async (req: Request): Promise<Response> => {
           
           <!-- Totals -->
           ${(() => {
-            // rate-Posten → keine Aggregatsumme; nur Hinweis (RATE_AGGREGATE_NOTE).
+            // rate-Posten → keine Aggregatsumme; nur Hinweis (email.offer.rateAggregateNote).
             if (hasRateItem) return rateAggregateNoteHtml;
             // Blind/Stunden-Spanne (nur fixed+range) — unverändert.
             const hasItemTE = billableItems.some(i => i.time_estimate && i.time_estimate.maxHours > 0 && i.time_estimate.hourlyRate > 0);
@@ -745,31 +773,31 @@ const handler = async (req: Request): Promise<Response> => {
               // Discounted base = exactly what the save flow wrote to offers.subtotal.
               const discountRows = hasDiscount ? `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">Rabatt ${Number(offer.discount_percent).toLocaleString('de-CH')} %:</span>
+              <span style="color: #6b7280;">${tCustomer("email.offer.discount", { percent: formatNumber(Number(offer.discount_percent), customerLocale) })}:</span>
               <span style="margin-left: 24px; color: #1f2937;">- ${fmtCHF(itemsSub + surchargesSum - Number(offer.subtotal))}</span>
             </div>
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">Total exkl. MwSt:</span>
+              <span style="color: #6b7280;">${tCustomer("email.offer.netTotal")}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(offer.subtotal))}</span>
             </div>` : "";
               const surchargeRows = surchargeArr.map((x) => `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">${escapeHtml(x?.label) || "Zuschlag"}:</span>
+              <span style="color: #6b7280;">${escapeHtml(x?.label) || tCustomer("email.offer.surchargeDefault")}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(x?.amount) || 0)}</span>
             </div>`).join("");
               return `
           <div style="text-align: right; margin: 24px 0;">
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">Zwischensumme:</span>
+              <span style="color: #6b7280;">${tCustomer("email.offer.subtotal")}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(itemsSub)}</span>
             </div>${surchargeRows}${discountRows}
             ${Number(offer.vat_rate) > 0 ? `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">MwSt. (${offer.vat_rate}%):</span>
+              <span style="color: #6b7280;">${tCustomer("email.offer.vat", { rate: offer.vat_rate })}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(offer.vat_amount || 0))}</span>
             </div>` : ''}
             <div style="font-size: 20px; font-weight: bold; color: #1f2937; border-top: 2px solid #e5e7eb; padding-top: 12px;">
-              <span>Total:</span>
+              <span>${tCustomer("email.offer.total")}:</span>
               <span style="margin-left: 24px;">${fmtCHF(Number(offer.total || (Number(offer.subtotal) + Number(offer.vat_amount || 0))))}</span>
             </div>
           </div>`;
@@ -795,18 +823,18 @@ const handler = async (req: Request): Promise<Response> => {
             const rangeSurchargesSum = rangeSurcharges.reduce((sum, x) => sum + (Number(x?.amount) || 0), 0);
             const rangeSurchargeRows = rangeSurcharges.map((x) => `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">${escapeHtml(x?.label) || 'Zuschlag'}:</span>
+              <span style="color: #6b7280;">${escapeHtml(x?.label) || tCustomer("email.offer.surchargeDefault")}:</span>
               <span style="margin-left: 24px; color: #1f2937;">${fmtCHF(Number(x?.amount) || 0)}</span>
             </div>`).join("");
             const minBase = applyD(minSub + rangeSurchargesSum);
             const maxBase = applyD(maxSub + rangeSurchargesSum);
             const rangeDiscountRows = dPct > 0 ? `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">Rabatt ${dPct.toLocaleString('de-CH')} %:</span>
+              <span style="color: #6b7280;">${tCustomer("email.offer.discount", { percent: formatNumber(dPct, customerLocale) })}:</span>
               <span style="margin-left: 24px; color: #b45309;">- ${fmtCHF(minSub + rangeSurchargesSum - minBase)} &ndash; - ${fmtCHF(maxSub + rangeSurchargesSum - maxBase)}</span>
             </div>
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">Total exkl. MwSt:</span>
+              <span style="color: #6b7280;">${tCustomer("email.offer.netTotal")}:</span>
               <span style="margin-left: 24px; color: #b45309;">${fmtCHF(minBase)} &ndash; ${fmtCHF(maxBase)}</span>
             </div>` : "";
             const minVat = minBase * (Number(offer.vat_rate) / 100);
@@ -817,23 +845,22 @@ const handler = async (req: Request): Promise<Response> => {
           ${offer.offerte_type === 'blind' ? `
           <div style="margin: 0 0 20px 0; padding: 16px; background-color: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b;">
             <p style="margin: 0 0 4px 0; font-size: 12px; color: #b45309;">
-              Diese Offerte basiert auf Kundenangaben ohne persönliche Besichtigung.
-              Preise sind Schätzungen und können nach Besichtigung angepasst werden.
+              ${tCustomer("email.offer.blindNote")}
             </p>
           </div>` : ''}
           <!-- Totals range -->
           <div style="text-align: right; margin: 24px 0;">
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">Zwischensumme:</span>
+              <span style="color: #6b7280;">${tCustomer("email.offer.subtotal")}:</span>
               <span style="margin-left: 24px; color: #b45309; font-weight: 600;">${fmtCHF(minSub)} &ndash; ${fmtCHF(maxSub)}</span>
             </div>${rangeSurchargeRows}${rangeDiscountRows}
             ${Number(offer.vat_rate) > 0 ? `
             <div style="margin-bottom: 8px;">
-              <span style="color: #6b7280;">MwSt. (${offer.vat_rate}%):</span>
+              <span style="color: #6b7280;">${tCustomer("email.offer.vat", { rate: offer.vat_rate })}:</span>
               <span style="margin-left: 24px; color: #b45309;">${fmtCHF(minVat)} &ndash; ${fmtCHF(maxVat)}</span>
             </div>` : ''}
             <div style="font-size: 20px; font-weight: bold; color: #92400e; border-top: 2px solid #fde68a; padding-top: 12px;">
-              <span>Total:</span>
+              <span>${tCustomer("email.offer.total")}:</span>
               <span style="margin-left: 24px;">${fmtCHF(minTotal)} &ndash; ${fmtCHF(maxTotal)}</span>
             </div>
           </div>`;
@@ -843,13 +870,13 @@ const handler = async (req: Request): Promise<Response> => {
           <!-- Preismodell: Stundenansatz -->
           <div style="margin: 0 0 24px 0; padding: 16px; background-color: #eff6ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
             <p style="margin: 0 0 6px 0; font-weight: 700; color: #1e40af; font-size: 14px;">
-              Preismodell: Stundenansatz
+              ${tCustomer("email.offer.priceModelHourlyTitle")}
             </p>
             <p style="margin: 0 0 4px 0; font-size: 15px; color: #1e3a8a; font-weight: 700;">
-              CHF ${Number(offer.hourly_rate).toLocaleString('de-CH')} / Std.
+              ${tCustomer("email.offer.priceModelHourlyRate", { rate: formatNumber(Number(offer.hourly_rate), customerLocale) })}
             </p>
             <p style="margin: 0; font-size: 13px; color: #3b82f6;">
-              Die Abrechnung erfolgt nach effektivem Zeitaufwand zum angegebenen Stundenansatz. Der Endpreis ergibt sich aus den tatsächlich geleisteten Stunden.
+              ${tCustomer("email.offer.priceModelHourlyNote")}
             </p>
           </div>
           ` : ''}
@@ -858,21 +885,24 @@ const handler = async (req: Request): Promise<Response> => {
           <!-- Preismodell: Kostendach (offer-level, nur Fallback ohne item-level Cap) -->
           <div style="margin: 0 0 24px 0; padding: 16px; background-color: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b;">
             <p style="margin: 0 0 6px 0; font-weight: 700; color: #92400e; font-size: 14px;">
-              Preismodell: Stundenansatz mit Kostendach
+              ${tCustomer("email.offer.priceModelKostendachTitle")}
             </p>
             <p style="margin: 0 0 4px 0; font-size: 15px; color: #92400e; font-weight: 700;">
-              CHF ${Number(offer.hourly_rate).toLocaleString('de-CH')} / Std. &nbsp;|&nbsp; Kostendach: max. CHF ${Number(offer.kostendach_max).toLocaleString('de-CH')}
+              ${tCustomer("email.offer.priceModelKostendachRate", {
+                rate: formatNumber(Number(offer.hourly_rate), customerLocale),
+                max: formatNumber(Number(offer.kostendach_max), customerLocale),
+              })}
             </p>
             <p style="margin: 0; font-size: 13px; color: #d97706;">
-              Sie zahlen maximal CHF ${Number(offer.kostendach_max).toLocaleString('de-CH')}, unabhängig vom tatsächlichen Zeitaufwand.
+              ${tCustomer("email.offer.priceModelKostendachNote", { max: formatNumber(Number(offer.kostendach_max), customerLocale) })}
             </p>
           </div>
           ` : ''}
-          
+
           ${paymentTerms ? `
           <!-- Zahlungskondition -->
           <div style="margin: 0 0 24px 0; padding: 14px 16px; background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #22c55e; display: flex; align-items: flex-start; gap: 12px;">
-            <span style="font-weight: 700; color: #166534; font-size: 14px; white-space: nowrap;">Zahlungskondition:</span>
+            <span style="font-weight: 700; color: #166534; font-size: 14px; white-space: nowrap;">${tCustomer("email.offer.paymentTermsLabel")}:</span>
             <span style="color: #166534; font-size: 14px;">${escapeHtml(paymentTerms)}</span>
           </div>
           ` : ''}
@@ -880,12 +910,12 @@ const handler = async (req: Request): Promise<Response> => {
           <!-- CTA Button -->
           <div style="text-align: center; margin: 32px 0;">
             <a href="${offerViewUrl}" class="cta" style="display: inline-block; background: ${accent}; color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-              Offerte ansehen & beantworten
+              ${tCustomer("email.offer.cta")}
             </a>
           </div>
 
           <p class="mobile-break" style="color: #6b7280; font-size: 14px; text-align: center; word-break: break-all;">
-            oder kopieren Sie diesen Link: <a href="${offerViewUrl}" style="color: ${accent};">${offerViewUrl}</a>
+            ${tCustomer("email.offer.ctaFallback")} <a href="${offerViewUrl}" style="color: ${accent};">${offerViewUrl}</a>
           </p>
           
           <!-- Leistungsübersicht Section (if available) -->
@@ -897,7 +927,7 @@ const handler = async (req: Request): Promise<Response> => {
           <p style="color: #1f2937; font-weight: 600; margin: 0 0 8px 0;">${offer.company?.company_name}</p>
           <p style="color: #6b7280; margin: 0; font-size: 14px;">
             ${offer.company?.street ? `${offer.company.street} ${offer.company.house_number || ""}, ` : ""}${offer.company?.plz} ${offer.company?.city}<br>
-            ${offer.company?.phone ? `Tel: ${offer.company.phone} | ` : ""}${offer.company?.email}
+            ${offer.company?.phone ? `${tCustomer("common.phone")}: ${offer.company.phone} | ` : ""}${offer.company?.email}
           </p>
         </div>
       </div>
@@ -962,6 +992,12 @@ const handler = async (req: Request): Promise<Response> => {
     const resend = new Resend(resendApiKey);
 
     // Send email with optional attachments
+    const offerNumber = offer.id.slice(0, 8).toUpperCase();
+    const customerSubject = tCustomer("email.offer.subject", {
+      companyName: offer.company?.company_name,
+      offerNumber,
+    });
+
     const emailPayload: {
       from: string;
       to: string[];
@@ -971,7 +1007,7 @@ const handler = async (req: Request): Promise<Response> => {
     } = {
       from: fromAddress,
       to: [offer.customer_email],
-      subject: `Ihre Offerte von ${offer.company?.company_name} – Nr. ${offer.id.slice(0, 8).toUpperCase()}`,
+      subject: customerSubject,
       html: emailHtml,
     };
 
@@ -1025,13 +1061,14 @@ const handler = async (req: Request): Promise<Response> => {
       await logEmail({
         recipientEmail: offer.customer_email,
         recipientName: `${offer.customer_first_name} ${offer.customer_last_name}`,
-        subject: `Ihre Offerte von ${offer.company?.company_name}`,
+        subject: customerSubject,
         emailType: "offer_sent",
         status: "failed",
         errorMessage: JSON.stringify(emailError),
         companyId: offer.company_id,
         leadId: offer.lead_id,
-        metadata: { 
+        language: customerLocale,
+        metadata: {
           offer_id: offerId, 
           total: offer.total, 
           hasOfferPdf: !!offerPdfBase64, 
@@ -1064,12 +1101,13 @@ const handler = async (req: Request): Promise<Response> => {
     await logEmail({
       recipientEmail: offer.customer_email,
       recipientName: `${offer.customer_first_name} ${offer.customer_last_name}`,
-      subject: `Ihre Offerte von ${offer.company?.company_name} – Nr. ${offer.id.slice(0, 8).toUpperCase()}`,
+      subject: customerSubject,
       emailType: "offer_sent",
       status: "sent",
       companyId: offer.company_id,
       leadId: offer.lead_id,
-      metadata: { 
+      language: customerLocale,
+      metadata: {
         offer_id: offerId, 
         total: offer.total, 
         hasOfferPdf: !!offerPdfBase64, 
@@ -1101,8 +1139,17 @@ const handler = async (req: Request): Promise<Response> => {
     // block is isolated by design (not error suppression; both outcomes are logged).
     const companyEmail = offer.company?.email;
     if (companyEmail) {
-      const offerNo = offer.id.slice(0, 8).toUpperCase();
+      const offerNo = offerNumber;
+      // COMPANY language — this copy goes to the firm, so it must NOT inherit the customer's
+      // locale. The confirmation prose itself is firm-internal CRM copy and stays German;
+      // the labels and the money/date formatting follow companies.default_language.
       const confirmSubject = `Bestätigung: Offerte Nr. ${offerNo} wurde gesendet`;
+      // The attachment list in this copy is the firm's language, not the customer's.
+      const companyAttachmentNotes: string[] = [];
+      if (offerPdfBase64) companyAttachmentNotes.push(tCompany("email.offer.attachmentOfferPdf"));
+      if (agbPdfBase64) companyAttachmentNotes.push(tCompany("email.offer.attachmentAgb"));
+      if (checklistPdfBase64) companyAttachmentNotes.push(tCompany("email.offer.attachmentChecklist"));
+
       const confirmRow = (label: string, value: string) => `
             <tr>
               <td style="padding: 4px 0; color: #6b7280; font-size: 13px; width: 35%;">${label}</td>
@@ -1115,12 +1162,12 @@ const handler = async (req: Request): Promise<Response> => {
             Ihre Offerte wurde erfolgreich versendet
           </p>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
-            ${confirmRow("Offerte", `Nr. ${offerNo} &ndash; ${escapeHtml(offer.title)}`)}
-            ${confirmRow("Kunde", `${escapeHtml(offer.customer_first_name)} ${escapeHtml(offer.customer_last_name)}`)}
-            ${confirmRow("E-Mail", escapeHtml(offer.customer_email))}
-            ${confirmRow("Total", fmtCHF(Number(offer.total || 0)))}
-            ${confirmRow("Gesendet am", new Date().toLocaleString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }))}
-            ${attachmentNotes.length > 0 ? confirmRow("Anhänge", escapeHtml(attachmentNotes.join(", "))) : ""}
+            ${confirmRow(tCompany("common.offer"), `Nr. ${offerNo} &ndash; ${escapeHtml(offer.title)}`)}
+            ${confirmRow(tCompany("common.customer"), `${escapeHtml(offer.customer_first_name)} ${escapeHtml(offer.customer_last_name)}`)}
+            ${confirmRow(tCompany("common.email"), escapeHtml(offer.customer_email))}
+            ${confirmRow(tCompany("email.offer.total"), fmtCHFCompany(Number(offer.total || 0)))}
+            ${confirmRow(tCompany("common.sentAt"), formatDateTime(new Date(), companyLocale))}
+            ${companyAttachmentNotes.length > 0 ? confirmRow(tCompany("common.attachments"), escapeHtml(companyAttachmentNotes.join(", "))) : ""}
           </table>
           <p style="margin: 14px 0 0 0; font-size: 12px; color: #6b7280;">
             Diese Bestätigung wurde automatisch erstellt. Sie werden ebenfalls benachrichtigt, sobald der Kunde die Offerte ansieht oder beantwortet.
@@ -1144,6 +1191,7 @@ const handler = async (req: Request): Promise<Response> => {
           status: "sent",
           companyId: offer.company_id,
           leadId: offer.lead_id,
+          language: companyLocale,
           metadata: { offer_id: offerId },
         });
       } catch (confirmErr) {
@@ -1157,6 +1205,7 @@ const handler = async (req: Request): Promise<Response> => {
           errorMessage: String(confirmErr),
           companyId: offer.company_id,
           leadId: offer.lead_id,
+          language: companyLocale,
           metadata: { offer_id: offerId },
         });
       }

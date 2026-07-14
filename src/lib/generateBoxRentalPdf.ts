@@ -1,4 +1,8 @@
 import jsPDF from "jspdf";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Locale } from "@/i18n/locale";
+import { formatCurrency, formatDate } from "@/i18n/format";
+import type { MessageKey, Translator } from "@/i18n/translator";
 
 // =============================================================================
 // INTERFACES
@@ -50,6 +54,12 @@ interface BoxRentalData {
   internal_notes?: string | null;
   customer_notes?: string | null;
   created_at: string;
+  /**
+   * The CUSTOMER's language. The box rental table carries no `language` column, so the
+   * caller resolves it with `resolveDocumentLocale(rental, company)` — which falls back
+   * to `companies.default_language` (see the report note).
+   */
+  locale: Locale;
   company: CompanyInfo;
 }
 
@@ -57,20 +67,11 @@ interface BoxRentalData {
 // HELPER FUNCTIONS
 // =============================================================================
 
-const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat("de-CH", {
-    style: "currency",
-    currency: "CHF",
-  }).format(amount);
-};
-
-const formatDate = (dateString: string | undefined | null): string => {
+const dateOrDash = (dateString: string | undefined | null, locale: Locale): string => {
   if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("de-CH", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "-";
+  return formatDate(date, locale);
 };
 
 const hexToRgb = (hex: string): [number, number, number] => {
@@ -95,30 +96,36 @@ const loadImageAsBase64 = async (url: string): Promise<string | null> => {
   }
 };
 
-const getStatusLabel = (status: string): string => {
-  const statusMap: Record<string, string> = {
-    reserved: "Reserviert",
-    delivered: "Geliefert",
-    in_use: "In Gebrauch",
-    pickup_requested: "Abholung angefragt",
-    pickup_scheduled: "Abholung geplant",
-    returned: "Zurückgegeben",
-    lost: "Verloren",
-    damaged: "Beschädigt",
-  };
-  return statusMap[status] || status;
+/** DB status value → catalog key (the catalog keys are named after the German wording). */
+const STATUS_KEYS: Record<string, MessageKey> = {
+  reserved: "doc.boxes.status.reserviert",
+  delivered: "doc.boxes.status.geliefert",
+  in_use: "doc.boxes.status.in_gebrauch",
+  pickup_requested: "doc.boxes.status.abholung_angefragt",
+  pickup_scheduled: "doc.boxes.status.abholung_geplant",
+  returned: "doc.boxes.status.zurueckgegeben",
+  lost: "doc.boxes.status.verloren",
+  damaged: "doc.boxes.status.beschaedigt",
 };
 
-const getBoxTypeLabel = (type: string): string => {
-  const typeMap: Record<string, string> = {
-    standard: "Standard",
-    wardrobe: "Kleiderbox",
-    book: "Bücherbox",
-    fragile: "Fragile",
-    archive: "Archivbox",
-    other: "Andere",
-  };
-  return typeMap[type] || type;
+const BOX_TYPE_KEYS: Record<string, MessageKey> = {
+  standard: "doc.boxes.type.standard",
+  wardrobe: "doc.boxes.type.kleiderbox",
+  book: "doc.boxes.type.buecherbox",
+  fragile: "doc.boxes.type.fragile",
+  archive: "doc.boxes.type.archivbox",
+  other: "doc.boxes.type.andere",
+};
+
+// An unknown value is printed raw — better a visible code than a blank cell.
+const getStatusLabel = (status: string, t: Translator): string => {
+  const key = STATUS_KEYS[status];
+  return key ? t(key) : status;
+};
+
+const getBoxTypeLabel = (type: string, t: Translator): string => {
+  const key = BOX_TYPE_KEYS[type];
+  return key ? t(key) : type;
 };
 
 const getTotalBoxQuantity = (rental: BoxRentalData): number => {
@@ -133,6 +140,11 @@ const getTotalBoxQuantity = (rental: BoxRentalData): number => {
 // =============================================================================
 
 export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void> => {
+  // Customer language — the delivery note is signed by the customer on site.
+  const locale = rental.locale;
+  const { t } = documentI18nFor(locale);
+  const chf = (amount: number): string => formatCurrency(amount, locale);
+
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -177,7 +189,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
     doc.setTextColor(120, 120, 120);
 
     const phone = rental.company.phone?.replace(/\s+/g, "").trim() || "";
-    const footerLine1 = `${rental.company.company_name} | ${rental.company.email}${phone ? " | Tel: " + phone : ""}`;
+    const footerLine1 = `${rental.company.company_name} | ${rental.company.email}${phone ? " | " + t("doc.workorder.phone") + phone : ""}`;
     const street = rental.company.street || "";
     const houseNumber = rental.company.house_number || "";
     const footerLine2 = `${street} ${houseNumber}, ${rental.company.plz} ${rental.company.city}`;
@@ -239,7 +251,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   // Contact on one line - clean phone number format
   const cleanPhone = rental.company.phone?.replace(/\s+/g, "").trim() || "";
   const contactLine = cleanPhone
-    ? `Tel: ${cleanPhone} | ${rental.company.email}`
+    ? `${t("doc.workorder.phone")}${cleanPhone} | ${rental.company.email}`
     : rental.company.email;
   doc.text(contactLine, infoX, infoY, { align: "right" });
 
@@ -259,14 +271,14 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   doc.setFont(fontFamily, "bold");
   doc.setFontSize(18);
   doc.setTextColor(40, 40, 40);
-  doc.text("BOXEN-LIEFERSCHEIN", margin, yPos);
+  doc.text(t("doc.boxes.title"), margin, yPos);
 
   // Status on the right
-  const statusLabel = getStatusLabel(rental.status);
+  const statusLabel = getStatusLabel(rental.status, t);
   doc.setFontSize(10);
   doc.setFont(fontFamily, "normal");
   doc.setTextColor(100, 100, 100);
-  doc.text(`Status: ${statusLabel}`, pageWidth - margin, yPos, { align: "right" });
+  doc.text(`${t("doc.boxes.status")}${statusLabel}`, pageWidth - margin, yPos, { align: "right" });
 
   yPos += 12;
 
@@ -274,7 +286,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   // CUSTOMER SECTION
   // =============================================================================
 
-  yPos = drawSectionHeader("Kunde", yPos);
+  yPos = drawSectionHeader(t("doc.boxes.customer"), yPos);
 
   doc.setFont(fontFamily, "bold");
   doc.setFontSize(11);
@@ -287,11 +299,11 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   doc.setTextColor(60, 60, 60);
 
   if (rental.customer_phone) {
-    doc.text(`Telefon: ${rental.customer_phone}`, margin, yPos);
+    doc.text(`${t("doc.contact.phone")}${rental.customer_phone}`, margin, yPos);
     yPos += 4;
   }
   if (rental.customer_email) {
-    doc.text(`E-Mail: ${rental.customer_email}`, margin, yPos);
+    doc.text(`${t("doc.contact.email")}${rental.customer_email}`, margin, yPos);
     yPos += 4;
   }
 
@@ -301,7 +313,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   // ADDRESSES SECTION
   // =============================================================================
 
-  yPos = drawSectionHeader("Adressen", yPos);
+  yPos = drawSectionHeader(t("doc.boxes.addresses"), yPos);
 
   const addressColWidth = (pageWidth - margin * 2 - 20) / 2;
 
@@ -309,7 +321,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   doc.setFont(fontFamily, "bold");
   doc.setFontSize(9);
   doc.setTextColor(60, 60, 60);
-  doc.text("Lieferadresse (Boxen hinbringen)", margin, yPos);
+  doc.text(t("doc.boxes.deliveryAddress"), margin, yPos);
   
   let deliveryY = yPos + 5;
   doc.setFont(fontFamily, "normal");
@@ -324,7 +336,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   }
   if (!rental.delivery_address && !rental.delivery_city) {
     doc.setTextColor(150, 150, 150);
-    doc.text("Nicht angegeben", margin, deliveryY);
+    doc.text(t("doc.boxes.notSpecified"), margin, deliveryY);
     doc.setTextColor(60, 60, 60);
     deliveryY += 4;
   }
@@ -332,7 +344,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   // Right - Pickup Address
   const pickupX = margin + addressColWidth + 20;
   doc.setFont(fontFamily, "bold");
-  doc.text("Abholadresse (Boxen abholen)", pickupX, yPos);
+  doc.text(t("doc.boxes.pickupAddress"), pickupX, yPos);
   
   let pickupY = yPos + 5;
   doc.setFont(fontFamily, "normal");
@@ -347,7 +359,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   }
   if (!rental.pickup_address && !rental.pickup_city) {
     doc.setTextColor(150, 150, 150);
-    doc.text("Noch nicht angegeben", pickupX, pickupY);
+    doc.text(t("doc.boxes.notYetSpecified"), pickupX, pickupY);
     doc.setTextColor(60, 60, 60);
     pickupY += 4;
   }
@@ -359,7 +371,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   // =============================================================================
 
   yPos = checkPageBreak(yPos, 30);
-  yPos = drawSectionHeader("Termine", yPos);
+  yPos = drawSectionHeader(t("doc.boxes.appointments"), yPos);
 
   const dateColWidth = (pageWidth - margin * 2) / 3;
 
@@ -369,21 +381,25 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
 
   // Delivery date
   doc.setFont(fontFamily, "bold");
-  doc.text("Lieferdatum:", margin, yPos);
+  doc.text(t("doc.boxes.deliveryDate"), margin, yPos);
   doc.setFont(fontFamily, "normal");
-  doc.text(formatDate(rental.delivery_date), margin, yPos + 5);
+  doc.text(dateOrDash(rental.delivery_date, locale), margin, yPos + 5);
 
   // Return date
   doc.setFont(fontFamily, "bold");
-  doc.text("Rückgabe geplant:", margin + dateColWidth, yPos);
+  doc.text(t("doc.boxes.returnDate"), margin + dateColWidth, yPos);
   doc.setFont(fontFamily, "normal");
-  doc.text(formatDate(rental.expected_return_date), margin + dateColWidth, yPos + 5);
+  doc.text(dateOrDash(rental.expected_return_date, locale), margin + dateColWidth, yPos + 5);
 
   // Rental type
   doc.setFont(fontFamily, "bold");
-  doc.text("Art:", margin + dateColWidth * 2, yPos);
+  doc.text(t("doc.boxes.kind"), margin + dateColWidth * 2, yPos);
   doc.setFont(fontFamily, "normal");
-  doc.text(rental.is_rental ? "Miete" : "Kauf/Verkauf", margin + dateColWidth * 2, yPos + 5);
+  doc.text(
+    rental.is_rental ? t("doc.boxes.rental") : t("doc.boxes.purchase"),
+    margin + dateColWidth * 2,
+    yPos + 5
+  );
 
   yPos += 18;
 
@@ -392,7 +408,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   // =============================================================================
 
   yPos = checkPageBreak(yPos, 50);
-  yPos = drawSectionHeader("Boxen-Übersicht", yPos);
+  yPos = drawSectionHeader(t("doc.boxes.overview"), yPos);
 
   // Table header
   doc.setFillColor(245, 245, 245);
@@ -406,9 +422,9 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   const col2 = margin + 90;
   const col3 = pageWidth - margin - 20;
 
-  doc.text("Box-Typ", col1, yPos + 4);
-  doc.text("Anzahl", col2, yPos + 4);
-  doc.text("Status", col3, yPos + 4, { align: "right" });
+  doc.text(t("doc.boxes.col.type"), col1, yPos + 4);
+  doc.text(t("doc.boxes.col.count"), col2, yPos + 4);
+  doc.text(t("doc.boxes.col.status"), col3, yPos + 4, { align: "right" });
 
   yPos += 10;
 
@@ -427,16 +443,20 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
       }
 
       doc.setTextColor(40, 40, 40);
-      doc.text(getBoxTypeLabel(item.type), col1, yPos);
-      doc.text(`${item.quantity} Stück`, col2, yPos);
+      doc.text(getBoxTypeLabel(item.type, t), col1, yPos);
+      doc.text(`${item.quantity} ${t("domain.unit.piece")}`, col2, yPos);
       doc.setTextColor(34, 197, 94); // Green checkmark color
       doc.text("OK", col3, yPos, { align: "right" });
 
       yPos += 6;
     });
   } else if (rental.box_quantity) {
-    doc.text(rental.box_type ? getBoxTypeLabel(rental.box_type) : "Standard", col1, yPos);
-    doc.text(`${rental.box_quantity} Stück`, col2, yPos);
+    doc.text(
+      rental.box_type ? getBoxTypeLabel(rental.box_type, t) : t("doc.boxes.type.standard"),
+      col1,
+      yPos
+    );
+    doc.text(`${rental.box_quantity} ${t("domain.unit.piece")}`, col2, yPos);
     doc.setTextColor(34, 197, 94);
     doc.text("OK", col3, yPos, { align: "right" });
     yPos += 6;
@@ -451,8 +471,8 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   doc.setFont(fontFamily, "bold");
   doc.setFontSize(10);
   doc.setTextColor(...primaryRgb);
-  doc.text("Gesamt:", col1, yPos);
-  doc.text(`${getTotalBoxQuantity(rental)} Boxen`, col2, yPos);
+  doc.text(t("doc.boxes.total"), col1, yPos);
+  doc.text(`${getTotalBoxQuantity(rental)} ${t("doc.boxes.unit")}`, col2, yPos);
 
   yPos += 12;
 
@@ -462,22 +482,22 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
 
   if (rental.is_rental && (rental.rental_price_per_day || rental.deposit_amount)) {
     yPos = checkPageBreak(yPos, 30);
-    yPos = drawSectionHeader("Kosten & Kaution", yPos);
+    yPos = drawSectionHeader(t("doc.boxes.costs"), yPos);
 
     doc.setFont(fontFamily, "normal");
     doc.setFontSize(9);
     doc.setTextColor(60, 60, 60);
 
     if (rental.rental_price_per_day) {
-      doc.text(`Mietpreis pro Tag: ${formatCurrency(rental.rental_price_per_day)}`, margin, yPos);
+      doc.text(`${t("doc.boxes.pricePerDay")}${chf(rental.rental_price_per_day)}`, margin, yPos);
       yPos += 5;
     }
 
     if (rental.deposit_amount) {
-      const depositStatus = rental.deposit_paid ? "(Bezahlt)" : "(Offen)";
+      const depositStatus = rental.deposit_paid ? t("doc.boxes.paid") : t("doc.boxes.unpaid");
       const depositColor = rental.deposit_paid ? [34, 197, 94] : [220, 38, 38];
-      
-      doc.text(`Kaution: ${formatCurrency(rental.deposit_amount)}`, margin, yPos);
+
+      doc.text(`${t("doc.boxes.deposit")}${chf(rental.deposit_amount)}`, margin, yPos);
       doc.setTextColor(depositColor[0], depositColor[1], depositColor[2]);
       doc.text(` ${depositStatus}`, margin + 45, yPos);
       doc.setTextColor(60, 60, 60);
@@ -493,7 +513,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
 
   if (rental.box_description || rental.customer_notes) {
     yPos = checkPageBreak(yPos, 30);
-    yPos = drawSectionHeader("Bemerkungen", yPos);
+    yPos = drawSectionHeader(t("doc.boxes.remarks"), yPos);
 
     doc.setFont(fontFamily, "normal");
     doc.setFontSize(9);
@@ -511,7 +531,7 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
     if (rental.customer_notes) {
       yPos += 2;
       doc.setFont(fontFamily, "bold");
-      doc.text("Kundenhinweise:", margin, yPos);
+      doc.text(t("doc.boxes.customerNotes"), margin, yPos);
       yPos += 4;
       doc.setFont(fontFamily, "normal");
       const noteLines = doc.splitTextToSize(rental.customer_notes, pageWidth - margin * 2);
@@ -538,8 +558,8 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 100);
 
-  doc.text("Ort, Datum:", margin, yPos);
-  doc.text("Ort, Datum:", margin + signatureWidth + margin, yPos);
+  doc.text(t("doc.workorder.placeDate"), margin, yPos);
+  doc.text(t("doc.workorder.placeDate"), margin + signatureWidth + margin, yPos);
   yPos += 12;
 
   // Signature lines
@@ -552,8 +572,8 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
 
   doc.setFontSize(8);
   doc.setTextColor(80, 80, 80);
-  doc.text("Unterschrift Kunde", margin, yPos);
-  doc.text("Unterschrift Lieferant", margin + signatureWidth + margin, yPos);
+  doc.text(t("doc.boxes.signature.customer"), margin, yPos);
+  doc.text(t("doc.boxes.signature.supplier"), margin + signatureWidth + margin, yPos);
   yPos += 4;
 
   doc.setFontSize(7);
@@ -575,14 +595,14 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
   doc.setFont(fontFamily, "bold");
   doc.setFontSize(8);
   doc.setTextColor(80, 80, 80);
-  doc.text("Mietbedingungen:", margin + 3, yPos + 5);
+  doc.text(t("doc.boxes.terms"), margin + 3, yPos + 5);
 
   doc.setFont(fontFamily, "normal");
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text("Die Boxen sind sorgfältig zu behandeln und vor Beschädigungen zu schützen.", margin + 3, yPos + 10);
-  doc.text("Bei Verlust oder Beschädigung wird der Wiederbeschaffungswert berechnet.", margin + 3, yPos + 14);
-  doc.text("Die Rückgabe hat am vereinbarten Termin zu erfolgen.", margin + 3, yPos + 18);
+  doc.text(t("doc.boxes.terms.care"), margin + 3, yPos + 10);
+  doc.text(t("doc.boxes.terms.damage"), margin + 3, yPos + 14);
+  doc.text(t("doc.boxes.terms.return"), margin + 3, yPos + 18);
 
   // =============================================================================
   // ADD FOOTER AND FINALIZE
@@ -592,7 +612,9 @@ export const generateBoxRentalPdf = async (rental: BoxRentalData): Promise<void>
 
   // Save PDF
   const customerName = `${rental.customer_first_name}_${rental.customer_last_name}`.replace(/\s+/g, "_");
-  const fileName = `Boxen_Lieferschein_${customerName}_${formatDate(rental.delivery_date).replace(/\./g, "-")}.pdf`;
+  // Locale-formatted dates use "/" in fr/en — strip every separator so the filename stays valid.
+  const datePart = dateOrDash(rental.delivery_date, locale).replace(/[./\s]/g, "-");
+  const fileName = `Boxen_Lieferschein_${customerName}_${datePart}.pdf`;
   doc.save(fileName);
 };
 

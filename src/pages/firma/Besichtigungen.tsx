@@ -43,11 +43,13 @@ import {
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { format, parseISO, isToday, isTomorrow, differenceInHours } from "date-fns";
-import { de } from "date-fns/locale";
 import { AcceptBesichtigungDialog } from "@/components/firma/AcceptBesichtigungDialog";
 import { AppointmentModal } from "@/components/firma/AppointmentModal";
 import { CreateVirtualBesichtigungDialog } from "@/components/firma/CreateVirtualBesichtigungDialog";
 import { BesichtigungAnalysisView } from "@/components/firma/BesichtigungAnalysisView";
+import { useI18n, useT } from "@/i18n/useI18n";
+import { formatDate as formatDateI18n } from "@/i18n/format";
+import { getAppointmentStatusLabel } from "@/i18n/domain";
 
 interface BesichtigungRequest {
   id: string;
@@ -94,7 +96,10 @@ const FirmaBesichtigungen = () => {
   // Use cached company ID for instant page load - no database call needed
   const cachedCompany = getCachedCompany();
   const companyId = cachedCompany?.id || null;
-  
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
+
+
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("pending");
@@ -205,7 +210,7 @@ const FirmaBesichtigungen = () => {
               id: metadata?.offer_id as string || n.id,
               notification_id: n.id,
               offer_id: metadata?.offer_id as string || "",
-              title: metadata?.offer_title as string || "Besichtigung",
+              title: metadata?.offer_title as string || t("domain.appointmentType.besichtigung"),
               customer_name: metadata?.customer_name as string || "",
               customer_email: metadata?.customer_email as string || "",
               customer_phone: metadata?.customer_phone as string || null,
@@ -254,7 +259,7 @@ const FirmaBesichtigungen = () => {
       } catch (error) {
         console.error("Error fetching besichtigungen:", error);
         if (isMounted) {
-          toast.error("Fehler beim Laden der Besichtigungen");
+          toast.error(t("calendar.besichtigung.toast.loadFailed"));
         }
       } finally {
         if (isMounted) {
@@ -262,13 +267,13 @@ const FirmaBesichtigungen = () => {
         }
       }
     };
-    
+
     fetchData();
-    
+
     return () => {
       isMounted = false;
     };
-  }, [companyId]);
+  }, [companyId, t]);
 
   // Keep fetchData callable for refresh purposes
   const fetchData = useCallback(async () => {
@@ -320,7 +325,7 @@ const FirmaBesichtigungen = () => {
             id: metadata?.offer_id as string || n.id,
             notification_id: n.id,
             offer_id: metadata?.offer_id as string || "",
-            title: metadata?.offer_title as string || "Besichtigung",
+            title: metadata?.offer_title as string || t("domain.appointmentType.besichtigung"),
             customer_name: metadata?.customer_name as string || "",
             customer_email: metadata?.customer_email as string || "",
             customer_phone: metadata?.customer_phone as string || null,
@@ -362,11 +367,29 @@ const FirmaBesichtigungen = () => {
       }
     } catch (error) {
       console.error("Error fetching besichtigungen:", error);
-      toast.error("Fehler beim Laden der Besichtigungen");
+      toast.error(t("calendar.besichtigung.toast.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, t]);
+
+  /**
+   * Operator-facing summary of what the customer asked for (same shape as Dashboard.tsx).
+   *
+   * This is PROSE, for a human to read. It is never parsed back: the dialog receives the
+   * structured `besichtigung_requested_date`/`-_time` in transformToDialogRequest. (It used
+   * to regex the date out of this sentence, which broke silently as soon as the sentence
+   * was rendered in a locale that does not format dates as dd.MM.yyyy.)
+   */
+  const buildRequestNote = (request: BesichtigungRequest) => {
+    const date = request.besichtigung_date
+      ? formatDateI18n(request.besichtigung_date, locale)
+      : "";
+    const sentence = request.besichtigung_time
+      ? t("calendar.besichtigung.request.dateTime", { date, time: request.besichtigung_time })
+      : t("calendar.besichtigung.request.date", { date });
+    return request.customer_note ? `${sentence}. ${request.customer_note}` : sentence;
+  };
 
   // FIX: Single transformation function to avoid duplicate code
   const transformToDialogRequest = (request: BesichtigungRequest | null) => {
@@ -378,7 +401,13 @@ const FirmaBesichtigungen = () => {
       customer_last_name: request.customer_name.split(" ").slice(1).join(" ") || "",
       customer_email: request.customer_email,
       customer_phone: request.customer_phone,
-      customer_response_note: `Besichtigung gewünscht am ${request.besichtigung_date ? new Date(request.besichtigung_date).toLocaleDateString("de-CH") : ""}${request.besichtigung_time ? ` um ${request.besichtigung_time} Uhr` : ""}${request.customer_note ? `. ${request.customer_note}` : ""}`,
+      customer_response_note: buildRequestNote(request),
+      // Structured slot, straight from the notification metadata. The dialog must NOT
+      // recover it by regexing the sentence above: that sentence is written in the
+      // company's language, so a French company renders "15/01/2026" and a dd.MM.yyyy
+      // regex silently misses — the prefill would fall back to "today" with no error.
+      besichtigung_requested_date: request.besichtigung_date,
+      besichtigung_requested_time: request.besichtigung_time,
     };
   };
 
@@ -395,8 +424,7 @@ const FirmaBesichtigungen = () => {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "";
-    const date = parseISO(dateString);
-    return format(date, "dd.MM.yyyy", { locale: de });
+    return formatDateI18n(parseISO(dateString), locale);
   };
 
   const formatTime = (timeString: string) => {
@@ -407,17 +435,16 @@ const FirmaBesichtigungen = () => {
   const formatRelativeDate = (dateString: string) => {
     if (!dateString) return "";
     const date = parseISO(dateString);
-    if (isToday(date)) return "Heute";
-    if (isTomorrow(date)) return "Morgen";
-    return format(date, "EEEE, dd. MMMM", { locale: de });
+    if (isToday(date)) return t("calendar.today");
+    if (isTomorrow(date)) return t("calendar.tomorrow");
+    return format(date, "EEEE, dd. MMMM", { locale: dateLocale });
   };
 
   const getRequestAge = (createdAt: string) => {
     const hours = differenceInHours(new Date(), parseISO(createdAt));
-    if (hours < 1) return "Gerade eben";
-    if (hours < 24) return `vor ${hours} Std.`;
-    const days = Math.floor(hours / 24);
-    return `vor ${days} Tag${days > 1 ? "en" : ""}`;
+    if (hours < 1) return t("calendar.besichtigung.age.justNow");
+    if (hours < 24) return t("calendar.besichtigung.age.hours", { count: hours });
+    return t("calendar.besichtigung.age.days", { count: Math.floor(hours / 24) });
   };
 
   const isNewRequest = (createdAt: string) => {
@@ -425,11 +452,13 @@ const FirmaBesichtigungen = () => {
     return hours < 24;
   };
 
+  // Icons/colours only — the label comes from getAppointmentStatusLabel(status, locale).
   const getStatusConfig = (status: string) => {
+    const label = getAppointmentStatusLabel(status, locale);
     switch (status) {
       case "pending":
         return {
-          label: "Ausstehend",
+          label,
           icon: Hourglass,
           color: "from-amber-500 to-orange-500",
           bgColor: "bg-amber-50",
@@ -438,7 +467,7 @@ const FirmaBesichtigungen = () => {
         };
       case "confirmed":
         return {
-          label: "Bestätigt",
+          label,
           icon: CheckCircle,
           color: "from-emerald-500 to-green-500",
           bgColor: "bg-emerald-50",
@@ -447,7 +476,7 @@ const FirmaBesichtigungen = () => {
         };
       case "completed":
         return {
-          label: "Abgeschlossen",
+          label,
           icon: CalendarCheck,
           color: "from-blue-500 to-indigo-500",
           bgColor: "bg-blue-50",
@@ -456,7 +485,7 @@ const FirmaBesichtigungen = () => {
         };
       case "cancelled":
         return {
-          label: "Abgesagt",
+          label,
           icon: CalendarX,
           color: "from-slate-400 to-slate-500",
           bgColor: "bg-slate-50",
@@ -465,7 +494,7 @@ const FirmaBesichtigungen = () => {
         };
       default:
         return {
-          label: status,
+          label,
           icon: Calendar,
           color: "from-gray-500 to-gray-600",
           bgColor: "bg-gray-50",
@@ -515,7 +544,7 @@ const FirmaBesichtigungen = () => {
     return (
       <>
         <Helmet>
-          <title>Besichtigungen | Firma</title>
+          <title>{t("calendar.besichtigung.pageTitle")}</title>
         </Helmet>
           <div className="flex items-center justify-center h-64">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -527,7 +556,7 @@ const FirmaBesichtigungen = () => {
   return (
     <>
       <Helmet>
-        <title>Besichtigungen | Firma</title>
+        <title>{t("calendar.besichtigung.pageTitle")}</title>
       </Helmet>
         <div className="space-y-6">
           {/* Folk-style header */}
@@ -535,16 +564,16 @@ const FirmaBesichtigungen = () => {
             <span className="text-4xl leading-none">🔎</span>
             <div className="flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Besichtigungen</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("calendar.besichtigung.title")}</h1>
                 {newRequestsCount > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">
                     <Bell className="h-3 w-3" />
-                    <span className="font-mono">{newRequestsCount}</span> neu
+                    <span className="font-mono">{newRequestsCount}</span> {t("calendar.besichtigung.newSuffix")}
                   </span>
                 )}
               </div>
               <p className="mt-1 text-[15px] text-folk-ink2">
-                Terminanfragen und geplante Besichtigungen verwalten — vor Ort und virtuell.
+                {t("calendar.besichtigung.subtitle")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -554,15 +583,15 @@ const FirmaBesichtigungen = () => {
                 className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
                 <Camera className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Virtuelle Besichtigung</span>
-                <span className="sm:hidden">Virtuell</span>
+                <span className="hidden sm:inline">{t("calendar.besichtigung.virtual")}</span>
+                <span className="sm:hidden">{t("calendar.besichtigung.virtualShort")}</span>
               </Button>
               <Link to="/firma/kalender">
                 <Button
                   className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
                 >
                   <Calendar className="h-3.5 w-3.5" />
-                  Kalender öffnen
+                  {t("calendar.besichtigung.openCalendar")}
                 </Button>
               </Link>
             </div>
@@ -571,11 +600,11 @@ const FirmaBesichtigungen = () => {
           {/* KPI grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4">
             {[
-              { key: 'pending',   emoji: '📬', label: 'Anfragen',     value: totalPending,                                           badge: newRequestsCount, highlight: newRequestsCount > 0 },
-              { key: 'confirmed', emoji: '📅', label: 'Geplant',      value: totalConfirmed,                                         badge: 0, highlight: false },
-              { key: 'virtual',   emoji: '📷', label: 'Virtuell',     value: activeVirtualSessions.length,                           badge: activeVirtualSessions.filter(s => s.status === 'uploaded').length, highlight: false },
-              { key: 'completed', emoji: '✅', label: 'Abgeschlossen', value: totalCompleted,                                         badge: 0, highlight: false },
-              { key: 'cancelled', emoji: '❌', label: 'Abgesagt',     value: totalCancelled,                                         badge: 0, highlight: false },
+              { key: 'pending',   emoji: '📬', label: t("calendar.besichtigung.tab.pending"),   value: totalPending,                 badge: newRequestsCount, highlight: newRequestsCount > 0 },
+              { key: 'confirmed', emoji: '📅', label: t("calendar.besichtigung.tab.confirmed"), value: totalConfirmed,               badge: 0, highlight: false },
+              { key: 'virtual',   emoji: '📷', label: t("calendar.besichtigung.tab.virtual"),   value: activeVirtualSessions.length, badge: activeVirtualSessions.filter(s => s.status === 'uploaded').length, highlight: false },
+              { key: 'completed', emoji: '✅', label: t("calendar.besichtigung.tab.completed"), value: totalCompleted,               badge: 0, highlight: false },
+              { key: 'cancelled', emoji: '❌', label: t("calendar.besichtigung.tab.cancelled"), value: totalCancelled,               badge: 0, highlight: false },
             ].map((tile) => {
               const isActive = activeTab === tile.key;
               return (
@@ -595,7 +624,7 @@ const FirmaBesichtigungen = () => {
                   </div>
                   {tile.badge > 0 && (
                     <span className="mt-1.5 inline-flex items-center rounded-md bg-folk-coral-bg px-1.5 py-0.5 text-[10px] font-semibold text-folk-coral">
-                      <span className="font-mono">{tile.badge}</span> neu
+                      <span className="font-mono">{tile.badge}</span> {t("calendar.besichtigung.newSuffix")}
                     </span>
                   )}
                 </button>
@@ -610,7 +639,7 @@ const FirmaBesichtigungen = () => {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
-                    placeholder="Nach Kunde oder Titel suchen..."
+                    placeholder={t("calendar.besichtigung.searchPlaceholder")}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 h-11"
@@ -625,32 +654,32 @@ const FirmaBesichtigungen = () => {
             <TabsList className="grid w-full grid-cols-5 h-auto p-1.5 bg-muted/50">
               <TabsTrigger value="pending" className="gap-1.5 py-2.5 data-[state=active]:shadow-md text-xs sm:text-sm">
                 <AlertCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Anfragen</span>
+                <span className="hidden sm:inline">{t("calendar.besichtigung.tab.pending")}</span>
                 {totalPending > 0 && (
                   <Badge variant="secondary" className="ml-1">{totalPending}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="confirmed" className="gap-1.5 py-2.5 data-[state=active]:shadow-md text-xs sm:text-sm">
                 <CalendarCheck className="w-4 h-4" />
-                <span className="hidden sm:inline">Geplant</span>
+                <span className="hidden sm:inline">{t("calendar.besichtigung.tab.confirmed")}</span>
                 {totalConfirmed > 0 && (
                   <Badge variant="secondary" className="ml-1">{totalConfirmed}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="virtual" className="gap-1.5 py-2.5 data-[state=active]:shadow-md text-xs sm:text-sm">
                 <Camera className="w-4 h-4" />
-                <span className="hidden sm:inline">Virtuell</span>
+                <span className="hidden sm:inline">{t("calendar.besichtigung.tab.virtual")}</span>
                 {activeVirtualSessions.length > 0 && (
                   <Badge variant="secondary" className="ml-1">{activeVirtualSessions.length}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="completed" className="gap-1.5 py-2.5 data-[state=active]:shadow-md text-xs sm:text-sm">
                 <CheckCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Abgeschlossen</span>
+                <span className="hidden sm:inline">{t("calendar.besichtigung.tab.completed")}</span>
               </TabsTrigger>
               <TabsTrigger value="cancelled" className="gap-1.5 py-2.5 data-[state=active]:shadow-md text-xs sm:text-sm">
                 <XCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Abgesagt</span>
+                <span className="hidden sm:inline">{t("calendar.besichtigung.tab.cancelled")}</span>
               </TabsTrigger>
             </TabsList>
 
@@ -662,9 +691,9 @@ const FirmaBesichtigungen = () => {
                     <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-teal-500/20 to-cyan-500/20 flex items-center justify-center">
                       <Eye className="w-10 h-10 text-teal-500" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">Keine Anfragen</h3>
+                    <h3 className="text-xl font-semibold mb-2">{t("calendar.besichtigung.empty.pending.title")}</h3>
                     <p className="text-muted-foreground max-w-md mx-auto">
-                      Es gibt momentan keine offenen Besichtigungsanfragen
+                      {t("calendar.besichtigung.empty.pending.body")}
                     </p>
                   </CardContent>
                 </Card>
@@ -678,10 +707,6 @@ const FirmaBesichtigungen = () => {
                       .join("")
                       .slice(0, 2)
                       .toUpperCase();
-                    
-                    const formattedDate = request.besichtigung_date 
-                      ? format(parseISO(request.besichtigung_date), "dd.MM.yyyy", { locale: de })
-                      : "";
                     
                     return (
                       <Card 
@@ -706,7 +731,7 @@ const FirmaBesichtigungen = () => {
                                     {isNew && (
                                       <Badge className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white border-0 gap-1">
                                         <Sparkles className="w-3 h-3" />
-                                        NEU
+                                        {t("calendar.besichtigung.badge.new")}
                                       </Badge>
                                     )}
                                     <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
@@ -732,12 +757,10 @@ const FirmaBesichtigungen = () => {
                                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                                     <p className="text-sm font-medium text-blue-800 flex items-center gap-2">
                                       <Calendar className="w-4 h-4" />
-                                      Kundenwunsch:
+                                      {t("calendar.besichtigung.customerWish")}
                                     </p>
                                     <p className="text-sm text-blue-700 mt-1">
-                                      Besichtigung gewünscht am {formattedDate}
-                                      {request.besichtigung_time && ` um ${request.besichtigung_time} Uhr`}
-                                      {request.customer_note && `. ${request.customer_note}`}
+                                      {buildRequestNote(request)}
                                     </p>
                                   </div>
                                   
@@ -769,22 +792,22 @@ const FirmaBesichtigungen = () => {
                                     className="gap-2 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
                                   >
                                     <CalendarCheck className="w-4 h-4" />
-                                    Termin bestätigen
+                                    {t("calendar.besichtigung.confirmAppointment")}
                                   </Button>
-                                  <Button 
+                                  <Button
                                     variant="outline"
                                     onClick={() => handleAcceptClick(request)}
                                     className="gap-2"
-                                    title="Termin anpassen und bestätigen"
+                                    title={t("calendar.besichtigung.adjustTitle")}
                                   >
                                     <Edit2 className="w-4 h-4" />
-                                    Termin anpassen
+                                    {t("calendar.besichtigung.adjustAppointment")}
                                   </Button>
                                   {request.offer_id && (
                                     <Button variant="outline" asChild className="gap-2">
                                       <Link to={`/firma/offerten/${request.offer_id}`}>
                                         <FileText className="w-4 h-4" />
-                                        Offerte anzeigen
+                                        {t("calendar.besichtigung.viewOffer")}
                                       </Link>
                                     </Button>
                                   )}
@@ -808,9 +831,9 @@ const FirmaBesichtigungen = () => {
                     <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-emerald-500/20 to-green-500/20 flex items-center justify-center">
                       <CalendarCheck className="w-10 h-10 text-emerald-500" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">Keine geplanten Besichtigungen</h3>
+                    <h3 className="text-xl font-semibold mb-2">{t("calendar.besichtigung.empty.confirmed.title")}</h3>
                     <p className="text-muted-foreground max-w-md mx-auto">
-                      Bestätigen Sie Anfragen, um Besichtigungstermine zu planen
+                      {t("calendar.besichtigung.empty.confirmed.body")}
                     </p>
                   </CardContent>
                 </Card>
@@ -833,7 +856,7 @@ const FirmaBesichtigungen = () => {
                             {/* Left: Date display */}
                             <div className={`w-full lg:w-28 bg-gradient-to-br ${statusConfig.color} p-4 flex flex-col items-center justify-center text-white`}>
                               <p className="text-3xl font-bold">{format(parseISO(apt.appointment_date), "dd")}</p>
-                              <p className="text-sm uppercase">{format(parseISO(apt.appointment_date), "MMM", { locale: de })}</p>
+                              <p className="text-sm uppercase">{format(parseISO(apt.appointment_date), "MMM", { locale: dateLocale })}</p>
                               <p className="text-xs opacity-80">{formatTime(apt.start_time)}</p>
                             </div>
                             
@@ -892,16 +915,17 @@ const FirmaBesichtigungen = () => {
                                     className="gap-2"
                                   >
                                     <Eye className="w-4 h-4" />
-                                    Details
+                                    {t("common.details")}
                                   </Button>
-                                  <Button 
-                                    variant="outline" 
+                                  <Button
+                                    variant="outline"
                                     size="sm"
                                     onClick={() => {
                                       setEditingAppointment(apt);
                                       setIsEditModalOpen(true);
                                     }}
                                     className="gap-2"
+                                    aria-label={t("common.edit")}
                                   >
                                     <Edit2 className="w-4 h-4" />
                                   </Button>
@@ -932,8 +956,8 @@ const FirmaBesichtigungen = () => {
                     <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center">
                       <CheckCircle className="w-10 h-10 text-blue-500" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">Keine abgeschlossenen Besichtigungen</h3>
-                    <p className="text-muted-foreground">Abgeschlossene Termine werden hier angezeigt</p>
+                    <h3 className="text-xl font-semibold mb-2">{t("calendar.besichtigung.empty.completed.title")}</h3>
+                    <p className="text-muted-foreground">{t("calendar.besichtigung.empty.completed.body")}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -944,7 +968,7 @@ const FirmaBesichtigungen = () => {
                         <div className="flex items-start justify-between mb-3">
                           <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
                             <CheckCircle className="w-3 h-3 mr-1" />
-                            Abgeschlossen
+                            {getAppointmentStatusLabel("completed", locale)}
                           </Badge>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">
@@ -958,7 +982,7 @@ const FirmaBesichtigungen = () => {
                                 setSelectedDetails(apt);
                                 setIsDetailsDialogOpen(true);
                               }}
-                              title="Details anzeigen"
+                              title={t("calendar.besichtigung.showDetails")}
                             >
                               <Eye className="w-4 h-4 text-primary" />
                             </Button>
@@ -983,13 +1007,13 @@ const FirmaBesichtigungen = () => {
                             }}
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            Details
+                            {t("common.details")}
                           </Button>
                           {apt.offer_id && (
                             <Button variant="outline" size="sm" className="gap-1.5 text-xs" asChild>
                               <Link to={`/firma/offerten/${apt.offer_id}`}>
                                 <ExternalLink className="w-3.5 h-3.5" />
-                                Offerte
+                                {t("calendar.besichtigung.offer")}
                               </Link>
                             </Button>
                           )}
@@ -1009,8 +1033,8 @@ const FirmaBesichtigungen = () => {
                     <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
                       <XCircle className="w-10 h-10 text-muted-foreground" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">Keine abgesagten Besichtigungen</h3>
-                    <p className="text-muted-foreground">Abgesagte Termine werden hier archiviert</p>
+                    <h3 className="text-xl font-semibold mb-2">{t("calendar.besichtigung.empty.cancelled.title")}</h3>
+                    <p className="text-muted-foreground">{t("calendar.besichtigung.empty.cancelled.body")}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -1021,7 +1045,7 @@ const FirmaBesichtigungen = () => {
                         <div className="flex items-start justify-between mb-3">
                           <Badge variant="outline" className="text-muted-foreground">
                             <XCircle className="w-3 h-3 mr-1" />
-                            Abgesagt
+                            {getAppointmentStatusLabel("cancelled", locale)}
                           </Badge>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">
@@ -1035,7 +1059,7 @@ const FirmaBesichtigungen = () => {
                                 setSelectedDetails(apt);
                                 setIsDetailsDialogOpen(true);
                               }}
-                              title="Details anzeigen"
+                              title={t("calendar.besichtigung.showDetails")}
                             >
                               <Eye className="w-4 h-4 text-muted-foreground" />
                             </Button>
@@ -1057,7 +1081,7 @@ const FirmaBesichtigungen = () => {
                             }}
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            Details
+                            {t("common.details")}
                           </Button>
                         </div>
                       </CardContent>
@@ -1075,16 +1099,16 @@ const FirmaBesichtigungen = () => {
                     <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
                       <Camera className="w-10 h-10 text-purple-500" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">Keine virtuellen Besichtigungen</h3>
+                    <h3 className="text-xl font-semibold mb-2">{t("calendar.besichtigung.empty.virtual.title")}</h3>
                     <p className="text-muted-foreground max-w-md mx-auto mb-4">
-                      Erstellen Sie einen Link, den Sie an Ihren Kunden senden können, um Fotos hochzuladen.
+                      {t("calendar.besichtigung.empty.virtual.body")}
                     </p>
                     <Button
                       className="gap-2"
                       onClick={() => setIsVirtualBesichtigungOpen(true)}
                     >
                       <Camera className="w-4 h-4" />
-                      Virtuelle Besichtigung erstellen
+                      {t("calendar.besichtigung.empty.virtual.cta")}
                     </Button>
                   </CardContent>
                 </Card>
@@ -1093,11 +1117,11 @@ const FirmaBesichtigungen = () => {
                   {activeVirtualSessions.map((session) => {
                     const isExpired = new Date(session.expires_at) < new Date();
                     const statusLabel =
-                      session.status === "uploaded" ? "Fotos hochgeladen" :
-                      session.status === "uploading" ? "Wird hochgeladen..." :
-                      isExpired ? "Abgelaufen" :
-                      session.status === "pending" ? "Link gesendet" :
-                      session.status === "completed" ? "Abgeschlossen" :
+                      session.status === "uploaded" ? t("calendar.virtual.status.uploaded") :
+                      session.status === "uploading" ? t("calendar.virtual.status.uploading") :
+                      isExpired ? t("calendar.virtual.status.expired") :
+                      session.status === "pending" ? t("calendar.virtual.status.pending") :
+                      session.status === "completed" ? t("calendar.virtual.status.completed") :
                       session.status;
 
                     const statusColor =
@@ -1156,7 +1180,7 @@ const FirmaBesichtigungen = () => {
                               {statusLabel}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
-                              {format(parseISO(session.created_at), "dd.MM.yyyy HH:mm", { locale: de })}
+                              {format(parseISO(session.created_at), "dd.MM.yyyy HH:mm", { locale: dateLocale })}
                             </span>
                           </div>
 
@@ -1180,7 +1204,7 @@ const FirmaBesichtigungen = () => {
                             <div className="flex items-center gap-2 mb-3 p-2 bg-emerald-50 rounded-lg">
                               <Image className="w-4 h-4 text-emerald-600" />
                               <span className="text-sm font-medium text-emerald-700">
-                                {session.photo_count} Foto{session.photo_count > 1 ? "s" : ""} hochgeladen
+                                {t("calendar.virtual.photosUploaded", { count: session.photo_count })}
                               </span>
                             </div>
                           )}
@@ -1193,7 +1217,7 @@ const FirmaBesichtigungen = () => {
                               >
                                 <a href={`tel:${session.customer_phone}`}>
                                   <Phone className="w-3.5 h-3.5" />
-                                  Anrufen
+                                  {t("calendar.virtual.call")}
                                 </a>
                               </Button>
                             )}
@@ -1203,7 +1227,7 @@ const FirmaBesichtigungen = () => {
                               >
                                 <a href={`mailto:${session.customer_email}`}>
                                   <Mail className="w-3.5 h-3.5" />
-                                  E-Mail
+                                  {t("calendar.virtual.email")}
                                 </a>
                               </Button>
                             )}
@@ -1215,11 +1239,11 @@ const FirmaBesichtigungen = () => {
                                 e.stopPropagation();
                                 const url = `${window.location.origin}/besichtigung/${session.token}`;
                                 navigator.clipboard.writeText(url);
-                                toast.success("Link kopiert!");
+                                toast.success(t("calendar.virtual.toast.linkCopied"));
                               }}
                             >
                               <Copy className="w-3.5 h-3.5" />
-                              Link kopieren
+                              {t("calendar.virtual.copyLink")}
                             </Button>
                           </div>
                         </CardContent>
@@ -1238,10 +1262,10 @@ const FirmaBesichtigungen = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Camera className="w-5 h-5 text-purple-600" />
-                Virtuelle Besichtigung
+                {t("calendar.virtual.detail.title")}
               </DialogTitle>
               <DialogDescription>
-                Details und hochgeladene Fotos
+                {t("calendar.virtual.detail.description")}
               </DialogDescription>
             </DialogHeader>
             {selectedVirtualSession && (
@@ -1263,9 +1287,9 @@ const FirmaBesichtigungen = () => {
                     selectedVirtualSession.status === "pending" ? "bg-amber-100 text-amber-700 border-amber-200" :
                     "bg-gray-100 text-gray-700 border-gray-200"
                   } border`}>
-                    {selectedVirtualSession.status === "uploaded" ? "Fotos vorhanden" :
-                     selectedVirtualSession.status === "pending" ? "Wartend" :
-                     selectedVirtualSession.status === "completed" ? "Abgeschlossen" :
+                    {selectedVirtualSession.status === "uploaded" ? t("calendar.virtual.detail.status.uploaded") :
+                     selectedVirtualSession.status === "pending" ? t("calendar.virtual.detail.status.pending") :
+                     selectedVirtualSession.status === "completed" ? t("calendar.virtual.detail.status.completed") :
                      selectedVirtualSession.status}
                   </Badge>
                 </div>
@@ -1295,11 +1319,11 @@ const FirmaBesichtigungen = () => {
                     onClick={() => {
                       const url = `${window.location.origin}/besichtigung/${selectedVirtualSession.token}`;
                       navigator.clipboard.writeText(url);
-                      toast.success("Link kopiert!");
+                      toast.success(t("calendar.virtual.toast.linkCopied"));
                     }}
                   >
                     <Link2 className="w-4 h-4" />
-                    Link kopieren
+                    {t("calendar.virtual.copyLink")}
                   </Button>
                 </div>
 
@@ -1308,7 +1332,7 @@ const FirmaBesichtigungen = () => {
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
                     <h4 className="font-medium text-sm text-amber-700 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
-                      Kundennotiz
+                      {t("calendar.virtual.detail.customerNote")}
                     </h4>
                     <p className="text-sm text-amber-800 whitespace-pre-wrap">
                       {selectedVirtualSession.customer_notes}
@@ -1319,15 +1343,15 @@ const FirmaBesichtigungen = () => {
                 {/* Dates */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-muted/50 rounded-xl p-4">
-                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide mb-2">Erstellt</h4>
+                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide mb-2">{t("calendar.virtual.detail.created")}</h4>
                     <p className="text-sm font-medium">
-                      {format(parseISO(selectedVirtualSession.created_at), "dd.MM.yyyy HH:mm", { locale: de })}
+                      {format(parseISO(selectedVirtualSession.created_at), "dd.MM.yyyy HH:mm", { locale: dateLocale })}
                     </p>
                   </div>
                   <div className="bg-muted/50 rounded-xl p-4">
-                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide mb-2">Gültig bis</h4>
+                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide mb-2">{t("calendar.virtual.detail.validUntil")}</h4>
                     <p className={`text-sm font-medium ${new Date(selectedVirtualSession.expires_at) < new Date() ? 'text-red-500' : ''}`}>
-                      {format(parseISO(selectedVirtualSession.expires_at), "dd.MM.yyyy HH:mm", { locale: de })}
+                      {format(parseISO(selectedVirtualSession.expires_at), "dd.MM.yyyy HH:mm", { locale: dateLocale })}
                     </p>
                   </div>
                 </div>
@@ -1336,8 +1360,8 @@ const FirmaBesichtigungen = () => {
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">
                   <span className="text-base shrink-0">⏰</span>
                   <div>
-                    <p className="font-medium mb-0.5">Automatische Datenlöschung</p>
-                    <p>Fotos und Analysedaten werden <strong>3 Tage nach Versand der Offerte</strong> automatisch gelöscht. Ohne Offerte werden die Daten nach 30 Tagen entfernt.</p>
+                    <p className="font-medium mb-0.5">{t("calendar.virtual.retention.title")}</p>
+                    <p>{t("calendar.virtual.retention.body")}</p>
                   </div>
                 </div>
 
@@ -1345,7 +1369,7 @@ const FirmaBesichtigungen = () => {
                 <div>
                   <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
                     <Image className="w-4 h-4" />
-                    Hochgeladene Fotos ({selectedVirtualSession.photos?.length || 0})
+                    {t("calendar.virtual.photos", { count: selectedVirtualSession.photos?.length || 0 })}
                   </h4>
                   {selectedVirtualSession.photos && selectedVirtualSession.photos.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -1378,7 +1402,7 @@ const FirmaBesichtigungen = () => {
                   ) : (
                     <div className="text-center py-8 bg-muted/30 rounded-xl border border-dashed">
                       <Camera className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Noch keine Fotos hochgeladen</p>
+                      <p className="text-sm text-muted-foreground">{t("calendar.virtual.noPhotos")}</p>
                     </div>
                   )}
                 </div>
@@ -1414,10 +1438,10 @@ const FirmaBesichtigungen = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Eye className="w-5 h-5 text-primary" />
-                Besichtigung Details
+                {t("calendar.besichtigung.details.title")}
               </DialogTitle>
               <DialogDescription>
-                Alle Informationen zur Besichtigung auf einen Blick
+                {t("calendar.besichtigung.details.description")}
               </DialogDescription>
             </DialogHeader>
             {selectedDetails && (
@@ -1441,16 +1465,14 @@ const FirmaBesichtigungen = () => {
                         : 'bg-amber-100 text-amber-700 border-amber-200'
                     } border`}
                   >
-                    {selectedDetails.status === 'completed' ? 'Abgeschlossen' :
-                     selectedDetails.status === 'cancelled' ? 'Abgesagt' :
-                     selectedDetails.status === 'confirmed' ? 'Bestätigt' : 'Ausstehend'}
+                    {getAppointmentStatusLabel(selectedDetails.status, locale)}
                   </Badge>
                 </div>
 
                 {/* Date, Time, Location */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-muted/50 rounded-xl p-4 space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Termin</h4>
+                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">{t("calendar.besichtigung.details.appointment")}</h4>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-5 h-5 text-primary" />
@@ -1461,7 +1483,7 @@ const FirmaBesichtigungen = () => {
                         <span>{formatTime(selectedDetails.start_time)} - {formatTime(selectedDetails.end_time)}</span>
                         {selectedDetails.duration_minutes && (
                           <span className="text-xs text-muted-foreground">
-                            ({selectedDetails.duration_minutes} Min.)
+                            {t("calendar.besichtigung.details.minutes", { count: selectedDetails.duration_minutes })}
                           </span>
                         )}
                       </div>
@@ -1469,7 +1491,7 @@ const FirmaBesichtigungen = () => {
                   </div>
                   
                   <div className="bg-muted/50 rounded-xl p-4 space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Ort</h4>
+                    <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">{t("calendar.besichtigung.details.location")}</h4>
                     {selectedDetails.location_city ? (
                       <div className="space-y-1">
                         <div className="flex items-start gap-2">
@@ -1493,13 +1515,13 @@ const FirmaBesichtigungen = () => {
                               rel="noopener noreferrer"
                             >
                               <ExternalLink className="w-3 h-3 mr-1" />
-                              Auf Google Maps öffnen
+                              {t("calendar.besichtigung.details.openMaps")}
                             </a>
                           </Button>
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Kein Ort angegeben</p>
+                      <p className="text-sm text-muted-foreground">{t("calendar.besichtigung.details.noLocation")}</p>
                     )}
                   </div>
                 </div>
@@ -1508,7 +1530,7 @@ const FirmaBesichtigungen = () => {
                 <div className="bg-muted/50 rounded-xl p-4 space-y-3">
                   <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
                     <User className="w-4 h-4" />
-                    Kunde
+                    {t("calendar.detail.customer")}
                   </h4>
                   <p className="text-lg font-semibold">
                     {selectedDetails.customer_first_name} {selectedDetails.customer_last_name}
@@ -1538,7 +1560,7 @@ const FirmaBesichtigungen = () => {
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
                     <h4 className="font-medium text-sm text-amber-700 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
-                      Interne Notizen
+                      {t("calendar.detail.internalNotes")}
                     </h4>
                     <p className="text-sm text-amber-800 whitespace-pre-wrap">
                       {selectedDetails.internal_notes}
@@ -1552,19 +1574,21 @@ const FirmaBesichtigungen = () => {
                     {selectedDetails.confirmed_by_firma && (
                       <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">
                         <CheckCircle className="w-3 h-3 mr-1" />
-                        Von Ihnen bestätigt
+                        {t("calendar.besichtigung.details.confirmedByYou")}
                       </Badge>
                     )}
                     {selectedDetails.confirmed_by_customer && (
                       <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
                         <CheckCircle className="w-3 h-3 mr-1" />
-                        Vom Kunden bestätigt
+                        {t("calendar.besichtigung.details.confirmedByCustomer")}
                       </Badge>
                     )}
                   </div>
                   {selectedDetails.created_at && (
                     <p className="text-xs text-muted-foreground">
-                      Erstellt: {format(parseISO(selectedDetails.created_at), "dd.MM.yyyy HH:mm", { locale: de })}
+                      {t("calendar.besichtigung.details.createdAt", {
+                        date: format(parseISO(selectedDetails.created_at), "dd.MM.yyyy HH:mm", { locale: dateLocale }),
+                      })}
                     </p>
                   )}
                 </div>
@@ -1582,13 +1606,13 @@ const FirmaBesichtigungen = () => {
                     }}
                   >
                     <Edit2 className="w-4 h-4" />
-                    Bearbeiten
+                    {t("common.edit")}
                   </Button>
                   {selectedDetails.offer_id && (
                     <Button variant="outline" size="sm" className="gap-2" asChild>
                       <Link to={`/firma/offerten/${selectedDetails.offer_id}`}>
                         <FileText className="w-4 h-4" />
-                        Offerte anzeigen
+                        {t("calendar.besichtigung.viewOffer")}
                       </Link>
                     </Button>
                   )}
@@ -1600,7 +1624,7 @@ const FirmaBesichtigungen = () => {
                   >
                     <Link to="/firma/kalender">
                       <Calendar className="w-4 h-4" />
-                      Im Kalender anzeigen
+                      {t("calendar.besichtigung.details.showInCalendar")}
                     </Link>
                   </Button>
                 </div>
@@ -1649,7 +1673,7 @@ const FirmaBesichtigungen = () => {
               fetchData();
               setIsEditModalOpen(false);
               setEditingAppointment(null);
-              toast.success("Termin wurde aktualisiert");
+              toast.success(t("calendar.besichtigung.toast.updated"));
             }}
           />
         )}

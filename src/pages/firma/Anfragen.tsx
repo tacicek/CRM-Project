@@ -31,10 +31,11 @@ import {
   Pencil,
 } from "lucide-react";
 import AnfrageEditDialog from "@/components/firma/AnfrageEditDialog";
-import { getServiceLabel } from "@/lib/serviceLabels";
+import { getServiceLabel } from "@/i18n/domain";
+import { DEFAULT_LOCALE, LOCALE_NAMES, toLocale } from "@/i18n/locale";
+import { useI18n, useT } from "@/i18n/useI18n";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
+import { format, parseISO, type Locale as DateFnsLocale } from "date-fns";
 
 interface Lead {
   id: string;
@@ -43,6 +44,11 @@ interface Lead {
   customer_email: string | null;
   customer_phone: string | null;
   service_type: string;
+  /**
+   * DOCUMENT locale — the language the customer is addressed in. Frozen onto the offer
+   * when one is created. Correctable in AnfrageEditDialog. NOT the dashboard language.
+   */
+  language: string;
   from_plz: string | null;
   from_city: string | null;
   from_rooms: number | null;
@@ -56,59 +62,67 @@ interface Lead {
   detailed_form_data: Record<string, unknown> | null;
 }
 
-// Folk-style service groups — emoji + flat coral/mint/violet/lemon/sky/rose accent
-type ServiceGroup = { key: string; label: string; emoji: string; color: string; bg: string };
+// Folk-style service groups — emoji + flat coral/mint/violet/lemon/sky/rose accent.
+// The visible label is no longer stored here: it comes from getServiceLabel(key, locale)
+// so the operator's dashboard language decides it.
+type ServiceGroup = { key: string; emoji: string; color: string; bg: string };
 const SERVICE_GROUPS: ServiceGroup[] = [
-  { key: "umzug",      label: "Umzug",      emoji: "🏠", color: "text-folk-coral",  bg: "bg-folk-coral-bg" },
-  { key: "reinigung",  label: "Reinigung",  emoji: "✨", color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
-  { key: "raeumung",   label: "Räumung",    emoji: "📦", color: "text-folk-lemon",  bg: "bg-folk-lemon-bg" },
-  { key: "transport",  label: "Transport",  emoji: "🎹", color: "text-folk-violet", bg: "bg-folk-violet-bg" },
-  { key: "lagerung",   label: "Lagerung",   emoji: "🗄️", color: "text-folk-sky",    bg: "bg-folk-sky-bg" },
-  { key: "entsorgung", label: "Entsorgung", emoji: "♻️", color: "text-folk-rose",   bg: "bg-folk-rose-bg" },
+  { key: "umzug",      emoji: "🏠", color: "text-folk-coral",  bg: "bg-folk-coral-bg" },
+  { key: "reinigung",  emoji: "✨", color: "text-folk-mint",   bg: "bg-folk-mint-bg" },
+  { key: "raeumung",   emoji: "📦", color: "text-folk-lemon",  bg: "bg-folk-lemon-bg" },
+  { key: "transport",  emoji: "🎹", color: "text-folk-violet", bg: "bg-folk-violet-bg" },
+  { key: "lagerung",   emoji: "🗄️", color: "text-folk-sky",    bg: "bg-folk-sky-bg" },
+  { key: "entsorgung", emoji: "♻️", color: "text-folk-rose",   bg: "bg-folk-rose-bg" },
 ];
 
-const DEFAULT_GROUP: ServiceGroup = { key: "andere", label: "Sonstige", emoji: "🏷️", color: "text-folk-ink2", bg: "bg-folk-bg-warm" };
+const DEFAULT_GROUP: ServiceGroup = { key: "andere", emoji: "🏷️", color: "text-folk-ink2", bg: "bg-folk-bg-warm" };
 
-function getServiceGroup(serviceType: string): ServiceGroup {
+const getServiceGroup = (serviceType: string): ServiceGroup => {
   const found = SERVICE_GROUPS.find((g) => serviceType?.toLowerCase().includes(g.key));
   return found ?? DEFAULT_GROUP;
-}
+};
 
-function formatDate(dateStr: string | null): string {
+const formatDate = (dateStr: string | null, dateLocale: DateFnsLocale): string => {
   if (!dateStr) return "—";
   try {
-    return format(parseISO(dateStr), "dd. MMM yyyy", { locale: de });
+    return format(parseISO(dateStr), "dd. MMM yyyy", { locale: dateLocale });
   } catch {
     return dateStr;
   }
-}
+};
 
-function formatRelativeDate(dateStr: string | null): string {
+const formatRelativeDate = (dateStr: string | null, dateLocale: DateFnsLocale): string => {
   if (!dateStr) return "—";
   try {
-    return format(parseISO(dateStr), "dd. MMM · HH:mm", { locale: de });
+    return format(parseISO(dateStr), "dd. MMM · HH:mm", { locale: dateLocale });
   } catch {
     return dateStr;
   }
-}
+};
 
-function getCustomerName(lead: Lead): string {
+const getCustomerName = (lead: Lead, fallback: string): string => {
   const name = `${lead.customer_first_name || ""} ${lead.customer_last_name || ""}`.trim();
-  return name || "Unbekannter Kunde";
-}
+  return name || fallback;
+};
 
-function getInitials(lead: Lead): string {
+const getInitials = (lead: Lead): string => {
   const first = lead.customer_first_name?.[0] || "";
   const last = lead.customer_last_name?.[0] || "";
   const combined = `${first}${last}`.toUpperCase();
   return combined || "?";
-}
+};
 
-export default function FirmaAnfragen() {
+const FirmaAnfragen = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { companyId } = useCachedCompany("id");
   const { toast } = useToast();
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
+
+  // Group tab / chip label — the DEFAULT_GROUP has no service type behind it.
+  const getGroupLabel = (groupKey: string): string =>
+    groupKey === DEFAULT_GROUP.key ? t("lead.group.other") : getServiceLabel(groupKey, locale);
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,21 +169,21 @@ export default function FirmaAnfragen() {
     } catch (err) {
       console.error("Error fetching leads:", err);
       toast({
-        title: "Fehler",
-        description: "Anfragen konnten nicht geladen werden.",
+        title: t("common.error"),
+        description: t("lead.toast.loadFailed"),
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  }, [companyId, toast]);
+  }, [companyId, toast, t]);
 
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
 
   const handleDelete = async (leadId: string) => {
-    if (!confirm("Diese Anfrage wirklich löschen?")) return;
+    if (!confirm(t("lead.toast.deleteConfirm"))) return;
     setIsDeleting(leadId);
     try {
       const { error } = await supabase
@@ -182,10 +196,14 @@ export default function FirmaAnfragen() {
 
       setLeads((prev) => prev.filter((l) => l.id !== leadId));
       if (selectedLead?.id === leadId) setSelectedLead(null);
-      toast({ title: "Gelöscht", description: "Anfrage wurde entfernt." });
+      toast({ title: t("lead.toast.deletedTitle"), description: t("lead.toast.deleted") });
     } catch (err) {
       console.error(err);
-      toast({ title: "Fehler", description: "Löschen fehlgeschlagen.", variant: "destructive" });
+      toast({
+        title: t("common.error"),
+        description: t("lead.toast.deleteFailed"),
+        variant: "destructive",
+      });
     } finally {
       setIsDeleting(null);
     }
@@ -197,7 +215,7 @@ export default function FirmaAnfragen() {
 
   // Compute counts per service group from current leads (after search but before service filter)
   const searched = leads.filter((lead) => {
-    const name = getCustomerName(lead).toLowerCase();
+    const name = getCustomerName(lead, "").toLowerCase();
     const city = `${lead.from_city || ""} ${lead.to_city || ""}`.toLowerCase();
     const search = searchQuery.toLowerCase();
     if (!search) return true;
@@ -231,9 +249,16 @@ export default function FirmaAnfragen() {
 
   const presentGroups = SERVICE_GROUPS.filter((g) => (groupCounts[g.key] || 0) > 0);
   const tabs = [
-    { key: "all", label: "Alle", emoji: "·", count: openLeads.length },
-    ...presentGroups.map((g) => ({ key: g.key, label: g.label, emoji: g.emoji, count: groupCounts[g.key] || 0 })),
-    ...(offeredCount > 0 ? [{ key: "offered", label: "Offeriert", emoji: "✓", count: offeredCount }] : []),
+    { key: "all", label: t("lead.tab.all"), emoji: "·", count: openLeads.length },
+    ...presentGroups.map((g) => ({
+      key: g.key,
+      label: getGroupLabel(g.key),
+      emoji: g.emoji,
+      count: groupCounts[g.key] || 0,
+    })),
+    ...(offeredCount > 0
+      ? [{ key: "offered", label: t("lead.tab.offered"), emoji: "✓", count: offeredCount }]
+      : []),
   ];
 
   if (!user) return null;
@@ -241,7 +266,7 @@ export default function FirmaAnfragen() {
   return (
     <>
       <Helmet>
-        <title>Anfragen · CRM</title>
+        <title>{t("lead.pageTitle")}</title>
       </Helmet>
 
       <div className="space-y-5">
@@ -250,13 +275,13 @@ export default function FirmaAnfragen() {
           <span className="text-4xl leading-none">📥</span>
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Anfragen</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("lead.title")}</h1>
               <span className="text-[15px] text-folk-ink3">
-                <span className="font-mono">{leads.length}</span> Anfrage{leads.length !== 1 ? "n" : ""} · {presentGroups.length} Gruppe{presentGroups.length !== 1 ? "n" : ""}
+                {t("lead.count", { count: leads.length })} · {t("lead.groupCount", { count: presentGroups.length })}
               </span>
             </div>
             <p className="mt-1 text-[15px] text-folk-ink2">
-              Eingehende Anfragen aus Webformularen, Import und direkter Erfassung — bereit für die Offerte.
+              {t("lead.subtitle")}
             </p>
           </div>
           <div className="flex gap-2">
@@ -268,14 +293,14 @@ export default function FirmaAnfragen() {
               className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
             >
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-              Aktualisieren
+              {t("lead.refresh")}
             </Button>
             <Button
               onClick={() => navigate("/firma/manual-import")}
               className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
             >
               <Plus className="h-3.5 w-3.5" />
-              Neue Anfrage
+              {t("lead.new")}
             </Button>
           </div>
         </div>
@@ -308,7 +333,7 @@ export default function FirmaAnfragen() {
           <div className="relative min-w-[220px] flex-1 sm:max-w-md">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-folk-ink3" />
             <Input
-              placeholder="In Anfragen suchen …"
+              placeholder={t("lead.searchPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-9 rounded-lg border-folk-line bg-folk-card pl-8 text-[15px] text-folk-ink placeholder:text-folk-ink4 focus-visible:ring-folk-coral/30"
@@ -319,8 +344,11 @@ export default function FirmaAnfragen() {
               onClick={() => setServiceFilter("all")}
               className="inline-flex items-center gap-1.5 rounded-md border border-folk-line bg-folk-card px-2.5 py-1.5 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
             >
-              <span>{tabs.find((t) => t.key === serviceFilter)?.emoji ?? getServiceGroup(serviceFilter).emoji}</span>
-              <span>{tabs.find((t) => t.key === serviceFilter)?.label ?? getServiceGroup(serviceFilter).label}</span>
+              <span>{tabs.find((tab) => tab.key === serviceFilter)?.emoji ?? getServiceGroup(serviceFilter).emoji}</span>
+              <span>
+                {tabs.find((tab) => tab.key === serviceFilter)?.label ??
+                  getGroupLabel(getServiceGroup(serviceFilter).key)}
+              </span>
               <span className="text-folk-ink4">×</span>
             </button>
           )}
@@ -336,18 +364,18 @@ export default function FirmaAnfragen() {
             {leads.length === 0 ? (
               <div className="space-y-3">
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">📭</div>
-                <p className="text-[15px] font-semibold text-folk-ink">Noch keine Anfragen importiert</p>
-                <p className="px-4 text-[14px] text-folk-ink3">Importieren Sie Anfragen aus Ihren E-Mails oder Webformularen.</p>
+                <p className="text-[15px] font-semibold text-folk-ink">{t("lead.empty.title")}</p>
+                <p className="px-4 text-[14px] text-folk-ink3">{t("lead.empty.description")}</p>
                 <Button
                   onClick={() => navigate("/firma/manual-import")}
                   className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Erste Anfrage importieren
+                  {t("lead.empty.action")}
                 </Button>
               </div>
             ) : (
-              <p className="text-[15px] text-folk-ink3">Keine Anfragen entsprechen Ihrer Suche.</p>
+              <p className="text-[15px] text-folk-ink3">{t("lead.noResults")}</p>
             )}
           </div>
         ) : (
@@ -369,15 +397,25 @@ export default function FirmaAnfragen() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <h3 className="text-[14px] font-semibold tracking-tight text-folk-ink">{getCustomerName(lead)}</h3>
+                          <h3 className="text-[14px] font-semibold tracking-tight text-folk-ink">{getCustomerName(lead, t("lead.card.unknownCustomer"))}</h3>
                           <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-medium ${group.bg} ${group.color}`}>
                             <span>{group.emoji}</span>
-                            <span>{getServiceLabel(lead.service_type)}</span>
+                            <span>{getServiceLabel(lead.service_type, locale)}</span>
                           </span>
+                          {/* Only flagged when the customer is NOT addressed in German —
+                              German is the default and would be pure noise on every card. */}
+                          {toLocale(lead.language) !== DEFAULT_LOCALE && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-md border border-folk-line bg-folk-bg-warm px-2 py-0.5 text-[13px] font-medium text-folk-ink2"
+                              title="Sprache des Kunden — Offerte, PDF und E-Mails gehen in dieser Sprache raus."
+                            >
+                              {LOCALE_NAMES[toLocale(lead.language)]}
+                            </span>
+                          )}
                           {lead.preferred_date && (
                             <span className="inline-flex items-center gap-1 rounded-md border border-folk-line bg-folk-bg-warm px-2 py-0.5 text-[13px] text-folk-ink2">
                               <Calendar className="h-3 w-3" />
-                              <span className="font-mono">{formatDate(lead.preferred_date)}</span>
+                              <span className="font-mono">{formatDate(lead.preferred_date, dateLocale)}</span>
                             </span>
                           )}
                           {isNew && (
@@ -419,7 +457,7 @@ export default function FirmaAnfragen() {
                         </div>
                       </div>
                       <span className="whitespace-nowrap font-mono text-[13px] text-folk-ink4">
-                        {formatRelativeDate(lead.created_at)}
+                        {formatRelativeDate(lead.created_at, dateLocale)}
                       </span>
                     </div>
 
@@ -499,7 +537,7 @@ export default function FirmaAnfragen() {
                               // Service appointment (Auftrag) — the service type comes from the
                               // Anfrage; Besichtigung has its own (video) button above.
                               type: "service",
-                              title: `${getServiceLabel(lead.service_type)} - ${[lead.customer_first_name, lead.customer_last_name].filter(Boolean).join(" ")}`.trim(),
+                              title: `${getServiceLabel(lead.service_type, locale)} - ${[lead.customer_first_name, lead.customer_last_name].filter(Boolean).join(" ")}`.trim(),
                             }).toString()}`,
                           )
                         }
@@ -561,14 +599,14 @@ export default function FirmaAnfragen() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <DialogTitle className="text-[18px] font-bold tracking-tight text-folk-ink">
-                    {getCustomerName(selectedLead)}
+                    {getCustomerName(selectedLead, t("lead.card.unknownCustomer"))}
                   </DialogTitle>
                   <DialogDescription className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] text-folk-ink3">
                     <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[13px] font-medium ${getServiceGroup(selectedLead.service_type).bg} ${getServiceGroup(selectedLead.service_type).color}`}>
                       <span>{getServiceGroup(selectedLead.service_type).emoji}</span>
-                      <span>{getServiceLabel(selectedLead.service_type)}</span>
+                      <span>{getServiceLabel(selectedLead.service_type, locale)}</span>
                     </span>
-                    <span className="font-mono">{formatRelativeDate(selectedLead.created_at)}</span>
+                    <span className="font-mono">{formatRelativeDate(selectedLead.created_at, dateLocale)}</span>
                   </DialogDescription>
                 </div>
               </div>
@@ -629,7 +667,7 @@ export default function FirmaAnfragen() {
                 {selectedLead.preferred_date && (
                   <>
                     <span className="text-folk-ink3">📅 Termin</span>
-                    <span className="font-mono text-folk-ink">{formatDate(selectedLead.preferred_date)}</span>
+                    <span className="font-mono text-folk-ink">{formatDate(selectedLead.preferred_date, dateLocale)}</span>
                   </>
                 )}
                 {selectedLead.from_rooms !== null && (
@@ -707,3 +745,5 @@ export default function FirmaAnfragen() {
     </>
   );
 }
+
+export default FirmaAnfragen;

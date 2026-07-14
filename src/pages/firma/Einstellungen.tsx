@@ -6,16 +6,21 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Building2, Bell, FileText, MessageSquare, Eye, EyeOff, CheckCircle, Mail, Bot } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Loader2, Save, Building2, Bell, FileText, MessageSquare, Eye, EyeOff, CheckCircle, Mail, Bot, Languages } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/i18n/useI18n";
+import { LOCALES, LOCALE_NAMES, toLocale } from "@/i18n/locale";
+import { getServiceLabel } from "@/i18n/domain";
 import { LogoUpload } from "@/components/firma/LogoUpload";
 import { SignatureUpload } from "@/components/firma/SignatureUpload";
 import { AgbSectionEditor } from "@/components/firma/AgbSectionEditor";
 import { ReminderSettings } from "@/components/firma/ReminderSettings";
+import { cn } from "@/lib/utils";
 interface Company {
   id: string;
   company_name: string;
@@ -38,6 +43,8 @@ interface Company {
   default_payment_terms: string | null;
   primary_color: string | null;
   pdf_template: string | null;
+  /** Dashboard-Sprache der Firma (de | fr | en) — NICHT die Sprache der Kundendokumente. */
+  default_language: string | null;
   twilio_enabled: boolean | null;
   twilio_account_sid: string | null;
   twilio_auth_token: string | null;
@@ -62,11 +69,13 @@ const PROFILE_DRAFT_FIELDS = [
   "notification_email", "notification_phone",
   "mwst_number", "iban",
   "default_terms_and_conditions", "default_payment_terms",
-  "primary_color", "pdf_template",
+  "primary_color", "pdf_template", "default_language",
 ] as const;
 
 const FirmaEinstellungen = () => {
   const { user } = useAuth();
+  const { refresh: refreshCompanyContext } = useCompanyContext();
+  const { t, locale } = useI18n();
   const { toast } = useToast();
   const [company, setCompany] = useState<Company | null>(null);
   const [selectedTemplateService, setSelectedTemplateService] = useState<string>("umzug");
@@ -206,6 +215,8 @@ const FirmaEinstellungen = () => {
           primary_color: company.primary_color,
           // Spalte ist NOT NULL DEFAULT 'classic' — null (z. B. alter Draft) fällt auf den Default zurück
           pdf_template: company.pdf_template ?? "classic",
+          // Spalte ist NOT NULL DEFAULT 'de'; toLocale() verwirft unbekannte Werte
+          default_language: toLocale(company.default_language),
         })
         .eq("id", company.id);
 
@@ -215,15 +226,20 @@ const FirmaEinstellungen = () => {
       sessionStorage.removeItem(PROFILE_DRAFT_KEY);
       setIsDirty(false);
 
+      // Die Dashboard-Sprache kommt aus dem CompanyContext (activeCompany.default_language).
+      // Ohne dieses Refresh bliebe der Context auf dem alten Wert und die soeben gespeicherte
+      // Firmensprache würde erst nach einem Reload sichtbar.
+      await refreshCompanyContext();
+
       toast({
-        title: "Gespeichert",
-        description: "Ihre Änderungen wurden gespeichert.",
+        title: t("common.success"),
+        description: t("settings.profile.saved"),
       });
     } catch (error) {
       console.error("Error saving profile:", error);
       toast({
-        title: "Fehler",
-        description: "Die Änderungen konnten nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("settings.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -250,14 +266,14 @@ const FirmaEinstellungen = () => {
       if (error) throw error;
 
       toast({
-        title: "Gespeichert",
-        description: "Twilio-Einstellungen wurden gespeichert.",
+        title: t("common.success"),
+        description: t("settings.sms.saved"),
       });
     } catch (error) {
       console.error("Error saving Twilio settings:", error);
       toast({
-        title: "Fehler",
-        description: "Die Twilio-Einstellungen konnten nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("settings.sms.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -293,10 +309,10 @@ const FirmaEinstellungen = () => {
       setOpenaiKeyMasked(!!openaiKey.trim());
       setGeminiKeyMasked(!!geminiKey.trim());
       setShowAnthropicKey(false); setShowOpenaiKey(false); setShowGeminiKey(false);
-      toast({ title: "Gespeichert", description: "KI-Einstellungen wurden gespeichert." });
+      toast({ title: t("common.success"), description: t("settings.ki.saved") });
     } catch (err) {
       console.error("Error saving AI settings:", err);
-      toast({ title: "Fehler", description: "KI-Einstellungen konnten nicht gespeichert werden.", variant: "destructive" });
+      toast({ title: t("common.error"), description: t("settings.ki.saveFailed"), variant: "destructive" });
     } finally {
       setIsSavingAiSettings(false);
     }
@@ -320,14 +336,14 @@ const FirmaEinstellungen = () => {
       if (error) throw error;
 
       toast({
-        title: "Gespeichert",
-        description: "E-Mail-Einstellungen wurden gespeichert.",
+        title: t("common.success"),
+        description: t("settings.email.saved"),
       });
     } catch (error) {
       console.error("Error saving Resend settings:", error);
       toast({
-        title: "Fehler",
-        description: "Die E-Mail-Einstellungen konnten nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("settings.email.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -338,8 +354,8 @@ const FirmaEinstellungen = () => {
   const handleTestResendEmail = async () => {
     if (!company || !company.resend_api_key || !company.resend_from_email) {
       toast({
-        title: "Fehler",
-        description: "Bitte speichern Sie zuerst API-Key und Absender-E-Mail.",
+        title: t("common.error"),
+        description: t("settings.email.testMissingConfig"),
         variant: "destructive",
       });
       return;
@@ -350,7 +366,11 @@ const FirmaEinstellungen = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        toast({ title: "Sitzung abgelaufen", description: "Bitte neu einloggen und erneut versuchen.", variant: "destructive" });
+        toast({
+          title: t("settings.email.sessionExpired"),
+          description: t("settings.email.sessionExpiredDescription"),
+          variant: "destructive",
+        });
         setIsTestingEmail(false);
         return;
       }
@@ -370,14 +390,16 @@ const FirmaEinstellungen = () => {
       }
 
       toast({
-        title: "Test erfolgreich!",
-        description: `Eine Test-E-Mail wurde an ${company.notification_email || company.resend_from_email || company.email} gesendet.`,
+        title: t("settings.email.testSuccess"),
+        description: t("settings.email.testSuccessDescription", {
+          email: company.notification_email || company.resend_from_email || company.email,
+        }),
       });
     } catch (error: unknown) {
       console.error("Error testing Resend email:", error);
       toast({
-        title: "Test fehlgeschlagen",
-        description: error instanceof Error ? error.message : "Die Test-E-Mail konnte nicht gesendet werden.",
+        title: t("settings.email.testFailed"),
+        description: error instanceof Error ? error.message : t("settings.email.testFailedDescription"),
         variant: "destructive",
       });
     } finally {
@@ -385,21 +407,20 @@ const FirmaEinstellungen = () => {
     }
   };
 
-  const availableServices = [
-    { type: "umzug", label: "Umzug" },
-    { type: "reinigung", label: "Reinigung" },
-    { type: "raeumung", label: "Räumung" },
-    { type: "transport", label: "Transport" },
-    { type: "lagerung", label: "Lagerung" },
-    { type: "entsorgung", label: "Entsorgung" },
-    { type: "sonstige", label: "Sonstige" },
-  ];
+  // AGB-Vorlagen sind nach service_type geschlüsselt; die Anzeige folgt der Dashboard-Sprache.
+  const availableServices = useMemo(
+    () =>
+      ["umzug", "reinigung", "raeumung", "transport", "lagerung", "entsorgung", "sonstige"].map(
+        (type) => ({ type, label: getServiceLabel(type, locale) })
+      ),
+    [locale]
+  );
 
   if (isLoading) {
     return (
       <>
         <Helmet>
-          <title>Einstellungen | Firma</title>
+          <title>{t("settings.pageTitle")}</title>
         </Helmet>
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-secondary" />
@@ -412,10 +433,10 @@ const FirmaEinstellungen = () => {
     return (
       <>
         <Helmet>
-          <title>Einstellungen | Firma</title>
+          <title>{t("settings.pageTitle")}</title>
         </Helmet>
           <div className="text-center py-12 text-muted-foreground">
-            Firma nicht gefunden
+            {t("settings.companyNotFound")}
           </div>
       </>
     );
@@ -424,29 +445,29 @@ const FirmaEinstellungen = () => {
   return (
     <>
       <Helmet>
-        <title>Einstellungen | Firma</title>
+        <title>{t("settings.pageTitle")}</title>
       </Helmet>
         <div className="space-y-6">
           {/* Folk-style header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
             <span className="text-4xl leading-none">⚙️</span>
             <div className="flex-1">
-              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Einstellungen</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("settings.title")}</h1>
               <p className="mt-1 text-[15px] text-folk-ink2">
-                Firmenprofil, Benachrichtigungen, E-Mail-Versand und AGB konfigurieren.
+                {t("settings.subtitle")}
               </p>
             </div>
           </div>
 
           <Tabs defaultValue="profile" className="w-full">
             <TabsList className="mb-4 flex-wrap h-auto gap-1">
-              <TabsTrigger value="profile">Profil</TabsTrigger>
-              <TabsTrigger value="notifications">Benachrichtigungen</TabsTrigger>
-              <TabsTrigger value="email">E-Mail (Resend)</TabsTrigger>
-              <TabsTrigger value="sms">SMS (Twilio)</TabsTrigger>
-              <TabsTrigger value="reminders">Erinnerungen</TabsTrigger>
-              <TabsTrigger value="offerten">AGB</TabsTrigger>
-              <TabsTrigger value="ki">KI-Integration</TabsTrigger>
+              <TabsTrigger value="profile">{t("settings.tab.profile")}</TabsTrigger>
+              <TabsTrigger value="notifications">{t("settings.tab.notifications")}</TabsTrigger>
+              <TabsTrigger value="email">{t("settings.tab.email")} (Resend)</TabsTrigger>
+              <TabsTrigger value="sms">{t("settings.tab.sms")} (Twilio)</TabsTrigger>
+              <TabsTrigger value="reminders">{t("settings.tab.reminders")}</TabsTrigger>
+              <TabsTrigger value="offerten">{t("settings.tab.agb")}</TabsTrigger>
+              <TabsTrigger value="ki">{t("settings.tab.ki")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile">
@@ -454,10 +475,10 @@ const FirmaEinstellungen = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Building2 className="w-5 h-5" />
-                    Unternehmensprofil
+                    {t("settings.profile.title")}
                   </CardTitle>
                   <CardDescription>
-                    Ihre Firmeninformationen bearbeiten
+                    {t("settings.profile.description")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -492,9 +513,9 @@ const FirmaEinstellungen = () => {
                   {/* Primary Color */}
                   <div className="flex items-center gap-4">
                     <div className="flex-1">
-                      <Label htmlFor="primary_color">Firmenfarbe (für Offerten)</Label>
+                      <Label htmlFor="primary_color">{t("settings.profile.primaryColor")}</Label>
                       <p className="text-sm text-muted-foreground">
-                        Diese Farbe wird in Ihren PDF-Offerten verwendet
+                        {t("settings.profile.primaryColorHint")}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -525,29 +546,30 @@ const FirmaEinstellungen = () => {
                   {/* Offerte PDF-Vorlage */}
                   <div className="space-y-3">
                     <div>
-                      <Label>Offerte PDF-Vorlage</Label>
+                      <Label>{t("settings.pdf.offerTitle")}</Label>
                       <p className="text-sm text-muted-foreground">
-                        Layout, mit dem Ihre Offerten-PDFs erstellt werden (Download, Versand und Kundenansicht)
+                        {t("settings.pdf.hint")}
                       </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {([
-                        { id: "classic", label: "Klassisch", desc: "Bewährtes Standard-Layout mit Leistungstabelle" },
-                        { id: "modern", label: "Modern", desc: "Neues Design mit «Auf einen Blick»-Übersicht und Service-Karten" },
-                      ] as const).map((t) => (
+                        { id: "classic", label: t("settings.pdf.classic"), desc: t("settings.pdf.classicDesc") },
+                        { id: "modern", label: t("settings.pdf.modern"), desc: t("settings.pdf.modernDesc") },
+                      ] as const).map((template) => (
                         <button
-                          key={t.id}
+                          key={template.id}
                           type="button"
-                          onClick={() => setProfileField("pdf_template", t.id)}
-                          className={`flex flex-col items-start p-3 rounded-lg border-2 text-left transition-all ${
-                            (company.pdf_template ?? "classic") === t.id
+                          onClick={() => setProfileField("pdf_template", template.id)}
+                          className={cn(
+                            "flex flex-col items-start p-3 rounded-lg border-2 text-left transition-all",
+                            (company.pdf_template ?? "classic") === template.id
                               ? "bg-gradient-to-br from-teal-50 to-emerald-50 border-teal-300"
                               : "border-border hover:border-muted-foreground/30"
-                          }`}
+                          )}
                         >
-                          <span className="font-medium text-sm">{t.label}</span>
-                          <span className="text-xs text-muted-foreground mt-0.5">{t.desc}</span>
-                          {(company.pdf_template ?? "classic") === t.id && (
+                          <span className="font-medium text-sm">{template.label}</span>
+                          <span className="text-xs text-muted-foreground mt-0.5">{template.desc}</span>
+                          {(company.pdf_template ?? "classic") === template.id && (
                             <CheckCircle className="w-4 h-4 mt-1 text-primary" />
                           )}
                         </button>
@@ -555,11 +577,52 @@ const FirmaEinstellungen = () => {
                     </div>
                   </div>
 
+                  <Separator />
+
+                  {/* Firmensprache — Dashboard-Sprache der Firma, NICHT die Sprache der Kundendokumente */}
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="flex items-center gap-2">
+                        <Languages className="w-4 h-4" />
+                        {t("settings.language.default")}
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        {t("settings.language.defaultHint")}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {LOCALES.map((l) => (
+                        <button
+                          key={l}
+                          type="button"
+                          onClick={() => setProfileField("default_language", l)}
+                          className={cn(
+                            "flex items-center justify-between p-3 rounded-lg border-2 text-left transition-all",
+                            toLocale(company.default_language) === l
+                              ? "bg-gradient-to-br from-teal-50 to-emerald-50 border-teal-300"
+                              : "border-border hover:border-muted-foreground/30"
+                          )}
+                        >
+                          <span className="font-medium text-sm">{LOCALE_NAMES[l]}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-xs uppercase text-muted-foreground">{l}</span>
+                            {toLocale(company.default_language) === l && (
+                              <CheckCircle className="w-4 h-4 text-primary" />
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-800">
+                      {t("settings.language.customerNotice")}
+                    </p>
+                  </div>
+
                   <div className="border-t pt-4">
-                    <h4 className="font-medium mb-3">Unternehmensdaten</h4>
+                    <h4 className="font-medium mb-3">{t("settings.profile.companyData")}</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label>Firmenname</Label>
+                        <Label>{t("settings.profile.companyName")}</Label>
                         <Input
                           value={company.company_name}
                           onChange={(e) =>
@@ -568,7 +631,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div>
-                        <Label>Rechtlicher Name</Label>
+                        <Label>{t("settings.profile.legalName")}</Label>
                         <Input
                           value={company.legal_name || ""}
                           onChange={(e) =>
@@ -577,7 +640,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div>
-                        <Label>E-Mail</Label>
+                        <Label>{t("common.email")}</Label>
                         <Input
                           type="email"
                           value={company.email}
@@ -587,7 +650,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div>
-                        <Label>Telefon</Label>
+                        <Label>{t("common.phone")}</Label>
                         <Input
                           value={company.phone || ""}
                           onChange={(e) =>
@@ -596,7 +659,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <Label>Website</Label>
+                        <Label>{t("settings.profile.website")}</Label>
                         <Input
                           value={company.website || ""}
                           onChange={(e) =>
@@ -606,7 +669,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div>
-                        <Label>MwSt-Nummer</Label>
+                        <Label>{t("settings.profile.vatNumber")}</Label>
                         <Input
                           value={company.mwst_number || ""}
                           onChange={(e) =>
@@ -616,7 +679,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div>
-                        <Label>IBAN</Label>
+                        <Label>{t("settings.profile.iban")}</Label>
                         <Input
                           value={company.iban || ""}
                           onChange={(e) =>
@@ -629,10 +692,10 @@ const FirmaEinstellungen = () => {
                   </div>
 
                   <div className="border-t pt-4">
-                    <h4 className="font-medium mb-3">Adresse</h4>
+                    <h4 className="font-medium mb-3">{t("common.address")}</h4>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="md:col-span-2">
-                        <Label>Strasse</Label>
+                        <Label>{t("common.street")}</Label>
                         <Input
                           value={company.street || ""}
                           onChange={(e) =>
@@ -641,7 +704,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div>
-                        <Label>Nr.</Label>
+                        <Label>{t("common.houseNumber")}</Label>
                         <Input
                           value={company.house_number || ""}
                           onChange={(e) =>
@@ -650,7 +713,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div>
-                        <Label>PLZ</Label>
+                        <Label>{t("common.plz")}</Label>
                         <Input
                           value={company.plz}
                           onChange={(e) =>
@@ -659,7 +722,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <Label>Ort</Label>
+                        <Label>{t("common.city")}</Label>
                         <Input
                           value={company.city}
                           onChange={(e) =>
@@ -668,7 +731,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
                       <div>
-                        <Label>Kanton</Label>
+                        <Label>{t("common.canton")}</Label>
                         <Input
                           value={company.canton || ""}
                           onChange={(e) =>
@@ -683,7 +746,7 @@ const FirmaEinstellungen = () => {
                     {isDirty && (
                       <span className="text-xs text-amber-600 flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
-                        Ungespeicherte Änderungen
+                        {t("settings.unsavedChanges")}
                       </span>
                     )}
                     <div className="ml-auto">
@@ -693,7 +756,7 @@ const FirmaEinstellungen = () => {
                         ) : (
                           <Save className="w-4 h-4 mr-2" />
                         )}
-                        Speichern
+                        {isSaving ? t("common.saving") : t("common.save")}
                       </Button>
                     </div>
                   </div>
@@ -708,29 +771,29 @@ const FirmaEinstellungen = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Bell className="w-5 h-5" />
-                    Benachrichtigungen
+                    {t("settings.tab.notifications")}
                   </CardTitle>
                   <CardDescription>
-                    Konfigurieren Sie Ihre Benachrichtigungseinstellungen
+                    {t("settings.notifications.description")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label>Benachrichtigungs-E-Mail</Label>
+                    <Label>{t("settings.notifications.email")}</Label>
                     <Input
                       type="email"
                       value={company.notification_email || ""}
                       onChange={(e) =>
                         setProfileField("notification_email", e.target.value)
                       }
-                      placeholder="Falls abweichend von Haupt-E-Mail"
+                      placeholder={t("settings.notifications.emailPlaceholder")}
                     />
                     <p className="text-sm text-muted-foreground mt-1">
-                      Leer lassen um Haupt-E-Mail zu verwenden
+                      {t("settings.notifications.emailHint")}
                     </p>
                   </div>
                   <div>
-                    <Label>Benachrichtigungs-Telefon (SMS)</Label>
+                    <Label>{t("settings.notifications.phoneLabel")}</Label>
                     <Input
                       value={company.notification_phone || ""}
                       onChange={(e) =>
@@ -746,7 +809,7 @@ const FirmaEinstellungen = () => {
                       ) : (
                         <Save className="w-4 h-4 mr-2" />
                       )}
-                      Speichern
+                      {isSaving ? t("common.saving") : t("common.save")}
                     </Button>
                   </div>
                 </CardContent>
@@ -758,28 +821,28 @@ const FirmaEinstellungen = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Mail className="w-5 h-5" />
-                    Eigene E-Mail-Adresse (Resend)
+                    {t("settings.email.title")}
                   </CardTitle>
                   <CardDescription>
-                    Senden Sie Offerten mit Ihrer eigenen E-Mail-Adresse anstatt über das System
+                    {t("settings.email.description")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="bg-muted/50 border rounded-lg p-4">
-                    <h4 className="font-medium mb-2">So richten Sie Ihre eigene E-Mail ein:</h4>
+                    <h4 className="font-medium mb-2">{t("settings.email.setupTitle")}</h4>
                     <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-                      <li>Erstellen Sie ein Konto auf <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a></li>
-                      <li>Verifizieren Sie Ihre Domain unter <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline">Domains</a></li>
-                      <li>Erstellen Sie einen API-Key unter <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">API Keys</a></li>
-                      <li>Tragen Sie die Daten hier ein</li>
+                      <li>{t("settings.email.step1")} <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a></li>
+                      <li>{t("settings.email.step2")} <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline">Domains</a></li>
+                      <li>{t("settings.email.step3")} <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">API Keys</a></li>
+                      <li>{t("settings.email.step4")}</li>
                     </ol>
                   </div>
 
                   <div className="flex items-center justify-between p-4 rounded-lg border">
                     <div>
-                      <p className="font-medium">Eigene E-Mail-Adresse verwenden</p>
+                      <p className="font-medium">{t("settings.email.useOwn")}</p>
                       <p className="text-sm text-muted-foreground">
-                        Offerten werden mit Ihrer eigenen Absender-Adresse gesendet
+                        {t("settings.email.useOwnHint")}
                       </p>
                     </div>
                     <Switch
@@ -794,7 +857,7 @@ const FirmaEinstellungen = () => {
                     <>
                       <div className="space-y-4">
                         <div>
-                          <Label>Resend API-Key</Label>
+                          <Label>{t("settings.email.apiKey")}</Label>
                           <div className="relative">
                             <Input
                               type={showResendKey ? "text" : "password"}
@@ -816,7 +879,7 @@ const FirmaEinstellungen = () => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <Label>Absender-Name</Label>
+                            <Label>{t("settings.email.fromName")}</Label>
                             <Input
                               value={company.resend_from_name || ""}
                               onChange={(e) =>
@@ -826,7 +889,7 @@ const FirmaEinstellungen = () => {
                             />
                           </div>
                           <div>
-                            <Label>Absender-E-Mail</Label>
+                            <Label>{t("settings.email.fromEmail")}</Label>
                             <Input
                               type="email"
                               value={company.resend_from_email || ""}
@@ -836,7 +899,7 @@ const FirmaEinstellungen = () => {
                               placeholder="offerten@ihredomain.ch"
                             />
                             <p className="text-sm text-muted-foreground mt-1">
-                              Muss eine verifizierte Domain sein
+                              {t("settings.email.fromEmailHint")}
                             </p>
                           </div>
                         </div>
@@ -845,7 +908,7 @@ const FirmaEinstellungen = () => {
                       {company.resend_api_key && company.resend_from_email && (
                         <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-600">
                           <CheckCircle className="w-5 h-5" />
-                          <span className="text-sm">E-Mail-Konfiguration vollständig - Offerten werden mit Ihrer Adresse gesendet</span>
+                          <span className="text-sm">{t("settings.email.configComplete")}</span>
                         </div>
                       )}
 
@@ -854,13 +917,15 @@ const FirmaEinstellungen = () => {
                         <div className="p-4 border rounded-lg bg-muted/30">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="font-medium">E-Mail-Konfiguration testen</p>
+                              <p className="font-medium">{t("settings.email.testTitle")}</p>
                               <p className="text-sm text-muted-foreground">
-                                Eine Test-E-Mail an {company.notification_email || company.resend_from_email || company.email} senden
+                                {t("settings.email.testHint", {
+                                  email: company.notification_email || company.resend_from_email || company.email,
+                                })}
                               </p>
                             </div>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               onClick={handleTestResendEmail}
                               disabled={isTestingEmail}
                             >
@@ -869,7 +934,7 @@ const FirmaEinstellungen = () => {
                               ) : (
                                 <Mail className="w-4 h-4 mr-2" />
                               )}
-                              Test senden
+                              {t("settings.email.testButton")}
                             </Button>
                           </div>
                         </div>
@@ -879,7 +944,7 @@ const FirmaEinstellungen = () => {
 
                   {!company.resend_enabled && (
                     <div className="p-3 bg-muted/50 border rounded-lg text-muted-foreground text-sm">
-                      Wenn deaktiviert, werden Offerten über die konfigurierte System-E-Mail-Adresse gesendet.
+                      {t("settings.email.disabledNote")}
                     </div>
                   )}
 
@@ -890,7 +955,7 @@ const FirmaEinstellungen = () => {
                       ) : (
                         <Save className="w-4 h-4 mr-2" />
                       )}
-                      Speichern
+                      {isSavingResend ? t("common.saving") : t("common.save")}
                     </Button>
                   </div>
                 </CardContent>
@@ -902,28 +967,28 @@ const FirmaEinstellungen = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="w-5 h-5" />
-                    SMS-Erinnerungen (Twilio)
+                    {t("settings.sms.title")}
                   </CardTitle>
                   <CardDescription>
-                    Konfigurieren Sie Twilio für SMS-Erinnerungen an Ihre Kunden
+                    {t("settings.sms.description")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="bg-muted/50 border rounded-lg p-4">
-                    <h4 className="font-medium mb-2">So erhalten Sie Twilio-Zugangsdaten:</h4>
+                    <h4 className="font-medium mb-2">{t("settings.sms.setupTitle")}</h4>
                     <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-                      <li>Erstellen Sie ein Konto auf <a href="https://www.twilio.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">twilio.com</a></li>
-                      <li>Gehen Sie zur Console und kopieren Sie Ihre Account SID und Auth Token</li>
-                      <li>Kaufen Sie eine Telefonnummer für SMS-Versand</li>
-                      <li>Tragen Sie die Daten hier ein</li>
+                      <li>{t("settings.sms.step1")} <a href="https://www.twilio.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">twilio.com</a></li>
+                      <li>{t("settings.sms.step2")}</li>
+                      <li>{t("settings.sms.step3")}</li>
+                      <li>{t("settings.sms.step4")}</li>
                     </ol>
                   </div>
 
                   <div className="flex items-center justify-between p-4 rounded-lg border">
                     <div>
-                      <p className="font-medium">Twilio aktivieren</p>
+                      <p className="font-medium">{t("settings.sms.enable")}</p>
                       <p className="text-sm text-muted-foreground">
-                        SMS-Funktionalität für Ihre Firma aktivieren
+                        {t("settings.sms.enableHint")}
                       </p>
                     </div>
                     <Switch
@@ -938,7 +1003,7 @@ const FirmaEinstellungen = () => {
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <Label>Account SID</Label>
+                          <Label>{t("settings.sms.accountSidLabel")}</Label>
                           <Input
                             value={company.twilio_account_sid || ""}
                             onChange={(e) =>
@@ -948,7 +1013,7 @@ const FirmaEinstellungen = () => {
                           />
                         </div>
                         <div>
-                          <Label>Auth Token</Label>
+                          <Label>{t("settings.sms.authTokenLabel")}</Label>
                           <div className="relative">
                             <Input
                               type={showTwilioToken ? "text" : "password"}
@@ -956,7 +1021,7 @@ const FirmaEinstellungen = () => {
                               onChange={(e) =>
                                 setCompany({ ...company, twilio_auth_token: e.target.value })
                               }
-                              placeholder="Ihr Auth Token"
+                              placeholder={t("settings.sms.authTokenPlaceholder")}
                               className="pr-10"
                             />
                             <button
@@ -969,7 +1034,7 @@ const FirmaEinstellungen = () => {
                           </div>
                         </div>
                         <div className="md:col-span-2">
-                          <Label>Twilio Telefonnummer</Label>
+                          <Label>{t("settings.sms.phoneNumber")}</Label>
                           <Input
                             value={company.twilio_phone_number || ""}
                             onChange={(e) =>
@@ -978,7 +1043,7 @@ const FirmaEinstellungen = () => {
                             placeholder="+1234567890"
                           />
                           <p className="text-sm text-muted-foreground mt-1">
-                            Die Telefonnummer, von der SMS gesendet werden (im E.164-Format)
+                            {t("settings.sms.phoneNumberHint")}
                           </p>
                         </div>
                       </div>
@@ -987,9 +1052,9 @@ const FirmaEinstellungen = () => {
 
                       <div className="flex items-center justify-between p-4 rounded-lg border">
                         <div>
-                          <p className="font-medium">SMS-Erinnerungen aktivieren</p>
+                          <p className="font-medium">{t("settings.sms.remindersEnable")}</p>
                           <p className="text-sm text-muted-foreground">
-                            Kunden erhalten zusätzlich zur E-Mail auch SMS-Erinnerungen
+                            {t("settings.sms.remindersHint")}
                           </p>
                         </div>
                         <Switch
@@ -1003,7 +1068,7 @@ const FirmaEinstellungen = () => {
                       {company.twilio_account_sid && company.twilio_auth_token && company.twilio_phone_number && (
                         <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-600">
                           <CheckCircle className="w-5 h-5" />
-                          <span className="text-sm">Twilio-Konfiguration vollständig</span>
+                          <span className="text-sm">{t("settings.sms.configComplete")}</span>
                         </div>
                       )}
                     </>
@@ -1016,7 +1081,7 @@ const FirmaEinstellungen = () => {
                       ) : (
                         <Save className="w-4 h-4 mr-2" />
                       )}
-                      Speichern
+                      {isSavingTwilio ? t("common.saving") : t("common.save")}
                     </Button>
                   </div>
                 </CardContent>
@@ -1032,11 +1097,10 @@ const FirmaEinstellungen = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="w-5 h-5" />
-                    Allgemeine Geschäftsbedingungen (AGB)
+                    {t("settings.agb.title")}
                   </CardTitle>
                   <CardDescription>
-                    Erstellen Sie strukturierte AGB-Abschnitte mit Titel und Inhalt für jeden Service-Typ. 
-                    Diese werden automatisch in jede Offerte als PDF-Anhang übernommen und bei Annahme rechtsgültig akzeptiert.
+                    {t("settings.agb.description")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1069,18 +1133,17 @@ const FirmaEinstellungen = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Bot className="w-5 h-5" />
-                    KI-Integration
+                    {t("settings.tab.ki")}
                   </CardTitle>
                   <CardDescription>
-                    Wählen Sie Ihren KI-Anbieter und hinterlegen Sie den API-Schlüssel.
-                    Eigene Schlüssel haben Vorrang vor dem Server-Schlüssel.
+                    {t("settings.ki.description")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
 
                   {/* Provider selector */}
                   <div className="space-y-3">
-                    <Label>KI-Anbieter</Label>
+                    <Label>{t("settings.ki.provider")}</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {([
                         { id: "anthropic", label: "Anthropic Claude", desc: "claude-haiku-4-5", color: "from-orange-50 to-amber-50 border-orange-200" },
@@ -1091,11 +1154,12 @@ const FirmaEinstellungen = () => {
                           key={p.id}
                           type="button"
                           onClick={() => setAiProvider(p.id)}
-                          className={`flex flex-col items-start p-3 rounded-lg border-2 text-left transition-all ${
+                          className={cn(
+                            "flex flex-col items-start p-3 rounded-lg border-2 text-left transition-all",
                             aiProvider === p.id
                               ? `bg-gradient-to-br ${p.color} border-current`
                               : "border-border hover:border-muted-foreground/30"
-                          }`}
+                          )}
                         >
                           <span className="font-medium text-sm">{p.label}</span>
                           <span className="text-xs text-muted-foreground font-mono mt-0.5">{p.desc}</span>
@@ -1110,8 +1174,8 @@ const FirmaEinstellungen = () => {
                   {/* Anthropic key */}
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
-                      Anthropic API-Schlüssel
-                      {aiProvider === "anthropic" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Aktiv</span>}
+                      {t("settings.ki.apiKeyFor", { provider: "Anthropic" })}
+                      {aiProvider === "anthropic" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{t("settings.ki.active")}</span>}
                     </Label>
                     <div className="relative">
                       <Input
@@ -1126,29 +1190,29 @@ const FirmaEinstellungen = () => {
                       </button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {anthropicKeyMasked ? "✓ Schlüssel hinterlegt." : "Kein Schlüssel — Server-Fallback wird verwendet."}{" "}
+                      {anthropicKeyMasked ? `✓ ${t("settings.ki.keySet")}` : t("settings.ki.keyMissingFallback")}{" "}
                       <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">console.anthropic.com</a>
                     </p>
                     {anthropicKeyMasked && (
-                      <button type="button" onClick={() => { deleteApiKey("anthropic_api_key"); setAnthropicKey(""); setAnthropicKeyMasked(false); }} className="text-xs text-destructive underline">Entfernen</button>
+                      <button type="button" onClick={() => { deleteApiKey("anthropic_api_key"); setAnthropicKey(""); setAnthropicKeyMasked(false); }} className="text-xs text-destructive underline">{t("common.remove")}</button>
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm">Modell <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Label className="text-sm">{t("settings.ki.model")} <span className="text-muted-foreground font-normal">({t("common.optional")})</span></Label>
                     <Input
                       value={anthropicModel}
                       onChange={(e) => setAnthropicModel(e.target.value)}
                       placeholder="claude-haiku-4-5"
                       className="font-mono text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">Leer lassen = Standard (claude-haiku-4-5). <a href="https://docs.anthropic.com/en/docs/about-claude/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">Alle Modelle</a></p>
+                    <p className="text-xs text-muted-foreground">{t("settings.ki.modelHint", { model: "claude-haiku-4-5" })} <a href="https://docs.anthropic.com/en/docs/about-claude/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">{t("settings.ki.allModels")}</a></p>
                   </div>
 
                   {/* OpenAI key */}
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
-                      OpenAI API-Schlüssel
-                      {aiProvider === "openai" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Aktiv</span>}
+                      {t("settings.ki.apiKeyFor", { provider: "OpenAI" })}
+                      {aiProvider === "openai" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{t("settings.ki.active")}</span>}
                     </Label>
                     <div className="relative">
                       <Input
@@ -1163,29 +1227,29 @@ const FirmaEinstellungen = () => {
                       </button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {openaiKeyMasked ? "✓ Schlüssel hinterlegt." : "Kein Schlüssel hinterlegt."}{" "}
+                      {openaiKeyMasked ? `✓ ${t("settings.ki.keySet")}` : t("settings.ki.keyMissing")}{" "}
                       <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">platform.openai.com</a>
                     </p>
                     {openaiKeyMasked && (
-                      <button type="button" onClick={() => { deleteApiKey("openai_api_key"); setOpenaiKey(""); setOpenaiKeyMasked(false); }} className="text-xs text-destructive underline">Entfernen</button>
+                      <button type="button" onClick={() => { deleteApiKey("openai_api_key"); setOpenaiKey(""); setOpenaiKeyMasked(false); }} className="text-xs text-destructive underline">{t("common.remove")}</button>
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm">Modell <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Label className="text-sm">{t("settings.ki.model")} <span className="text-muted-foreground font-normal">({t("common.optional")})</span></Label>
                     <Input
                       value={openaiModel}
                       onChange={(e) => setOpenaiModel(e.target.value)}
                       placeholder="gpt-4o-mini"
                       className="font-mono text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">Leer lassen = Standard (gpt-4o-mini). <a href="https://platform.openai.com/docs/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">Alle Modelle</a></p>
+                    <p className="text-xs text-muted-foreground">{t("settings.ki.modelHint", { model: "gpt-4o-mini" })} <a href="https://platform.openai.com/docs/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">{t("settings.ki.allModels")}</a></p>
                   </div>
 
                   {/* Gemini key */}
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
-                      Google Gemini API-Schlüssel
-                      {aiProvider === "gemini" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Aktiv</span>}
+                      {t("settings.ki.apiKeyFor", { provider: "Google Gemini" })}
+                      {aiProvider === "gemini" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{t("settings.ki.active")}</span>}
                     </Label>
                     <div className="relative">
                       <Input
@@ -1200,28 +1264,28 @@ const FirmaEinstellungen = () => {
                       </button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {geminiKeyMasked ? "✓ Schlüssel hinterlegt." : "Kein Schlüssel hinterlegt."}{" "}
+                      {geminiKeyMasked ? `✓ ${t("settings.ki.keySet")}` : t("settings.ki.keyMissing")}{" "}
                       <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">aistudio.google.com</a>
                     </p>
                     {geminiKeyMasked && (
-                      <button type="button" onClick={() => { deleteApiKey("gemini_api_key"); setGeminiKey(""); setGeminiKeyMasked(false); }} className="text-xs text-destructive underline">Entfernen</button>
+                      <button type="button" onClick={() => { deleteApiKey("gemini_api_key"); setGeminiKey(""); setGeminiKeyMasked(false); }} className="text-xs text-destructive underline">{t("common.remove")}</button>
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm">Modell <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Label className="text-sm">{t("settings.ki.model")} <span className="text-muted-foreground font-normal">({t("common.optional")})</span></Label>
                     <Input
                       value={geminiModel}
                       onChange={(e) => setGeminiModel(e.target.value)}
                       placeholder="gemini-2.0-flash"
                       className="font-mono text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">Leer lassen = Standard (gemini-2.0-flash). <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">Alle Modelle</a></p>
+                    <p className="text-xs text-muted-foreground">{t("settings.ki.modelHint", { model: "gemini-2.0-flash" })} <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">{t("settings.ki.allModels")}</a></p>
                   </div>
 
                   <Button onClick={handleSaveAiSettings} disabled={isSavingAiSettings}>
                     {isSavingAiSettings
-                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Speichern…</>
-                      : <><Save className="w-4 h-4 mr-2" />KI-Einstellungen speichern</>}
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t("common.saving")}</>
+                      : <><Save className="w-4 h-4 mr-2" />{t("settings.ki.save")}</>}
                   </Button>
                 </CardContent>
               </Card>

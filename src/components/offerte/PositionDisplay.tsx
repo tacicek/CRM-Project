@@ -25,10 +25,22 @@ export const PositionDescription = ({ text }: { text: string }) => {
  * they appear side by side as a ✓-list under their service group, like the
  * PDF Leistungsumfang block.
  */
-export const InklusiveList = ({ items }: { items: { id: string; description: string }[] }) => (
+export const InklusiveList = ({
+  items,
+  label,
+}: {
+  items: { id: string; description: string }[];
+  /**
+   * Beschriftung der Liste. Muss vom Aufrufer kommen, nicht aus einem Context:
+   * dieselbe Komponente rendert im Dashboard (Sprache der Firma) UND auf der
+   * öffentlichen Offerten-Seite (Sprache des Kunden). Ohne Angabe bleibt es Deutsch —
+   * der bisherige Wert, damit kein Aufrufer stillschweigend leer wird.
+   */
+  label?: string;
+}) => (
   <div>
     <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-      Inklusive
+      {label ?? "Inklusive"}
     </div>
     <div className="flex flex-wrap gap-x-5 gap-y-1.5">
       {items.map((it) => (

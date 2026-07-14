@@ -23,8 +23,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
-import { getServiceLabel } from "@/lib/serviceLabels";
+import { getServiceLabel } from "@/i18n/domain";
 import { syncLeadDetailedFormData } from "@/lib/leadDetailedFormSync";
+import { LOCALES, LOCALE_NAMES, toLocale } from "@/i18n/locale";
+import { useI18n } from "@/i18n/useI18n";
+import type { MessageKey } from "@/i18n/translator";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 
 // The dialog edits far more columns than the list page declares — the list
@@ -37,14 +40,19 @@ export interface AnfrageEditLead {
 
 type FieldValue = string | number | boolean | null;
 
+/**
+ * The option `value` is the German token that is written to the DB column
+ * (property_type, disposal_type, …) and read back by the offer calculator and the
+ * PDFs. Only `labelKey` is translated — the stored value must stay stable.
+ */
 interface SelectOption {
   value: string;
-  label: string;
+  labelKey: MessageKey;
 }
 
 interface FieldDef {
   key: string;
-  label: string;
+  labelKey: MessageKey;
   type:
     | "text"
     | "number"
@@ -54,330 +62,363 @@ interface FieldDef {
     | "yesno"
     | "yesno-unknown"
     | "checkbox"
-    | "select";
+    | "select"
+    // DOCUMENT locale (de/fr/en). Its own type because the column is NOT NULL: unlike a
+    // plain "select" it must never serialize to null, and it is always narrowed via toLocale.
+    | "locale";
   options?: SelectOption[];
   step?: string;
-  placeholder?: string;
+  placeholderKey?: MessageKey;
   full?: boolean;
+  /** Helper line under the input — used where the field's meaning is easy to misread. */
+  hintKey?: MessageKey;
 }
 
 interface SectionDef {
-  title: string;
+  titleKey: MessageKey;
   fields: FieldDef[];
 }
 
 const CONTACT_SECTION: SectionDef = {
-  title: "Kontakt",
+  titleKey: "lead.section.contact",
   fields: [
-    { key: "customer_first_name", label: "Vorname", type: "text" },
-    { key: "customer_last_name", label: "Nachname", type: "text" },
-    { key: "customer_email", label: "E-Mail", type: "text" },
-    { key: "customer_phone", label: "Telefon", type: "text", placeholder: "+41 79 123 45 67" },
-    { key: "preferred_date", label: "Wunschtermin", type: "date" },
-    { key: "description", label: "Beschreibung / Notizen", type: "textarea", full: true },
+    { key: "customer_first_name", labelKey: "common.firstName", type: "text" },
+    { key: "customer_last_name", labelKey: "common.lastName", type: "text" },
+    { key: "customer_email", labelKey: "common.email", type: "text" },
+    { key: "customer_phone", labelKey: "common.phone", type: "text", placeholderKey: "lead.placeholder.phone" },
+    { key: "preferred_date", labelKey: "lead.field.preferredDate", type: "date" },
+    {
+      // CUSTOMER language, not the dashboard language: the label is translated for the
+      // operator, the value stays the captured locale of the customer.
+      key: "language",
+      labelKey: "lead.field.customerLanguage",
+      type: "locale",
+      hintKey: "lead.field.customerLanguageHint",
+    },
+    { key: "description", labelKey: "lead.field.descriptionNotes", type: "textarea", full: true },
   ],
 };
 
-const fromAddressFields = (title: string): SectionDef => ({
-  title,
+const fromAddressFields = (titleKey: MessageKey): SectionDef => ({
+  titleKey,
   fields: [
-    { key: "from_street", label: "Strasse", type: "text" },
-    { key: "from_house_number", label: "Hausnummer", type: "text" },
-    { key: "from_plz", label: "PLZ", type: "plz" },
-    { key: "from_city", label: "Ort", type: "text" },
+    { key: "from_street", labelKey: "common.street", type: "text" },
+    { key: "from_house_number", labelKey: "common.houseNumber", type: "text" },
+    { key: "from_plz", labelKey: "common.plz", type: "plz" },
+    { key: "from_city", labelKey: "common.city", type: "text" },
   ],
 });
 
 const UMZUG_SECTIONS: SectionDef[] = [
   {
-    title: "Auszugsadresse",
+    titleKey: "domain.address.umzug.primary",
     fields: [
-      ...fromAddressFields("").fields,
-      { key: "from_floor", label: "Etage", type: "number" },
-      { key: "from_has_lift", label: "Lift vorhanden?", type: "yesno" },
-      { key: "from_has_estrich", label: "Estrich vorhanden?", type: "yesno-unknown" },
-      { key: "from_has_keller", label: "Keller vorhanden?", type: "yesno-unknown" },
-      { key: "from_rooms", label: "Zimmer", type: "number", step: "0.5" },
-      { key: "from_living_space_m2", label: "Wohnfläche (m²)", type: "number" },
+      ...fromAddressFields("domain.address.umzug.primary").fields,
+      { key: "from_floor", labelKey: "lead.field.floor", type: "number" },
+      { key: "from_has_lift", labelKey: "lead.field.hasLift", type: "yesno" },
+      { key: "from_has_estrich", labelKey: "lead.field.hasEstrich", type: "yesno-unknown" },
+      { key: "from_has_keller", labelKey: "lead.field.hasKeller", type: "yesno-unknown" },
+      { key: "from_rooms", labelKey: "lead.field.rooms", type: "number", step: "0.5" },
+      { key: "from_living_space_m2", labelKey: "lead.field.livingSpace", type: "number" },
     ],
   },
   {
-    title: "Einzugsadresse",
+    titleKey: "domain.address.umzug.secondary",
     fields: [
-      { key: "to_street", label: "Strasse", type: "text" },
-      { key: "to_house_number", label: "Hausnummer", type: "text" },
-      { key: "to_plz", label: "PLZ", type: "plz" },
-      { key: "to_city", label: "Ort", type: "text" },
-      { key: "to_floor", label: "Etage", type: "number" },
-      { key: "to_has_lift", label: "Lift vorhanden?", type: "yesno" },
+      { key: "to_street", labelKey: "common.street", type: "text" },
+      { key: "to_house_number", labelKey: "common.houseNumber", type: "text" },
+      { key: "to_plz", labelKey: "common.plz", type: "plz" },
+      { key: "to_city", labelKey: "common.city", type: "text" },
+      { key: "to_floor", labelKey: "lead.field.floor", type: "number" },
+      { key: "to_has_lift", labelKey: "lead.field.hasLift", type: "yesno" },
     ],
   },
   {
-    title: "Zusatzleistungen",
+    titleKey: "lead.section.extras",
     fields: [
-      { key: "packing_service_needed", label: "Einpackservice", type: "checkbox" },
-      { key: "cleaning_service_needed", label: "Reinigung", type: "checkbox" },
-      { key: "storage_needed", label: "Einlagerung", type: "checkbox" },
+      { key: "packing_service_needed", labelKey: "lead.extra.packing", type: "checkbox" },
+      { key: "cleaning_service_needed", labelKey: "lead.extra.cleaning", type: "checkbox" },
+      { key: "storage_needed", labelKey: "lead.extra.storage", type: "checkbox" },
     ],
   },
 ];
 
 const REINIGUNG_SECTIONS: SectionDef[] = [
-  fromAddressFields("Reinigungsadresse"),
+  fromAddressFields("domain.address.reinigung.primary"),
   {
-    title: "Objektdetails",
+    titleKey: "lead.section.propertyDetails",
     fields: [
       {
         key: "property_type",
-        label: "Objekttyp",
+        labelKey: "lead.field.propertyType",
         type: "select",
         options: [
-          { value: "Wohnung", label: "Wohnung" },
-          { value: "Haus", label: "Haus" },
-          { value: "Studio", label: "Studio" },
-          { value: "Büro", label: "Büro" },
+          { value: "Wohnung", labelKey: "lead.option.property.wohnung" },
+          { value: "Haus", labelKey: "lead.option.property.haus" },
+          { value: "Studio", labelKey: "lead.option.property.studio" },
+          { value: "Büro", labelKey: "lead.option.property.buero" },
         ],
       },
-      { key: "from_rooms", label: "Zimmer", type: "number", step: "0.5" },
-      { key: "from_living_space_m2", label: "Wohnfläche (m²)", type: "number" },
-      { key: "bathroom_count", label: "Badezimmer", type: "number" },
+      { key: "from_rooms", labelKey: "lead.field.rooms", type: "number", step: "0.5" },
+      { key: "from_living_space_m2", labelKey: "lead.field.livingSpace", type: "number" },
+      { key: "bathroom_count", labelKey: "lead.field.bathrooms", type: "number" },
       {
         key: "kitchen_type",
-        label: "Küchentyp",
+        labelKey: "lead.field.kitchenType",
         type: "select",
         options: [
-          { value: "offen", label: "Offene Küche" },
-          { value: "geschlossen", label: "Geschlossene Küche" },
-          { value: "kochnische", label: "Kochnische" },
+          { value: "offen", labelKey: "lead.option.kitchen.offen" },
+          { value: "geschlossen", labelKey: "lead.option.kitchen.geschlossen" },
+          { value: "kochnische", labelKey: "lead.option.kitchen.kochnische" },
         ],
       },
     ],
   },
   {
-    title: "Zusätzliche Bereiche",
+    titleKey: "lead.section.additionalAreas",
     fields: [
-      { key: "has_balcony", label: "Balkon/Terrasse", type: "checkbox" },
-      { key: "has_garage", label: "Garage", type: "checkbox" },
-      { key: "has_basement", label: "Keller", type: "checkbox" },
-      { key: "has_attic", label: "Estrich/Dachboden", type: "checkbox" },
+      { key: "has_balcony", labelKey: "lead.extra.balcony", type: "checkbox" },
+      { key: "has_garage", labelKey: "lead.extra.garage", type: "checkbox" },
+      { key: "has_basement", labelKey: "lead.extra.basement", type: "checkbox" },
+      { key: "has_attic", labelKey: "lead.extra.attic", type: "checkbox" },
     ],
   },
 ];
 
 const RAEUMUNG_SECTIONS: SectionDef[] = [
-  fromAddressFields("Räumungsadresse"),
+  fromAddressFields("domain.address.raeumung.primary"),
   {
-    title: "Räumungsdetails",
+    titleKey: "lead.section.clearingDetails",
     fields: [
       {
         key: "clearing_type",
-        label: "Räumungsart",
+        labelKey: "lead.field.clearingType",
         type: "select",
         options: [
-          { value: "Wohnungsräumung", label: "Wohnungsräumung" },
-          { value: "Hausräumung", label: "Hausräumung" },
-          { value: "Kellerräumung", label: "Kellerräumung" },
-          { value: "Dachbodenräumung", label: "Dachbodenräumung" },
-          { value: "Büroräumung", label: "Büroräumung" },
+          { value: "Wohnungsräumung", labelKey: "lead.option.clearing.wohnung" },
+          { value: "Hausräumung", labelKey: "lead.option.clearing.haus" },
+          { value: "Kellerräumung", labelKey: "lead.option.clearing.keller" },
+          { value: "Dachbodenräumung", labelKey: "lead.option.clearing.dachboden" },
+          { value: "Büroräumung", labelKey: "lead.option.clearing.buero" },
         ],
       },
       {
         key: "property_type",
-        label: "Objekttyp",
+        labelKey: "lead.field.propertyType",
         type: "select",
         options: [
-          { value: "Wohnung", label: "Wohnung" },
-          { value: "Haus", label: "Haus" },
-          { value: "Keller", label: "Keller" },
-          { value: "Estrich", label: "Estrich" },
+          { value: "Wohnung", labelKey: "lead.option.property.wohnung" },
+          { value: "Haus", labelKey: "lead.option.property.haus" },
+          { value: "Keller", labelKey: "lead.option.property.keller" },
+          { value: "Estrich", labelKey: "lead.option.property.estrich" },
         ],
       },
-      { key: "from_rooms", label: "Zimmer", type: "number", step: "0.5" },
+      { key: "from_rooms", labelKey: "lead.field.rooms", type: "number", step: "0.5" },
       {
         key: "estimated_volume",
-        label: "Geschätztes Volumen",
+        labelKey: "lead.field.estimatedVolume",
         type: "select",
         options: [
-          { value: "klein", label: "Klein (wenige Gegenstände)" },
-          { value: "mittel", label: "Mittel (teilmöbliert)" },
-          { value: "gross", label: "Gross (vollmöbliert)" },
-          { value: "sehr_gross", label: "Sehr gross (überfüllt)" },
+          { value: "klein", labelKey: "lead.option.clearingVolume.klein" },
+          { value: "mittel", labelKey: "lead.option.clearingVolume.mittel" },
+          { value: "gross", labelKey: "lead.option.clearingVolume.gross" },
+          { value: "sehr_gross", labelKey: "lead.option.clearingVolume.sehrGross" },
         ],
       },
-      { key: "has_heavy_items", label: "Schwere Gegenstände vorhanden", type: "checkbox" },
-      { key: "heavy_items_description", label: "Schwere Gegenstände (Beschreibung)", type: "textarea", full: true },
+      { key: "has_heavy_items", labelKey: "lead.field.heavyItems", type: "checkbox" },
+      {
+        key: "heavy_items_description",
+        labelKey: "lead.field.heavyItemsDescription",
+        type: "textarea",
+        full: true,
+      },
     ],
   },
 ];
 
 const ENTSORGUNG_SECTIONS: SectionDef[] = [
-  fromAddressFields("Entsorgungsadresse"),
+  fromAddressFields("domain.address.entsorgung.secondary"),
   {
-    title: "Entsorgungsdetails",
+    titleKey: "lead.section.disposalDetails",
     fields: [
       {
         key: "disposal_type",
-        label: "Entsorgungsart",
+        labelKey: "lead.field.disposalType",
         type: "select",
         options: [
-          { value: "Sperrmüll", label: "Sperrmüll" },
-          { value: "Elektroschrott", label: "Elektroschrott" },
-          { value: "Bauschutt", label: "Bauschutt" },
-          { value: "Hausrat", label: "Hausrat" },
-          { value: "Möbel", label: "Möbel" },
-          { value: "Gemischt", label: "Gemischt" },
+          { value: "Sperrmüll", labelKey: "lead.option.disposal.sperrmuell" },
+          { value: "Elektroschrott", labelKey: "lead.option.disposal.elektroschrott" },
+          { value: "Bauschutt", labelKey: "lead.option.disposal.bauschutt" },
+          { value: "Hausrat", labelKey: "lead.option.disposal.hausrat" },
+          { value: "Möbel", labelKey: "lead.option.disposal.moebel" },
+          { value: "Gemischt", labelKey: "lead.option.disposal.gemischt" },
         ],
       },
       {
         key: "estimated_volume",
-        label: "Geschätztes Volumen",
+        labelKey: "lead.field.estimatedVolume",
         type: "select",
         options: [
-          { value: "klein", label: "Klein (1-2 m³)" },
-          { value: "mittel", label: "Mittel (3-5 m³)" },
-          { value: "gross", label: "Gross (6-10 m³)" },
-          { value: "sehr_gross", label: "Sehr gross (10+ m³)" },
+          { value: "klein", labelKey: "lead.option.disposalVolume.klein" },
+          { value: "mittel", labelKey: "lead.option.disposalVolume.mittel" },
+          { value: "gross", labelKey: "lead.option.disposalVolume.gross" },
+          { value: "sehr_gross", labelKey: "lead.option.disposalVolume.sehrGross" },
         ],
       },
-      { key: "items_description", label: "Beschreibung der Gegenstände", type: "textarea", full: true },
+      { key: "items_description", labelKey: "lead.field.itemsDescription", type: "textarea", full: true },
     ],
   },
 ];
 
 const LAGERUNG_SECTIONS: SectionDef[] = [
   {
-    title: "Abholadresse",
+    titleKey: "domain.address.lagerung.primary",
     fields: [
-      { key: "pickup_street", label: "Strasse", type: "text" },
-      { key: "pickup_house_number", label: "Hausnummer", type: "text" },
-      { key: "from_plz", label: "PLZ", type: "plz" },
-      { key: "from_city", label: "Ort", type: "text" },
-      { key: "pickup_floor", label: "Etage", type: "number" },
-      { key: "pickup_has_lift", label: "Lift vorhanden?", type: "yesno" },
+      { key: "pickup_street", labelKey: "common.street", type: "text" },
+      { key: "pickup_house_number", labelKey: "common.houseNumber", type: "text" },
+      { key: "from_plz", labelKey: "common.plz", type: "plz" },
+      { key: "from_city", labelKey: "common.city", type: "text" },
+      { key: "pickup_floor", labelKey: "lead.field.floor", type: "number" },
+      { key: "pickup_has_lift", labelKey: "lead.field.hasLift", type: "yesno" },
     ],
   },
   {
-    title: "Lagerungsdetails",
+    titleKey: "lead.section.storageDetails",
     fields: [
       {
         key: "storage_duration",
-        label: "Lagerdauer",
+        labelKey: "lead.field.storageDuration",
         type: "select",
         options: [
-          { value: "kurzfristig", label: "Kurzfristig (wenige Tage)" },
-          { value: "1-3_monate", label: "1-3 Monate" },
-          { value: "3-6_monate", label: "3-6 Monate" },
-          { value: "6-12_monate", label: "6-12 Monate" },
-          { value: "langfristig", label: "Langfristig (1+ Jahr)" },
+          { value: "kurzfristig", labelKey: "lead.option.storageDuration.kurzfristig" },
+          { value: "1-3_monate", labelKey: "lead.option.storageDuration.m1_3" },
+          { value: "3-6_monate", labelKey: "lead.option.storageDuration.m3_6" },
+          { value: "6-12_monate", labelKey: "lead.option.storageDuration.m6_12" },
+          { value: "langfristig", labelKey: "lead.option.storageDuration.langfristig" },
         ],
       },
       {
         key: "storage_volume",
-        label: "Volumen",
+        labelKey: "lead.field.storageVolume",
         type: "select",
         options: [
-          { value: "klein", label: "Klein (1-5 m³)" },
-          { value: "mittel", label: "Mittel (5-15 m³)" },
-          { value: "gross", label: "Gross (15-30 m³)" },
-          { value: "sehr_gross", label: "Sehr gross (30+ m³)" },
+          { value: "klein", labelKey: "lead.option.storageVolume.klein" },
+          { value: "mittel", labelKey: "lead.option.storageVolume.mittel" },
+          { value: "gross", labelKey: "lead.option.storageVolume.gross" },
+          { value: "sehr_gross", labelKey: "lead.option.storageVolume.sehrGross" },
         ],
       },
       {
         key: "access_frequency",
-        label: "Zugriffshäufigkeit",
+        labelKey: "lead.field.accessFrequency",
         type: "select",
         options: [
-          { value: "nie", label: "Kein Zugriff nötig" },
-          { value: "selten", label: "Selten" },
-          { value: "monatlich", label: "Monatlich" },
-          { value: "wöchentlich", label: "Wöchentlich" },
+          { value: "nie", labelKey: "lead.option.access.nie" },
+          { value: "selten", labelKey: "lead.option.access.selten" },
+          { value: "monatlich", labelKey: "lead.option.access.monatlich" },
+          { value: "wöchentlich", labelKey: "lead.option.access.woechentlich" },
         ],
       },
-      { key: "needs_climate_control", label: "Klimatisierter Lagerraum benötigt", type: "checkbox" },
-      { key: "storage_items_description", label: "Was wird eingelagert?", type: "textarea", full: true },
+      { key: "needs_climate_control", labelKey: "lead.field.climateControl", type: "checkbox" },
+      { key: "storage_items_description", labelKey: "lead.field.storageItems", type: "textarea", full: true },
     ],
   },
 ];
 
 const KLAVIER_SECTIONS: SectionDef[] = [
   {
-    title: "Abholadresse",
+    titleKey: "domain.address.klaviertransport.primary",
     fields: [
-      ...fromAddressFields("").fields,
-      { key: "from_floor", label: "Etage", type: "number" },
-      { key: "from_has_lift", label: "Lift vorhanden?", type: "yesno" },
+      ...fromAddressFields("domain.address.klaviertransport.primary").fields,
+      { key: "from_floor", labelKey: "lead.field.floor", type: "number" },
+      { key: "from_has_lift", labelKey: "lead.field.hasLift", type: "yesno" },
     ],
   },
   {
-    title: "Lieferadresse",
+    titleKey: "lead.section.deliveryAddress",
     fields: [
-      { key: "to_street", label: "Strasse", type: "text" },
-      { key: "to_house_number", label: "Hausnummer", type: "text" },
-      { key: "to_plz", label: "PLZ", type: "plz" },
-      { key: "to_city", label: "Ort", type: "text" },
-      { key: "to_floor", label: "Etage", type: "number" },
-      { key: "to_has_lift", label: "Lift vorhanden?", type: "yesno" },
+      { key: "to_street", labelKey: "common.street", type: "text" },
+      { key: "to_house_number", labelKey: "common.houseNumber", type: "text" },
+      { key: "to_plz", labelKey: "common.plz", type: "plz" },
+      { key: "to_city", labelKey: "common.city", type: "text" },
+      { key: "to_floor", labelKey: "lead.field.floor", type: "number" },
+      { key: "to_has_lift", labelKey: "lead.field.hasLift", type: "yesno" },
     ],
   },
   {
-    title: "Klavierdetails",
+    titleKey: "lead.section.pianoDetails",
     fields: [
       {
         key: "piano_type",
-        label: "Klaviertyp",
+        labelKey: "lead.field.pianoType",
         type: "select",
         options: [
-          { value: "klavier", label: "Klavier (aufrecht)" },
-          { value: "fluegel", label: "Flügel" },
-          { value: "e_piano", label: "E-Piano" },
-          { value: "keyboard", label: "Keyboard" },
+          { value: "klavier", labelKey: "lead.option.piano.klavier" },
+          { value: "fluegel", labelKey: "lead.option.piano.fluegel" },
+          { value: "e_piano", labelKey: "lead.option.piano.ePiano" },
+          { value: "keyboard", labelKey: "lead.option.piano.keyboard" },
         ],
       },
-      { key: "piano_brand", label: "Marke", type: "text", placeholder: "z.B. Steinway, Yamaha" },
-      { key: "piano_weight_kg", label: "Gewicht (kg)", type: "number" },
+      {
+        key: "piano_brand",
+        labelKey: "lead.field.pianoBrand",
+        type: "text",
+        placeholderKey: "lead.placeholder.pianoBrand",
+      },
+      { key: "piano_weight_kg", labelKey: "lead.field.pianoWeight", type: "number" },
       {
         key: "staircase_type",
-        label: "Treppentyp",
+        labelKey: "lead.field.staircaseType",
         type: "select",
         options: [
-          { value: "keine", label: "Keine Treppe" },
-          { value: "gerade", label: "Gerade Treppe" },
-          { value: "kurvig", label: "Kurvige Treppe" },
-          { value: "wendel", label: "Wendeltreppe" },
+          { value: "keine", labelKey: "lead.option.staircase.keine" },
+          { value: "gerade", labelKey: "lead.option.staircase.gerade" },
+          { value: "kurvig", labelKey: "lead.option.staircase.kurvig" },
+          { value: "wendel", labelKey: "lead.option.staircase.wendel" },
         ],
       },
-      { key: "staircase_width_cm", label: "Treppenbreite (cm)", type: "number" },
-      { key: "window_access_possible", label: "Fensterzugang möglich (für Kran)", type: "checkbox" },
+      { key: "staircase_width_cm", labelKey: "lead.field.staircaseWidth", type: "number" },
+      { key: "window_access_possible", labelKey: "lead.field.windowAccess", type: "checkbox" },
     ],
   },
 ];
 
 const MOEBELLIFT_SECTIONS: SectionDef[] = [
-  fromAddressFields("Einsatzadresse"),
+  fromAddressFields("domain.address.moebellift.primary"),
   {
-    title: "Möbellift-Details",
+    titleKey: "lead.section.liftDetails",
     fields: [
-      { key: "moebellift_floor", label: "Stockwerk", type: "number" },
-      { key: "moebellift_item_dimensions", label: "Abmessungen", type: "text", placeholder: "z.B. 200×90×60 cm" },
-      { key: "moebellift_item_description", label: "Was wird transportiert?", type: "textarea", full: true },
+      { key: "moebellift_floor", labelKey: "lead.field.liftFloor", type: "number" },
+      {
+        key: "moebellift_item_dimensions",
+        labelKey: "lead.field.dimensions",
+        type: "text",
+        placeholderKey: "lead.placeholder.dimensions",
+      },
+      {
+        key: "moebellift_item_description",
+        labelKey: "lead.field.liftItems",
+        type: "textarea",
+        full: true,
+      },
     ],
   },
 ];
 
 const DEFAULT_SECTIONS: SectionDef[] = [
-  fromAddressFields("Adresse (von)"),
+  fromAddressFields("lead.section.addressFrom"),
   {
-    title: "Adresse (nach)",
+    titleKey: "lead.section.addressTo",
     fields: [
-      { key: "to_street", label: "Strasse", type: "text" },
-      { key: "to_house_number", label: "Hausnummer", type: "text" },
-      { key: "to_plz", label: "PLZ", type: "plz" },
-      { key: "to_city", label: "Ort", type: "text" },
+      { key: "to_street", labelKey: "common.street", type: "text" },
+      { key: "to_house_number", labelKey: "common.houseNumber", type: "text" },
+      { key: "to_plz", labelKey: "common.plz", type: "plz" },
+      { key: "to_city", labelKey: "common.city", type: "text" },
     ],
   },
 ];
 
-function getServiceSections(serviceType: string): SectionDef[] {
+const getServiceSections = (serviceType: string): SectionDef[] => {
   const type = serviceType?.toLowerCase() ?? "";
   if (type.includes("umzug")) return UMZUG_SECTIONS;
   if (type.includes("reinigung")) return REINIGUNG_SECTIONS;
@@ -387,7 +428,7 @@ function getServiceSections(serviceType: string): SectionDef[] {
   if (type.includes("klavier")) return KLAVIER_SECTIONS;
   if (type.includes("moebellift")) return MOEBELLIFT_SECTIONS;
   return DEFAULT_SECTIONS;
-}
+};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -412,6 +453,8 @@ const initFieldValue = (field: FieldDef, raw: unknown): FieldValue => {
       return typeof raw === "boolean" ? raw : null;
     case "number":
       return typeof raw === "number" ? raw : null;
+    case "locale":
+      return toLocale(raw);
     default:
       return typeof raw === "string" ? raw : "";
   }
@@ -426,6 +469,9 @@ const serializeFieldValue = (field: FieldDef, value: FieldValue): FieldValue => 
       return typeof value === "boolean" ? value : null;
     case "number":
       return typeof value === "number" ? value : null;
+    // NOT NULL column — always a valid locale, never null.
+    case "locale":
+      return toLocale(value);
     default: {
       const trimmed = typeof value === "string" ? value.trim() : "";
       return trimmed || null;
@@ -441,6 +487,7 @@ interface AnfrageEditDialogProps {
 
 export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEditDialogProps) {
   const { toast } = useToast();
+  const { t, locale } = useI18n();
   const [isSaving, setIsSaving] = useState(false);
 
   const sections = useMemo(
@@ -470,8 +517,8 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
     const email = typeof form.customer_email === "string" ? form.customer_email.trim() : "";
     if (email && !EMAIL_RE.test(email)) {
       toast({
-        title: "Ungültige E-Mail",
-        description: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+        title: t("lead.validation.invalidEmail"),
+        description: t("lead.validation.invalidEmailHint"),
         variant: "destructive",
       });
       return;
@@ -480,8 +527,8 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
     const phone = typeof form.customer_phone === "string" ? form.customer_phone.trim() : "";
     if (phone && !isValidSwissPhone(phone)) {
       toast({
-        title: "Ungültige Telefonnummer",
-        description: "Bitte geben Sie eine gültige Schweizer Telefonnummer ein (z.B. +41 79 123 45 67).",
+        title: t("lead.validation.invalidPhone"),
+        description: t("lead.validation.invalidPhoneHint"),
         variant: "destructive",
       });
       return;
@@ -493,8 +540,8 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
         const value = typeof form[field.key] === "string" ? (form[field.key] as string).trim() : "";
         if (value && !/^\d{4}$/.test(value)) {
           toast({
-            title: "Ungültige PLZ",
-            description: `${section.title}: PLZ muss 4-stellig sein.`,
+            title: t("lead.validation.invalidPlz"),
+            description: t("lead.validation.invalidPlzSection", { section: t(section.titleKey) }),
             variant: "destructive",
           });
           return;
@@ -528,13 +575,13 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
 
       if (error) throw error;
 
-      toast({ title: "Gespeichert", description: "Die Anfrage wurde aktualisiert." });
+      toast({ title: t("lead.toast.savedTitle"), description: t("lead.edit.saved") });
       onSaved();
     } catch (err) {
       console.error("Error updating lead:", err);
       toast({
-        title: "Fehler",
-        description: "Die Anfrage konnte nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("lead.edit.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -544,6 +591,8 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
 
   const renderField = (field: FieldDef) => {
     const value = form[field.key];
+    const label = t(field.labelKey);
+    const placeholder = field.placeholderKey ? t(field.placeholderKey) : undefined;
 
     switch (field.type) {
       case "checkbox":
@@ -555,14 +604,14 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
               onCheckedChange={(checked) => setValue(field.key, !!checked)}
             />
             <label htmlFor={`edit-${field.key}`} className="cursor-pointer text-[14px] text-folk-ink2">
-              {field.label}
+              {label}
             </label>
           </div>
         );
       case "yesno":
         return (
           <div key={field.key}>
-            <Label className="text-[13px] text-folk-ink3">{field.label}</Label>
+            <Label className="text-[13px] text-folk-ink3">{label}</Label>
             <Select
               value={value === true ? "yes" : "no"}
               onValueChange={(v) => setValue(field.key, v === "yes")}
@@ -571,8 +620,8 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="yes">Ja</SelectItem>
-                <SelectItem value="no">Nein</SelectItem>
+                <SelectItem value="yes">{t("domain.yes")}</SelectItem>
+                <SelectItem value="no">{t("domain.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -580,7 +629,7 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
       case "yesno-unknown":
         return (
           <div key={field.key}>
-            <Label className="text-[13px] text-folk-ink3">{field.label}</Label>
+            <Label className="text-[13px] text-folk-ink3">{label}</Label>
             <Select
               value={value === true ? "yes" : value === false ? "no" : "unknown"}
               onValueChange={(v) => setValue(field.key, v === "unknown" ? null : v === "yes")}
@@ -589,9 +638,9 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="unknown">Unbekannt</SelectItem>
-                <SelectItem value="yes">Ja</SelectItem>
-                <SelectItem value="no">Nein</SelectItem>
+                <SelectItem value="unknown">{t("common.unknown")}</SelectItem>
+                <SelectItem value="yes">{t("domain.yes")}</SelectItem>
+                <SelectItem value="no">{t("domain.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -599,28 +648,54 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
       case "select":
         return (
           <div key={field.key}>
-            <Label className="text-[13px] text-folk-ink3">{field.label}</Label>
+            <Label className="text-[13px] text-folk-ink3">{label}</Label>
             <Select
               value={typeof value === "string" ? value : ""}
               onValueChange={(v) => setValue(field.key, v)}
             >
               <SelectTrigger className="mt-1 h-9">
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
                 {(field.options ?? []).map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         );
+      case "locale":
+        return (
+          <div key={field.key}>
+            <Label className="text-[13px] text-folk-ink3">{label}</Label>
+            {/* The VALUE is the customer's language and is never derived from the dashboard
+                locale — LOCALE_NAMES are endonyms, each language shown in itself. */}
+            <Select
+              value={toLocale(value)}
+              onValueChange={(v) => setValue(field.key, toLocale(v))}
+            >
+              <SelectTrigger className="mt-1 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LOCALES.map((localeOption) => (
+                  <SelectItem key={localeOption} value={localeOption}>
+                    {LOCALE_NAMES[localeOption]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {field.hintKey && (
+              <p className="mt-1 text-[12px] leading-snug text-folk-ink4">{t(field.hintKey)}</p>
+            )}
+          </div>
+        );
       case "date":
         return (
           <div key={field.key}>
-            <Label className="text-[13px] text-folk-ink3">{field.label}</Label>
+            <Label className="text-[13px] text-folk-ink3">{label}</Label>
             <DatePicker
               className="mt-1"
               value={typeof value === "string" ? value : ""}
@@ -631,12 +706,12 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
       case "textarea":
         return (
           <div key={field.key} className={field.full ? "sm:col-span-2" : undefined}>
-            <Label className="text-[13px] text-folk-ink3">{field.label}</Label>
+            <Label className="text-[13px] text-folk-ink3">{label}</Label>
             <Textarea
               className="mt-1"
               rows={3}
               value={typeof value === "string" ? value : ""}
-              placeholder={field.placeholder}
+              placeholder={placeholder}
               onChange={(e) => setValue(field.key, e.target.value)}
             />
           </div>
@@ -644,13 +719,13 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
       case "number":
         return (
           <div key={field.key}>
-            <Label className="text-[13px] text-folk-ink3">{field.label}</Label>
+            <Label className="text-[13px] text-folk-ink3">{label}</Label>
             <Input
               className="mt-1 h-9"
               type="number"
               step={field.step}
               value={typeof value === "number" ? value : ""}
-              placeholder={field.placeholder}
+              placeholder={placeholder}
               onChange={(e) =>
                 setValue(
                   field.key,
@@ -667,11 +742,11 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
       default:
         return (
           <div key={field.key}>
-            <Label className="text-[13px] text-folk-ink3">{field.label}</Label>
+            <Label className="text-[13px] text-folk-ink3">{label}</Label>
             <Input
               className="mt-1 h-9"
               value={typeof value === "string" ? value : ""}
-              placeholder={field.placeholder}
+              placeholder={placeholder}
               maxLength={field.type === "plz" ? 4 : undefined}
               onChange={(e) => setValue(field.key, e.target.value)}
             />
@@ -685,19 +760,19 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto rounded-xl border-folk-line bg-folk-card">
         <DialogHeader>
           <DialogTitle className="text-[18px] font-bold tracking-tight text-folk-ink">
-            Anfrage bearbeiten
+            {t("lead.edit.title")}
           </DialogTitle>
           <DialogDescription className="text-[14px] text-folk-ink3">
-            {getServiceLabel(lead.service_type)} — Korrekturen werden direkt auf der Anfrage gespeichert.
+            {t("lead.edit.description", { service: getServiceLabel(lead.service_type, locale) })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           {sections.map((section, idx) => (
-            <div key={section.title}>
+            <div key={section.titleKey}>
               {idx > 0 && <Separator className="mb-5 bg-folk-line-soft" />}
               <p className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">
-                {section.title}
+                {t(section.titleKey)}
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {section.fields.map(renderField)}
@@ -712,7 +787,7 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
               disabled={isSaving}
               className="h-9 rounded-lg border-folk-line bg-folk-card px-4 text-[15px] text-folk-ink2 hover:bg-folk-bg-warm"
             >
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleSave}
@@ -720,7 +795,7 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
               className="h-9 gap-1.5 rounded-lg bg-folk-ink px-4 text-[15px] font-semibold text-white hover:bg-folk-ink2"
             >
               {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Speichern
+              {t("common.save")}
             </Button>
           </div>
         </div>

@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { useT } from "@/i18n/useI18n";
 import {
   Archive,
   Download,
@@ -68,6 +69,7 @@ interface ExportableData {
 
 export default function FirmaDatenarchiv() {
   const { user } = useAuth();
+  const t = useT();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string>("");
   const [stats, setStats] = useState<DataStats | null>(null);
@@ -179,11 +181,11 @@ export default function FirmaDatenarchiv() {
       });
     } catch (error) {
       console.error("Error loading stats:", error);
-      toast.error("Fehler beim Laden der Statistiken");
+      toast.error(t("archive.stats.loadFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [companyId, retentionDays]);
+  }, [companyId, retentionDays, t]);
 
   // Load company data statistics
   useEffect(() => {
@@ -276,11 +278,11 @@ export default function FirmaDatenarchiv() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      toast.success("Daten erfolgreich exportiert");
+      toast.success(t("archive.export.success"));
       setShowExportDialog(false);
     } catch (error) {
       console.error("Error exporting data:", error);
-      toast.error("Fehler beim Exportieren");
+      toast.error(t("archive.export.failed"));
     } finally {
       setIsExporting(false);
     }
@@ -349,15 +351,15 @@ export default function FirmaDatenarchiv() {
           .in("id", appointmentIds);
       }
 
-      toast.success("Alte Daten wurden erfolgreich gelöscht");
+      toast.success(t("archive.delete.success"));
       setShowDeleteDialog(false);
       setDeleteConfirmed(false);
-      
+
       // Reload stats
       await loadStats();
     } catch (error) {
       console.error("Error deleting data:", error);
-      toast.error("Fehler beim Löschen der Daten");
+      toast.error(t("archive.delete.failed"));
     } finally {
       setIsDeleting(false);
     }
@@ -405,9 +407,9 @@ export default function FirmaDatenarchiv() {
     return (
         <div className="flex flex-col items-center justify-center h-96 text-center">
           <Archive className="w-12 h-12 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Keine Firma verknüpft</h2>
+          <h2 className="text-xl font-semibold mb-2">{t("archive.noCompany.title")}</h2>
           <p className="text-muted-foreground">
-            Um das Datenarchiv zu nutzen, muss Ihr Konto mit einer Firma verknüpft sein.
+            {t("archive.noCompany.description")}
           </p>
         </div>
     );
@@ -419,9 +421,9 @@ export default function FirmaDatenarchiv() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
           <span className="text-4xl leading-none">🗂️</span>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Datenarchiv & Datenschutz</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("archive.title")}</h1>
             <p className="mt-1 text-[15px] text-folk-ink2">
-              Firmendaten gemäss DSGVO/DSG verwalten — Export, Löschung und Audit-Log.
+              {t("archive.subtitle")}
             </p>
           </div>
           <Button
@@ -430,17 +432,16 @@ export default function FirmaDatenarchiv() {
             className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Aktualisieren
+            {t("misc.action.refresh")}
           </Button>
         </div>
 
         {/* GDPR Info Alert */}
         <Alert>
           <Shield className="h-4 w-4" />
-          <AlertTitle>Datenschutz-Grundverordnung (DSGVO/DSG)</AlertTitle>
+          <AlertTitle>{t("archive.gdpr.title")}</AlertTitle>
           <AlertDescription>
-            Sie haben das Recht, Ihre Daten zu exportieren (Datenportabilität) und zu löschen 
-            (Recht auf Vergessenwerden). Alle Aktionen werden protokolliert.
+            {t("archive.gdpr.description")}
           </AlertDescription>
         </Alert>
 
@@ -450,13 +451,13 @@ export default function FirmaDatenarchiv() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <FileText className="w-4 h-4" />
-                Leads
+                {t("archive.stats.leads")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.leads_total || 0}</div>
               <p className="text-sm text-muted-foreground">
-                {stats?.leads_old || 0} älter als {retentionDays} Tage
+                {t("archive.stats.olderThan", { count: stats?.leads_old || 0, days: retentionDays })}
               </p>
               {stats && stats.leads_old > 0 && (
                 <Progress 
@@ -471,13 +472,13 @@ export default function FirmaDatenarchiv() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Mail className="w-4 h-4" />
-                Offerten
+                {t("archive.stats.offers")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.offers_total || 0}</div>
               <p className="text-sm text-muted-foreground">
-                {stats?.offers_old || 0} älter als {retentionDays} Tage
+                {t("archive.stats.olderThan", { count: stats?.offers_old || 0, days: retentionDays })}
               </p>
               {stats && stats.offers_old > 0 && (
                 <Progress 
@@ -492,13 +493,13 @@ export default function FirmaDatenarchiv() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
-                Termine
+                {t("archive.stats.appointments")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.appointments_total || 0}</div>
               <p className="text-sm text-muted-foreground">
-                {stats?.appointments_old || 0} älter als {retentionDays} Tage
+                {t("archive.stats.olderThan", { count: stats?.appointments_old || 0, days: retentionDays })}
               </p>
               {stats && stats.appointments_old > 0 && (
                 <Progress 
@@ -513,13 +514,13 @@ export default function FirmaDatenarchiv() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Team
+                {t("archive.stats.team")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.team_members || 0}</div>
               <p className="text-sm text-muted-foreground">
-                Aktive Teammitglieder
+                {t("archive.stats.activeMembers")}
               </p>
             </CardContent>
           </Card>
@@ -532,10 +533,10 @@ export default function FirmaDatenarchiv() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Download className="w-5 h-5" />
-                Daten exportieren
+                {t("archive.export.title")}
               </CardTitle>
               <CardDescription>
-                Exportieren Sie alle Ihre Firmendaten als JSON oder CSV
+                {t("archive.export.description")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -543,12 +544,12 @@ export default function FirmaDatenarchiv() {
                 <div className="flex-1 p-4 border rounded-lg text-center">
                   <FileJson className="w-8 h-8 mx-auto mb-2 text-blue-500" />
                   <p className="font-medium">JSON</p>
-                  <p className="text-xs text-muted-foreground">Vollständig, strukturiert</p>
+                  <p className="text-xs text-muted-foreground">{t("archive.export.jsonHint")}</p>
                 </div>
                 <div className="flex-1 p-4 border rounded-lg text-center">
                   <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 text-green-500" />
                   <p className="font-medium">CSV</p>
-                  <p className="text-xs text-muted-foreground">Excel-kompatibel</p>
+                  <p className="text-xs text-muted-foreground">{t("archive.export.csvHint")}</p>
                 </div>
               </div>
 
@@ -556,20 +557,20 @@ export default function FirmaDatenarchiv() {
                 <DialogTrigger asChild>
                   <Button className="w-full">
                     <Download className="w-4 h-4 mr-2" />
-                    Daten exportieren
+                    {t("archive.export.title")}
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Daten exportieren</DialogTitle>
+                    <DialogTitle>{t("archive.export.title")}</DialogTitle>
                     <DialogDescription>
-                      Wählen Sie die zu exportierenden Daten und das Format
+                      {t("archive.export.dialogDescription")}
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                      <Label>Export-Format</Label>
+                      <Label>{t("archive.export.formatLabel")}</Label>
                       <Select
                         value={exportFormat}
                         onValueChange={(v) => setExportFormat(v as "json" | "csv")}
@@ -578,43 +579,43 @@ export default function FirmaDatenarchiv() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="json">JSON (Vollständig)</SelectItem>
-                          <SelectItem value="csv">CSV (Excel)</SelectItem>
+                          <SelectItem value="json">{t("archive.format.json")}</SelectItem>
+                          <SelectItem value="csv">{t("archive.format.csv")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div className="space-y-3">
-                      <Label>Daten auswählen</Label>
+                      <Label>{t("archive.export.selectData")}</Label>
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             id="export-leads"
                             checked={exportTypes.leads}
-                            onCheckedChange={(c) => setExportTypes(t => ({ ...t, leads: !!c }))}
+                            onCheckedChange={(c) => setExportTypes((prev) => ({ ...prev, leads: !!c }))}
                           />
                           <Label htmlFor="export-leads" className="cursor-pointer">
-                            Leads ({stats?.leads_total || 0})
+                            {t("archive.stats.leads")} ({stats?.leads_total || 0})
                           </Label>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             id="export-offers"
                             checked={exportTypes.offers}
-                            onCheckedChange={(c) => setExportTypes(t => ({ ...t, offers: !!c }))}
+                            onCheckedChange={(c) => setExportTypes((prev) => ({ ...prev, offers: !!c }))}
                           />
                           <Label htmlFor="export-offers" className="cursor-pointer">
-                            Offerten ({stats?.offers_total || 0})
+                            {t("archive.stats.offers")} ({stats?.offers_total || 0})
                           </Label>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             id="export-appointments"
                             checked={exportTypes.appointments}
-                            onCheckedChange={(c) => setExportTypes(t => ({ ...t, appointments: !!c }))}
+                            onCheckedChange={(c) => setExportTypes((prev) => ({ ...prev, appointments: !!c }))}
                           />
                           <Label htmlFor="export-appointments" className="cursor-pointer">
-                            Termine ({stats?.appointments_total || 0})
+                            {t("archive.stats.appointments")} ({stats?.appointments_total || 0})
                           </Label>
                         </div>
                       </div>
@@ -623,18 +624,18 @@ export default function FirmaDatenarchiv() {
 
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setShowExportDialog(false)}>
-                      Abbrechen
+                      {t("common.cancel")}
                     </Button>
                     <Button onClick={handleExport} disabled={isExporting}>
                       {isExporting ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Exportiert...
+                          {t("archive.export.running")}
                         </>
                       ) : (
                         <>
                           <Download className="w-4 h-4 mr-2" />
-                          Exportieren
+                          {t("archive.export.submit")}
                         </>
                       )}
                     </Button>
@@ -649,15 +650,15 @@ export default function FirmaDatenarchiv() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-red-600">
                 <Trash2 className="w-5 h-5" />
-                Alte Daten löschen
+                {t("archive.delete.title")}
               </CardTitle>
               <CardDescription>
-                Löschen Sie abgeschlossene Daten älter als {retentionDays} Tage
+                {t("archive.delete.description", { days: retentionDays })}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Aufbewahrungsfrist</Label>
+                <Label>{t("archive.delete.retention")}</Label>
                 <Select
                   value={String(retentionDays)}
                   onValueChange={(v) => {
@@ -670,23 +671,24 @@ export default function FirmaDatenarchiv() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="30">30 Tage</SelectItem>
-                    <SelectItem value="60">60 Tage</SelectItem>
-                    <SelectItem value="90">90 Tage</SelectItem>
-                    <SelectItem value="180">180 Tage</SelectItem>
-                    <SelectItem value="365">1 Jahr</SelectItem>
+                    {[30, 60, 90, 180].map((days) => (
+                      <SelectItem key={days} value={String(days)}>
+                        {t("archive.delete.retentionDays", { count: days })}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="365">{t("archive.delete.retentionYear")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="bg-red-50 p-3 rounded-lg">
                 <p className="text-sm text-red-800">
-                  <strong>Löschbare Datensätze:</strong>
+                  <strong>{t("archive.delete.deletable")}</strong>
                 </p>
                 <ul className="text-sm text-red-700 mt-1 space-y-1">
-                  <li>• {stats?.leads_old || 0} Leads</li>
-                  <li>• {stats?.offers_old || 0} Offerten</li>
-                  <li>• {stats?.appointments_old || 0} Termine</li>
+                  <li>• {stats?.leads_old || 0} {t("archive.stats.leads")}</li>
+                  <li>• {stats?.offers_old || 0} {t("archive.stats.offers")}</li>
+                  <li>• {stats?.appointments_old || 0} {t("archive.stats.appointments")}</li>
                 </ul>
               </div>
 
@@ -698,30 +700,30 @@ export default function FirmaDatenarchiv() {
                     disabled={(stats?.leads_old || 0) + (stats?.offers_old || 0) + (stats?.appointments_old || 0) === 0}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Alte Daten löschen
+                    {t("archive.delete.title")}
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-red-600">
                       <AlertTriangle className="w-5 h-5" />
-                      Daten unwiderruflich löschen?
+                      {t("archive.delete.confirmTitle")}
                     </DialogTitle>
                     <DialogDescription>
-                      Diese Aktion kann nicht rückgängig gemacht werden!
+                      {t("archive.delete.confirmDescription")}
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="py-4">
                     <Alert variant="destructive">
                       <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>Warnung</AlertTitle>
+                      <AlertTitle>{t("archive.delete.warning")}</AlertTitle>
                       <AlertDescription>
-                        Folgende Daten werden permanent gelöscht:
+                        {t("archive.delete.warningIntro")}
                         <ul className="mt-2 space-y-1">
-                          <li>• {stats?.leads_old || 0} Leads (abgeschlossen/abgelehnt)</li>
-                          <li>• {stats?.offers_old || 0} Offerten (gesendet/akzeptiert/abgelehnt)</li>
-                          <li>• {stats?.appointments_old || 0} Termine (abgeschlossen/abgesagt)</li>
+                          <li>• {t("archive.delete.leadsDetail", { count: stats?.leads_old || 0 })}</li>
+                          <li>• {t("archive.delete.offersDetail", { count: stats?.offers_old || 0 })}</li>
+                          <li>• {t("archive.delete.appointmentsDetail", { count: stats?.appointments_old || 0 })}</li>
                         </ul>
                       </AlertDescription>
                     </Alert>
@@ -733,8 +735,7 @@ export default function FirmaDatenarchiv() {
                         onCheckedChange={(c) => setDeleteConfirmed(!!c)}
                       />
                       <Label htmlFor="delete-confirm" className="cursor-pointer text-sm">
-                        Ich verstehe, dass diese Daten unwiderruflich gelöscht werden und habe 
-                        bei Bedarf einen Export erstellt.
+                        {t("archive.delete.confirmCheckbox")}
                       </Label>
                     </div>
                   </div>
@@ -744,22 +745,22 @@ export default function FirmaDatenarchiv() {
                       setShowDeleteDialog(false);
                       setDeleteConfirmed(false);
                     }}>
-                      Abbrechen
+                      {t("common.cancel")}
                     </Button>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       onClick={handleDeleteOldData}
                       disabled={!deleteConfirmed || isDeleting}
                     >
                       {isDeleting ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Löscht...
+                          {t("archive.delete.running")}
                         </>
                       ) : (
                         <>
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Endgültig löschen
+                          {t("archive.delete.submit")}
                         </>
                       )}
                     </Button>
@@ -775,37 +776,33 @@ export default function FirmaDatenarchiv() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5" />
-              Datenschutz-Hinweise
+              {t("archive.info.title")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 className="font-semibold mb-2">📤 Datenexport (Art. 20 DSGVO)</h4>
+                <h4 className="font-semibold mb-2">{t("archive.info.export.title")}</h4>
                 <p className="text-sm text-muted-foreground">
-                  Sie können jederzeit alle Ihre Daten in einem maschinenlesbaren Format 
-                  (JSON/CSV) exportieren. Dies ermöglicht die Übertragung zu anderen Diensten.
+                  {t("archive.info.export.text")}
                 </p>
               </div>
               <div>
-                <h4 className="font-semibold mb-2">🗑️ Recht auf Löschung (Art. 17 DSGVO)</h4>
+                <h4 className="font-semibold mb-2">{t("archive.info.deletion.title")}</h4>
                 <p className="text-sm text-muted-foreground">
-                  Sie können abgeschlossene und nicht mehr benötigte Daten löschen. 
-                  Aktive Geschäftsdaten unterliegen gesetzlichen Aufbewahrungsfristen.
+                  {t("archive.info.deletion.text")}
                 </p>
               </div>
               <div>
-                <h4 className="font-semibold mb-2">📋 Aufbewahrungsfristen</h4>
+                <h4 className="font-semibold mb-2">{t("archive.info.retention.title")}</h4>
                 <p className="text-sm text-muted-foreground">
-                  Geschäftsdokumente müssen gemäss OR 10 Jahre aufbewahrt werden. 
-                  Wir empfehlen, Daten vor der Löschung zu exportieren.
+                  {t("archive.info.retention.text")}
                 </p>
               </div>
               <div>
-                <h4 className="font-semibold mb-2">🔒 Datensicherheit</h4>
+                <h4 className="font-semibold mb-2">{t("archive.info.security.title")}</h4>
                 <p className="text-sm text-muted-foreground">
-                  Alle Daten werden in der Schweiz/EU gespeichert und verschlüsselt. 
-                  Löschungen sind unwiderruflich und werden protokolliert.
+                  {t("archive.info.security.text")}
                 </p>
               </div>
             </div>

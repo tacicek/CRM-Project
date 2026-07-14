@@ -1,5 +1,10 @@
 import jsPDF from "jspdf";
 import { isFreeItem } from "./offerPricing";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Locale } from "@/i18n/locale";
+import { formatCurrency, formatDate } from "@/i18n/format";
+import { getAuftragStatusLabel, getServiceLabel, getYesNo } from "@/i18n/domain";
+import type { MessageKey, Translator } from "@/i18n/translator";
 
 // =============================================================================
 // INTERFACES
@@ -74,6 +79,11 @@ interface AuftragData {
   service_details?: Record<string, unknown>;
   team_leader?: TeamMember | null;
   assigned_team_members_data?: TeamMember[];
+  /**
+   * The CUSTOMER's language (auftraege.language) — the work order is printed and signed
+   * on site by the customer. Resolve with `resolveDocumentLocale(auftrag, company)`.
+   */
+  locale: Locale;
   company: CompanyInfo;
 }
 
@@ -103,40 +113,25 @@ const DEFAULT_PRIMARY_COLOR: [number, number, number] = [59, 130, 246]; // Blue
 // HELPER FUNCTIONS
 // =============================================================================
 
-const formatCurrency = (amount: number): string => {
-  // Handle NaN, undefined, null
-  const safeAmount = Number.isFinite(amount) ? amount : 0;
-  return new Intl.NumberFormat("de-CH", {
-    style: "currency",
-    currency: "CHF",
-  }).format(safeAmount);
-};
+/** CHF in the customer's locale; a non-finite amount prints as 0 instead of "NaN". */
+const money = (amount: number, locale: Locale): string =>
+  formatCurrency(Number.isFinite(amount) ? amount : 0, locale);
 
-const formatDate = (dateString: string | undefined): string => {
+const dateOrDash = (dateString: string | undefined, locale: Locale): string => {
   if (!dateString) return "-";
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "-";
-    return date.toLocaleDateString("de-CH", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch {
-    return "-";
-  }
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "-";
+  return formatDate(date, locale);
 };
 
-const formatTime = (timeString: string | undefined | null): string => {
+/** "14:30 Uhr" · "14:30" · "2:30 pm" — the wording comes from doc.time.oclock. */
+const formatTime = (timeString: string | undefined | null, t: Translator): string => {
   if (!timeString) return "-";
-  // Validate format: expect at least HH:MM
-  if (timeString.length < 5) return timeString;
-  // Extract HH:MM safely
   const match = /^(\d{1,2}):(\d{2})/.exec(timeString);
   if (!match) return timeString;
-  const hours = match[1].padStart(2, '0');
+  const hours = match[1].padStart(2, "0");
   const minutes = match[2];
-  return `${hours}:${minutes} Uhr`;
+  return t("doc.time.oclock", { time: `${hours}:${minutes}` });
 };
 
 const hexToRgb = (hex: string): [number, number, number] => {
@@ -270,28 +265,38 @@ const loadImageAsBase64 = async (url: string): Promise<string | null> => {
   }
 };
 
-const getStatusLabel = (status: string): string => {
-  const statusMap: Record<string, string> = {
-    geplant: "Geplant",
-    bestaetigt: "Bestätigt",
-    in_bearbeitung: "In Bearbeitung",
-    abgeschlossen: "Abgeschlossen",
-    storniert: "Storniert",
-  };
-  return statusMap[status] || status;
-};
-
-const getServiceLabel = (serviceType: string): string => {
-  const serviceMap: Record<string, string> = {
-    umzug: "Umzug",
-    reinigung: "Reinigung",
-    klaviertransport: "Klaviertransport",
-    raeumung: "Räumung",
-    entsorgung: "Entsorgung",
-    lagerung: "Lagerung",
-    moebellift: "Möbellift",
-  };
-  return serviceMap[serviceType] || serviceType;
+/**
+ * service_details column → catalog key. The German labels used to live in a local map;
+ * they now resolve through doc.detail.* so the same row reads French on a French job.
+ */
+const DETAIL_LABEL_KEYS: Record<string, MessageKey> = {
+  from_rooms: "doc.detail.rooms",
+  from_living_space_m2: "doc.detail.livingSpace",
+  from_floor: "doc.detail.fromFloor",
+  from_has_lift: "doc.detail.fromLift",
+  to_floor: "doc.detail.toFloor",
+  to_has_lift: "doc.detail.toLift",
+  property_type: "doc.detail.propertyType",
+  distance_km: "doc.detail.distance",
+  packing_service_needed: "doc.detail.packing",
+  cleaning_service_needed: "doc.detail.finalCleaning",
+  storage_needed: "doc.detail.storage",
+  piano_transport_needed: "doc.detail.piano",
+  bathroom_count: "doc.detail.bathrooms",
+  kitchen_type: "doc.detail.kitchen",
+  has_balcony: "doc.detail.balcony",
+  has_garage: "doc.detail.garage",
+  has_basement: "doc.detail.cellar",
+  has_attic: "doc.detail.attic",
+  cleaning_windows: "doc.detail.windowCleaning",
+  piano_type: "doc.detail.pianoType",
+  piano_weight_kg: "doc.detail.weight",
+  clearing_type: "doc.detail.clearanceType",
+  estimated_volume: "doc.detail.estimatedVolume",
+  has_heavy_items: "doc.detail.heavyItems",
+  heavy_items_description: "doc.detail.heavyItemsDescription",
+  storage_duration: "doc.detail.storageDuration",
+  storage_volume: "doc.detail.storageVolume",
 };
 
 // =============================================================================
@@ -299,6 +304,11 @@ const getServiceLabel = (serviceType: string): string => {
 // =============================================================================
 
 export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> => {
+  // Customer language — read off the Auftrag row, never from the operator's dashboard.
+  const locale = auftrag.locale;
+  const { t } = documentI18nFor(locale);
+  const chf = (amount: number): string => money(amount, locale);
+
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -340,7 +350,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setTextColor(120, 120, 120);
 
     const phone = auftrag.company.phone?.replace(/\s+/g, "").trim() || "";
-    const footerLine1 = `${auftrag.company.company_name} | ${auftrag.company.email}${phone ? " | Tel: " + phone : ""}`;
+    const footerLine1 = `${auftrag.company.company_name} | ${auftrag.company.email}${phone ? " | " + t("doc.workorder.phone") + phone : ""}`;
     const street = auftrag.company.street || "";
     const houseNumber = auftrag.company.house_number || "";
     const footerLine2 = `${street}${houseNumber ? " " + houseNumber : ""}, ${auftrag.company.plz} ${auftrag.company.city}`;
@@ -352,7 +362,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFontSize(8);
     const pageNumber = doc.getNumberOfPages();
     doc.text(
-      `Seite ${pageNumber} von ${totalPagesPlaceholder}`,
+      t("doc.footer.pageOf", { page: pageNumber, total: totalPagesPlaceholder }),
       pageWidth / 2,
       pageHeight - 9,
       { align: "center" }
@@ -406,9 +416,9 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   }
   companyInfoLines.push(`${auftrag.company.plz} ${auftrag.company.city}`);
   if (auftrag.company.phone) {
-    // Normalise: collapse multiple spaces so "Tel: +41 79..." looks clean
+    // Normalise: collapse multiple spaces so "Tel. +41 79..." looks clean
     const phone = auftrag.company.phone.replace(/\s+/g, " ").trim();
-    companyInfoLines.push(`Tel. ${phone}`);
+    companyInfoLines.push(`${t("doc.contact.phoneShort")}${phone}`);
   }
   companyInfoLines.push(auftrag.company.email);
   if (auftrag.company.website) {
@@ -434,7 +444,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   doc.setFontSize(14);
   doc.setFont(fontFamily, "bold");
   doc.setTextColor(255, 255, 255);
-  doc.text("ARBEITSAUFTRAG", margin + 5, yPos + 11);
+  doc.text(t("doc.workorder.title"), margin + 5, yPos + 11);
 
   // Auftrag number on the right
   doc.setFontSize(11);
@@ -447,7 +457,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   // =============================================================================
 
   // Compute badge width first so we can constrain the title
-  const statusLabel = getStatusLabel(auftrag.status);
+  const statusLabel = getAuftragStatusLabel(auftrag.status, locale);
   doc.setFontSize(9);
   doc.setFont(fontFamily, "normal");
   const statusWidth = doc.getTextWidth(statusLabel) + 10;
@@ -473,7 +483,11 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   if (auftrag.service_type) {
     doc.setFontSize(10);
     doc.setTextColor(...primaryRgb);
-    doc.text(`Dienstleistung: ${getServiceLabel(auftrag.service_type)}`, margin, yPos);
+    doc.text(
+      `${t("doc.workorder.service")}${getServiceLabel(auftrag.service_type, locale)}`,
+      margin,
+      yPos
+    );
     yPos += 8;
   }
 
@@ -492,9 +506,9 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   doc.setFontSize(9);
   doc.setFont(fontFamily, "bold");
   doc.setTextColor(80, 80, 80);
-  doc.text("KUNDE", margin + 3, yPos + 5.5);
-  doc.text("TERMIN", margin + colWidth + 8, yPos + 5.5);
-  doc.text("TEAM", margin + colWidth * 2 + 13, yPos + 5.5);
+  doc.text(t("doc.workorder.section.customer"), margin + 3, yPos + 5.5);
+  doc.text(t("doc.workorder.section.appointment"), margin + colWidth + 8, yPos + 5.5);
+  doc.text(t("doc.workorder.section.team"), margin + colWidth * 2 + 13, yPos + 5.5);
 
   yPos += 12;
 
@@ -510,7 +524,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   customerY += 5;
   doc.setFont(fontFamily, "normal");
   if (auftrag.customer_phone) {
-    doc.text(`Tel: ${auftrag.customer_phone}`, margin + 3, customerY);
+    doc.text(`${t("doc.workorder.phone")}${auftrag.customer_phone}`, margin + 3, customerY);
     customerY += 4;
   }
   if (auftrag.customer_email) {
@@ -521,18 +535,25 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   // Date column
   let dateY = yPos;
   doc.setFont(fontFamily, "bold");
-  doc.text(formatDate(auftrag.scheduled_date), margin + colWidth + 8, dateY);
+  doc.text(dateOrDash(auftrag.scheduled_date, locale), margin + colWidth + 8, dateY);
   dateY += 5;
   doc.setFont(fontFamily, "normal");
   if (auftrag.scheduled_time) {
-    doc.text(`Zeit: ${formatTime(auftrag.scheduled_time)}`, margin + colWidth + 8, dateY);
+    doc.text(
+      `${t("doc.workorder.time")}${formatTime(auftrag.scheduled_time, t)}`,
+      margin + colWidth + 8,
+      dateY
+    );
     dateY += 4;
   }
   if (auftrag.estimated_duration_minutes) {
     const hours = Math.floor(auftrag.estimated_duration_minutes / 60);
     const mins = auftrag.estimated_duration_minutes % 60;
-    const durationStr = mins > 0 ? `${hours}h ${mins}min` : `${hours} Stunden`;
-    doc.text(`Dauer: ~${durationStr}`, margin + colWidth + 8, dateY);
+    const durationStr =
+      mins > 0
+        ? t("doc.time.hoursMinutes", { hours, minutes: mins })
+        : `${hours} ${t("domain.unit.hour.plural")}`;
+    doc.text(`${t("doc.workorder.duration")}${durationStr}`, margin + colWidth + 8, dateY);
     dateY += 4;
   }
 
@@ -540,7 +561,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   let teamY = yPos;
   if (auftrag.team_leader) {
     doc.setFont(fontFamily, "bold");
-    doc.text("Team-Leiter:", margin + colWidth * 2 + 13, teamY);
+    doc.text(t("doc.workorder.teamLead"), margin + colWidth * 2 + 13, teamY);
     teamY += 5;
     doc.setFont(fontFamily, "normal");
     doc.text(
@@ -550,11 +571,15 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     );
     teamY += 4;
     if (auftrag.team_leader.phone) {
-      doc.text(`Tel: ${auftrag.team_leader.phone}`, margin + colWidth * 2 + 13, teamY);
+      doc.text(
+        `${t("doc.workorder.phone")}${auftrag.team_leader.phone}`,
+        margin + colWidth * 2 + 13,
+        teamY
+      );
       teamY += 4;
     }
   } else {
-    doc.text("Nicht zugewiesen", margin + colWidth * 2 + 13, teamY);
+    doc.text(t("doc.workorder.unassigned"), margin + colWidth * 2 + 13, teamY);
     teamY += 4;
   }
 
@@ -562,7 +587,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   if (auftrag.assigned_team_members_data && auftrag.assigned_team_members_data.length > 0) {
     teamY += 2;
     doc.setFont(fontFamily, "bold");
-    doc.text("Weitere Mitarbeiter:", margin + colWidth * 2 + 13, teamY);
+    doc.text(t("doc.workorder.otherStaff"), margin + colWidth * 2 + 13, teamY);
     teamY += 5;
     doc.setFont(fontFamily, "normal");
     auftrag.assigned_team_members_data.forEach((member) => {
@@ -586,7 +611,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    doc.text("ADRESSEN", margin + 5, yPos + 5.5);
+    doc.text(t("doc.workorder.section.addresses"), margin + 5, yPos + 5.5);
     yPos += 12;
 
     const addressColWidth = (pageWidth - margin * 2 - 10) / 2;
@@ -596,7 +621,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
       doc.setFontSize(9);
       doc.setFont(fontFamily, "bold");
       doc.setTextColor(...primaryRgb);
-      doc.text("Von:", margin, yPos);
+      doc.text(t("doc.workorder.from"), margin, yPos);
 
       doc.setFont(fontFamily, "normal");
       doc.setTextColor(60, 60, 60);
@@ -612,7 +637,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     if (auftrag.to_address) {
       doc.setFont(fontFamily, "bold");
       doc.setTextColor(...primaryRgb);
-      doc.text("Nach:", margin + addressColWidth + 10, yPos);
+      doc.text(t("doc.workorder.to"), margin + addressColWidth + 10, yPos);
 
       doc.setFont(fontFamily, "normal");
       doc.setTextColor(60, 60, 60);
@@ -641,7 +666,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
-    doc.text("DETAILS ZUR DIENSTLEISTUNG", margin + 5, yPos + 5.5);
+    doc.text(t("doc.workorder.section.serviceDetails"), margin + 5, yPos + 5.5);
     yPos += 12;
 
     doc.setFont(fontFamily, "normal");
@@ -649,47 +674,15 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setTextColor(60, 60, 60);
 
     const details = auftrag.service_details;
-    const detailLabels: Record<string, string> = {
-      from_rooms: "Zimmer",
-      from_living_space_m2: "Wohnfläche (m²)",
-      from_floor: "Stockwerk (Von)",
-      from_has_lift: "Lift vorhanden (Von)",
-      to_floor: "Stockwerk (Nach)",
-      to_has_lift: "Lift vorhanden (Nach)",
-      property_type: "Objekttyp",
-      distance_km: "Distanz (km)",
-      packing_service_needed: "Verpackungsservice",
-      cleaning_service_needed: "Endreinigung",
-      storage_needed: "Lagerung benötigt",
-      piano_transport_needed: "Klaviertransport",
-      bathroom_count: "Badezimmer",
-      kitchen_type: "Küche",
-      has_balcony: "Balkon",
-      has_garage: "Garage",
-      has_basement: "Keller",
-      has_attic: "Estrich",
-      cleaning_windows: "Fensterreinigung",
-      piano_type: "Klaviertyp",
-      piano_weight_kg: "Gewicht (kg)",
-      clearing_type: "Räumungsart",
-      estimated_volume: "Geschätztes Volumen",
-      has_heavy_items: "Schwere Gegenstände",
-      heavy_items_description: "Beschreibung schwere Gegenstände",
-      storage_duration: "Lagerdauer",
-      storage_volume: "Lagervolumen",
-    };
 
     const detailsArray: { label: string; value: string }[] = [];
     Object.entries(details).forEach(([key, value]) => {
       if (value !== null && value !== undefined && value !== "") {
-        const label = detailLabels[key] || key;
-        let displayValue: string;
-
-        if (typeof value === "boolean") {
-          displayValue = value ? "Ja" : "Nein";
-        } else {
-          displayValue = String(value);
-        }
+        // Unknown columns keep their raw key — better a visible field name than a dropped value.
+        const labelKey = DETAIL_LABEL_KEYS[key];
+        const label = labelKey ? t(labelKey) : key;
+        const displayValue =
+          typeof value === "boolean" ? getYesNo(value, locale) : String(value);
 
         detailsArray.push({ label, value: displayValue });
       }
@@ -748,17 +741,21 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
     doc.setTextColor(230, 81, 0);
-    doc.text("ABRECHNUNG NACH AUFWAND", margin + 5, yPos + 7);
+    doc.text(t("doc.workorder.section.byEffort"), margin + 5, yPos + 7);
 
     doc.setFont(fontFamily, "normal");
     doc.setFontSize(9);
     doc.setTextColor(100, 60, 20);
 
     if (auftrag.hourly_rate) {
-      doc.text(`Stundensatz: ${formatCurrency(auftrag.hourly_rate)}/Std.`, margin + 5, yPos + 14);
-      doc.text("Der Endpreis wird nach Abschluss der Arbeiten berechnet.", margin + 80, yPos + 14);
+      doc.text(
+        t("doc.workorder.hourlyRate", { rate: chf(auftrag.hourly_rate) }),
+        margin + 5,
+        yPos + 14
+      );
+      doc.text(t("doc.workorder.finalPriceNote"), margin + 80, yPos + 14);
     } else {
-      doc.text("Der Endpreis wird nach Abschluss der Arbeiten berechnet.", margin + 5, yPos + 14);
+      doc.text(t("doc.workorder.finalPriceNote"), margin + 5, yPos + 14);
     }
 
     yPos += 28;
@@ -794,7 +791,10 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    const priceTitle = auftrag.pricing_type === "estimate" ? "KOSTENVORANSCHLAG" : "LEISTUNGEN & PREISE";
+    const priceTitle =
+      auftrag.pricing_type === "estimate"
+        ? t("doc.workorder.section.estimate")
+        : t("doc.workorder.section.items");
     doc.text(priceTitle, margin + 5, yPos + 5.5);
     yPos += 12;
 
@@ -817,10 +817,10 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(8);
     doc.setTextColor(80, 80, 80);
-    doc.text("Beschreibung", col1, yPos + 5.5);
-    doc.text("Menge",        col2, yPos + 5.5, { align: "center" });
-    doc.text("Preis",        col3, yPos + 5.5, { align: "center" });
-    doc.text("Total",        col4, yPos + 5.5, { align: "right"  });
+    doc.text(t("doc.workorder.col.description"), col1, yPos + 5.5);
+    doc.text(t("doc.workorder.col.quantity"),    col2, yPos + 5.5, { align: "center" });
+    doc.text(t("doc.workorder.col.price"),       col3, yPos + 5.5, { align: "center" });
+    doc.text(t("doc.workorder.col.total"),       col4, yPos + 5.5, { align: "right"  });
     yPos += 10;
 
     // Table rows
@@ -856,11 +856,14 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
       // Free items (optional/inkl) are excluded from Zwischensumme, so they must not print a
       // billable line total — otherwise the rows wouldn't add up to the totals block.
       if (isFreeItem(item.price_type)) {
-        const label = item.price_type === "inkl" ? "inkl." : "auf Anfrage";
+        const label =
+          item.price_type === "inkl"
+            ? t("doc.workorder.included")
+            : t("doc.workorder.onRequest");
         doc.text(label, col4, textY, { align: "right" });
       } else {
-        doc.text(formatCurrency(item.unit_price),                               col3, textY, { align: "center" });
-        doc.text(formatCurrency(item.total ?? item.quantity * item.unit_price), col4, textY, { align: "right"  });
+        doc.text(chf(item.unit_price),                               col3, textY, { align: "center" });
+        doc.text(chf(item.total ?? item.quantity * item.unit_price), col4, textY, { align: "right"  });
       }
 
       // Wrapped description continuation lines
@@ -900,13 +903,13 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "normal");
     doc.setFontSize(8);
     doc.setTextColor(80, 80, 80);
-    doc.text("Zwischensumme:",              totalsTextX, yPos);
-    doc.text(formatCurrency(auftrag.subtotal || 0), totalsValueX, yPos, { align: "right" });
+    doc.text(t("doc.workorder.subtotal"),  totalsTextX, yPos);
+    doc.text(chf(auftrag.subtotal || 0), totalsValueX, yPos, { align: "right" });
     yPos += 7;
 
     if (showVat) {
-      doc.text(`MwSt. (${effectiveVatRate}%):`, totalsTextX, yPos);
-      doc.text(formatCurrency(auftrag.vat_amount || 0), totalsValueX, yPos, { align: "right" });
+      doc.text(t("doc.workorder.vat", { rate: effectiveVatRate }), totalsTextX, yPos);
+      doc.text(chf(auftrag.vat_amount || 0), totalsValueX, yPos, { align: "right" });
       yPos += 6;
     }
 
@@ -919,9 +922,12 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
     doc.setTextColor(...primaryRgb);
-    const totalLabel = auftrag.pricing_type === "estimate" ? "Geschätzt:" : "Gesamtbetrag:";
-    doc.text(totalLabel,                           totalsTextX, yPos);
-    doc.text(formatCurrency(auftrag.total || 0),   totalsValueX, yPos, { align: "right" });
+    const totalLabel =
+      auftrag.pricing_type === "estimate"
+        ? t("doc.workorder.estimated")
+        : t("doc.workorder.total");
+    doc.text(totalLabel,                totalsTextX, yPos);
+    doc.text(chf(auftrag.total || 0),   totalsValueX, yPos, { align: "right" });
 
     yPos += 15;
   }
@@ -938,7 +944,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    doc.text("ZUSÄTZLICHE LEISTUNGEN", margin + 5, yPos + 5.5);
+    doc.text(t("doc.workorder.section.extraServices"), margin + 5, yPos + 5.5);
     yPos += 12;
 
     doc.setFont(fontFamily, "normal");
@@ -949,10 +955,10 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
       yPos = checkPageBreak(yPos, 6);
 
       doc.text(`• ${service.description}`, margin, yPos);
-      
+
       // Show price only if not hourly
       if (!isHourlyPricing && service.unit_price > 0) {
-        const priceInfo = `${service.quantity} ${service.unit} × ${formatCurrency(service.unit_price)}`;
+        const priceInfo = `${service.quantity} ${service.unit} × ${chf(service.unit_price)}`;
         doc.text(priceInfo, pageWidth - margin, yPos, { align: "right" });
       } else {
         doc.text(`${service.quantity} ${service.unit}`, pageWidth - margin, yPos, { align: "right" });
@@ -976,7 +982,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
-    doc.text("BESCHREIBUNG", margin + 5, yPos + 5.5);
+    doc.text(t("doc.workorder.section.description"), margin + 5, yPos + 5.5);
     yPos += 12;
 
     doc.setFont(fontFamily, "normal");
@@ -1009,7 +1015,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
     doc.setTextColor(230, 81, 0);
-    doc.text("⚠ WICHTIGE HINWEISE", margin + 5, yPos + 5.5);
+    doc.text(t("doc.workorder.section.notices"), margin + 5, yPos + 5.5);
     yPos += 12;
 
     doc.setFont(fontFamily, "normal");
@@ -1049,11 +1055,11 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   doc.setFont(fontFamily, "bold");
   doc.setFontSize(10);
   doc.setTextColor(80, 80, 80);
-  doc.text("ZUSÄTZLICHE ARBEITEN", margin + 5, yPos + 5.5);
+  doc.text(t("doc.workorder.section.extraWork"), margin + 5, yPos + 5.5);
   doc.setFont(fontFamily, "normal");
   doc.setFontSize(7);
   doc.setTextColor(120, 120, 120);
-  doc.text("(Für Einträge vor Ort)", pageWidth - margin - 5, yPos + 5.5, { align: "right" });
+  doc.text(t("doc.workorder.extraWork.hint"), pageWidth - margin - 5, yPos + 5.5, { align: "right" });
   yPos += 12;
 
   // Table header for extras
@@ -1072,10 +1078,10 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   const extCol3 = pageWidth - margin - 30; // Preis
   const extCol4 = pageWidth - margin - 5;  // Total
 
-  doc.text("Beschreibung", extCol1, yPos + 5);
-  doc.text("Anz.", extCol2, yPos + 5);
-  doc.text("Preis", extCol3, yPos + 5);
-  doc.text("Total", extCol4, yPos + 5, { align: "right" });
+  doc.text(t("doc.workorder.col.description"), extCol1, yPos + 5);
+  doc.text(t("doc.workorder.col.quantityShort"), extCol2, yPos + 5);
+  doc.text(t("doc.workorder.col.price"), extCol3, yPos + 5);
+  doc.text(t("doc.workorder.col.total"), extCol4, yPos + 5, { align: "right" });
   yPos += 9;
 
   // Draw 5 blank rows for manual entry
@@ -1108,7 +1114,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   doc.setFont(fontFamily, "normal");
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 100);
-  doc.text("Zwischensumme Zusatzarbeiten:", extCol2 - 50, yPos + 5.5);
+  doc.text(t("doc.workorder.extraSubtotal"), extCol2 - 50, yPos + 5.5);
   doc.text("CHF", extCol4, yPos + 5.5, { align: "right" });
   yPos += 18;
 
@@ -1116,7 +1122,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   doc.setFont(fontFamily, "bold");
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 100);
-  doc.text("Bemerkungen:", margin, yPos);
+  doc.text(t("doc.workorder.remarks"), margin, yPos);
   yPos += 5;
 
   // Draw 3 blank lines for notes
@@ -1142,7 +1148,7 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   doc.setFont(fontFamily, "bold");
   doc.setFontSize(10);
   doc.setTextColor(60, 60, 60);
-  doc.text("GESAMTBETRAG (inkl. Zusatzarbeiten):", margin + 5, yPos + 8);
+  doc.text(t("doc.workorder.grandTotal"), margin + 5, yPos + 8);
   doc.text("CHF", pageWidth - margin - 5, yPos + 8, { align: "right" });
   
   yPos += 18;
@@ -1177,8 +1183,8 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   doc.setFont(fontFamily, "bold");
   doc.setFontSize(8.5);
   doc.setTextColor(80, 80, 80);
-  doc.text("Unterschrift Kunde:",        leftX,  yPos);
-  doc.text("Unterschrift Mitarbeiter:",  rightX, yPos);
+  doc.text(t("doc.workorder.signature.customer"), leftX,  yPos);
+  doc.text(t("doc.workorder.signature.staff"),    rightX, yPos);
   yPos += 14;
 
   // Row 2: signature lines
@@ -1200,8 +1206,8 @@ export const generateAuftragPdf = async (auftrag: AuftragData): Promise<void> =>
   doc.setFont(fontFamily, "normal");
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 100);
-  doc.text("Ort, Datum:",  leftX,  yPos);
-  doc.text("Ort, Datum:",  rightX, yPos);
+  doc.text(t("doc.workorder.placeDate"), leftX,  yPos);
+  doc.text(t("doc.workorder.placeDate"), rightX, yPos);
   yPos += 13;
 
   // Row 5: date lines

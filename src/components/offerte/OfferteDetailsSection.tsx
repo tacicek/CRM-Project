@@ -23,14 +23,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { 
   User, 
   Clock, 
-  Calendar,
   Sparkles,
   Plus,
   X,
   Loader2,
   CreditCard
 } from "lucide-react";
-import { getServiceLabel } from "@/lib/serviceLabels";
+import { useI18n, useT } from "@/i18n/useI18n";
+import { getServiceLabel } from "@/i18n/domain";
+import type { MessageKey } from "@/i18n/translator";
 
 // =============================================================================
 // TYPES - Customer-Facing Only
@@ -98,20 +99,23 @@ interface OfferteDetailsSectionProps {
 // CONSTANTS
 // =============================================================================
 
-const SALUTATIONS = [
-  { value: "Frau", label: "Frau" },
-  { value: "Herr", label: "Herr" },
-  { value: "Firma", label: "Firma" },
-  { value: "", label: "Keine Anrede" },
+// `value` is the stored enum written to offer_details / offers.customer_salutation &
+// payment_method — it stays exactly as-is (SurchargeEditor-style axis split). Only the
+// operator-facing `labelKey` is resolved with the dashboard locale at render time.
+const SALUTATIONS: { value: string; labelKey: MessageKey }[] = [
+  { value: "Frau", labelKey: "domain.salutation.frau" },
+  { value: "Herr", labelKey: "domain.salutation.herr" },
+  { value: "Firma", labelKey: "offer.details.salutation.firma" },
+  { value: "", labelKey: "offer.details.salutation.none" },
 ];
 
-const PAYMENT_METHODS = [
-  { value: "bar", label: "Barzahlung nach Ausführung" },
-  { value: "rechnung_14", label: "Rechnung (14 Tage)" },
-  { value: "rechnung_30", label: "Rechnung (30 Tage)" },
-  { value: "twint", label: "TWINT" },
-  { value: "vorauskasse", label: "Vorauskasse" },
-  { value: "teilzahlung", label: "Teilzahlung (50% Anzahlung)" },
+const PAYMENT_METHODS: { value: string; labelKey: MessageKey }[] = [
+  { value: "bar", labelKey: "offer.doc.paymentMethod.bar" },
+  { value: "rechnung_14", labelKey: "offer.doc.paymentMethod.rechnung_14" },
+  { value: "rechnung_30", labelKey: "offer.doc.paymentMethod.rechnung_30" },
+  { value: "twint", labelKey: "offer.doc.paymentMethod.twint" },
+  { value: "vorauskasse", labelKey: "offer.doc.paymentMethod.vorauskasse" },
+  { value: "teilzahlung", labelKey: "offer.doc.paymentMethod.teilzahlung" },
 ];
 
 // =============================================================================
@@ -146,6 +150,8 @@ export function OfferteDetailsSection({
   details,
   onChange,
 }: OfferteDetailsSectionProps) {
+  const t = useT();
+  const { locale } = useI18n();
   const [templates, setTemplates] = useState<ServiceTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -239,13 +245,13 @@ export function OfferteDetailsSection({
       >
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-          <span className="text-sm font-semibold">Erweiterte Details</span>
+          <span className="text-sm font-semibold">{t("offer.details.header")}</span>
           <Badge variant="outline" className="text-xs font-normal text-muted-foreground border-muted-foreground/30">
-            Optional
+            {t("common.optional")}
           </Badge>
         </div>
         <span className="text-xs text-muted-foreground shrink-0">
-          {isExpanded ? "Einklappen ↑" : "Erweitern ↓"}
+          {isExpanded ? t("offer.form.agb.collapse") : t("offer.details.expand")}
         </span>
       </button>
 
@@ -256,7 +262,7 @@ export function OfferteDetailsSection({
           {templates.length > 0 && (
             <div className="pt-4 p-3 bg-amber-50 rounded-xl border border-amber-200">
               <p className="text-xs font-semibold mb-2 text-amber-700">
-                Schnellvorlagen – {getServiceLabel(serviceType)}
+                {t("offer.details.templates.quickTitle", { service: getServiceLabel(serviceType, locale) })}
               </p>
               <div className="flex flex-wrap gap-2">
                 {templates.map((template) => (
@@ -279,12 +285,12 @@ export function OfferteDetailsSection({
             <div className="space-y-1.5">
               <Label className="text-xs font-medium flex items-center gap-1.5 text-foreground">
                 <User className="w-3.5 h-3.5 text-muted-foreground" />
-                Kundennummer
+                {t("offer.details.field.customerNumber")}
               </Label>
               <Input
                 value={details.customerNumber}
                 onChange={(e) => updateDetails("customerNumber", e.target.value)}
-                placeholder="z.B. K-1042 (optional)"
+                placeholder={t("offer.details.placeholder.customerNumber")}
                 className="h-10"
               />
             </div>
@@ -295,31 +301,31 @@ export function OfferteDetailsSection({
             <div className="space-y-1.5">
               <Label className="text-xs font-medium flex items-center gap-1.5 text-foreground">
                 <User className="w-3.5 h-3.5 text-muted-foreground" />
-                Unsere Referenz
+                {t("offer.details.field.reference")}
               </Label>
               <Input
                 value={details.companyReference}
                 onChange={(e) => updateDetails("companyReference", e.target.value)}
-                placeholder="z.B. Max Mustermann"
+                placeholder={t("offer.details.placeholder.reference")}
                 className="h-10"
               />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-foreground">
-                Kundenanrede
+                {t("offer.details.field.salutation")}
               </Label>
               <Select
                 value={details.customerSalutation || "__none__"}
                 onValueChange={(v) => updateDetails("customerSalutation", v === "__none__" ? "" : v)}
               >
                 <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Anrede wählen…" />
+                  <SelectValue placeholder={t("offer.details.salutation.placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {SALUTATIONS.map((s) => (
                     <SelectItem key={s.value || "__none__"} value={s.value || "__none__"}>
-                      {s.label}
+                      {t(s.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -331,11 +337,11 @@ export function OfferteDetailsSection({
           <div className="space-y-1.5">
             <Label className="text-xs font-medium flex items-center gap-1.5 text-foreground">
               <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-              Servicezeit
+              {t("offer.details.field.serviceTime")}
             </Label>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Startzeit</span>
+                <span className="text-xs text-muted-foreground">{t("offer.details.field.startTime")}</span>
                 <Input
                   type="time"
                   value={details.serviceStartTime}
@@ -344,7 +350,7 @@ export function OfferteDetailsSection({
                 />
               </div>
               <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Endzeit (optional)</span>
+                <span className="text-xs text-muted-foreground">{t("offer.details.field.endTime")}</span>
                 <Input
                   type="time"
                   value={details.serviceEndTime}
@@ -363,7 +369,7 @@ export function OfferteDetailsSection({
           <div className="space-y-1.5">
             <Label className="text-xs font-medium flex items-center gap-1.5 text-foreground">
               <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
-              Zahlungsmethode
+              {t("offer.details.field.paymentMethod")}
             </Label>
             <Select
               value={details.paymentMethod}
@@ -375,7 +381,7 @@ export function OfferteDetailsSection({
               <SelectContent>
                 {PAYMENT_METHODS.map((m) => (
                   <SelectItem key={m.value} value={m.value}>
-                    {m.label}
+                    {t(m.labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -387,8 +393,8 @@ export function OfferteDetailsSection({
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium flex items-center gap-1.5 text-foreground">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                Hervorgehobene Punkte
-                <span className="text-muted-foreground font-normal">(für Kunde sichtbar)</span>
+                {t("offer.details.field.highlighted")}
+                <span className="text-muted-foreground font-normal">{t("offer.details.highlighted.hint")}</span>
               </Label>
               <Button
                 variant="outline"
@@ -397,14 +403,14 @@ export function OfferteDetailsSection({
                 className="h-7 text-xs gap-1"
               >
                 <Plus className="w-3 h-3" />
-                Hinzufügen
+                {t("common.add")}
               </Button>
             </div>
 
             {details.highlightedItems.length === 0 ? (
               <div className="rounded-lg border border-dashed border-amber-200 bg-amber-50/50 px-3 py-2.5">
                 <p className="text-xs text-amber-700/70 italic">
-                  Noch keine hervorgehobenen Punkte — erscheinen gelb markiert in der Offerte.
+                  {t("offer.details.highlighted.empty")}
                 </p>
               </div>
             ) : (
@@ -415,7 +421,7 @@ export function OfferteDetailsSection({
                     <Input
                       value={item}
                       onChange={(e) => updateHighlightedItem(index, e.target.value)}
-                      placeholder="z.B. inkl. Möbel einwickeln mit Stretchfolie"
+                      placeholder={t("offer.details.highlighted.placeholder")}
                       className="h-9 flex-1 bg-amber-50 border-amber-200"
                     />
                     <Button
@@ -435,13 +441,13 @@ export function OfferteDetailsSection({
           {/* ── Row 6: Internal notes ── */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
-              Interne Notizen
-              <span className="font-normal">(nicht sichtbar für Kunde)</span>
+              {t("offer.details.field.internalNotes")}
+              <span className="font-normal">{t("offer.details.internalNotes.hint")}</span>
             </Label>
             <Textarea
               value={details.internalNotes}
               onChange={(e) => updateDetails("internalNotes", e.target.value)}
-              placeholder="Notizen für Ihr Team…"
+              placeholder={t("offer.details.internalNotes.placeholder")}
               rows={3}
               className="text-sm resize-none"
             />

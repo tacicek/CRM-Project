@@ -1,9 +1,9 @@
 import { format } from "date-fns";
-import { de } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useI18n } from "@/i18n/useI18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,6 +13,11 @@ import { cn } from "@/lib/utils";
  * Contract is identical to the native input it replaces: `value`/`onChange` speak ISO
  * "YYYY-MM-DD" (or "" for empty), so all existing form state and save logic is untouched —
  * only the visual representation changes.
+ *
+ * The DD.MM.YYYY *number* format stays fixed in all languages (Swiss convention); only the
+ * month/weekday names in the calendar follow the locale. This primitive is also used on the
+ * public pages, which render OUTSIDE the I18nProvider — `useI18n()` degrades to the German
+ * translator there instead of throwing, so the component keeps working unchanged.
  */
 export interface DatePickerProps {
   id?: string;
@@ -39,11 +44,13 @@ export const DatePicker = ({
   onChange,
   min,
   disabled,
-  placeholder = "Datum wählen",
+  placeholder,
   className,
 }: DatePickerProps) => {
+  const { t, dateLocale } = useI18n();
   const selected = value ? parseLocal(value) : undefined;
   const minDate = min ? parseLocal(min) : undefined;
+  const emptyLabel = placeholder ?? t("common.selectDate");
 
   return (
     <Popover>
@@ -60,7 +67,7 @@ export const DatePicker = ({
           )}
         >
           <CalendarIcon className="h-4 w-4 shrink-0 opacity-70" />
-          {selected ? format(selected, "dd.MM.yyyy", { locale: de }) : placeholder}
+          {selected ? format(selected, "dd.MM.yyyy", { locale: dateLocale }) : emptyLabel}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -70,7 +77,7 @@ export const DatePicker = ({
           defaultMonth={selected}
           onSelect={(d) => onChange(d ? toIso(d) : "")}
           disabled={minDate ? { before: minDate } : undefined}
-          locale={de}
+          locale={dateLocale}
           weekStartsOn={1}
           initialFocus
         />

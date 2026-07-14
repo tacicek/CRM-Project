@@ -1,7 +1,18 @@
 /**
  * Shared constants for Leistungskatalog (Service Catalog) module
  * Used by: Leistungskatalog.tsx, CatalogServiceSelector.tsx, LeistungsuebersichtSection.tsx
+ *
+ * LANGUAGE AXES — do not conflate them:
+ *
+ *  • Structure (value, icon, color) is language-free and lives here.
+ *  • Labels shown to the OPERATOR are resolved from the message catalog and always take a
+ *    `locale` (the dashboard locale). Never re-declare a German label in this module.
+ *  • The German texts inside PREDEFINED_TEMPLATES.services are CONTENT, not chrome: they are
+ *    seeded into `company_service_items.name/description`, which stay the German source of
+ *    truth and the fallback for the `translations` JSONB column. They must remain German
+ *    regardless of the operator's dashboard language.
  */
+import type { ComponentType } from "react";
 import {
   Truck,
   Droplets,
@@ -18,12 +29,19 @@ import {
   Layers,
   Sparkles,
 } from "lucide-react";
-import type { 
-  ServiceTypeConfig, 
-  CategoryConfig, 
-  UnitConfig, 
-  PredefinedTemplate 
-} from "@/types/leistungskatalog";
+import type { Locale } from "@/i18n/locale";
+import { getServiceLabel } from "@/i18n/domain";
+import { createTranslator, type MessageKey } from "@/i18n/translator";
+import type { CategoryConfig, PredefinedTemplate } from "@/types/leistungskatalog";
+
+type Icon = ComponentType<{ className?: string }>;
+
+/** A catalog service type. The label comes from the message catalog, never from this object. */
+export interface ServiceType {
+  value: string;
+  icon: Icon;
+  color: string;
+}
 
 /**
  * Default price constants
@@ -62,21 +80,25 @@ export const VALIDATION = {
 /**
  * Service types with icons and colors
  */
-export const SERVICE_TYPES: ServiceTypeConfig[] = [
-  { value: "umzug", label: "Umzug", icon: Truck, color: "from-blue-500 to-blue-600" },
-  { value: "reinigung", label: "Reinigung", icon: Droplets, color: "from-cyan-500 to-cyan-600" },
-  { value: "raeumung", label: "Räumung", icon: Trash, color: "from-orange-500 to-orange-600" },
-  { value: "entsorgung", label: "Entsorgung", icon: Trash2, color: "from-red-500 to-red-600" },
-  { value: "lagerung", label: "Lagerung", icon: Box, color: "from-purple-500 to-purple-600" },
-  { value: "klaviertransport", label: "Klaviertransport", icon: Piano, color: "from-amber-500 to-amber-600" },
-  { value: "moebellift", label: "Möbellift", icon: ArrowUpDown, color: "from-green-500 to-green-600" },
-  { value: "malerarbeit", label: "Malerarbeit", icon: Paintbrush, color: "from-pink-500 to-pink-600" },
-  { value: "usm_transport", label: "USM Transport", icon: Armchair, color: "from-indigo-500 to-indigo-600" },
-  { value: "wasserbett_transport", label: "Wasserbett Transport", icon: BedDouble, color: "from-teal-500 to-teal-600" },
+export const SERVICE_TYPES: ServiceType[] = [
+  { value: "umzug", icon: Truck, color: "from-blue-500 to-blue-600" },
+  { value: "reinigung", icon: Droplets, color: "from-cyan-500 to-cyan-600" },
+  { value: "raeumung", icon: Trash, color: "from-orange-500 to-orange-600" },
+  { value: "entsorgung", icon: Trash2, color: "from-red-500 to-red-600" },
+  { value: "lagerung", icon: Box, color: "from-purple-500 to-purple-600" },
+  { value: "klaviertransport", icon: Piano, color: "from-amber-500 to-amber-600" },
+  { value: "moebellift", icon: ArrowUpDown, color: "from-green-500 to-green-600" },
+  { value: "malerarbeit", icon: Paintbrush, color: "from-pink-500 to-pink-600" },
+  { value: "usm_transport", icon: Armchair, color: "from-indigo-500 to-indigo-600" },
+  { value: "wasserbett_transport", icon: BedDouble, color: "from-teal-500 to-teal-600" },
 ];
 
 /**
- * Service categories
+ * Service categories.
+ *
+ * `label` is a LEGACY German fallback: src/components/offerte/LeistungsuebersichtSection.tsx
+ * still renders `cat.label` directly. Every localized surface must call `getCategoryLabel()`.
+ * Delete the field once that component reads the catalog.
  */
 export const CATEGORIES: CategoryConfig[] = [
   { value: "transport", label: "Transport", icon: Truck },
@@ -90,24 +112,30 @@ export const CATEGORIES: CategoryConfig[] = [
 ];
 
 /**
- * Units for service pricing
+ * Billing units. The values are persisted in `company_service_items.unit` — do not rename
+ * them; the human-readable form comes from `getUnitLabel()`.
  */
-export const UNITS: UnitConfig[] = [
-  { value: "Pauschal", label: "Pauschal" },
-  { value: "Stunde", label: "pro Stunde" },
-  { value: "m3", label: "pro m³" },
-  { value: "m2", label: "pro m²" },
-  { value: "Zimmer", label: "pro Zimmer" },
-  { value: "Stück", label: "pro Stück" },
-  { value: "kg", label: "pro kg" },
-  { value: "km", label: "pro Kilometer" },
-  { value: "Tag", label: "pro Tag" },
-  { value: "Inklusiv", label: "Inklusiv" },
-  { value: "Stockwerk", label: "pro Stockwerk" },
-];
+export const UNITS = [
+  "Pauschal",
+  "Stunde",
+  "m3",
+  "m2",
+  "Zimmer",
+  "Stück",
+  "kg",
+  "km",
+  "Tag",
+  "Inklusiv",
+  "Stockwerk",
+] as const;
 
 /**
- * Predefined templates for quick start
+ * Predefined packages for a quick start.
+ *
+ * `name` / `description` are a LEGACY German fallback for the not-yet-localized
+ * LeistungsuebersichtSection; localized surfaces call `getPackageName()` /
+ * `getPackageDescription()`. The texts inside `services` are DB content (German source of
+ * truth, see the module header) and are seeded as written.
  */
 export const PREDEFINED_TEMPLATES: Record<string, PredefinedTemplate> = {
   umzug_standard: {
@@ -243,29 +271,100 @@ export const PREDEFINED_TEMPLATES: Record<string, PredefinedTemplate> = {
 };
 
 /**
- * Helper function to get service type config
+ * Service types the domain vocabulary (`domain.service.*`) does not carry. Everything else
+ * resolves through `getServiceLabel`, so the same label is used on the dashboard, in PDFs
+ * and in e-mails.
  */
-export function getServiceTypeConfig(typeValue: string): ServiceTypeConfig {
-  return SERVICE_TYPES.find(t => t.value === typeValue) || SERVICE_TYPES[0];
-}
+const CATALOG_SERVICE_TYPE_KEYS: Record<string, MessageKey> = {
+  usm_transport: "catalog.serviceType.usmTransport",
+  wasserbett_transport: "catalog.serviceType.wasserbettTransport",
+};
+
+const CATEGORY_KEYS: Record<string, MessageKey> = {
+  transport: "catalog.category.transport",
+  personal: "catalog.category.personal",
+  verpackung: "catalog.category.verpackung",
+  entsorgung: "catalog.category.entsorgung",
+  reinigung: "catalog.category.reinigung",
+  versicherung: "catalog.category.versicherung",
+  lagerung: "catalog.category.lagerung",
+  spezial: "catalog.category.spezial",
+};
+
+const UNIT_KEYS: Record<string, MessageKey> = {
+  Pauschal: "catalog.unit.pauschal",
+  Stunde: "catalog.unit.stunde",
+  m3: "catalog.unit.m3",
+  m2: "catalog.unit.m2",
+  Zimmer: "catalog.unit.zimmer",
+  Stück: "catalog.unit.stueck",
+  kg: "catalog.unit.kg",
+  km: "catalog.unit.km",
+  Tag: "catalog.unit.tag",
+  Inklusiv: "catalog.unit.inklusiv",
+  Stockwerk: "catalog.unit.stockwerk",
+};
+
+const PACKAGE_NAME_KEYS: Record<string, MessageKey> = {
+  umzug_standard: "catalog.package.umzug_standard.name",
+  reinigung_komplett: "catalog.package.reinigung_komplett.name",
+  raeumung_standard: "catalog.package.raeumung_standard.name",
+  entsorgung_standard: "catalog.package.entsorgung_standard.name",
+  lagerung_standard: "catalog.package.lagerung_standard.name",
+  klaviertransport_standard: "catalog.package.klaviertransport_standard.name",
+  moebellift_standard: "catalog.package.moebellift_standard.name",
+};
+
+const PACKAGE_DESCRIPTION_KEYS: Record<string, MessageKey> = {
+  umzug_standard: "catalog.package.umzug_standard.description",
+  reinigung_komplett: "catalog.package.reinigung_komplett.description",
+  raeumung_standard: "catalog.package.raeumung_standard.description",
+  entsorgung_standard: "catalog.package.entsorgung_standard.description",
+  lagerung_standard: "catalog.package.lagerung_standard.description",
+  klaviertransport_standard: "catalog.package.klaviertransport_standard.description",
+  moebellift_standard: "catalog.package.moebellift_standard.description",
+};
 
 /**
- * Helper function to get category label
+ * Helper function to get service type config (icon + color, no label)
  */
-export function getCategoryLabel(categoryValue: string): string {
-  return CATEGORIES.find(c => c.value === categoryValue)?.label || categoryValue;
+export function getServiceTypeConfig(typeValue: string): ServiceType {
+  return SERVICE_TYPES.find(t => t.value === typeValue) || SERVICE_TYPES[0];
 }
 
 /**
  * Helper function to get category icon
  */
-export function getCategoryIcon(categoryValue: string): React.ComponentType<{ className?: string }> {
+export function getCategoryIcon(categoryValue: string): Icon {
   return CATEGORIES.find(c => c.value === categoryValue)?.icon || Package;
 }
 
-/**
- * Helper function to get service type label
- */
-export function getServiceTypeLabel(typeValue: string): string {
-  return SERVICE_TYPES.find(t => t.value === typeValue)?.label || typeValue;
+/** "Umzug" · "Déménagement" · "Removal" — falls back to the raw value for unknown types. */
+export function getServiceTypeLabel(typeValue: string, locale: Locale): string {
+  const key = CATALOG_SERVICE_TYPE_KEYS[typeValue];
+  return key ? createTranslator(locale)(key) : getServiceLabel(typeValue, locale);
+}
+
+/** "Verpackung" · "Emballage" · "Packing" */
+export function getCategoryLabel(categoryValue: string, locale: Locale): string {
+  const key = CATEGORY_KEYS[categoryValue];
+  return key ? createTranslator(locale)(key) : categoryValue;
+}
+
+/** "pro Stunde" · "par heure" · "per hour" */
+export function getUnitLabel(unitValue: string, locale: Locale): string {
+  const key = UNIT_KEYS[unitValue];
+  return key ? createTranslator(locale)(key) : unitValue;
+}
+
+/** Display name of a predefined package. */
+export function getPackageName(packageKey: string, locale: Locale): string {
+  const key = PACKAGE_NAME_KEYS[packageKey];
+  return key ? createTranslator(locale)(key) : packageKey;
+}
+
+/** Display description of a predefined package. */
+export function getPackageDescription(packageKey: string, locale: Locale): string {
+  const key = PACKAGE_DESCRIPTION_KEYS[packageKey];
+  return key ? createTranslator(locale)(key) : "";
 }

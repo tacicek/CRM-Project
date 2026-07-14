@@ -1,6 +1,8 @@
 import { Image, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { FONT_SIZES } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
+import { formatDateLong } from "../utils/formatters";
+import { documentI18nFor } from "@/i18n/documentLocale";
 
 const ACCENT = "#F97316"; // orange — overridden by company.primaryColor if set
 
@@ -63,19 +65,13 @@ const styles = StyleSheet.create({
   },
 });
 
-const formatShortDate = (iso: string): string => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("de-CH", { day: "numeric", month: "long", year: "numeric" });
-};
-
 interface HeaderProps {
   data: OfferData;
 }
 
 export const Header = ({ data }: HeaderProps) => {
-  const { company, offerNumber, createdDate } = data;
+  const { company, offerNumber, createdDate, locale } = data;
+  const { t } = documentI18nFor(locale);
   const accent = company.primaryColor || ACCENT;
 
   const hasValidLogo =
@@ -84,9 +80,10 @@ export const Header = ({ data }: HeaderProps) => {
       company.logo.startsWith("http://") ||
       company.logo.startsWith("https://"));
 
-  // Split "OFFERTE" so last 2 chars can be coloured with accent
-  const titleBase = "OFFER";
-  const titleEnd = "TE";
+  // The wordmark is painted in two tones, so it is split into two catalog keys — the split
+  // point differs per language and cannot be a substring operation on one word.
+  const titleBase = t("doc.offer.wordmark.head");
+  const titleEnd = t("doc.offer.wordmark.tail");
 
   return (
     <View style={[styles.wrapper, { borderBottomColor: accent }]}>
@@ -114,9 +111,9 @@ export const Header = ({ data }: HeaderProps) => {
           <Text style={[styles.titleAccent, { color: accent }]}>{titleEnd}</Text>
         </View>
         <Text style={styles.offerNumber}>
-          {"Nr. "}
+          {`${t("doc.offer.numberShort")} `}
           <Text style={styles.offerNumberValue}>{offerNumber}</Text>
-          {`  ·  ${formatShortDate(createdDate)}`}
+          {`  ·  ${formatDateLong(createdDate, locale)}`}
         </Text>
       </View>
     </View>

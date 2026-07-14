@@ -4,6 +4,8 @@ import { OfferData } from "../types/offer.types";
 import { formatDate } from "../utils/formatters";
 import { lightenHex } from "../utils/colors";
 import { getServiceLayout } from "../utils/serviceLayout";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import { getServiceLabel } from "@/i18n/domain";
 
 const styles = StyleSheet.create({
   container: {
@@ -47,20 +49,26 @@ interface TitleSectionProps {
 }
 
 export const TitleSection = ({ data }: TitleSectionProps) => {
-  const layout = getServiceLayout(data.service.type);
+  const { t, locale } = documentI18nFor(data.locale);
+  const layout = getServiceLayout(data.service.type, locale);
+  const serviceLabel = getServiceLabel(data.service.type, locale);
   const route =
     layout.useRouteInTitle && data.service.fromCity && data.service.toCity
-      ? `${data.service.fromCity} nach ${data.service.toCity}`
+      ? `${data.service.fromCity} ${t("doc.address.routeTo")}${data.service.toCity}`
       : undefined;
   const primary = data.company.primaryColor || COLORS.primary;
   const primaryLight = data.company.primaryColor ? lightenHex(data.company.primaryColor) : COLORS.primaryLight;
-  const routeOrType = route ? `${data.service.type} ${route}` : data.service.type;
+  const routeOrType = route ? `${serviceLabel} ${route}` : serviceLabel;
 
-  const timeLabel = data.executionStartTime ? `ab ${data.executionStartTime} Uhr` : null;
+  const timeLabel = data.executionStartTime
+    ? t("doc.time.from", { start: data.executionStartTime })
+    : null;
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.titleText, { color: primary }]}>{`${data.service.type}-Offerte`}</Text>
+      <Text style={[styles.titleText, { color: primary }]}>
+        {t("doc.offer.titleFor", { service: serviceLabel })}
+      </Text>
       {data.offerTitle ? (
         <Text style={styles.titleSubtext}>{data.offerTitle}</Text>
       ) : null}
@@ -69,12 +77,12 @@ export const TitleSection = ({ data }: TitleSectionProps) => {
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>{`${layout.executionDateLabel}:`}</Text>
             <Text style={styles.detailValue}>
-              {formatDate(data.executionDate)}{timeLabel ? `  |  ${timeLabel}` : ""}
+              {formatDate(data.executionDate, locale)}{timeLabel ? `  |  ${timeLabel}` : ""}
             </Text>
           </View>
         ) : null}
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Leistungsart:</Text>
+          <Text style={styles.detailLabel}>{t("doc.offer.serviceKind")}</Text>
           <Text style={styles.detailValue}>{routeOrType}</Text>
         </View>
       </View>

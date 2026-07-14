@@ -12,6 +12,7 @@ import { ExtraServicesForm } from './ExtraServicesForm';
 import { PricingSummary } from './PricingSummary';
 import { CalculationResult, PricingConfig } from './types';
 import { calculateNetVolume, formatCHF, formatTime } from './calculation-utils';
+import { useI18n } from "@/i18n/useI18n";
 import {
   Package,
   Building2,
@@ -50,6 +51,9 @@ export function MovingCalculator({
   pricingConfig,
   isLoading = false,
 }: MovingCalculatorProps) {
+  // Calculator panel = operator chrome → dashboard locale. (The same durations, when written
+  // INTO an offer, are formatted with the offer's language instead — see OfferteErstellen.)
+  const { locale } = useI18n();
   const calculator    = useMovingCalculator(pricingConfig);
   const [step, setStep]             = useState<StepId>('inventory');
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -265,7 +269,7 @@ export function MovingCalculator({
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
-                {formatTime(calculator.result.timeBreakdown.totalTime)}
+                {formatTime(calculator.result.timeBreakdown.totalTime, locale)}
               </span>
               <span className="flex items-center gap-1">
                 <Package className="w-3.5 h-3.5" />

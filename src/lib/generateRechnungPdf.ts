@@ -11,6 +11,11 @@
 import jsPDF from "jspdf";
 import autoTable, { type CellHookData } from "jspdf-autotable";
 import { buildQrPayload, renderQrPng, isQRIBAN, type QrBillInput, type QrBillAddress, type QrCurrency } from "@/lib/swiss-qr/core";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Locale } from "@/i18n/locale";
+import type { Translator } from "@/i18n/translator";
+import { formatCurrency, formatDate } from "@/i18n/format";
+import { getLetterSalutation } from "@/i18n/domain";
 
 export interface RechnungCompany {
   company_name: string;
@@ -64,6 +69,11 @@ export interface RechnungData {
   einleitung?: string | null;
   schlusstext?: string | null;
   zahlungskonditionen?: string | null;
+  /**
+   * The CUSTOMER's language (rechnungen.language). Resolve it with
+   * `resolveDocumentLocale(rechnung, company)` — never from the dashboard context.
+   */
+  locale: Locale;
   company: RechnungCompany;
 }
 
@@ -91,17 +101,16 @@ const setText = (doc: jsPDF, [r, g, b]: Rgb): void => doc.setTextColor(r, g, b);
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
-/** "1 234.50" — thousands separator space, 2 decimals (QR-Bill norm). */
-// The QR-Bill payment part requires a SPACE as thousands separator per NORM (formatAmount).
-// The invoice body uses the Swiss convention apostrophe (formatAmountCH) —
-// consistent with the rest of the app ("CHF 3'234.35").
+/** "1 234.50" — thousands separator space, 2 decimals (QR-Bill NORM, not locale). */
+// The QR-Bill payment part prescribes a SPACE as thousands separator in every language;
+// it must NOT follow the document locale. The invoice body above it is free-form and does
+// follow the locale (formatCurrency).
 const groupAmount = (n: number, sep: string): string => {
   const [int, dec] = Math.abs(n).toFixed(2).split(".");
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, sep);
   return `${n < 0 ? "-" : ""}${grouped}.${dec}`;
 };
-const formatAmount = (n: number): string => groupAmount(n, " ");
-const formatAmountCH = (n: number): string => groupAmount(n, "'");
+const formatQrAmount = (n: number): string => groupAmount(n, " ");
 
 /**
  * Free "customer_address" (single/multi-line) → QR-Bill structured debtor.
@@ -133,10 +142,11 @@ const debtorLines = (data: RechnungData, debtor?: QrBillAddress): string[] => {
   return lines;
 };
 
-const formatDateCH = (iso: string): string => {
+/** ISO date → locale date; an unparsable value is printed as-is instead of "Invalid Date". */
+const formatIsoDate = (iso: string, locale: Locale): string => {
   const d = new Date(iso + (iso.length === 10 ? "T00:00:00" : ""));
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return formatDate(d, locale);
 };
 
 /** Groups the reference for display (QRR: in 5s, SCOR/RF: in 4s). */
@@ -183,14 +193,14 @@ const drawSwissCross = (doc: jsPDF): void => {
   doc.setFillColor(0, 0, 0);
 };
 
-const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference: string, debtor?: QrBillAddress): void => {
+const drawReceipt = (doc: jsPDF, data: RechnungData, t: Translator, refType: string, reference: string, debtor?: QrBillAddress): void => {
   let y = PP_TOP + 7;
   setFont(doc, 11, "bold");
-  doc.text("Empfangsschein", RECEIPT_X, y);
+  doc.text(t("doc.qr.receipt"), RECEIPT_X, y);
   y += 7;
 
   setFont(doc, 6, "bold");
-  doc.text("Konto / Zahlbar an", RECEIPT_X, y);
+  doc.text(t("doc.qr.account"), RECEIPT_X, y);
   y += 3;
   setFont(doc, 8, "normal");
   doc.text(data.qr_iban || data.company.iban, RECEIPT_X, y);
@@ -203,7 +213,7 @@ const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference:
   if (refType !== "NON") {
     y += 1;
     setFont(doc, 6, "bold");
-    doc.text("Referenz", RECEIPT_X, y);
+    doc.text(t("doc.qr.reference"), RECEIPT_X, y);
     y += 3;
     setFont(doc, 8, "normal");
     doc.text(formatReferenceDisplay(reference), RECEIPT_X, y);
@@ -212,7 +222,7 @@ const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference:
 
   y += 1;
   setFont(doc, 6, "bold");
-  doc.text("Zahlbar durch", RECEIPT_X, y);
+  doc.text(t("doc.qr.payableBy"), RECEIPT_X, y);
   y += 3;
   setFont(doc, 8, "normal");
   for (const line of debtorLines(data, debtor)) {
@@ -223,21 +233,21 @@ const drawReceipt = (doc: jsPDF, data: RechnungData, refType: string, reference:
   // Währung / Betrag (bottom block)
   const amountY = PP_TOP + 80;
   setFont(doc, 6, "bold");
-  doc.text("Währung", RECEIPT_X, amountY);
-  doc.text("Betrag", RECEIPT_X + 16, amountY);
+  doc.text(t("doc.qr.currency"), RECEIPT_X, amountY);
+  doc.text(t("doc.qr.amount"), RECEIPT_X + 16, amountY);
   setFont(doc, 8, "normal");
   doc.text(data.currency ?? "CHF", RECEIPT_X, amountY + 4);
-  doc.text(formatAmount(data.total), RECEIPT_X + 16, amountY + 4);
+  doc.text(formatQrAmount(data.total), RECEIPT_X + 16, amountY + 4);
 
   // Annahmestelle (bottom right)
   setFont(doc, 6, "bold");
-  doc.text("Annahmestelle", SEP_X - 5, PP_TOP + 92, { align: "right" });
+  doc.text(t("doc.qr.acceptancePoint"), SEP_X - 5, PP_TOP + 92, { align: "right" });
 };
 
-const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: string, reference: string, debtor?: QrBillAddress): void => {
+const drawZahlteil = (doc: jsPDF, data: RechnungData, t: Translator, qrPng: string, refType: string, reference: string, debtor?: QrBillAddress): void => {
   // Heading
   setFont(doc, 11, "bold");
-  doc.text("Zahlteil", ZAHLTEIL_X, PP_TOP + 7);
+  doc.text(t("doc.qr.paymentPart"), ZAHLTEIL_X, PP_TOP + 7);
 
   // QR + Swiss cross
   doc.addImage(qrPng, "PNG", QR_X, QR_Y, QR_SIZE, QR_SIZE);
@@ -246,16 +256,16 @@ const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: st
   // Währung / Betrag (below the QR)
   const amountY = QR_Y + QR_SIZE + 6;
   setFont(doc, 8, "bold");
-  doc.text("Währung", ZAHLTEIL_X, amountY);
-  doc.text("Betrag", ZAHLTEIL_X + 18, amountY);
+  doc.text(t("doc.qr.currency"), ZAHLTEIL_X, amountY);
+  doc.text(t("doc.qr.amount"), ZAHLTEIL_X + 18, amountY);
   setFont(doc, 10, "normal");
   doc.text(data.currency ?? "CHF", ZAHLTEIL_X, amountY + 5);
-  doc.text(formatAmount(data.total), ZAHLTEIL_X + 18, amountY + 5);
+  doc.text(formatQrAmount(data.total), ZAHLTEIL_X + 18, amountY + 5);
 
   // Right info column
   let y = PP_TOP + 7;
   setFont(doc, 8, "bold");
-  doc.text("Konto / Zahlbar an", INFO_X, y);
+  doc.text(t("doc.qr.account"), INFO_X, y);
   y += 4;
   setFont(doc, 10, "normal");
   doc.text(data.qr_iban || data.company.iban, INFO_X, y);
@@ -268,24 +278,24 @@ const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: st
   if (refType !== "NON") {
     y += 2;
     setFont(doc, 8, "bold");
-    doc.text("Referenz", INFO_X, y);
+    doc.text(t("doc.qr.reference"), INFO_X, y);
     y += 4;
     setFont(doc, 10, "normal");
     doc.text(formatReferenceDisplay(reference), INFO_X, y);
     y += 4;
   }
 
-  const msg = data.message?.trim() || `Rechnung ${data.rechnung_nr}`;
+  const msg = data.message?.trim() || t("doc.invoice.number", { number: data.rechnung_nr });
   y += 2;
   setFont(doc, 8, "bold");
-  doc.text("Zusätzliche Informationen", INFO_X, y);
+  doc.text(t("doc.qr.additionalInfo"), INFO_X, y);
   y += 4;
   setFont(doc, 10, "normal");
   doc.text(doc.splitTextToSize(msg, A4_W - INFO_X - 5), INFO_X, y);
 
   y = PP_TOP + 56;
   setFont(doc, 8, "bold");
-  doc.text("Zahlbar durch", INFO_X, y);
+  doc.text(t("doc.qr.payableBy"), INFO_X, y);
   y += 4;
   setFont(doc, 10, "normal");
   for (const line of debtorLines(data, debtor)) {
@@ -294,7 +304,7 @@ const drawZahlteil = (doc: jsPDF, data: RechnungData, qrPng: string, refType: st
   }
 };
 
-const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
+const drawQrBill = async (doc: jsPDF, data: RechnungData, t: Translator): Promise<void> => {
   const iban = data.qr_iban || data.company.iban;
   const reference = data.qr_referenz?.replace(/\s+/g, "") ?? "";
   // QRR is only valid with a QR-IBAN; plain IBAN + QRR → buildQrPayload errors.
@@ -314,7 +324,7 @@ const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
     debtor,
     amount: data.total > 0 ? data.total : undefined,
     currency: data.currency ?? "CHF",
-    message: data.message?.trim() || `Rechnung ${data.rechnung_nr}`,
+    message: data.message?.trim() || t("doc.invoice.number", { number: data.rechnung_nr }),
     reference: reference || undefined,
   };
 
@@ -323,14 +333,14 @@ const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
 
   // Norm: cut-off notice + scissors line + vertical separator
   setFont(doc, 8, "normal");
-  doc.text("Vor der Einzahlung abzutrennen", A4_W / 2, PP_TOP - 2, { align: "center" });
+  doc.text(t("doc.qr.separateNotice"), A4_W / 2, PP_TOP - 2, { align: "center" });
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.1);
   doc.line(0, PP_TOP, A4_W, PP_TOP);
   doc.line(SEP_X, PP_TOP, SEP_X, A4_H);
 
-  drawReceipt(doc, data, refType, reference, debtor);
-  drawZahlteil(doc, data, qrPng, refType, reference, debtor);
+  drawReceipt(doc, data, t, refType, reference, debtor);
+  drawZahlteil(doc, data, t, qrPng, refType, reference, debtor);
 };
 
 // ── Invoice body (upper part) ────────────────────────────────────────────────
@@ -338,8 +348,10 @@ const drawQrBill = async (doc: jsPDF, data: RechnungData): Promise<void> => {
 const LOGO_MAX_W = 55;
 const LOGO_MAX_H = 20;
 
-const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | null): void => {
+const drawInvoiceBody = (doc: jsPDF, data: RechnungData, t: Translator, logoBase64: string | null): void => {
   const c = data.company;
+  const locale = data.locale;
+  const money = (n: number): string => formatCurrency(n, locale);
   const accent = hexToRgb(c.primary_color, DEFAULT_ACCENT);
 
   // ── BLOCK 1: Akzent-Streifen + Header ──
@@ -389,7 +401,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   // Mit echten Leerzeichen liefert getTextWidth die korrekte Breite → bündige rechte Kante.
   setText(doc, COL_LABEL);
   setFont(doc, 8, "bold");
-  doc.text("R E C H N U N G", A4_W - MARGIN, MARGIN + 4, { align: "right" });
+  doc.text(t("doc.invoice.wordmark"), A4_W - MARGIN, MARGIN + 4, { align: "right" });
   setText(doc, COL_DARK);
   setFont(doc, 20, "bold");
   doc.text(data.rechnung_nr, A4_W - MARGIN, MARGIN + 13, { align: "right" });
@@ -405,7 +417,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   // Left: "RECHNUNG AN" + Kunde
   setText(doc, COL_LABEL);
   setFont(doc, 7, "bold");
-  doc.text("RECHNUNG AN", MARGIN, blockTop, { charSpace: 1 });
+  doc.text(t("doc.invoice.recipient"), MARGIN, blockTop, { charSpace: 1 });
   setText(doc, COL_DARK);
   setFont(doc, 11, "bold");
   doc.text(data.customer_name, MARGIN, blockTop + 7);
@@ -430,9 +442,9 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, "FD");
   const metaPad = 6;
   const metaRows: [string, string][] = [
-    ["Rechnungsdatum", formatDateCH(data.datum)],
-    ["Zahlbar bis", formatDateCH(data.faellig_am)],
-    ["Ansprechpartner", c.legal_name || c.company_name],
+    [t("doc.invoice.date"), formatIsoDate(data.datum, locale)],
+    [t("doc.invoice.dueDate"), formatIsoDate(data.faellig_am, locale)],
+    [t("doc.invoice.contact"), c.legal_name || c.company_name],
   ];
   let mrY = boxY + 8;
   for (const [label, value] of metaRows) {
@@ -455,13 +467,9 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   // ── BLOCK 3: Briefanrede + Einleitungstext ──
   setText(doc, COL_DARK);
   setFont(doc, 11, "bold");
-  const gruss =
-    data.anrede === "Herr"
-      ? `Sehr geehrter Herr ${data.customer_name}`
-      : data.anrede === "Frau"
-        ? `Sehr geehrte Frau ${data.customer_name}`
-        : "Sehr geehrte Damen und Herren";
-  doc.text(gruss, MARGIN, y);
+  // The salutation is derived from the stored `anrede` (Herr/Frau) — getLetterSalutation
+  // falls back to the neutral form when it is empty, in every language.
+  doc.text(getLetterSalutation(data.anrede, data.customer_name, locale), MARGIN, y);
   y += 7;
 
   if (data.einleitung && data.einleitung.trim()) {
@@ -482,13 +490,19 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   const pagesBefore = doc.getNumberOfPages();
   autoTable(doc, {
     startY: y,
-    head: [["POS", "BEZEICHNUNG", "ANZAHL", "EINZELPREIS", "BETRAG"]],
+    head: [[
+      t("doc.invoice.col.pos"),
+      t("doc.invoice.col.description"),
+      t("doc.invoice.col.quantity"),
+      t("doc.invoice.col.unitPrice"),
+      t("doc.invoice.col.amount"),
+    ]],
     body: data.positionen.map((p) => [
       "", // POS — Badge wird in didDrawCell gezeichnet
       p.beschreibung,
       typeof p.menge === "number" ? `${p.menge}${p.einheit ? " " + p.einheit : ""}` : "",
-      typeof p.einzelpreis === "number" ? `CHF ${formatAmountCH(p.einzelpreis)}` : "",
-      `CHF ${formatAmountCH(p.betrag)}`,
+      typeof p.einzelpreis === "number" ? money(p.einzelpreis) : "",
+      money(p.betrag),
     ]),
     theme: "plain",
     styles: { font: FONT, fontSize: 9, cellPadding: { top: 2.6, bottom: 2.6, left: 2, right: 2 }, textColor: [71, 85, 105], valign: "middle" },
@@ -558,9 +572,9 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
     doc.text(value, rValX, ty, { align: "right" });
     ty += 6;
   };
-  subRow("Zwischensumme exkl. MwSt.", `CHF ${formatAmountCH(data.zwischensumme)}`);
+  subRow(t("doc.invoice.subtotal"), money(data.zwischensumme));
   if (data.mwst_satz > 0) {
-    subRow(`MwSt. ${data.mwst_satz}%`, `CHF ${formatAmountCH(data.mwst_betrag)}`);
+    subRow(t("doc.invoice.vat", { rate: data.mwst_satz }), money(data.mwst_betrag));
   }
 
   // Rechts: dunkle Total-Box (weiße Schrift = garantierter Kontrast).
@@ -573,17 +587,17 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   const boxMidY = boxY2 + boxH2 / 2 + 1;
   setFont(doc, 8.5, "normal");
   doc.setTextColor(226, 232, 240);
-  doc.text("Rechnungstotal inkl. MwSt.", boxX2 + 5, boxMidY);
+  doc.text(t("doc.invoice.total"), boxX2 + 5, boxMidY);
   setFont(doc, 13, "bold");
   doc.setTextColor(255, 255, 255);
-  doc.text(`CHF ${formatAmountCH(data.total)}`, boxX2 + boxW2 - 5, boxMidY + 0.5, { align: "right" });
+  doc.text(money(data.total), boxX2 + boxW2 - 5, boxMidY + 0.5, { align: "right" });
 
   // Links: Zahlungskonditionen + Schlusstext + Unterschrift.
   let ly = finalY + 9;
   const leftW = boxX2 - MARGIN - 6; // Textbreite links (vor der Box)
   if (data.zahlungskonditionen && data.zahlungskonditionen.trim()) {
     setFont(doc, 9, "bold");
-    const lbl = "Zahlungskonditionen: ";
+    const lbl = t("doc.invoice.paymentTerms");
     const lblW = doc.getTextWidth(lbl);
     setText(doc, COL_DARK);
     doc.text(lbl, MARGIN, ly);
@@ -602,7 +616,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   ly += 6;
   setFont(doc, 9, "normal");
   setText(doc, COL_GRAY);
-  doc.text("Mit freundlichen Grüssen", MARGIN, ly);
+  doc.text(t("doc.invoice.closing"), MARGIN, ly);
   ly += 7;
   setFont(doc, 10, "bold");
   setText(doc, COL_DARK);
@@ -618,7 +632,7 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, logoBase64: string | nu
   if (tablePaginated || bandBottom > PP_TOP - 4) {
     setFont(doc, 8, "bold");
     doc.setTextColor(220, 38, 38);
-    doc.text("ACHTUNG: Rechnung zu lang für eine Seite — Positionen reduzieren (mehrseitig: TODO).", MARGIN, PP_TOP - 6);
+    doc.text(t("doc.invoice.overflowWarning"), MARGIN, PP_TOP - 6);
   }
 
   doc.setTextColor(0, 0, 0);
@@ -637,8 +651,10 @@ export const buildRechnungDoc = async (
   logoBase64: string | null = null,
 ): Promise<jsPDF> => {
   const doc = new jsPDF(); // mm, A4 portrait
-  drawInvoiceBody(doc, data, logoBase64);
-  await drawQrBill(doc, data);
+  // Customer language — taken from the invoice row, never from the operator's dashboard.
+  const { t } = documentI18nFor(data.locale);
+  drawInvoiceBody(doc, data, t, logoBase64);
+  await drawQrBill(doc, data, t);
   return doc;
 };
 

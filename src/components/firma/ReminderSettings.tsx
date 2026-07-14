@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from "react";
+import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -9,7 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { 
+import { useI18n, useT } from "@/i18n/useI18n";
+import { getAppointmentTypeLabel } from "@/i18n/domain";
+import {
   Bell, 
   Clock, 
   Mail, 
@@ -51,7 +54,13 @@ interface ReminderSettingsProps {
   companyId: string;
 }
 
+/** Lead times offered in the two selects — the label comes from `reminders.hoursBefore`. */
+const TEAM_REMINDER_HOURS = [6, 12, 24, 48] as const;
+const CUSTOMER_REMINDER_HOURS = [12, 24, 48, 72] as const;
+
 export function ReminderSettings({ companyId }: ReminderSettingsProps) {
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
   const [settings, setSettings] = useState<ReminderSettings>({
     company_id: companyId,
     team_reminder_hours: 12,
@@ -132,14 +141,14 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
       if (error) throw error;
 
       toast({
-        title: "Einstellungen gespeichert",
-        description: "Ihre Erinnerungseinstellungen wurden erfolgreich aktualisiert.",
+        title: t("reminders.toast.saved"),
+        description: t("reminders.toast.savedDescription"),
       });
     } catch (error) {
       console.error("Error saving settings:", error);
       toast({
-        title: "Fehler",
-        description: "Einstellungen konnten nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("reminders.toast.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -147,28 +156,13 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
     }
   };
 
-  const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("de-CH", {
-      weekday: "short",
-      day: "2-digit",
-      month: "2-digit",
-    });
-  };
+  /** "Mo, 03.02." in the OPERATOR's dashboard language — this list never leaves the dashboard. */
+  const formatDate = (dateStr: string): string =>
+    format(new Date(dateStr), "EEE, dd.MM.", { locale: dateLocale });
 
   const formatTime = (timeStr: string): string => {
     const parts = timeStr.split(":");
     return `${parts[0]}:${parts[1]}`;
-  };
-
-  const getAppointmentTypeLabel = (type: string): string => {
-    const labels: Record<string, string> = {
-      besichtigung: "Besichtigung",
-      service: "Service",
-      follow_up: "Nachbesprechung",
-      meeting: "Meeting",
-    };
-    return labels[type] || type;
   };
 
   if (isLoading) {
@@ -192,10 +186,10 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
             <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600">
               <Bell className="w-5 h-5 text-white" />
             </div>
-            Erinnerungseinstellungen
+            {t("reminders.title")}
           </CardTitle>
           <CardDescription>
-            Automatische E-Mail-Erinnerungen für Ihre Teammitglieder und Kunden konfigurieren
+            {t("reminders.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6 space-y-8">
@@ -207,9 +201,9 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
                   <Users className="w-4 h-4 text-violet-600" />
                 </div>
                 <div>
-                  <Label className="text-base font-semibold">Team-Erinnerungen</Label>
+                  <Label className="text-base font-semibold">{t("reminders.team.title")}</Label>
                   <p className="text-sm text-muted-foreground">
-                    E-Mails an zugewiesene Teammitglieder vor Terminen
+                    {t("reminders.team.description")}
                   </p>
                 </div>
               </div>
@@ -225,7 +219,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
               <div className="ml-11 space-y-4 p-4 bg-muted/30 rounded-lg">
                 <div className="flex items-center gap-4">
                   <Clock className="w-4 h-4 text-muted-foreground" />
-                  <Label className="min-w-[160px]">Erinnerung senden:</Label>
+                  <Label className="min-w-[160px]">{t("reminders.sendAt")}</Label>
                   <Select
                     value={String(settings.team_reminder_hours)}
                     onValueChange={(value) =>
@@ -236,10 +230,11 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="6">6 Stunden vorher</SelectItem>
-                      <SelectItem value="12">12 Stunden vorher</SelectItem>
-                      <SelectItem value="24">24 Stunden vorher</SelectItem>
-                      <SelectItem value="48">48 Stunden vorher</SelectItem>
+                      {TEAM_REMINDER_HOURS.map((hours) => (
+                        <SelectItem key={hours} value={String(hours)}>
+                          {t("reminders.hoursBefore", { count: hours })}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -257,9 +252,9 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
                   <Mail className="w-4 h-4 text-blue-600" />
                 </div>
                 <div>
-                  <Label className="text-base font-semibold">Kunden-Erinnerungen</Label>
+                  <Label className="text-base font-semibold">{t("reminders.customer.title")}</Label>
                   <p className="text-sm text-muted-foreground">
-                    E-Mails an Kunden vor ihren Terminen
+                    {t("reminders.customer.description")}
                   </p>
                 </div>
               </div>
@@ -275,7 +270,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
               <div className="ml-11 space-y-4 p-4 bg-muted/30 rounded-lg">
                 <div className="flex items-center gap-4">
                   <Clock className="w-4 h-4 text-muted-foreground" />
-                  <Label className="min-w-[160px]">Erinnerung senden:</Label>
+                  <Label className="min-w-[160px]">{t("reminders.sendAt")}</Label>
                   <Select
                     value={String(settings.customer_reminder_hours)}
                     onValueChange={(value) =>
@@ -286,10 +281,11 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="12">12 Stunden vorher</SelectItem>
-                      <SelectItem value="24">24 Stunden vorher</SelectItem>
-                      <SelectItem value="48">48 Stunden vorher</SelectItem>
-                      <SelectItem value="72">72 Stunden vorher</SelectItem>
+                      {CUSTOMER_REMINDER_HOURS.map((hours) => (
+                        <SelectItem key={hours} value={String(hours)}>
+                          {t("reminders.hoursBefore", { count: hours })}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -306,9 +302,9 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
                 <FileText className="w-4 h-4 text-emerald-600" />
               </div>
               <div>
-                <Label className="text-base font-semibold">E-Mail-Inhalt</Label>
+                <Label className="text-base font-semibold">{t("reminders.content.title")}</Label>
                 <p className="text-sm text-muted-foreground">
-                  Welche Informationen sollen in den Erinnerungen enthalten sein?
+                  {t("reminders.content.description")}
                 </p>
               </div>
             </div>
@@ -316,7 +312,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
             <div className="ml-11 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex items-center gap-3 p-3 rounded-lg border">
                 <Phone className="w-4 h-4 text-muted-foreground" />
-                <Label className="flex-1">Kundentelefon</Label>
+                <Label className="flex-1">{t("reminders.content.customerPhone")}</Label>
                 <Switch
                   checked={settings.include_customer_phone}
                   onCheckedChange={(checked) =>
@@ -327,7 +323,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
 
               <div className="flex items-center gap-3 p-3 rounded-lg border">
                 <Mail className="w-4 h-4 text-muted-foreground" />
-                <Label className="flex-1">Kunden-E-Mail</Label>
+                <Label className="flex-1">{t("reminders.content.customerEmail")}</Label>
                 <Switch
                   checked={settings.include_customer_email}
                   onCheckedChange={(checked) =>
@@ -338,7 +334,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
 
               <div className="flex items-center gap-3 p-3 rounded-lg border">
                 <FileText className="w-4 h-4 text-muted-foreground" />
-                <Label className="flex-1">Lead-Details</Label>
+                <Label className="flex-1">{t("reminders.content.leadDetails")}</Label>
                 <Switch
                   checked={settings.include_lead_details}
                   onCheckedChange={(checked) =>
@@ -349,7 +345,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
 
               <div className="flex items-center gap-3 p-3 rounded-lg border">
                 <DollarSign className="w-4 h-4 text-muted-foreground" />
-                <Label className="flex-1">Offerte-Details</Label>
+                <Label className="flex-1">{t("reminders.content.offerDetails")}</Label>
                 <Switch
                   checked={settings.include_offer_details}
                   onCheckedChange={(checked) =>
@@ -364,9 +360,9 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
 
           {/* Custom Footer Message */}
           <div className="space-y-4">
-            <Label className="text-base font-semibold">Eigene Fusszeile</Label>
+            <Label className="text-base font-semibold">{t("reminders.footer.title")}</Label>
             <Textarea
-              placeholder="Optionale benutzerdefinierte Nachricht für die E-Mail-Fusszeile..."
+              placeholder={t("reminders.footer.placeholder")}
               value={settings.custom_footer_message || ""}
               onChange={(e) =>
                 setSettings({ ...settings, custom_footer_message: e.target.value || null })
@@ -383,7 +379,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              Speichern
+              {t("common.save")}
             </Button>
           </div>
         </CardContent>
@@ -395,11 +391,11 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Clock className="w-5 h-5" />
-              Anstehende Erinnerungen
+              {t("reminders.pending.title")}
               <Badge variant="secondary">{pendingReminders.length}</Badge>
             </CardTitle>
             <CardDescription>
-              Diese Erinnerungen werden automatisch versendet
+              {t("reminders.pending.description")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -417,7 +413,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
                       <p className="font-medium">{reminder.title}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Badge variant="outline" className="text-xs">
-                          {getAppointmentTypeLabel(reminder.appointment_type)}
+                          {getAppointmentTypeLabel(reminder.appointment_type, locale)}
                         </Badge>
                         <span>
                           {formatDate(reminder.appointment_date)} • {formatTime(reminder.start_time)}
@@ -427,10 +423,13 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-muted-foreground">
-                      {reminder.team_names?.length || 0} Teammitglieder
+                      {t("reminders.pending.members", { count: reminder.team_names?.length ?? 0 })}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Versand: {formatDate(reminder.reminder_time)} {formatTime(reminder.reminder_time.split("T")[1] || "00:00")}
+                      {t("reminders.pending.dispatch", {
+                        date: formatDate(reminder.reminder_time),
+                        time: formatTime(reminder.reminder_time.split("T")[1] || "00:00"),
+                      })}
                     </p>
                   </div>
                 </div>
@@ -449,14 +448,14 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
             </div>
             <div className="space-y-2">
               <h3 className="font-semibold text-blue-900">
-                Wie funktionieren die Erinnerungen?
+                {t("reminders.info.title")}
               </h3>
               <ul className="text-sm text-blue-800 space-y-1">
-                <li>• Erinnerungen werden automatisch vor jedem Termin versendet</li>
-                <li>• Nur Termine mit zugewiesenen Teammitgliedern erhalten Erinnerungen</li>
-                <li>• Die E-Mail enthält alle wichtigen Details: Adresse, Kundenname, Telefon</li>
-                <li>• Bei Besichtigungen werden die Lead-Details inkl. Wohnungsgrösse gesendet</li>
-                <li>• Bei Service-Einsätzen werden zusätzlich die Offerte-Details gesendet</li>
+                <li>• {t("reminders.info.item1")}</li>
+                <li>• {t("reminders.info.item2")}</li>
+                <li>• {t("reminders.info.item3")}</li>
+                <li>• {t("reminders.info.item4")}</li>
+                <li>• {t("reminders.info.item5")}</li>
               </ul>
             </div>
           </div>

@@ -11,9 +11,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { SERVICE_OPTIONS } from "@/lib/offerServiceType";
+import { getServiceOptions } from "@/lib/offerServiceType";
 import { itemAmountDisplay, type AmountBasis } from "@/lib/offerPricing";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useI18n, useT } from "@/i18n/useI18n";
+import type { MessageKey } from "@/i18n/translator";
 
 export interface ItemTimeEstimate {
   minHours: string;
@@ -37,27 +39,30 @@ export interface OfferItem {
   kostendachMax?: number | null; // Item-/Service-level Kostendach (nur bei rate relevant)
 }
 
-// Price type options with their auto-derived units
+// Price type options with their auto-derived units. `value`/`defaultUnit` are the stored
+// enum/unit tokens and stay exactly as-is; only `labelKey` (the operator-facing dropdown
+// text) is resolved with the dashboard locale at render time.
 // fixedUnit = true means the unit is always derived from the price type (Einheit hidden)
 // fixedUnit = false means the user picks the unit themselves (Einheit shown)
 const priceTypeOptions = [
-  { value: "pauschale", label: "Pauschale",             defaultUnit: "Pauschal",  fixedUnit: true  },
-  { value: "per_unit",  label: "Pro Einheit",           defaultUnit: "Stk.",      fixedUnit: false },
-  { value: "per_hour",  label: "Pro Stunde",            defaultUnit: "Stunden",   fixedUnit: true  },
-  { value: "inkl",      label: "Inklusive (kein Preis)",defaultUnit: "",          fixedUnit: true  },
-  { value: "optional",  label: "Optional",              defaultUnit: "Stk.",      fixedUnit: false },
+  { value: "pauschale", labelKey: "offer.item.priceType.pauschale" as MessageKey, defaultUnit: "Pauschal",  fixedUnit: true  },
+  { value: "per_unit",  labelKey: "offer.item.priceType.perUnit" as MessageKey,   defaultUnit: "Stk.",      fixedUnit: false },
+  { value: "per_hour",  labelKey: "offer.item.priceType.perHour" as MessageKey,   defaultUnit: "Stunden",   fixedUnit: true  },
+  { value: "inkl",      labelKey: "offer.item.priceType.inkl" as MessageKey,      defaultUnit: "",          fixedUnit: true  },
+  { value: "optional",  labelKey: "common.optional" as MessageKey,                defaultUnit: "Stk.",      fixedUnit: false },
 ] as const;
 
-// Unit options shown only when priceType has fixedUnit = false (Pro Einheit / Optional)
-const unitOptions = [
-  { value: "Stk.",    label: "Stück (Stk.)" },
-  { value: "m²",     label: "Quadratmeter (m²)" },
-  { value: "m³",     label: "Kubikmeter (m³)" },
-  { value: "lfm",    label: "Laufmeter (lfm)" },
-  { value: "kg",     label: "Kilogramm (kg)" },
-  { value: "Tag",    label: "Tag" },
-  { value: "Fahrt",  label: "Fahrt" },
-  { value: "Person", label: "Person" },
+// Unit options shown only when priceType has fixedUnit = false (Pro Einheit / Optional).
+// `value` is the customer-facing snapshot stored on offer_items.unit — stays as-is.
+const unitOptions: { value: string; labelKey: MessageKey }[] = [
+  { value: "Stk.",    labelKey: "offer.form.unit.stk" },
+  { value: "m²",      labelKey: "offer.form.unit.m2" },
+  { value: "m³",      labelKey: "offer.form.unit.m3" },
+  { value: "lfm",     labelKey: "offer.form.unit.lfm" },
+  { value: "kg",      labelKey: "offer.form.unit.kg" },
+  { value: "Tag",     labelKey: "offer.form.unit.tag" },
+  { value: "Fahrt",   labelKey: "offer.form.unit.fahrt" },
+  { value: "Person",  labelKey: "offer.form.unit.person" },
 ];
 
 interface OfferteItemRowProps {
@@ -85,6 +90,11 @@ export const OfferteItemRow = ({
   formatCurrency,
   offerteType,
 }: OfferteItemRowProps) => {
+  const t = useT();
+  // Dropdown labels follow the OPERATOR's dashboard language; the stored value stays
+  // the German DB token and is re-resolved in the CUSTOMER's language on the PDF.
+  const { locale } = useI18n();
+  const serviceOptions = useMemo(() => getServiceOptions(locale), [locale]);
   const te = item.timeEstimate;
   // Zeitschätzungs-Range nur anzeigen, wenn Min/Max/Ansatz gültige positive Zahlen sind
   // (sonst wäre die „min – max"-Zeile 0.00 oder NaN). Spiegelt hourlyRange-Semantik.
@@ -188,7 +198,7 @@ export const OfferteItemRow = ({
               {/* Description Row - Always visible */}
               <div className="space-y-2.5 sm:space-y-0 sm:grid sm:gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label className="text-[10px] sm:text-xs text-muted-foreground">Beschreibung</Label>
+                  <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("common.description")}</Label>
                   <Input
                     value={item.description}
                     onChange={(e) => onUpdate(index, "description", e.target.value)}
@@ -197,7 +207,7 @@ export const OfferteItemRow = ({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] sm:text-xs text-muted-foreground">Preisart</Label>
+                  <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.item.label.priceType")}</Label>
                   <Select
                     value={item.priceType}
                     onValueChange={(value) => {
@@ -215,14 +225,14 @@ export const OfferteItemRow = ({
                     <SelectContent>
                       {priceTypeOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                          {option.label}
+                          {t(option.labelKey)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] sm:text-xs text-muted-foreground">Service (Gruppierung)</Label>
+                  <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.form.item.serviceGroup")}</Label>
                   <Select
                     value={item.serviceType ?? "allgemein"}
                     onValueChange={(v) => onUpdate(index, "serviceType", v === "allgemein" ? null : v)}
@@ -231,7 +241,7 @@ export const OfferteItemRow = ({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {SERVICE_OPTIONS.map((option) => (
+                      {serviceOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
@@ -241,7 +251,7 @@ export const OfferteItemRow = ({
                 </div>
                 {item.priceType !== "inkl" && item.priceType !== "optional" && (
                   <div className="space-y-1">
-                    <Label className="text-[10px] sm:text-xs text-muted-foreground">Preisbasis</Label>
+                    <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.form.item.amountBasis")}</Label>
                     <Select
                       value={item.amountBasis ?? "fixed"}
                       onValueChange={(v) => onUpdate(index, "amountBasis", v as AmountBasis)}
@@ -250,9 +260,9 @@ export const OfferteItemRow = ({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="fixed">Fester Betrag</SelectItem>
-                        <SelectItem value="rate">Ansatz (nach Aufwand)</SelectItem>
-                        <SelectItem value="range">Spanne (min–max)</SelectItem>
+                        <SelectItem value="fixed">{t("offer.form.amountBasis.fixed")}</SelectItem>
+                        <SelectItem value="rate">{t("offer.form.amountBasis.rate")}</SelectItem>
+                        <SelectItem value="range">{t("offer.form.amountBasis.range")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -268,12 +278,12 @@ export const OfferteItemRow = ({
                 {isExpanded ? (
                   <>
                     <ChevronUp className="w-3 h-3" />
-                    Weniger anzeigen
+                    {t("offer.item.showLess")}
                   </>
                 ) : (
                   <>
                     <ChevronDown className="w-3 h-3" />
-                    Mehr anzeigen
+                    {t("offer.item.showMore")}
                   </>
                 )}
               </button>
@@ -282,13 +292,13 @@ export const OfferteItemRow = ({
               <div className={cn("space-y-2.5 sm:space-y-4", !isExpanded && "hidden sm:block")}>
                 {/* Details (Sub-items) */}
                 <div className="space-y-2">
-                  <Label className="text-[10px] sm:text-xs text-muted-foreground">Details (optional)</Label>
+                  <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.item.details.label")}</Label>
                   {item.details.map((detail, detailIndex) => (
                     <div key={detailIndex} className="flex gap-1.5 sm:gap-2">
                       <Input
                         value={detail}
                         onChange={(e) => onUpdateDetail(index, detailIndex, e.target.value)}
-                        placeholder="z.B. inkl. Möbel einwickeln"
+                        placeholder={t("offer.item.detail.placeholder")}
                         className="flex-1 text-xs sm:text-sm h-8 sm:h-10"
                       />
                       <Button
@@ -308,7 +318,7 @@ export const OfferteItemRow = ({
                     className="text-[10px] sm:text-xs h-7 sm:h-8"
                   >
                     <Plus className="w-3 h-3 mr-1" />
-                    Detail hinzufügen
+                    {t("offer.item.detail.add")}
                   </Button>
                 </div>
 
@@ -323,7 +333,7 @@ export const OfferteItemRow = ({
                     {/* Menge — hidden for Pauschale (always 1) */}
                     {item.priceType !== "pauschale" && (
                       <div className="space-y-1">
-                        <Label className="text-[10px] sm:text-xs text-muted-foreground">Menge</Label>
+                        <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("common.quantity")}</Label>
                         <Input
                           type="text"
                           inputMode="decimal"
@@ -347,18 +357,18 @@ export const OfferteItemRow = ({
                     {/* Einheit — shown only when user needs to choose (Pro Einheit / Optional) */}
                     {!unitIsFixed && (
                       <div className="space-y-1">
-                        <Label className="text-[10px] sm:text-xs text-muted-foreground">Einheit</Label>
+                        <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("common.unit")}</Label>
                         <Select
                           value={item.unit}
                           onValueChange={(value) => onUpdate(index, "unit", value)}
                         >
                           <SelectTrigger className="h-8 sm:h-10 text-sm">
-                            <SelectValue placeholder="Einheit wählen" />
+                            <SelectValue placeholder={t("offer.item.unit.selectPlaceholder")} />
                           </SelectTrigger>
                           <SelectContent>
                             {unitOptions.map((option) => (
                               <SelectItem key={option.value} value={option.value}>
-                                {option.label}
+                                {t(option.labelKey)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -367,7 +377,7 @@ export const OfferteItemRow = ({
                     )}
 
                     <div className="space-y-1">
-                      <Label className="text-[10px] sm:text-xs text-muted-foreground">Einzelpreis</Label>
+                      <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.form.item.unitPrice")}</Label>
                       <Input
                         type="text"
                         inputMode="decimal"
@@ -386,7 +396,7 @@ export const OfferteItemRow = ({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] sm:text-xs text-muted-foreground">Total</Label>
+                      <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("common.total")}</Label>
                       {amountDisplay.kind === "range" ? (
                         <p className="font-bold text-sm sm:text-base h-8 sm:h-10 flex items-center text-amber-700">
                           {formatCurrency(amountDisplay.min)} – {formatCurrency(amountDisplay.max)}
@@ -407,7 +417,7 @@ export const OfferteItemRow = ({
                 {/* Item-/Service-level Kostendach — nur bei Preisbasis 'Ansatz' (rate). Std ODER CHF. */}
                 {item.priceType !== "inkl" && item.amountBasis === "rate" && (
                   <div className="space-y-1 max-w-[340px]">
-                    <Label className="text-[10px] sm:text-xs text-muted-foreground">Kostendach (optional)</Label>
+                    <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.form.item.kostendach")}</Label>
                     <div className="flex gap-2 items-center">
                       <Input
                         type="text"
@@ -416,7 +426,7 @@ export const OfferteItemRow = ({
                         onChange={(e) => setKdStr(e.target.value)}
                         onBlur={(e) => commitKostendach(e.target.value, kdUnit)}
                         onFocus={(e) => e.target.select()}
-                        placeholder={kdUnit === "std" ? "z.B. 9" : "z.B. 3105"}
+                        placeholder={kdUnit === "std" ? t("offer.form.item.kostendachPlaceholderHours") : t("offer.form.item.kostendachPlaceholderChf")}
                         className="h-8 sm:h-10 text-sm flex-1"
                       />
                       <div className="flex rounded-md border overflow-hidden text-xs shrink-0">
@@ -430,15 +440,22 @@ export const OfferteItemRow = ({
                               kdUnit === u ? "bg-secondary text-secondary-foreground" : "bg-background text-muted-foreground",
                             )}
                           >
-                            {u === "std" ? "Std" : "CHF"}
+                            {u === "std" ? t("offer.form.item.kdUnitHours") : "CHF"}
                           </button>
                         ))}
                       </div>
                     </div>
                     {(item.kostendachMax ?? null) !== null && (
                       <p className="text-[10px] text-muted-foreground">
-                        {`= ${formatCurrency(Number(item.kostendachMax))}`}
-                        {item.unit_price > 0 ? ` (${+(Number(item.kostendachMax) / item.unit_price).toFixed(2)} Std × ${formatCurrency(item.unit_price)})` : ""}
+                        {item.unit_price > 0
+                          ? t("offer.form.item.kostendachHint", {
+                              amount: formatCurrency(Number(item.kostendachMax)),
+                              hours: +(Number(item.kostendachMax) / item.unit_price).toFixed(2),
+                              rate: formatCurrency(item.unit_price),
+                            })
+                          : t("offer.form.item.kostendachHintPlain", {
+                              amount: formatCurrency(Number(item.kostendachMax)),
+                            })}
                       </p>
                     )}
                   </div>
@@ -450,18 +467,18 @@ export const OfferteItemRow = ({
                     {item.timeEstimate ? (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-amber-700">⏱ Zeitschätzung</span>
+                          <span className="text-xs font-medium text-amber-700">⏱ {t("offer.form.timeEstimate.title")}</span>
                           <button
                             type="button"
                             onClick={() => onUpdate(index, 'timeEstimate', null)}
                             className="text-xs text-muted-foreground hover:text-destructive"
                           >
-                            Entfernen
+                            {t("common.remove")}
                           </button>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div>
-                            <Label className="text-[10px] text-muted-foreground">Min. Std.</Label>
+                            <Label className="text-[10px] text-muted-foreground">{t("offer.form.timeEstimate.minHours")}</Label>
                             <input
                               type="number" min={1} step={1} placeholder="7"
                               value={item.timeEstimate.minHours}
@@ -470,7 +487,7 @@ export const OfferteItemRow = ({
                             />
                           </div>
                           <div>
-                            <Label className="text-[10px] text-muted-foreground">Max. Std.</Label>
+                            <Label className="text-[10px] text-muted-foreground">{t("offer.form.timeEstimate.maxHours")}</Label>
                             <input
                               type="number" min={1} step={1} placeholder="9"
                               value={item.timeEstimate.maxHours}
@@ -479,7 +496,7 @@ export const OfferteItemRow = ({
                             />
                           </div>
                           <div>
-                            <Label className="text-[10px] text-muted-foreground">CHF / Std.</Label>
+                            <Label className="text-[10px] text-muted-foreground">{t("offer.form.timeEstimate.hourlyRate")}</Label>
                             <input
                               type="number" min={0} step={0.05} placeholder="95"
                               value={item.timeEstimate.hourlyRate}
@@ -500,7 +517,7 @@ export const OfferteItemRow = ({
                         onClick={() => onUpdate(index, 'timeEstimate', { minHours: '', maxHours: '', hourlyRate: '' })}
                         className="text-xs text-amber-600 hover:text-amber-800 flex items-center gap-1"
                       >
-                        <span>+</span> Zeitschätzung hinzufügen
+                        <span>+</span> {t("offer.form.timeEstimate.add")}
                       </button>
                     )}
                   </div>
@@ -514,7 +531,7 @@ export const OfferteItemRow = ({
                     <button
                       type="button"
                       onClick={() => onUpdate(index, "highlighted", !item.highlighted)}
-                      title="Hervorheben"
+                      title={t("offer.item.highlightTitle")}
                       className={cn(
                         "h-6 w-6 rounded flex items-center justify-center transition-colors",
                         item.highlighted
@@ -532,7 +549,7 @@ export const OfferteItemRow = ({
                         className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 sm:h-8 text-xs"
                       >
                         <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
-                        Entfernen
+                        {t("common.remove")}
                       </Button>
                     )}
                   </div>

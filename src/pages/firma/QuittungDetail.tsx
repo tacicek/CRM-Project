@@ -26,9 +26,14 @@ import { SignaturePad, SignaturePadRef } from "@/components/quittung/SignaturePa
 import { QuittungPDFPreview } from "@/components/quittung/QuittungPDFPreview";
 import {
   Quittung, QuittungPosition, QuittungStatus,
-  PREDEFINED_POSITIONEN, CUSTOM_ROW_COUNT,
-  calculateTotals, formatChf, STATUS_CONFIG,
+  getPredefinedPositionen, CUSTOM_ROW_COUNT,
+  calculateTotals, STATUS_CONFIG,
 } from "@/types/quittung.types";
+import { useI18n } from "@/i18n/useI18n";
+import { formatCurrency } from "@/i18n/format";
+import { resolveDocumentLocale, documentI18nFor } from "@/i18n/documentLocale";
+import { getQuittungStatusLabel } from "@/i18n/domain";
+import { LOCALE_NAMES, LOCALES, toLocale, type Locale } from "@/i18n/locale";
 
 interface OfferOption {
   id: string;
@@ -50,6 +55,8 @@ interface OfferOption {
 interface CompanyInfo {
   id: string;
   company_name: string;
+  /** Fallback document language when the receipt row carries none. */
+  default_language?: string | null;
   logo_url?: string | null;
   primary_color?: string | null;
   email: string;
@@ -63,9 +70,13 @@ interface CompanyInfo {
   bewertungs_url?: string | null;
 }
 
-function buildDefaultPositionen(): QuittungPosition[] {
+/**
+ * Seed rows for a new receipt, written in the DOCUMENT locale: their text is stored on the
+ * row and printed verbatim for the customer, so a French receipt starts with French items.
+ */
+function buildDefaultPositionen(locale: Locale): QuittungPosition[] {
   return [
-    ...PREDEFINED_POSITIONEN.map(p => ({ ...p, id: uuidv4() })),
+    ...getPredefinedPositionen(locale).map(p => ({ ...p, id: uuidv4() })),
     ...Array.from({ length: CUSTOM_ROW_COUNT }, () => ({
       id: uuidv4(), beschreibung: "", satz: "", betrag: 0,
       checked: false, is_custom: true,
@@ -110,6 +121,9 @@ export default function QuittungDetail() {
   const location = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
+  // Dashboard locale — only for the amounts/status shown in this form. The receipt itself
+  // is rendered in `language` (the customer's language), which is a separate axis.
+  const { locale: uiLocale } = useI18n();
   const prefillAppliedRef = useRef(false);
 
   const [company, setCompany] = useState<CompanyInfo | null>(null);
@@ -127,7 +141,14 @@ export default function QuittungDetail() {
   const [customerDestination, setCustomerDestination] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [positionen, setPositionen] = useState<QuittungPosition[]>(buildDefaultPositionen);
+  // Document language — the language the CUSTOMER's receipt is written in (quittungen.language).
+  const [language, setLanguage] = useState<Locale>("de");
+  // Übersetzer der QUITTUNG (Sprache des Kunden), nicht des Dashboards: der Kunde
+  // liest und unterschreibt diese Felder vor Ort.
+  const { t: docT } = documentI18nFor(language);
+  const [positionen, setPositionen] = useState<QuittungPosition[]>(() =>
+    buildDefaultPositionen("de")
+  );
   const [mwstSatz, setMwstSatz] = useState(8.1);
   const [rabatt, setRabatt] = useState(0);
   const [betragNochOffen, setBetragNochOffen] = useState(false);
@@ -154,6 +175,8 @@ export default function QuittungDetail() {
     id: quittungId || "",
     company_id: company?.id ?? "",
     offer_id: linkedOfferId,
+    auftrag_id: linkedAuftragId,
+    language,
     quittung_nr: quittungNr,
     datum,
     customer_name: customerName,
@@ -177,20 +200,44 @@ export default function QuittungDetail() {
     updated_at: "",
   });
 
+  /**
+   * Switch the receipt's language and re-seed the predefined rows in that language.
+   *
+   * The eight predefined descriptions are read-only seed text (the form renders them as
+   * labels, they are never typed), so relabelling them is lossless — amounts, notes and the
+   * operator's custom rows stay untouched. A signed receipt is frozen: the select is disabled.
+   */
+  const applyLanguage = useCallback((next: Locale) => {
+    setLanguage(next);
+    setPositionen(prev => {
+      const seeds = getPredefinedPositionen(next);
+      let seedIndex = 0;
+      return prev.map(pos => {
+        if (pos.is_custom) return pos;
+        const seed = seeds[seedIndex];
+        seedIndex += 1;
+        return seed ? { ...pos, beschreibung: seed.beschreibung } : pos;
+      });
+    });
+  }, []);
+
   // Load company + pre-fetch logo as base64 so @react-pdf/renderer can embed it (bypasses CORS)
   useEffect(() => {
     if (!user?.id) return;
     fetchSingleCompanyForUser<CompanyInfo>({
       userId: user.id,
       userEmail: user.email,
-      select: "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url",
+      select: "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, default_language",
     }).then(async c => {
       if (!c) return;
       setCompany(c);
+      // A new receipt starts in the company default language; the operator can switch it
+      // per receipt below. An existing receipt keeps the language it was written in.
+      if (isNew) applyLanguage(toLocale(c.default_language));
       const b64 = await logoToBase64(c.logo_url);
       if (b64) setLogoBase64(b64);
     });
-  }, [user?.id, user?.email]);
+  }, [user?.id, user?.email, isNew, applyLanguage]);
 
   // Load offers for linking
   const loadOffers = useCallback(async (companyId: string) => {
@@ -254,6 +301,8 @@ export default function QuittungDetail() {
     const q = data as unknown as Quittung;
     if (q.offer_id) setLinkedOfferId(q.offer_id);
     if (q.auftrag_id) setLinkedAuftragId(q.auftrag_id);
+    // The stored language wins — the receipt keeps the language it was written in.
+    setLanguage(resolveDocumentLocale(q));
     setDatum(q.datum);
     setCustomerName(q.customer_name || "");
     setCustomerAddress(q.customer_address || "");
@@ -262,7 +311,7 @@ export default function QuittungDetail() {
     setCustomerPhone(q.customer_phone || "");
     setPositionen(Array.isArray(q.positionen) && q.positionen.length > 0
       ? q.positionen
-      : buildDefaultPositionen());
+      : buildDefaultPositionen(resolveDocumentLocale(q)));
     setRabatt(q.rabatt || 0);
     // Restore the stored VAT rate; only new receipts default to 8.1 (pre-2024 receipts
     // may carry 7.7 or 0 — recomputing at 8.1 would silently rewrite a signed receipt).
@@ -374,6 +423,7 @@ export default function QuittungDetail() {
       betrag_noch_offen: betragNochOffen,
       notiz: notiz || null,
       status: newStatus ?? status,
+      language,
       kunde_unterschrift: kundeSignatur,
       teamchef_unterschrift: teamchefSignatur,
       kunde_signed_at: kundeSignedAt,
@@ -448,6 +498,7 @@ export default function QuittungDetail() {
         <QuittungPDF
           quittung={buildQuittungData()}
           company={{ ...company, logo_url: logoBase64 ?? company.logo_url }}
+          locale={language}
         />
       ).toBlob();
       const quittungPdfBase64 = await blobToBase64(blob);
@@ -508,7 +559,7 @@ export default function QuittungDetail() {
               <span className="font-mono text-[11px] text-folk-ink4">{quittungNr}</span>
             )}
             <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${cfg.bg} ${cfg.color}`}>
-              {cfg.label}
+              {getQuittungStatusLabel(status, uiLocale)}
             </span>
             {showPdfPreview ? (
               <Button
@@ -536,6 +587,7 @@ export default function QuittungDetail() {
             <QuittungPDFPreview
               quittung={buildQuittungData()}
               company={{ ...company, logo_url: logoBase64 ?? company.logo_url }}
+              locale={language}
             />
           )}
 
@@ -628,6 +680,22 @@ export default function QuittungDetail() {
                     <Label className="text-xs">Datum *</Label>
                     <DatePicker value={datum} onChange={(value) => setDatum(value)}
                       className="mt-1 h-9 text-sm" />
+                  </div>
+                  <div>
+                    {/* Document language: the language the CUSTOMER's receipt is written in. */}
+                    <Label className="text-xs">Sprache der Quittung</Label>
+                    <Select
+                      value={language}
+                      onValueChange={v => applyLanguage(toLocale(v))}
+                      disabled={isSigned}
+                    >
+                      <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {LOCALES.map(l => (
+                          <SelectItem key={l} value={l}>{LOCALE_NAMES[l]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   {quittungNr && (
                     <div>
@@ -807,7 +875,7 @@ export default function QuittungDetail() {
                   <div className="w-full max-w-xs space-y-1.5 rounded-xl border border-slate-200 p-4 bg-slate-50">
                     <div className="flex justify-between text-sm text-slate-600">
                       <span>Zwischensumme:</span>
-                      <span>{formatChf(totals.zwischensumme)}</span>
+                      <span>{formatCurrency(totals.zwischensumme, uiLocale)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-slate-600">
                       <div className="flex items-center gap-2">
@@ -817,15 +885,15 @@ export default function QuittungDetail() {
                           onChange={e => setRabattGuarded(parseFloat(e.target.value) || 0)}
                           className="h-6 w-20 text-xs text-right py-0 px-1.5" />
                       </div>
-                      <span>-{formatChf(rabatt)}</span>
+                      <span>-{formatCurrency(rabatt, uiLocale)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-slate-600">
                       <span>MwSt. ({mwstSatz}%):</span>
-                      <span>{formatChf(totals.mwst_betrag)}</span>
+                      <span>{formatCurrency(totals.mwst_betrag, uiLocale)}</span>
                     </div>
                     <div className="border-t border-slate-300 pt-1.5 flex justify-between font-bold text-base text-slate-900">
                       <span>Gesamttotal:</span>
-                      <span className="text-emerald-700">{formatChf(totals.gesamttotal)}</span>
+                      <span className="text-emerald-700">{formatCurrency(totals.gesamttotal, uiLocale)}</span>
                     </div>
                     <div className="flex items-center gap-2 pt-1">
                       <Checkbox id="betrag-offen" checked={betragNochOffen}
@@ -844,7 +912,8 @@ export default function QuittungDetail() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <SignaturePad
                     ref={kundeSignRef}
-                    label="Datum / Unterschrift Kunde"
+                    locale={language}
+                    label={docT("doc.receipt.signature.customer")}
                     existingSignature={kundeSignatur}
                     signedAt={kundeSignedAt}
                     disabled={isSigned}
@@ -856,7 +925,8 @@ export default function QuittungDetail() {
                   />
                   <SignaturePad
                     ref={teamSignRef}
-                    label="Datum / Unterschrift Teamchef"
+                    locale={language}
+                    label={docT("doc.receipt.signature.teamLead")}
                     existingSignature={teamchefSignatur}
                     signedAt={teamchefSignedAt}
                     disabled={isSigned}
@@ -904,6 +974,7 @@ export default function QuittungDetail() {
                   <QuittungPDF
                     quittung={buildQuittungData()}
                     company={{ ...company, logo_url: logoBase64 ?? company.logo_url }}
+                    locale={language}
                   />
                 }
                 fileName={`Quittung-${quittungNr || "entwurf"}.pdf`}

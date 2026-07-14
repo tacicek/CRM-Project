@@ -1,3 +1,5 @@
+import { getServiceLabel } from "@/i18n/domain";
+import type { Locale } from "@/i18n/locale";
 // Canonical service-type normalization — single source for offer_items STAMPING (reference §3).
 //
 // ⚠️ Lesson #1/#3: This fn is for STAMPING (which single base an item belongs to). The existing
@@ -127,22 +129,23 @@ export const SERVICE_ORDER: CatalogBase[] = [
   "lagerung",
 ];
 
-// Base → UI title. Bases outside SERVICE_ORDER / unrecognized appear raw (capitalized) (Lesson #2).
-export const LABEL_MAP: Record<string, string> = {
-  umzug: "Umzug",
-  moebellift: "Möbellift",
-  reinigung: "Reinigung",
-  raeumung: "Räumung",
-  entsorgung: "Entsorgung",
-  transport: "Transport",
-  lagerung: "Lagerung",
-};
-
-// Options for the per-item service dropdown (create + edit from the same source — avoid divergence).
-// 'allgemein' = null sentinel (Radix Select needs a string; converted to null on write).
-export const SERVICE_OPTIONS: { value: string; label: string }[] = [
-  ...SERVICE_ORDER.map((base) => ({ value: base as string, label: LABEL_MAP[base] })),
-  { value: "allgemein", label: "Allgemein" },
+/**
+ * Options for the per-item service dropdown (create + edit share this source — avoid divergence).
+ * 'allgemein' = null sentinel (Radix Select needs a string; converted to null on write).
+ *
+ * The VALUE stays the German DB token (it is the stored key). Only the visible LABEL is
+ * localized — and it takes the locale explicitly, because this dropdown is drawn in the
+ * OPERATOR's dashboard language while the same key is printed on the customer's PDF in the
+ * CUSTOMER's language. A module-level German constant could not serve both.
+ */
+export const getServiceOptions = (
+  locale: Locale
+): { value: string; label: string }[] => [
+  ...SERVICE_ORDER.map((base) => ({
+    value: base as string,
+    label: getServiceLabel(base, locale),
+  })),
+  { value: "allgemein", label: getServiceLabel("allgemein", locale) },
 ];
 
 export interface ServiceGroup<T> {
@@ -153,9 +156,17 @@ export interface ServiceGroup<T> {
 
 const capitalize = (s: string): string => (s.length ? s[0].toUpperCase() + s.slice(1) : s);
 
+/**
+ * Fallback display string carried on ServiceGroup.label.
+ *
+ * ⚠️ Do NOT render this. It is locale-less by construction (grouping is a pure function and
+ * has no locale). Every renderer resolves `group.serviceType` through
+ * `getServiceLabel(key, locale)` instead — the PDFs already do. It survives only so the
+ * grouping result stays debuggable and the shape unchanged.
+ */
 const labelFor = (key: string | null): string => {
-  if (key === null) return "Allgemein";
-  return LABEL_MAP[key] ?? capitalize(key);
+  if (key === null) return "allgemein";
+  return capitalize(key);
 };
 
 /**

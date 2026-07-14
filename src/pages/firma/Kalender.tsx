@@ -4,7 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { Calendar, dateFnsLocalizer, View, Views } from "react-big-calendar";
 import withDragAndDrop, { EventInteractionArgs } from "react-big-calendar/lib/addons/dragAndDrop";
 import { format, parse, startOfWeek, getDay, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays } from "date-fns";
-import { de } from "date-fns/locale";
+import { de, fr, enGB } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,13 +58,19 @@ import { CalendarExportMenu } from "@/components/firma/CalendarExportMenu";
 import { AppointmentAnfrageSummary } from "@/components/firma/AppointmentAnfrageSummary";
 import { CalendarEvent as ICSCalendarEvent } from "@/lib/calendarSync";
 import { MobileCalendarNav } from "@/components/firma/MobileCalendarNav";
+import { useT, useI18n } from "@/i18n/useI18n";
+import { LOCALE_TAGS } from "@/i18n/locale";
+import { getAppointmentStatusLabel, getAppointmentTypeLabel } from "@/i18n/domain";
 import { cn } from "@/lib/utils";
 
-const locales = { "de-CH": de };
+// react-big-calendar resolves its date-fns locale through `culture`, so every dashboard
+// locale must be registered here — the `culture` prop below follows the operator's locale.
+const locales = { "de-CH": de, "fr-CH": fr, "en-GB": enGB };
 
 const localizer = dateFnsLocalizer({
   format,
   parse,
+  // Monday start in all three locales: Swiss/EU business convention, also correct for en-GB.
   startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
   getDay,
   locales,
@@ -130,25 +136,30 @@ interface CalendarEvent {
   };
 }
 
-const typeColors: Record<string, { bg: string; border: string; label: string; icon: typeof Eye; gradient: string }> = {
-  besichtigung: { bg: "#8B5CF6", border: "#7C3AED", label: "Besichtigung", icon: Eye, gradient: "from-violet-500 to-purple-500" },
-  service: { bg: "#10B981", border: "#059669", label: "Auftrag", icon: Truck, gradient: "from-emerald-500 to-green-500" },
-  follow_up: { bg: "#F59E0B", border: "#D97706", label: "Nachkontrolle", icon: Clock, gradient: "from-amber-500 to-orange-500" },
-  meeting: { bg: "#3B82F6", border: "#2563EB", label: "Besprechung", icon: Users, gradient: "from-blue-500 to-cyan-500" },
-  blocked: { bg: "#6B7280", border: "#4B5563", label: "Blockiert", icon: XCircle, gradient: "from-slate-500 to-slate-600" },
+// Presentation only — the human-readable labels come from `getAppointmentTypeLabel` /
+// `getAppointmentStatusLabel` (@/i18n/domain), so they exist once for all three locales
+// instead of being re-declared in German per file.
+const typeColors: Record<string, { bg: string; border: string; icon: typeof Eye; gradient: string }> = {
+  besichtigung: { bg: "#8B5CF6", border: "#7C3AED", icon: Eye, gradient: "from-violet-500 to-purple-500" },
+  service: { bg: "#10B981", border: "#059669", icon: Truck, gradient: "from-emerald-500 to-green-500" },
+  follow_up: { bg: "#F59E0B", border: "#D97706", icon: Clock, gradient: "from-amber-500 to-orange-500" },
+  meeting: { bg: "#3B82F6", border: "#2563EB", icon: Users, gradient: "from-blue-500 to-cyan-500" },
+  blocked: { bg: "#6B7280", border: "#4B5563", icon: XCircle, gradient: "from-slate-500 to-slate-600" },
 };
 
-const statusConfig: Record<string, { label: string; color: string; bgColor: string; textColor: string; icon: typeof Clock }> = {
-  pending: { label: "Ausstehend", color: "text-amber-700", bgColor: "bg-amber-100", textColor: "text-amber-700", icon: Clock },
-  confirmed: { label: "Bestätigt", color: "text-emerald-700", bgColor: "bg-emerald-100", textColor: "text-emerald-700", icon: CheckCircle },
-  completed: { label: "Erledigt", color: "text-slate-600", bgColor: "bg-slate-100", textColor: "text-slate-600", icon: CheckCircle },
-  cancelled: { label: "Abgesagt", color: "text-red-600", bgColor: "bg-red-100", textColor: "text-red-600", icon: XCircle },
-  rescheduled: { label: "Verschoben", color: "text-blue-600", bgColor: "bg-blue-100", textColor: "text-blue-600", icon: CalendarIcon },
-  no_show: { label: "Nicht erschienen", color: "text-rose-600", bgColor: "bg-rose-100", textColor: "text-rose-600", icon: XCircle },
+const statusConfig: Record<string, { color: string; bgColor: string; textColor: string; icon: typeof Clock }> = {
+  pending: { color: "text-amber-700", bgColor: "bg-amber-100", textColor: "text-amber-700", icon: Clock },
+  confirmed: { color: "text-emerald-700", bgColor: "bg-emerald-100", textColor: "text-emerald-700", icon: CheckCircle },
+  completed: { color: "text-slate-600", bgColor: "bg-slate-100", textColor: "text-slate-600", icon: CheckCircle },
+  cancelled: { color: "text-red-600", bgColor: "bg-red-100", textColor: "text-red-600", icon: XCircle },
+  rescheduled: { color: "text-blue-600", bgColor: "bg-blue-100", textColor: "text-blue-600", icon: CalendarIcon },
+  no_show: { color: "text-rose-600", bgColor: "bg-rose-100", textColor: "text-rose-600", icon: XCircle },
 };
 
 const KalenderPage = () => {
   const { companyId } = useCachedCompany();
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -209,11 +220,11 @@ const KalenderPage = () => {
       setAppointments((data as Appointment[]) || []);
     } catch (e) {
       console.error("Error fetching appointments:", e);
-      toast.error("Fehler beim Laden der Termine");
+      toast.error(t("calendar.toast.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, t]);
 
   const fetchTeamMembers = useCallback(async () => {
     if (!companyId) return;
@@ -329,7 +340,7 @@ const KalenderPage = () => {
           .eq("id", appointment.id);
 
         if (error) throw error;
-        toast.success("Termin verschoben");
+        toast.success(t("calendar.toast.moved"));
       } catch (e) {
         console.error("Error moving appointment:", e);
         setAppointments((prev) =>
@@ -339,10 +350,10 @@ const KalenderPage = () => {
               : apt
           )
         );
-        toast.error("Fehler beim Verschieben");
+        toast.error(t("calendar.toast.moveFailed"));
       }
     },
-    []
+    [t]
   );
 
   // Handle resize - optimistic update + rollback, appointment_date when date changes
@@ -377,7 +388,7 @@ const KalenderPage = () => {
           .eq("id", appointment.id);
 
         if (error) throw error;
-        toast.success("Termindauer geändert");
+        toast.success(t("calendar.toast.durationChanged"));
       } catch (e) {
         console.error("Error resizing appointment:", e);
         setAppointments((prev) =>
@@ -387,10 +398,10 @@ const KalenderPage = () => {
               : apt
           )
         );
-        toast.error("Fehler beim Ändern der Dauer");
+        toast.error(t("calendar.toast.durationFailed"));
       }
     },
-    []
+    [t]
   );
 
   const handleSelectEvent = useCallback((event: CalendarEvent) => {
@@ -482,12 +493,12 @@ const KalenderPage = () => {
         .eq("id", id);
 
       if (error) throw error;
-      toast.success("Termin bestätigt");
+      toast.success(t("calendar.toast.confirmed"));
       fetchAppointments();
       setSelectedEvent(null);
     } catch (e) {
       console.error("Error confirming appointment:", e);
-      toast.error("Fehler beim Bestätigen");
+      toast.error(t("calendar.toast.confirmFailed"));
     }
   };
 
@@ -511,12 +522,12 @@ const KalenderPage = () => {
       const { error } = await query;
 
       if (error) throw error;
-      toast.success(isSeries ? "Terminserie abgesagt" : "Termin abgesagt");
+      toast.success(isSeries ? t("calendar.toast.seriesCancelled") : t("calendar.toast.cancelled"));
       fetchAppointments();
       setSelectedEvent(null);
     } catch (e) {
       console.error("Error cancelling appointment:", e);
-      toast.error("Fehler beim Absagen");
+      toast.error(t("calendar.toast.cancelFailed"));
     }
   };
 
@@ -531,12 +542,12 @@ const KalenderPage = () => {
         .eq("id", id);
 
       if (error) throw error;
-      toast.success("Termin als erledigt markiert");
+      toast.success(t("calendar.toast.completed"));
       fetchAppointments();
       setSelectedEvent(null);
     } catch (e) {
       console.error("Error completing appointment:", e);
-      toast.error("Fehler beim Abschliessen");
+      toast.error(t("calendar.toast.completeFailed"));
     }
   };
 
@@ -566,7 +577,7 @@ const KalenderPage = () => {
                 key={tm.id}
                 className="w-5 h-5 rounded-full border-2 border-white/50 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
                 style={{ backgroundColor: tm.color_code }}
-                title={`${tm.first_name || ""} ${tm.last_name || ""}`.trim() || "Team"}
+                title={`${tm.first_name || ""} ${tm.last_name || ""}`.trim() || t("calendar.event.teamFallback")}
               >
                 {(tm.first_name || "?")[0]}
               </div>
@@ -583,20 +594,23 @@ const KalenderPage = () => {
     );
   };
 
-  const messages = {
-    today: "Heute",
-    previous: "Zurück",
-    next: "Weiter",
-    month: "Monat",
-    week: "Woche",
-    day: "Tag",
-    agenda: "Liste",
-    date: "Datum",
-    time: "Zeit",
-    event: "Termin",
-    noEventsInRange: "Keine Termine in diesem Zeitraum",
-    showMore: (total: number) => `+${total} mehr`,
-  };
+  const messages = useMemo(
+    () => ({
+      today: t("calendar.rbc.today"),
+      previous: t("calendar.rbc.previous"),
+      next: t("calendar.rbc.next"),
+      month: t("calendar.rbc.month"),
+      week: t("calendar.rbc.week"),
+      day: t("calendar.rbc.day"),
+      agenda: t("calendar.rbc.agenda"),
+      date: t("calendar.rbc.date"),
+      time: t("calendar.rbc.time"),
+      event: t("calendar.rbc.event"),
+      noEventsInRange: t("calendar.rbc.noEventsInRange"),
+      showMore: (total: number) => t("calendar.rbc.showMore", { count: total }),
+    }),
+    [t]
+  );
 
   // Stats - using useMemo to avoid recalculation on every render
   const todayAppointments = useMemo(() =>
@@ -623,7 +637,7 @@ const KalenderPage = () => {
   return (
     <>
       <Helmet>
-        <title>Kalender | Firma</title>
+        <title>{t("calendar.pageTitle")}</title>
       </Helmet>
         <div className="space-y-4">
           {/* Folk-style Header */}
@@ -631,13 +645,13 @@ const KalenderPage = () => {
             <span className="text-4xl leading-none">📅</span>
             <div className="flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Kalender</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("calendar.title")}</h1>
                 <span className="text-[15px] text-folk-ink3">
-                  {format(currentDate, "EEEE, dd. MMMM yyyy", { locale: de })} · <span className="font-mono">{todayAppointments}</span> heute · <span className="font-mono">{pendingAppointments}</span> offen · <span className="font-mono">{thisWeekAppointments}</span> diese Woche
+                  {format(currentDate, "EEEE, dd. MMMM yyyy", { locale: dateLocale })} · <span className="font-mono">{todayAppointments}</span> {t("calendar.stats.today")} · <span className="font-mono">{pendingAppointments}</span> {t("calendar.stats.open")} · <span className="font-mono">{thisWeekAppointments}</span> {t("calendar.stats.thisWeek")}
                 </span>
               </div>
               <p className="mt-1 text-[15px] text-folk-ink2">
-                Alle Termine, Besichtigungen und Einsätze — drag & drop zum Verschieben, Rechtsklick für neuen Termin.
+                {t("calendar.subtitle")}
               </p>
             </div>
             <Button
@@ -645,7 +659,7 @@ const KalenderPage = () => {
               className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
             >
               <Plus className="h-3.5 w-3.5" />
-              Neuer Termin
+              {t("calendar.newAppointment")}
             </Button>
           </div>
 
@@ -655,12 +669,12 @@ const KalenderPage = () => {
             <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-folk-line bg-folk-card p-0.5">
               <button
                 type="button"
-                aria-label="Kalenderansicht"
+                aria-label={t("calendar.view.ariaLabel")}
                 onClick={() => setActiveTab("calendar")}
                 className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12.5px] font-medium transition-colors ${activeTab === "calendar" ? "bg-folk-sidebar text-folk-ink" : "text-folk-ink3 hover:bg-folk-bg-warm"}`}
               >
                 <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-                <span>Ansicht</span>
+                <span>{t("calendar.view.calendar")}</span>
               </button>
               <button
                 type="button"
@@ -668,7 +682,7 @@ const KalenderPage = () => {
                 className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12.5px] font-medium transition-colors ${activeTab === "team" ? "bg-folk-sidebar text-folk-ink" : "text-folk-ink3 hover:bg-folk-bg-warm"}`}
               >
                 <Users className="h-3.5 w-3.5 shrink-0" />
-                <span>Team</span>
+                <span>{t("calendar.view.team")}</span>
               </button>
             </div>
 
@@ -676,10 +690,10 @@ const KalenderPage = () => {
             {activeTab === "calendar" && (
               <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-folk-line bg-folk-card p-0.5">
                 {[
-                  { view: Views.MONTH,  label: "Monat", icon: CalendarRange },
-                  { view: Views.WEEK,   label: "Woche", icon: CalendarDays },
-                  { view: Views.DAY,    label: "Tag",   icon: CalendarIcon },
-                  { view: Views.AGENDA, label: "Liste", icon: List },
+                  { view: Views.MONTH,  label: t("calendar.view.month"),  icon: CalendarRange },
+                  { view: Views.WEEK,   label: t("calendar.view.week"),   icon: CalendarDays },
+                  { view: Views.DAY,    label: t("calendar.view.day"),    icon: CalendarIcon },
+                  { view: Views.AGENDA, label: t("calendar.view.agenda"), icon: List },
                 ].map(({ view: v, label, icon: Icon }) => (
                   <button
                     key={label}
@@ -699,7 +713,7 @@ const KalenderPage = () => {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1.5 rounded-lg border-folk-line bg-folk-card px-2.5 text-[12.5px] text-folk-ink2 hover:bg-folk-bg-warm">
                   <Filter className="h-3.5 w-3.5" />
-                  Filter
+                  {t("common.filter")}
                   {(filters.types.length < 5 || filters.statuses.length < 6 || filters.teamMemberIds.length > 0) && (
                     <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-folk-coral text-[9px] font-bold text-white">
                       {5 - filters.types.length + 6 - filters.statuses.length + filters.teamMemberIds.length}
@@ -711,7 +725,7 @@ const KalenderPage = () => {
                     <div className="space-y-5">
                       <div>
                         <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />Termin-Typ
+                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />{t("calendar.filter.type")}
                         </h4>
                         <div className="space-y-2">
                           {Object.entries(typeColors).map(([key, val]) => (
@@ -719,7 +733,7 @@ const KalenderPage = () => {
                               <Checkbox id={`type-${key}`} checked={filters.types.includes(key)} onCheckedChange={() => toggleFilter("types", key)} />
                               <label htmlFor={`type-${key}`} className="text-sm flex items-center gap-2 cursor-pointer flex-1">
                                 <span className="w-3 h-3 rounded" style={{ backgroundColor: val.bg }} />
-                                {val.label}
+                                {getAppointmentTypeLabel(key, locale)}
                               </label>
                             </div>
                           ))}
@@ -727,13 +741,13 @@ const KalenderPage = () => {
                       </div>
                       <div className="border-t border-slate-100 pt-4">
                         <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Status
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{t("calendar.filter.status")}
                         </h4>
                         <div className="space-y-2">
                           {Object.entries(statusConfig).map(([key, config]) => (
                             <div key={key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer" onClick={() => toggleFilter("statuses", key)}>
                               <Checkbox id={`status-${key}`} checked={filters.statuses.includes(key)} onCheckedChange={() => toggleFilter("statuses", key)} />
-                              <label htmlFor={`status-${key}`} className={`text-sm cursor-pointer flex-1 ${config.color}`}>{config.label}</label>
+                              <label htmlFor={`status-${key}`} className={`text-sm cursor-pointer flex-1 ${config.color}`}>{getAppointmentStatusLabel(key, locale)}</label>
                             </div>
                           ))}
                         </div>
@@ -741,7 +755,7 @@ const KalenderPage = () => {
                       {teamMembers.length > 0 && (
                         <div className="border-t border-slate-100 pt-4">
                           <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />Team
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />{t("calendar.filter.team")}
                           </h4>
                           <div className="space-y-2 max-h-36 overflow-y-auto">
                             {teamMembers.map((member) => (
@@ -769,7 +783,7 @@ const KalenderPage = () => {
                   <button key={type} type="button" onClick={() => toggleFilter("types", type)}
                     className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-folk-line bg-folk-card px-2.5 py-1.5 text-[11.5px] font-medium text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
                     <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: typeColors[type]?.bg }} />
-                    {typeColors[type]?.label}
+                    {getAppointmentTypeLabel(type, locale)}
                     <X className="h-2.5 w-2.5 shrink-0 text-folk-ink4" />
                   </button>
                 ))}
@@ -848,7 +862,7 @@ const KalenderPage = () => {
                 <div className="rounded-xl border border-folk-line bg-folk-card">
                   <div className="p-3 sm:p-4 md:p-6">
                     <p className="mb-2 text-[11.5px] leading-snug text-folk-ink3 sm:mb-3">
-                      Tag anklicken für Terminliste · Rechtsklick: neuer Termin
+                      {t("calendar.hint.selectDay")}
                     </p>
                     <div
                       className="h-[580px] sm:h-[680px] md:h-[780px] lg:h-[min(820px,calc(100vh-14rem))] calendar-mobile calendar-modern"
@@ -885,7 +899,7 @@ const KalenderPage = () => {
                         draggableAccessor={() => true}
                         eventPropGetter={eventStyleGetter}
                         messages={messages}
-                        culture="de-CH"
+                        culture={LOCALE_TAGS[locale]}
                         scrollToTime={(() => { const t = new Date(); t.setHours(7, 0, 0, 0); return t; })()}
                         popup
                         components={{
@@ -919,11 +933,14 @@ const KalenderPage = () => {
                             // Format header based on view
                             const getHeaderText = () => {
                               if (toolbarView === Views.DAY) {
-                                return format(date, "EEEE, d. MMMM yyyy", { locale: de });
+                                return format(date, "EEEE, d. MMMM yyyy", { locale: dateLocale });
                               } else if (toolbarView === Views.WEEK) {
-                                return `KW ${format(date, "w", { locale: de })} - ${format(date, "MMMM yyyy", { locale: de })}`;
+                                return t("calendar.toolbar.weekHeader", {
+                                  week: format(date, "w", { locale: dateLocale }),
+                                  month: format(date, "MMMM yyyy", { locale: dateLocale }),
+                                });
                               } else {
-                                return format(date, "MMMM yyyy", { locale: de });
+                                return format(date, "MMMM yyyy", { locale: dateLocale });
                               }
                             };
 
@@ -935,7 +952,7 @@ const KalenderPage = () => {
                                     size="icon"
                                     className="h-9 w-9 rounded-xl"
                                     onClick={navigatePrev}
-                                    aria-label="Vorherige Ansicht"
+                                    aria-label={t("calendar.toolbar.prevAria")}
                                   >
                                     <ChevronLeft className="w-4 h-4" />
                                   </Button>
@@ -944,14 +961,14 @@ const KalenderPage = () => {
                                     onClick={navigateToday}
                                     className="h-9 rounded-xl px-4"
                                   >
-                                    Heute
+                                    {t("calendar.today")}
                                   </Button>
                                   <Button
                                     variant="outline"
                                     size="icon"
                                     className="h-9 w-9 rounded-xl"
                                     onClick={navigateNext}
-                                    aria-label="Nächste Ansicht"
+                                    aria-label={t("calendar.toolbar.nextAria")}
                                   >
                                     <ChevronRight className="w-4 h-4" />
                                   </Button>
@@ -990,10 +1007,10 @@ const KalenderPage = () => {
                       <div className="mb-4 flex items-center justify-between">
                         <div>
                           <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">
-                            {format(selectedDate, "EEEE", { locale: de })}
+                            {format(selectedDate, "EEEE", { locale: dateLocale })}
                           </h3>
                           <p className="font-mono text-[14px] text-folk-ink3">
-                            {format(selectedDate, "d. MMMM yyyy", { locale: de })}
+                            {format(selectedDate, "d. MMMM yyyy", { locale: dateLocale })}
                           </p>
                         </div>
                         <Button
@@ -1017,7 +1034,7 @@ const KalenderPage = () => {
                         size="sm"
                       >
                         <Plus className="w-4 h-4 mr-2" />
-                        Neuer Termin
+                        {t("calendar.newAppointment")}
                       </Button>
 
                       {/* Appointments List */}
@@ -1025,7 +1042,7 @@ const KalenderPage = () => {
                         {selectedDateAppointments.length === 0 ? (
                           <div className="text-center py-8">
                             <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                            <p className="text-sm text-slate-500">Keine Termine an diesem Tag</p>
+                            <p className="text-sm text-slate-500">{t("calendar.day.noAppointments")}</p>
                           </div>
                         ) : (
                           selectedDateAppointments.map((apt) => {
@@ -1072,7 +1089,7 @@ const KalenderPage = () => {
                                         className={`text-[10px] px-1.5 py-0 ${statusInfo.bgColor} ${statusInfo.textColor}`}
                                       >
                                         <StatusIcon className="w-2.5 h-2.5 mr-0.5" />
-                                        {statusInfo.label}
+                                        {getAppointmentStatusLabel(apt.status, locale)}
                                       </Badge>
                                     </div>
                                     {apt.customer_first_name && (
@@ -1107,7 +1124,7 @@ const KalenderPage = () => {
                     className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
-                    Neuer Termin
+                    {t("calendar.newAppointment")}
                   </button>
                   <button
                     onClick={() => {
@@ -1119,7 +1136,7 @@ const KalenderPage = () => {
                     className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
                   >
                     <CalendarIcon className="w-4 h-4" />
-                    Tag anzeigen
+                    {t("calendar.contextMenu.showDay")}
                   </button>
                 </div>
               )}
@@ -1169,6 +1186,8 @@ const AppointmentDetailCard = ({
   onCancel: (scope: "single" | "series") => void;
   onComplete: () => void;
 }) => {
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
   const typeInfo = typeColors[appointment.appointment_type] || typeColors.meeting;
   const statusInfo = statusConfig[appointment.status] || statusConfig.pending;
   const assignedMembers = teamMembers.filter(tm => appointment.assigned_team_member_ids?.includes(tm.id));
@@ -1200,7 +1219,9 @@ const AppointmentDetailCard = ({
             >
               <typeInfo.icon className="h-4 w-4" />
             </div>
-            <span className="text-[12.5px] font-medium text-folk-ink2">{typeInfo.label}</span>
+            <span className="text-[12.5px] font-medium text-folk-ink2">
+              {getAppointmentTypeLabel(appointment.appointment_type, locale)}
+            </span>
           </div>
           <Button
             variant="ghost"
@@ -1214,7 +1235,7 @@ const AppointmentDetailCard = ({
         <h3 className="break-words text-[16px] font-bold tracking-tight text-folk-ink">{appointment.title}</h3>
         <div className={`mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${statusInfo.bgColor} ${statusInfo.color}`}>
           <Circle className="h-2 w-2 fill-current" />
-          {statusInfo.label}
+          {getAppointmentStatusLabel(appointment.status, locale)}
         </div>
       </div>
 
@@ -1227,10 +1248,13 @@ const AppointmentDetailCard = ({
           </div>
           <div>
             <p className="text-sm font-medium text-slate-900">
-              {format(new Date(appointment.appointment_date), "EEEE, dd.MM.yyyy", { locale: de })}
+              {format(new Date(appointment.appointment_date), "EEEE, dd.MM.yyyy", { locale: dateLocale })}
             </p>
             <p className="text-xs text-slate-500">
-              {appointment.start_time.slice(0, 5)} - {appointment.end_time.slice(0, 5)} Uhr
+              {t("calendar.detail.timeRange", {
+                start: appointment.start_time.slice(0, 5),
+                end: appointment.end_time.slice(0, 5),
+              })}
             </p>
           </div>
         </div>
@@ -1260,7 +1284,7 @@ const AppointmentDetailCard = ({
         {/* Customer */}
         {appointment.customer_first_name && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kunde</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t("calendar.detail.customer")}</p>
             <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
               <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
                 <User className="w-5 h-5 text-amber-600" />
@@ -1285,7 +1309,7 @@ const AppointmentDetailCard = ({
                       className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline"
                     >
                       <Mail className="w-3 h-3" />
-                      Mail
+                      {t("calendar.detail.mail")}
                     </a>
                   )}
                 </div>
@@ -1297,7 +1321,7 @@ const AppointmentDetailCard = ({
         {/* Team Members */}
         {assignedMembers.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Team</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t("calendar.detail.team")}</p>
             <div className="flex flex-wrap gap-2">
               {assignedMembers.map(member => (
                 <div
@@ -1322,7 +1346,7 @@ const AppointmentDetailCard = ({
         {/* Description */}
         {appointment.description && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Beschreibung</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t("calendar.detail.description")}</p>
             <p className="text-sm text-slate-600">{appointment.description}</p>
           </div>
         )}
@@ -1334,7 +1358,7 @@ const AppointmentDetailCard = ({
         {appointment.internal_notes && (
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
             <p className="text-xs font-semibold text-amber-700 mb-1 flex items-center gap-1">
-              🔒 Interne Notizen
+              🔒 {t("calendar.detail.internalNotes")}
             </p>
             <p className="text-sm text-amber-800">{appointment.internal_notes}</p>
           </div>
@@ -1353,7 +1377,7 @@ const AppointmentDetailCard = ({
               className="h-9 w-full gap-1.5 rounded-lg bg-folk-mint text-[15px] font-semibold text-white hover:bg-folk-mint/90"
             >
               <CheckCircle className="h-4 w-4 shrink-0" />
-              Bestätigen
+              {t("calendar.detail.confirm")}
             </Button>
           )}
           {appointment.status === "confirmed" && (
@@ -1362,13 +1386,13 @@ const AppointmentDetailCard = ({
               className="h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-white hover:bg-folk-ink2"
             >
               <CheckCircle className="h-4 w-4 shrink-0" />
-              <span className="truncate">Erledigt</span>
+              <span className="truncate">{t("calendar.detail.complete")}</span>
             </Button>
           )}
           <div className="flex gap-2">
             <Button variant="outline" onClick={onEdit} className="h-9 min-w-0 flex-1 rounded-lg border-folk-line bg-folk-card text-[12.5px] text-folk-ink2 hover:bg-folk-bg-warm">
               <Edit2 className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">Bearbeiten</span>
+              <span className="truncate">{t("common.edit")}</span>
             </Button>
             {appointment.status !== "cancelled" && appointment.status !== "completed" && (
               (appointment.is_recurring || appointment.parent_appointment_id) ? (
@@ -1376,24 +1400,24 @@ const AppointmentDetailCard = ({
                   <AlertDialogTrigger asChild>
                     <Button className="h-9 min-w-0 flex-1 rounded-lg bg-folk-coral text-[12.5px] font-semibold text-white hover:bg-folk-coral/90">
                       <XCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">Absagen</span>
+                      <span className="truncate">{t("calendar.detail.cancel")}</span>
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Wiederkehrender Termin</AlertDialogTitle>
+                      <AlertDialogTitle>{t("calendar.recurring.title")}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Nur diesen Termin absagen oder die ganze Serie (alle wiederkehrenden Termine)?
+                        {t("calendar.recurring.description")}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => onCancel("single")}>Nur diesen</AlertDialogAction>
+                      <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => onCancel("single")}>{t("calendar.recurring.onlyThis")}</AlertDialogAction>
                       <AlertDialogAction
                         onClick={() => onCancel("series")}
                         className="bg-folk-coral hover:bg-folk-coral/90"
                       >
-                        Ganze Serie
+                        {t("calendar.recurring.wholeSeries")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -1401,7 +1425,7 @@ const AppointmentDetailCard = ({
               ) : (
                 <Button onClick={() => onCancel("single")} className="h-9 min-w-0 flex-1 rounded-lg bg-folk-coral text-[12.5px] font-semibold text-white hover:bg-folk-coral/90">
                   <XCircle className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">Absagen</span>
+                  <span className="truncate">{t("calendar.detail.cancel")}</span>
                 </Button>
               )
             )}

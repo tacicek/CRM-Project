@@ -3,6 +3,8 @@ import SignaturePadLib from "signature_pad";
 import { Button } from "@/components/ui/button";
 import { Trash2, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/i18n/format";
+import type { Locale } from "@/i18n/locale";
 
 export interface SignaturePadRef {
   clear: () => void;
@@ -12,6 +14,12 @@ export interface SignaturePadRef {
 
 interface SignaturePadProps {
   label: string;
+  /**
+   * Sprache des DOKUMENTS (der Quittung), nicht die des Dashboards. Der Kunde
+   * unterschreibt auf diesem Feld — der Zeitstempel muss in SEINER Sprache stehen.
+   * Muss vom Aufrufer kommen; die Komponente darf sie nicht aus einem Context lesen.
+   */
+  locale: Locale;
   signedAt?: string | null;
   existingSignature?: string | null;
   onConfirm: (dataUrl: string) => void;
@@ -21,7 +29,7 @@ interface SignaturePadProps {
 }
 
 export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
-  ({ label, signedAt, existingSignature, onConfirm, onClear, disabled, className }, ref) => {
+  ({ label, locale, signedAt, existingSignature, onConfirm, onClear, disabled, className }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const padRef = useRef<SignaturePadLib | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -111,10 +119,7 @@ export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
           {isSigned && signedAt && (
             <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
               <CheckCircle className="w-3 h-3" />
-              {new Date(signedAt).toLocaleString("de-CH", {
-                day: "2-digit", month: "2-digit", year: "numeric",
-                hour: "2-digit", minute: "2-digit",
-              })}
+              {formatDateTime(signedAt, locale)}
             </span>
           )}
         </div>

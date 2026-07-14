@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, isSameDay } from "date-fns";
-import { de } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Calendar } from "@/components/ui/calendar";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { useT, useI18n } from "@/i18n/useI18n";
 import { cn } from "@/lib/utils";
 
 interface MobileCalendarNavProps {
@@ -20,6 +20,8 @@ export function MobileCalendarNav({
   view,
   appointmentDates = []
 }: MobileCalendarNavProps) {
+  const t = useT();
+  const { dateLocale } = useI18n();
   const [open, setOpen] = useState(false);
 
   const navigateDate = (direction: "prev" | "next") => {
@@ -71,7 +73,7 @@ export function MobileCalendarNav({
             className="h-8 text-xs px-2"
             onClick={goToToday}
           >
-            Heute
+            {t("calendar.today")}
           </Button>
           
           <Sheet open={open} onOpenChange={setOpen}>
@@ -79,25 +81,25 @@ export function MobileCalendarNav({
               <Button variant="outline" size="sm" className="h-8 gap-1">
                 <CalendarDays className="h-3.5 w-3.5" />
                 <span className="text-xs font-medium">
-                  {view === "day" 
-                    ? format(currentDate, "d. MMM", { locale: de })
+                  {view === "day"
+                    ? format(currentDate, "d. MMM", { locale: dateLocale })
                     : view === "week"
-                    ? `KW ${format(currentDate, "w", { locale: de })}`
-                    : format(currentDate, "MMM yyyy", { locale: de })
+                    ? t("calendar.mobile.week", { week: format(currentDate, "w", { locale: dateLocale }) })
+                    : format(currentDate, "MMM yyyy", { locale: dateLocale })
                   }
                 </span>
               </Button>
             </SheetTrigger>
             <SheetContent side="bottom" className="h-auto max-h-[70vh]">
               <SheetHeader>
-                <SheetTitle>Datum auswählen</SheetTitle>
+                <SheetTitle>{t("calendar.mobile.selectDate")}</SheetTitle>
               </SheetHeader>
               <div className="flex justify-center py-4">
                 <Calendar
                   mode="single"
                   selected={currentDate}
                   onSelect={handleSelectDate}
-                  locale={de}
+                  locale={dateLocale}
                   className="rounded-md border"
                   modifiers={{
                     hasAppointment: (date) => hasAppointments(date),
@@ -113,7 +115,7 @@ export function MobileCalendarNav({
               </div>
               <div className="flex justify-center pb-4">
                 <Button onClick={() => { onDateChange(new Date()); setOpen(false); }} variant="secondary">
-                  Heute
+                  {t("calendar.today")}
                 </Button>
               </div>
             </SheetContent>
@@ -147,7 +149,7 @@ export function MobileCalendarNav({
                 )}
               >
                 <span className="text-[10px] uppercase opacity-70">
-                  {format(day, "EEE", { locale: de })}
+                  {format(day, "EEE", { locale: dateLocale })}
                 </span>
                 <span className={cn(
                   "text-lg font-semibold",
@@ -171,10 +173,10 @@ export function MobileCalendarNav({
       {view === "day" && (
         <div className="text-center mb-3">
           <div className="text-sm text-muted-foreground">
-            {format(currentDate, "EEEE", { locale: de })}
+            {format(currentDate, "EEEE", { locale: dateLocale })}
           </div>
           <div className="text-2xl font-bold">
-            {format(currentDate, "d. MMMM yyyy", { locale: de })}
+            {format(currentDate, "d. MMMM yyyy", { locale: dateLocale })}
           </div>
         </div>
       )}

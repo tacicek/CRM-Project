@@ -8,9 +8,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarClock, Calendar as CalendarIcon, Clock, MapPin, CheckCircle2, XCircle, Building2, Download } from "lucide-react";
 import { toast } from "sonner";
-import { de } from "date-fns/locale";
 import { format, addDays } from "date-fns";
 import { downloadIcsFile } from "@/lib/generateIcsFile";
+import { documentI18nFor, resolveDocumentLocale } from "@/i18n/documentLocale";
+import { getAppointmentTypeLabel } from "@/i18n/domain";
+import { type MessageKey } from "@/i18n/translator";
 
 interface Appointment {
   id: string;
@@ -27,6 +29,8 @@ interface Appointment {
   customer_email: string | null;
   status: string;
   company_id: string;
+  // The customer's language, inherited from the lead — this page addresses the customer.
+  language: string;
 }
 
 interface Company {
@@ -34,6 +38,7 @@ interface Company {
   email: string;
   notification_email: string | null;
   phone: string | null;
+  default_language: string;
 }
 
 const TIME_SLOTS = [
@@ -43,11 +48,25 @@ const TIME_SLOTS = [
   "17:00", "17:30", "18:00"
 ];
 
+/**
+ * Blocking conditions are kept as CODES, not as translated strings: the locale is only
+ * known once the appointment row has arrived, so the message is translated at render.
+ */
+type PageError = "invalid_link" | "not_found" | "already_cancelled" | "already_requested" | "load_failed";
+
+const ERROR_KEYS: Record<PageError, MessageKey> = {
+  invalid_link: "public.invalidLink",
+  not_found: "public.appointment.notFoundOrEmailMismatch",
+  already_cancelled: "public.cancel.alreadyCancelled",
+  already_requested: "public.reschedule.alreadyRequested",
+  load_failed: "public.error",
+};
+
 export default function AppointmentReschedule() {
   const { appointmentId } = useParams<{ appointmentId: string }>();
   const [searchParams] = useSearchParams();
   const email = searchParams.get("email");
-  
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
@@ -56,11 +75,19 @@ export default function AppointmentReschedule() {
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<PageError | null>(null);
+  // The blocking states above short-circuit before the row is stored, so the locale of
+  // their message would be lost — keep the row around for them as well.
+  const [blockedLanguage, setBlockedLanguage] = useState<string | null>(null);
+
+  // DOCUMENT locale — appointments.language, company default as the fallback.
+  const { t, locale, dateLocale } = documentI18nFor(
+    resolveDocumentLocale(appointment ?? { language: blockedLanguage }, company)
+  );
 
   const fetchAppointment = useCallback(async () => {
     if (!appointmentId || !email) {
-      setError("Ungültiger Link. Bitte verwenden Sie den Link aus Ihrer E-Mail.");
+      setError("invalid_link");
       setLoading(false);
       return;
     }
@@ -76,29 +103,31 @@ export default function AppointmentReschedule() {
       if (appointmentError) throw appointmentError;
 
       if (!appointmentData) {
-        setError("Termin nicht gefunden oder E-Mail-Adresse stimmt nicht überein.");
+        setError("not_found");
         setLoading(false);
         return;
       }
 
       if (appointmentData.status === "cancelled") {
-        setError("Dieser Termin wurde bereits abgesagt.");
+        setBlockedLanguage(appointmentData.language);
+        setError("already_cancelled");
         setLoading(false);
         return;
       }
 
       if (appointmentData.status === "rescheduled") {
-        setError("Für diesen Termin wurde bereits eine Verschiebung angefragt.");
+        setBlockedLanguage(appointmentData.language);
+        setError("already_requested");
         setLoading(false);
         return;
       }
 
       setAppointment(appointmentData);
 
-      // Fetch company info
+      // Fetch company info — default_language is the fallback locale for this page.
       const { data: companyData } = await supabase
         .from("companies")
-        .select("company_name, email, notification_email, phone")
+        .select("company_name, email, notification_email, phone, default_language")
         .eq("id", appointmentData.company_id)
         .maybeSingle();
 
@@ -107,7 +136,7 @@ export default function AppointmentReschedule() {
       }
     } catch (err) {
       console.error("Error fetching appointment:", err);
-      setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+      setError("load_failed");
     } finally {
       setLoading(false);
     }
@@ -119,10 +148,10 @@ export default function AppointmentReschedule() {
 
   const handleSubmit = async () => {
     if (!appointment || !selectedDate || !selectedTime) {
-      toast.error("Bitte wählen Sie ein Datum und eine Uhrzeit aus.");
+      toast.error(t("public.reschedule.pickDateTime"));
       return;
     }
-    
+
     setSubmitting(true);
     try {
       // Update appointment status to rescheduled
@@ -153,46 +182,34 @@ export default function AppointmentReschedule() {
         },
       });
 
+      // The DB row is already flipped to "rescheduled" at this point; a failed notification
+      // must not tell the customer their request was lost. Logged, not thrown — unchanged.
       if (invokeError) {
         console.error("Error invoking reschedule function:", invokeError);
       }
 
       setSubmitted(true);
-      toast.success("Terminvorschlag gesendet");
+      toast.success(t("public.reschedule.toastSent"));
     } catch (err) {
       console.error("Error submitting reschedule request:", err);
-      toast.error("Fehler beim Senden des Terminvorschlags");
+      toast.error(t("public.reschedule.toastFailed"));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("de-CH", {
-      weekday: "long",
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-  };
+  // "PPPP" = locale-aware long date incl. weekday.
+  const formatFullDate = (value: Date | string) =>
+    format(value instanceof Date ? value : new Date(value), "PPPP", { locale: dateLocale });
 
-  const formatTime = (timeStr: string) => {
-    return timeStr.substring(0, 5);
-  };
+  const formatTime = (timeStr: string) => timeStr.substring(0, 5);
 
-  const getAppointmentTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      besichtigung: "Besichtigung",
-      service: "Auftrag",
-      follow_up: "Nachkontrolle",
-      meeting: "Besprechung",
-    };
-    return labels[type] || type;
-  };
+  const timeRange = (start: string, end: string) =>
+    t("doc.time.fromUntil", { start: formatTime(start), end: formatTime(end) });
 
   const handleDownloadIcs = () => {
     if (!appointment) return;
-    
+
     const location = [
       appointment.location_address,
       appointment.location_plz,
@@ -201,7 +218,9 @@ export default function AppointmentReschedule() {
 
     downloadIcsFile({
       title: appointment.title,
-      description: `Termin bei ${company?.company_name || ""}`,
+      description: t("public.appointment.icsDescription", {
+        company: company?.company_name || "",
+      }),
       date: appointment.appointment_date,
       startTime: appointment.start_time,
       endTime: appointment.end_time,
@@ -232,14 +251,14 @@ export default function AppointmentReschedule() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+      <div lang={locale} className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <CardHeader className="text-center">
             <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
               <XCircle className="h-8 w-8 text-destructive" />
             </div>
-            <CardTitle>Fehler</CardTitle>
-            <CardDescription>{error}</CardDescription>
+            <CardTitle>{t("common.error")}</CardTitle>
+            <CardDescription>{t(ERROR_KEYS[error])}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -248,27 +267,27 @@ export default function AppointmentReschedule() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+      <div lang={locale} className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <CardHeader className="text-center">
             <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
-            <CardTitle>Terminvorschlag gesendet</CardTitle>
+            <CardTitle>{t("public.reschedule.doneTitle")}</CardTitle>
             <CardDescription>
-              Ihr Terminvorschlag wurde an {company?.company_name} gesendet. Sie erhalten eine Bestätigung per E-Mail.
+              {t("public.reschedule.doneBody", { company: company?.company_name || "" })}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-              <div className="font-medium text-center">Vorgeschlagener Termin</div>
+              <div className="font-medium text-center">{t("public.reschedule.proposed")}</div>
               <div className="flex items-center justify-center gap-2 text-primary">
                 <CalendarIcon className="h-4 w-4" />
-                {selectedDate && format(selectedDate, "EEEE, d. MMMM yyyy", { locale: de })}
+                {selectedDate && formatFullDate(selectedDate)}
               </div>
               <div className="flex items-center justify-center gap-2 text-primary">
                 <Clock className="h-4 w-4" />
-                {selectedTime} Uhr
+                {t("doc.time.oclock", { time: selectedTime })}
               </div>
             </div>
           </CardContent>
@@ -278,36 +297,36 @@ export default function AppointmentReschedule() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+    <div lang={locale} className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
             <CalendarClock className="h-8 w-8 text-blue-600" />
           </div>
-          <CardTitle>Termin verschieben</CardTitle>
-          <CardDescription>
-            Schlagen Sie einen neuen Termin vor
-          </CardDescription>
+          <CardTitle>{t("public.reschedule.title")}</CardTitle>
+          <CardDescription>{t("public.reschedule.intro")}</CardDescription>
         </CardHeader>
-        
+
         {appointment && (
           <CardContent className="space-y-6">
             {/* Current Appointment Details */}
             <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-              <div className="text-sm font-medium text-muted-foreground">Aktueller Termin</div>
+              <div className="text-sm font-medium text-muted-foreground">
+                {t("public.reschedule.current")}
+              </div>
               <div className="font-semibold">{appointment.title}</div>
               <div className="text-sm text-muted-foreground">
-                {getAppointmentTypeLabel(appointment.appointment_type)}
+                {getAppointmentTypeLabel(appointment.appointment_type, locale)}
               </div>
-              
+
               <div className="space-y-2 pt-2 border-t text-sm">
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <CalendarIcon className="h-4 w-4" />
-                  <span>{formatDate(appointment.appointment_date)}</span>
+                  <span>{formatFullDate(appointment.appointment_date)}</span>
                 </div>
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  <span>{formatTime(appointment.start_time)} - {formatTime(appointment.end_time)} Uhr</span>
+                  <span>{timeRange(appointment.start_time, appointment.end_time)}</span>
                 </div>
                 {appointment.location_address && (
                   <div className="flex items-center gap-3 text-muted-foreground">
@@ -324,7 +343,7 @@ export default function AppointmentReschedule() {
                   </div>
                 )}
               </div>
-              
+
               {/* Calendar Download */}
               <Button
                 variant="outline"
@@ -333,19 +352,19 @@ export default function AppointmentReschedule() {
                 className="w-full mt-3"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Zum Kalender hinzufügen
+                {t("public.appointment.addToCalendar")}
               </Button>
             </div>
 
             {/* New Date Selection */}
             <div className="space-y-3">
-              <label className="text-sm font-medium">Neues Datum auswählen</label>
+              <label className="text-sm font-medium">{t("public.reschedule.pickNewDate")}</label>
               <div className="flex justify-center">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={setSelectedDate}
-                  locale={de}
+                  locale={dateLocale}
                   disabled={(date) => date < minDate}
                   className="rounded-md border"
                 />
@@ -354,15 +373,15 @@ export default function AppointmentReschedule() {
 
             {/* Time Selection */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Gewünschte Uhrzeit</label>
+              <label className="text-sm font-medium">{t("public.reschedule.newTime")}</label>
               <Select value={selectedTime} onValueChange={setSelectedTime}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Uhrzeit wählen" />
+                  <SelectValue placeholder={t("public.reschedule.pickTime")} />
                 </SelectTrigger>
                 <SelectContent>
                   {TIME_SLOTS.map((time) => (
                     <SelectItem key={time} value={time}>
-                      {time} Uhr
+                      {t("doc.time.oclock", { time })}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -371,11 +390,9 @@ export default function AppointmentReschedule() {
 
             {/* Message */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Nachricht (optional)
-              </label>
+              <label className="text-sm font-medium">{t("public.reschedule.message")}</label>
               <Textarea
-                placeholder="Teilen Sie uns mit, warum Sie verschieben möchten..."
+                placeholder={t("public.reschedule.placeholder")}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={3}
@@ -389,10 +406,10 @@ export default function AppointmentReschedule() {
                 disabled={submitting || !selectedDate || !selectedTime}
                 className="w-full"
               >
-                {submitting ? "Wird gesendet..." : "Terminvorschlag senden"}
+                {submitting ? t("common.sending") : t("public.reschedule.submit")}
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                {company?.company_name} wird über Ihren Terminvorschlag informiert und wird sich bei Ihnen melden.
+                {t("public.reschedule.companyInformed", { company: company?.company_name || "" })}
               </p>
             </div>
           </CardContent>

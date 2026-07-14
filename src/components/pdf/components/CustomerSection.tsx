@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
 import { formatDate } from "../utils/formatters";
+import { documentI18nFor } from "@/i18n/documentLocale";
 
 const styles = StyleSheet.create({
   container: {
@@ -71,20 +72,23 @@ interface CustomerSectionProps {
 }
 
 export const CustomerSection = ({ data }: CustomerSectionProps) => {
-  const { customer, offerNumber, createdDate, validUntil, company } = data;
+  const { customer, offerNumber, createdDate, validUntil, company, locale } = data;
+  const { t } = documentI18nFor(locale);
 
   const details: { label: string; value: string }[] = [
-    { label: "Offerte-Nr.", value: offerNumber },
-    { label: "Datum", value: formatDate(createdDate) },
-    ...(validUntil ? [{ label: "Gültig bis", value: formatDate(validUntil) }] : []),
-    ...(company.mwstNr ? [{ label: "MwSt-Nr.", value: company.mwstNr }] : []),
+    { label: t("doc.offer.number"), value: offerNumber },
+    { label: t("doc.offer.date"), value: formatDate(createdDate, locale) },
+    ...(validUntil
+      ? [{ label: t("doc.offer.validUntil"), value: formatDate(validUntil, locale) }]
+      : []),
+    ...(company.mwstNr ? [{ label: t("doc.offer.vatNumber"), value: company.mwstNr }] : []),
   ];
 
   return (
     <View style={styles.container}>
       {/* LEFT — Auftraggeber */}
       <View style={styles.leftCol}>
-        <Text style={styles.sectionLabel}>Auftraggeber</Text>
+        <Text style={styles.sectionLabel}>{t("doc.offer.customer")}</Text>
         <Text style={styles.customerName}>{customer.name}</Text>
         {customer.address ? <Text style={styles.infoLine}>{customer.address}</Text> : null}
         {customer.phone?.trim() ? <Text style={styles.infoLine}>{customer.phone.trim()}</Text> : null}
@@ -93,7 +97,7 @@ export const CustomerSection = ({ data }: CustomerSectionProps) => {
 
       {/* RIGHT — Offerte-Details */}
       <View style={styles.rightCol}>
-        <Text style={styles.sectionLabel}>Offerte-Details</Text>
+        <Text style={styles.sectionLabel}>{t("doc.offer.details")}</Text>
         <View style={styles.detailsTable}>
           {details.map(({ label, value }, i) => (
             <View key={label}>

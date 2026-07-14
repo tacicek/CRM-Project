@@ -6,6 +6,7 @@
 // separate, deliberate step).
 
 import { round2 } from "@/lib/offerSurcharges";
+import { createTranslator } from "@/i18n/translator";
 
 export interface TimeEstimate {
   minHours: number;
@@ -278,12 +279,19 @@ export const offerHasRateItem = (items: SubtotalItem[]): boolean =>
 
 // Hinweis anstelle der ausgeblendeten Gesamtbetrag-/Zwischensumme-Box — SINGLE SOURCE,
 // damit alle Flächen (PDF, OfferView, Detail, Email, LivePreview, Erstellen/Bearbeiten) wörtlich gleich sind.
-export const RATE_AGGREGATE_NOTE =
-  "Der Gesamtpreis ergibt sich aus den Positionen nach Aufwand (siehe Details oben) zzgl. allfälliger Fixpositionen.";
+//
+// i18n: die Texte leben jetzt im Katalog (doc.offer.rateAggregateNote, doc.offer.blind.*).
+// Die Konstanten unten sind die GERMAN-ONLY-Auflösung derselben Keys — sie bedienen die
+// Dashboard-Flächen, die noch direkt auf Deutsch rendern. Kundenseitige Renderer (PDF,
+// öffentliche Offerte, E-Mail) dürfen sie NICHT verwenden; die lösen die Keys mit der
+// Sprache des Kunden auf (documentI18nFor(locale)).
+const germanDocumentText = createTranslator("de");
+
+export const RATE_AGGREGATE_NOTE = germanDocumentText("doc.offer.rateAggregateNote");
 
 // Kompakt-Variante für enge Flächen (Offerten-Liste Betrag-Spalte) — statt eines irreführenden
 // Fix-Summen-Betrags bei Offerten mit rate-Posten. Gleiche Semantik wie RATE_AGGREGATE_NOTE.
-export const RATE_AGGREGATE_SHORT = "nach Aufwand";
+export const RATE_AGGREGATE_SHORT = germanDocumentText("domain.priceModel.byEffort");
 
 // ---------------------------------------------------------------------------
 // Zeilen-Anzeige — SINGLE SOURCE für die Betragsdarstellung einer Position.
@@ -335,9 +343,7 @@ export const itemAmountDisplay = (item: AmountDisplayItem): AmountDisplay => {
   return { kind: "fixed", amount: item.total ?? item.quantity * item.unitPrice };
 };
 
-// Blind offer disclaimer — PDF (BlindOfferteDisclaimer) + OfferView (DOM) use the same text.
-export const BLIND_DISCLAIMER_LABEL = "Wichtiger Hinweis";
-export const BLIND_DISCLAIMER_TEXT =
-  "Diese Offerte wurde ohne persönliche Besichtigung erstellt und basiert ausschliesslich auf den " +
-  "Angaben des Kunden. Die aufgeführten Preise sind Schätzungen. Allfällige Anpassungen werden vor " +
-  "Auftragserteilung in Absprache mit dem Kunden vorgenommen.";
+// Blind offer disclaimer — German resolution of doc.offer.blind.label / doc.offer.blind.text
+// for the dashboard surfaces. The PDF resolves the same keys in the customer's language.
+export const BLIND_DISCLAIMER_LABEL = germanDocumentText("doc.offer.blind.label");
+export const BLIND_DISCLAIMER_TEXT = germanDocumentText("doc.offer.blind.text");

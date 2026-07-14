@@ -56,11 +56,14 @@ import { toast } from "sonner";
 
 // Import shared types, constants, and validation helpers
 import type { TeamMember, Resource, MemberFormState, ResourceFormState } from "@/types/team";
-import { ROLE_OPTIONS, COLOR_OPTIONS, getRoleLabel, getRoleIcon, getRandomColor } from "@/constants/team";
+import { getColorOptions, getRoleLabel, getRoleIcon, getRoleOptions, getRandomColor } from "@/constants/team";
 import { isValidEmail, sanitizePhone, parseCapacity, parseQuantity, getInitials } from "@/lib/validation";
+import { useI18n, useT } from "@/i18n/useI18n";
 
 const TeamPage = () => {
   const { user } = useAuth();
+  const t = useT();
+  const { locale } = useI18n();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -143,12 +146,12 @@ const TeamPage = () => {
     } catch (e) {
       if (isMounted) {
         console.error("Error fetching data:", e);
-        toast.error("Fehler beim Laden der Daten");
+        toast.error(t("team.toast.loadFailed"));
       }
     } finally {
       if (isMounted) setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, t]);
 
   // FIX: Add cleanup to prevent memory leak
   useEffect(() => {
@@ -212,13 +215,13 @@ const TeamPage = () => {
     if (!companyId || isSaving) return;
     
     if (!memberForm.first_name.trim() || !memberForm.last_name.trim()) {
-      toast.error("Bitte Vor- und Nachnamen eingeben");
+      toast.error(t("team.toast.nameRequired"));
       return;
     }
 
     // FIX: Validate email format
     if (!isValidEmail(memberForm.email)) {
-      toast.error("Bitte eine gültige E-Mail-Adresse eingeben");
+      toast.error(t("team.toast.invalidEmail"));
       return;
     }
 
@@ -262,7 +265,7 @@ const TeamPage = () => {
     if (!companyId || isSaving) return;
     
     if (!resourceForm.name.trim()) {
-      toast.error("Bitte Namen eingeben");
+      toast.error(t("team.toast.resourceNameRequired"));
       return;
     }
 
@@ -285,18 +288,18 @@ const TeamPage = () => {
           .update(payload)
           .eq("id", editingResource.id);
         if (error) throw error;
-        toast.success("Ressource aktualisiert");
+        toast.success(t("team.toast.resourceUpdated"));
       } else {
         const { error } = await supabase.from("firma_resources").insert(payload);
         if (error) throw error;
-        toast.success("Ressource hinzugefügt");
+        toast.success(t("team.toast.resourceAdded"));
       }
 
       setIsResourceModalOpen(false);
       fetchData();
     } catch (e) {
       console.error("Error saving resource:", e);
-      toast.error("Fehler beim Speichern");
+      toast.error(t("team.toast.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -314,19 +317,19 @@ const TeamPage = () => {
           .delete()
           .eq("id", deleteConfirm.id);
         if (error) throw error;
-        toast.success("Mitarbeiter gelöscht");
+        toast.success(t("team.toast.memberDeleted"));
       } else {
         const { error } = await supabase
           .from("firma_resources")
           .delete()
           .eq("id", deleteConfirm.id);
         if (error) throw error;
-        toast.success("Ressource gelöscht");
+        toast.success(t("team.toast.resourceDeleted"));
       }
       fetchData();
     } catch (e) {
       console.error("Error deleting:", e);
-      toast.error("Fehler beim Löschen");
+      toast.error(t("team.toast.deleteFailed"));
     } finally {
       setIsDeleting(false);
       setDeleteConfirm(null);
@@ -334,21 +337,25 @@ const TeamPage = () => {
   };
 
   // FIX: Add useMemo for filtered resources
-  const vehicles = useMemo(() => 
+  const vehicles = useMemo(() =>
     resources.filter((r) => r.resource_type === "vehicle"),
     [resources]
   );
-  
-  const equipment = useMemo(() => 
+
+  const equipment = useMemo(() =>
     resources.filter((r) => r.resource_type === "equipment"),
     [resources]
   );
+
+  // Role and colour labels follow the operator's dashboard language.
+  const roleOptions = useMemo(() => getRoleOptions(locale), [locale]);
+  const colorOptions = useMemo(() => getColorOptions(locale), [locale]);
 
   if (loading && !teamMembers.length) {
     return (
       <>
         <Helmet>
-          <title>Team | Firma</title>
+          <title>{t("team.pageTitle")}</title>
         </Helmet>
           <div className="flex items-center justify-center h-64">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -776,7 +783,7 @@ const TeamPage = () => {
                     <SelectValue placeholder="Rolle auswählen" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLE_OPTIONS.map((opt) => {
+                    {roleOptions.map((opt) => {
                       const Icon = opt.icon;
                       return (
                         <SelectItem key={opt.value} value={opt.value}>
@@ -819,7 +826,7 @@ const TeamPage = () => {
               <div className="space-y-2">
                 <Label>Farbe</Label>
                 <div className="flex gap-2 flex-wrap p-3 bg-muted/50 rounded-xl">
-                  {COLOR_OPTIONS.map((color) => (
+                  {colorOptions.map((color) => (
                     <button
                       key={color.value}
                       type="button"

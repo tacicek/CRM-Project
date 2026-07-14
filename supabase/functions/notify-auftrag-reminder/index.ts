@@ -8,6 +8,13 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
+import {
+  createTranslator,
+  DEFAULT_LOCALE,
+  formatDateLong,
+  toLocale,
+  type Locale,
+} from "../_shared/i18n/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -227,9 +234,24 @@ serve(async (req) => {
     if (customerQueryError) {
       console.error("Error getting customer reminders:", customerQueryError);
     } else if (customerReminders && customerReminders.length > 0) {
+      // This is a CRON: nothing can pass a language in, so it must come from the row.
+      // get_auftraege_needing_customer_reminders does not project `language`, so the column is
+      // read straight from auftraege — one batched query rather than one per reminder.
+      const auftragIds = (customerReminders as CustomerReminder[]).map((a) => a.auftrag_id);
+      const { data: languageRows } = await supabase
+        .from("auftraege")
+        .select("id, language")
+        .in("id", auftragIds);
+
+      const localeByAuftragId = new Map<string, Locale>(
+        (languageRows ?? []).map((row) => [row.id as string, toLocale(row.language)]),
+      );
+
       for (const auftrag of customerReminders as CustomerReminder[]) {
         try {
           if (!auftrag.customer_email) continue;
+
+          const customerLocale = localeByAuftragId.get(auftrag.auftrag_id) ?? DEFAULT_LOCALE;
 
           const { data: companySettings } = await supabase
             .from("companies")
@@ -252,19 +274,18 @@ serve(async (req) => {
             ? `${companySettings.resend_from_name || auftrag.company_name} <${companySettings.resend_from_email}>`
             : `${auftrag.company_name} <${getAdminEmail()}>`;
 
-          const scheduledDate = new Date(auftrag.scheduled_date);
-          const formattedDate = scheduledDate.toLocaleDateString("de-CH", {
-            weekday: "long",
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          });
+          // Customer-facing date → the CUSTOMER's locale, not de-CH.
+          const formattedDate = formatDateLong(auftrag.scheduled_date, customerLocale);
+          const tCustomer = createTranslator(customerLocale);
 
           const { error: custEmailError } = await resend.emails.send({
             from: fromAddress,
             to: auftrag.customer_email,
-            subject: `Erinnerung: Ihr Termin am ${formattedDate} – ${auftrag.company_name}`,
-            html: generateCustomerEmailHtml(auftrag, formattedDate),
+            subject: tCustomer("email.auftragReminder.subject", {
+              date: formattedDate,
+              companyName: auftrag.company_name,
+            }),
+            html: generateCustomerEmailHtml(auftrag, formattedDate, customerLocale),
           });
           if (custEmailError) throw custEmailError;
 
@@ -441,17 +462,20 @@ function generateEmailHtml(
   `;
 }
 
+/** Customer reminder — rendered in the DOCUMENT locale (auftraege.language). */
 function generateCustomerEmailHtml(
   auftrag: CustomerReminder,
-  formattedDate: string
+  formattedDate: string,
+  locale: Locale,
 ): string {
+  const t = createTranslator(locale);
   const timeStr = auftrag.scheduled_time
-    ? auftrag.scheduled_time.substring(0, 5) + " Uhr"
-    : "Wird noch bekannt gegeben";
+    ? t("common.timeValue", { time: auftrag.scheduled_time.substring(0, 5) })
+    : t("email.auftragReminder.timeTbd");
 
   return `
 <!DOCTYPE html>
-<html>
+<html lang="${locale}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -459,13 +483,13 @@ function generateCustomerEmailHtml(
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1f2937; margin: 0; padding: 0; background-color: #f3f4f6;">
   <div style="width:100%;max-width:600px;box-sizing:border-box;margin:0 auto;padding:16px 14px;">
     <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 28px; border-radius: 16px 16px 0 0; text-align: center;">
-      <h1 style="color: white; margin: 0; font-size: 22px;">Ihr Termin steht bevor</h1>
+      <h1 style="color: white; margin: 0; font-size: 22px;">${t("email.auftragReminder.headerTitle")}</h1>
       <p style="color: #d1fae5; margin: 8px 0 0 0; font-size: 14px;">${auftrag.company_name}</p>
     </div>
 
     <div style="background: white; padding: 28px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-      <p style="font-size: 16px;">Guten Tag <strong>${auftrag.customer_name}</strong>,</p>
-      <p>wir möchten Sie an Ihren bevorstehenden Termin erinnern:</p>
+      <p style="font-size: 16px;">${t("common.greeting", { name: `<strong>${auftrag.customer_name}</strong>` })}</p>
+      <p>${t("email.auftragReminder.intro")}</p>
 
       <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 15px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
         <p style="margin: 0; font-size: 18px; font-weight: bold; color: #047857;">${auftrag.title}</p>
@@ -475,24 +499,23 @@ function generateCustomerEmailHtml(
 
       ${auftrag.from_address ? `
       <p style="margin: 0 0 10px 0;">
-        <strong style="color: #059669;">Adresse:</strong><br>
+        <strong style="color: #059669;">${t("common.address")}:</strong><br>
         ${auftrag.from_address.replace(/\n/g, "<br>")}
       </p>
       ` : ""}
       ${auftrag.to_address ? `
       <p style="margin: 0 0 10px 0;">
-        <strong style="color: #dc2626;">Zieladresse:</strong><br>
+        <strong style="color: #dc2626;">${t("common.destinationAddress")}:</strong><br>
         ${auftrag.to_address.replace(/\n/g, "<br>")}
       </p>
       ` : ""}
 
       <p style="margin-top: 20px;">
-        Bitte stellen Sie sicher, dass alles für den Termin vorbereitet ist.
-        Bei Fragen oder Änderungen kontaktieren Sie uns bitte rechtzeitig.
+        ${t("email.auftragReminder.outro")}
       </p>
 
       <p style="color: #6b7280; font-size: 14px; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 28px;">
-        Freundliche Grüsse<br>
+        ${t("common.regardsFriendly")}<br>
         <strong>${auftrag.company_name}</strong>
       </p>
     </div>

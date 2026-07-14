@@ -3,7 +3,10 @@
 // TypeScript interfaces for the archiving system
 // =============================================================================
 
-export type ArchiveType = 
+import type { Locale } from "@/i18n/locale";
+import { createTranslator } from "@/i18n/translator";
+
+export type ArchiveType =
   | 'leads'
   | 'offers'
   | 'email_logs'
@@ -247,38 +250,21 @@ export interface ArchiveStatisticsCardProps {
 // CONSTANTS
 // =============================================================================
 
-export const ARCHIVE_TYPE_LABELS: Record<ArchiveType, string> = {
-  leads: 'Leads (Anfragen)',
-  offers: 'Offerten',
-  email_logs: 'E-Mail Logs',
-  notifications: 'Benachrichtigungen',
-  analytics: 'Analytics Daten',
-  appointments: 'Termine',
-  full_backup: 'Vollständiges Backup',
-  custom: 'Benutzerdefiniert',
-};
+// The archive UI is operator-facing, so every label follows the DASHBOARD locale and is
+// therefore resolved through an explicit `locale` argument — never through React context,
+// which would make these helpers unusable outside components.
 
-export const STORAGE_TYPE_LABELS: Record<StorageType, string> = {
-  local: 'Lokaler Download',
-  google_drive: 'Google Drive',
-  dropbox: 'Dropbox',
-  s3: 'Amazon S3',
-  supabase_storage: 'Supabase Storage',
-};
+export const getArchiveTypeLabel = (type: ArchiveType, locale: Locale): string =>
+  createTranslator(locale)(`archive.type.${type}` as const);
 
-export const ARCHIVE_STATUS_LABELS: Record<ArchiveStatus, string> = {
-  pending: 'Ausstehend',
-  in_progress: 'In Bearbeitung',
-  completed: 'Abgeschlossen',
-  failed: 'Fehlgeschlagen',
-  restored: 'Wiederhergestellt',
-};
+export const getStorageTypeLabel = (type: StorageType, locale: Locale): string =>
+  createTranslator(locale)(`archive.storage.${type}` as const);
 
-export const EXPORT_FORMAT_LABELS: Record<ExportFormat, string> = {
-  json: 'JSON (Vollständig)',
-  csv: 'CSV (Excel)',
-  parquet: 'Parquet (Big Data)',
-};
+export const getArchiveStatusLabel = (status: ArchiveStatus, locale: Locale): string =>
+  createTranslator(locale)(`archive.status.${status}` as const);
+
+export const getExportFormatLabel = (format: ExportFormat, locale: Locale): string =>
+  createTranslator(locale)(`archive.format.${format}` as const);
 
 export const DEFAULT_ARCHIVE_SETTINGS: Partial<ArchiveSettings> = {
   is_enabled: true,

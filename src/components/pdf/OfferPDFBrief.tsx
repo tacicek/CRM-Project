@@ -21,7 +21,8 @@ import { COLORS, FONT_SIZES } from "./styles/constants";
 import { OfferData } from "./types/offer.types";
 import { chunkOfferTableItems } from "./utils/chunkOfferItems";
 import { formatDateLong } from "./utils/formatters";
-import { detectSalutation } from "./utils/salutation";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import { getLetterSalutation } from "@/i18n/domain";
 
 // 1 mm in PDF points
 const MM = 2.8346;
@@ -215,15 +216,18 @@ interface OfferPDFBriefProps {
 
 export const OfferPDFBrief = ({ data }: OfferPDFBriefProps) => {
   const { company, customer, offerNumber, createdDate } = data;
+  const { t, locale } = documentI18nFor(data.locale);
 
   const fromAddr = data.addresses?.from;
   const recipientStreet = fromAddr?.street ?? "";
   const recipientCity = [fromAddr?.plz, fromAddr?.city].filter(Boolean).join(" ");
 
-  const salutation = detectSalutation(customer.name, data.customerSalutation);
+  // The stored customer_salutation decides — the old detectSalutation() guessed the gender
+  // from the last letter of the first name. Without a salutation the neutral form is correct.
+  const salutation = getLetterSalutation(data.customerSalutation, customer.lastName, locale);
 
   const cityPrefix = company.city ? `${company.city}, ` : "";
-  const dateStr = `${cityPrefix}${formatDateLong(createdDate)}`;
+  const dateStr = `${cityPrefix}${formatDateLong(createdDate, locale)}`;
 
   const chunks = chunkOfferTableItems(data.items, BRIEF_TABLE_FIRST_PAGE, BRIEF_TABLE_CONTINUATION);
 
@@ -244,9 +248,19 @@ export const OfferPDFBrief = ({ data }: OfferPDFBriefProps) => {
           <Text style={styles.senderLine}>
             {company.zip} {company.city}
           </Text>
-          {company.phone ? <Text style={styles.senderLine}>Tel. {company.phone}</Text> : null}
+          {company.phone ? (
+            <Text style={styles.senderLine}>
+              {t("doc.contact.phoneShort")}
+              {company.phone}
+            </Text>
+          ) : null}
           <Text style={styles.senderLine}>{company.email}</Text>
-          {company.mwstNr ? <Text style={styles.senderLine}>MwSt-Nr: {company.mwstNr}</Text> : null}
+          {company.mwstNr ? (
+            <Text style={styles.senderLine}>
+              {t("doc.contact.vatNumber")}
+              {company.mwstNr}
+            </Text>
+          ) : null}
         </View>
       </View>
 
@@ -256,24 +270,32 @@ export const OfferPDFBrief = ({ data }: OfferPDFBriefProps) => {
           {recipientStreet ? <Text style={styles.recipientLine}>{recipientStreet}</Text> : null}
           {recipientCity ? <Text style={styles.recipientLine}>{recipientCity}</Text> : null}
           {customer.phone?.trim() ? (
-            <Text style={styles.recipientLine}>Telefon: {customer.phone.trim()}</Text>
+            <Text style={styles.recipientLine}>
+              {t("doc.contact.phone")}
+              {customer.phone.trim()}
+            </Text>
           ) : null}
           {customer.email?.trim() ? (
-            <Text style={styles.recipientLine}>E-Mail: {customer.email.trim()}</Text>
+            <Text style={styles.recipientLine}>
+              {t("doc.contact.email")}
+              {customer.email.trim()}
+            </Text>
           ) : null}
         </View>
 
         <View style={styles.dateReferenceBlock}>
           <Text style={styles.dateLine}>{dateStr}</Text>
-          <Text style={styles.referenceLine}>Offerte Nr. {offerNumber}</Text>
+          <Text style={styles.referenceLine}>
+            {t("doc.offer.numbered", { number: offerNumber })}
+          </Text>
           {data.validUntil ? (
             <Text style={styles.referenceLineMuted}>
-              {`Gültig bis: ${formatDateLong(data.validUntil)}`}
+              {t("doc.offer.validUntilDate", { date: formatDateLong(data.validUntil, locale) })}
             </Text>
           ) : null}
           {data.offerteType === "blind" ? (
             <View style={styles.blindBadge}>
-              <Text style={styles.blindBadgeText}>BLIND OFFERTE — Ohne Besichtigung</Text>
+              <Text style={styles.blindBadgeText}>{t("doc.offer.blind.badge")}</Text>
             </View>
           ) : null}
         </View>
@@ -285,7 +307,6 @@ export const OfferPDFBrief = ({ data }: OfferPDFBriefProps) => {
     <Document>
       {chunks.map((chunk, chunkIdx) => {
         const isLastChunk = chunkIdx === chunks.length - 1;
-        const positionOffset = chunks.slice(0, chunkIdx).reduce((acc, c) => acc + c.length, 0);
 
         return (
           <Page key={`brief-table-${chunkIdx}`} size="A4" style={styles.page}>
@@ -293,28 +314,22 @@ export const OfferPDFBrief = ({ data }: OfferPDFBriefProps) => {
               <>
                 {letterheadAndAddress}
                 <Text style={styles.salutation}>{salutation}</Text>
-                <Text style={styles.introText}>
-                  Vielen Dank für Ihre Anfrage. Wir freuen uns, Ihnen die folgende Offerte unterbreiten zu
-                  dürfen.
-                </Text>
+                <Text style={styles.introText}>{t("doc.offer.intro")}</Text>
                 <TitleSection data={data} />
                 <AddressComparison data={data} />
-                {data.offerteType === "blind" && <BlindOfferteDisclaimer />}
+                {data.offerteType === "blind" && <BlindOfferteDisclaimer locale={locale} />}
                 <TimeEstimateBlock data={data} />
               </>
             ) : (
               <View style={styles.tableContinuationBanner} wrap={false}>
-                <Text style={styles.tableContinuationTitle}>Leistungstabelle — Fortsetzung</Text>
-                <Text style={styles.tableContinuationSub}>Offerte Nr. {offerNumber}</Text>
+                <Text style={styles.tableContinuationTitle}>{t("doc.offer.tableContinued")}</Text>
+                <Text style={styles.tableContinuationSub}>
+                  {t("doc.offer.numbered", { number: offerNumber })}
+                </Text>
               </View>
             )}
 
-            <ServiceTable
-              data={data}
-              itemsOverride={chunk}
-              showTotalsBlock={isLastChunk}
-              positionOffset={positionOffset}
-            />
+            <ServiceTable data={data} itemsOverride={chunk} showTotalsBlock={isLastChunk} />
 
             {isLastChunk ? (
               <>
@@ -322,13 +337,13 @@ export const OfferPDFBrief = ({ data }: OfferPDFBriefProps) => {
                   <IncludedServices data={data} />
                   {data.paymentTerms ? (
                     <View style={styles.paymentBlock}>
-                      <Text style={styles.paymentLabel}>Zahlungskondition:</Text>
+                      <Text style={styles.paymentLabel}>{t("doc.offer.paymentTerms")}</Text>
                       <Text style={styles.paymentValue}>{data.paymentTerms}</Text>
                     </View>
                   ) : null}
                 </View>
                 <View style={styles.closingSection} wrap={false}>
-                  <Text style={styles.closingGreeting}>Freundliche Grüsse</Text>
+                  <Text style={styles.closingGreeting}>{t("domain.salutation.closing")}</Text>
                   <Text style={styles.closingCompany}>{company.name}</Text>
                   <View style={styles.signatureSpace} />
                 </View>

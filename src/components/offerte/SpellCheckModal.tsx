@@ -9,24 +9,28 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, X } from "lucide-react";
 import { diffWords, type SpellCheckFields } from "@/lib/spellCheckService";
+import { useT } from "@/i18n/useI18n";
+import type { MessageKey, Translator } from "@/i18n/translator";
 
-// Human-readable labels for field keys
-const FIELD_LABELS: Record<string, string> = {
-  title: "Titel",
-  description: "Beschreibung / Anmerkungen",
-  termsAndConditions: "AGB / Zahlungsbedingungen",
-  internalNotes: "Interne Notizen",
+// Human-readable labels for field keys — operator chrome (the modal only shows inside /firma).
+const FIELD_LABEL_KEYS: Record<string, MessageKey> = {
+  title: "offer.form.field.title",
+  description: "offer.form.field.description",
+  termsAndConditions: "offer.spell.field.terms",
+  internalNotes: "offer.spell.field.internalNotes",
 };
 
-function fieldLabel(key: string): string {
-  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
-  // item_N_description → "Position N"
+const fieldLabel = (key: string, t: Translator): string => {
+  const labelKey = FIELD_LABEL_KEYS[key];
+  if (labelKey) return t(labelKey);
   const itemDescMatch = key.match(/^item_(\d+)_description$/);
-  if (itemDescMatch) return `Position ${itemDescMatch[1]}`;
+  if (itemDescMatch) return t("offer.spell.field.item", { n: itemDescMatch[1] });
   const itemDetailMatch = key.match(/^item_(\d+)_detail_(\d+)$/);
-  if (itemDetailMatch) return `Position ${itemDetailMatch[1]} – Detail ${itemDetailMatch[2]}`;
+  if (itemDetailMatch) {
+    return t("offer.spell.field.itemDetail", { n: itemDetailMatch[1], m: itemDetailMatch[2] });
+  }
   return key;
-}
+};
 
 interface DiffRowProps {
   label: string;
@@ -34,9 +38,10 @@ interface DiffRowProps {
   corrected: string;
 }
 
-function DiffRow({ label, original, corrected }: DiffRowProps) {
+const DiffRow = ({ label, original, corrected }: DiffRowProps) => {
+  const t = useT();
   const tokens = diffWords(original, corrected);
-  const hasChange = tokens.some((t) => t.changed);
+  const hasChange = tokens.some((token) => token.changed);
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
@@ -46,19 +51,19 @@ function DiffRow({ label, original, corrected }: DiffRowProps) {
         </span>
         {hasChange && (
           <Badge variant="secondary" className="text-xs">
-            Korrigiert
+            {t("offer.spell.corrected")}
           </Badge>
         )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border">
         {/* Original */}
         <div className="p-3 space-y-1">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Original</p>
+          <p className="text-xs font-medium text-muted-foreground mb-1">{t("offer.spell.original")}</p>
           <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{original}</p>
         </div>
         {/* Corrected */}
         <div className="p-3 space-y-1 bg-green-50/40">
-          <p className="text-xs font-medium text-green-700 mb-1">Korrektur</p>
+          <p className="text-xs font-medium text-green-700 mb-1">{t("offer.spell.correction")}</p>
           <p className="text-sm whitespace-pre-wrap leading-relaxed">
             {tokens.map((token, i) =>
               token.changed ? (
@@ -77,7 +82,7 @@ function DiffRow({ label, original, corrected }: DiffRowProps) {
       </div>
     </div>
   );
-}
+};
 
 interface SpellCheckModalProps {
   open: boolean;
@@ -96,6 +101,7 @@ export default function SpellCheckModal({
   onKeepOriginal,
   onDismiss,
 }: SpellCheckModalProps) {
+  const t = useT();
   // Only show fields that actually have corrections
   const changedKeys = Object.keys(correctedFields).filter(
     (k) => correctedFields[k] !== originalFields[k]
@@ -108,7 +114,7 @@ export default function SpellCheckModal({
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-green-600" />
-              Textkorrektur prüfen
+              {t("offer.spell.title")}
             </DialogTitle>
             <Button
               variant="ghost"
@@ -120,10 +126,7 @@ export default function SpellCheckModal({
             </Button>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            {changedKeys.length === 1
-              ? "1 Feld wurde korrigiert."
-              : `${changedKeys.length} Felder wurden korrigiert.`}{" "}
-            Bitte prüfen Sie die Änderungen.
+            {t("offer.spell.summary", { count: changedKeys.length })}
           </p>
         </DialogHeader>
 
@@ -131,7 +134,7 @@ export default function SpellCheckModal({
           {changedKeys.map((key) => (
             <DiffRow
               key={key}
-              label={fieldLabel(key)}
+              label={fieldLabel(key, t)}
               original={originalFields[key] ?? ""}
               corrected={correctedFields[key]}
             />
@@ -140,11 +143,11 @@ export default function SpellCheckModal({
 
         <DialogFooter className="gap-2 sm:gap-2 flex-col sm:flex-row">
           <Button variant="outline" onClick={onKeepOriginal} className="flex-1 sm:flex-none">
-            Original behalten
+            {t("offer.spell.keepOriginal")}
           </Button>
           <Button onClick={onAccept} className="flex-1 sm:flex-none gap-2">
             <CheckCircle2 className="w-4 h-4" />
-            Korrekturen übernehmen
+            {t("offer.spell.accept")}
           </Button>
         </DialogFooter>
       </DialogContent>

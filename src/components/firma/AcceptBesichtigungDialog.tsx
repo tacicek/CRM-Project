@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { format, addDays, parse, isWeekend } from "date-fns";
-import { de } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { useI18n, useT } from "@/i18n/useI18n";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,13 @@ interface BesichtigungRequest {
   customer_email: string;
   customer_phone: string | null;
   customer_response_note: string;
+  /**
+   * Vom Kunden gewünschter Termin — STRUKTURIERT (offers.besichtigung_requested_*).
+   * Nicht aus `customer_response_note` parsen: der Satz steht in der Sprache der Firma,
+   * und eine französische Firma schreibt "15/01/2026" statt "15.01.2026".
+   */
+  besichtigung_requested_date?: string | null;
+  besichtigung_requested_time?: string | null;
   lead_id?: string;
 }
 
@@ -73,6 +80,8 @@ export const AcceptBesichtigungDialog = ({
   companyId,
   onSuccess,
 }: AcceptBesichtigungDialogProps) => {
+  const t = useT();
+  const { dateLocale } = useI18n();
   const [loading, setLoading] = useState(false);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   const [conflicts, setConflicts] = useState<Appointment[]>([]);
@@ -88,25 +97,36 @@ export const AcceptBesichtigungDialog = ({
   const [manualSlots, setManualSlots] = useState<SuggestedSlot[]>([]);
   const [proposalMessage, setProposalMessage] = useState("");
   
-  // Parse customer's requested date from the response note
+  // Prefill the customer's requested slot from the STRUCTURED columns.
+  //
+  // This used to regex the sentence in `customer_response_note`
+  // (/(\d{2})\.(\d{2})\.(\d{4})/). That sentence is written in the COMPANY's language,
+  // so a French company stores "15/01/2026" and the regex silently misses — the date then
+  // fell back to "today" with no error. Machine data now comes from machine columns; the
+  // regex survives only as a fallback for notes written before those columns existed.
   useEffect(() => {
-    if (request?.customer_response_note && isOpen) {
-      // Parse the note: "Besichtigung gewünscht am 22.12.2025 um 15:51 Uhr"
-      const dateMatch = request.customer_response_note.match(/(\d{2})\.(\d{2})\.(\d{4})/);
-      const timeMatch = request.customer_response_note.match(/(\d{2}):(\d{2})/);
-      
-      if (dateMatch) {
-        const [, day, month, year] = dateMatch;
+    if (request && isOpen) {
+      const legacyDate = request.customer_response_note?.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+      const legacyTime = request.customer_response_note?.match(/(\d{2}):(\d{2})/);
+
+      if (request.besichtigung_requested_date) {
+        setAcceptDate(request.besichtigung_requested_date);
+      } else if (legacyDate) {
+        const [, day, month, year] = legacyDate;
         setAcceptDate(`${year}-${month}-${day}`);
       } else {
         setAcceptDate(format(new Date(), "yyyy-MM-dd"));
       }
-      
-      if (timeMatch) {
-        const [, hours, minutes] = timeMatch;
-        setAcceptStartTime(`${hours}:${minutes}`);
+
+      const startTime =
+        request.besichtigung_requested_time?.slice(0, 5) ??
+        (legacyTime ? `${legacyTime[1]}:${legacyTime[2]}` : null);
+
+      if (startTime) {
+        const [hours, minutes] = startTime.split(":");
+        setAcceptStartTime(startTime);
         // Default to 1 hour duration
-        const endHour = (parseInt(hours) + 1).toString().padStart(2, "0");
+        const endHour = (parseInt(hours, 10) + 1).toString().padStart(2, "0");
         setAcceptEndTime(`${endHour}:${minutes}`);
       }
       
@@ -222,7 +242,7 @@ export const AcceptBesichtigungDialog = ({
     
     // FIX: Validate that end time is after start time
     if (acceptStartTime >= acceptEndTime) {
-      toast.error("Endzeit muss nach der Startzeit liegen");
+      toast.error(t("calendar.accept.error.endBeforeStart"));
       return;
     }
 
@@ -231,22 +251,22 @@ export const AcceptBesichtigungDialog = ({
     const [endH, endM] = acceptEndTime.split(":").map(Number);
     const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
     if (durationMinutes < 15) {
-      toast.error("Besichtigung muss mindestens 15 Minuten dauern");
+      toast.error(t("calendar.accept.error.minDuration"));
       return;
     }
     if (durationMinutes > 480) { // Max 8 hours
-      toast.error("Besichtigung darf maximal 8 Stunden dauern");
+      toast.error(t("calendar.accept.error.maxDuration"));
       return;
     }
-    
+
     // FIX: Immediate conflict check before submit (avoids race with debounce)
     setCheckingConflicts(true);
     const freshConflicts = await checkConflicts();
     setConflicts(freshConflicts);
     setCheckingConflicts(false);
-    
+
     if (freshConflicts.length > 0) {
-      toast.error("Es gibt Terminkonflikte. Bitte wählen Sie eine andere Zeit oder senden Sie Vorschläge.");
+      toast.error(t("calendar.accept.error.conflicts"));
       return;
     }
     
@@ -262,7 +282,11 @@ export const AcceptBesichtigungDialog = ({
         appointment_date: acceptDate,
         start_time: acceptStartTime,
         end_time: acceptEndTime,
-        title: `Besichtigung - ${request.customer_first_name} ${request.customer_last_name}`,
+        // Operator's own calendar entry — the customer's confirmation e-mail renders the
+        // appointment TYPE in the customer's language and never this title.
+        title: t("calendar.appointmentTitle.besichtigung", {
+          name: `${request.customer_first_name} ${request.customer_last_name}`,
+        }),
         customer_first_name: request.customer_first_name,
         customer_last_name: request.customer_last_name,
         customer_email: request.customer_email,
@@ -285,16 +309,16 @@ export const AcceptBesichtigungDialog = ({
       
       if (emailError) {
         console.error("Email error:", emailError);
-        toast.warning("Termin erstellt, aber E-Mail konnte nicht gesendet werden");
+        toast.warning(t("calendar.accept.warn.emailFailed"));
       } else {
-        toast.success("Besichtigung bestätigt und Kunde benachrichtigt");
+        toast.success(t("calendar.accept.success"));
       }
-      
+
       onSuccess();
       onClose();
     } catch (error) {
       console.error("Error accepting besichtigung:", error);
-      toast.error("Fehler beim Bestätigen der Besichtigung");
+      toast.error(t("calendar.accept.error.failed"));
     } finally {
       setLoading(false);
     }
@@ -308,7 +332,7 @@ export const AcceptBesichtigungDialog = ({
       : manualSlots.filter((s) => s.selected);
     
     if (selectedSlots.length === 0) {
-      toast.error("Bitte wählen Sie mindestens einen Terminvorschlag aus");
+      toast.error(t("calendar.accept.error.noSlots"));
       return;
     }
     
@@ -330,13 +354,13 @@ export const AcceptBesichtigungDialog = ({
       });
       
       if (emailError) throw emailError;
-      
-      toast.success("Terminvorschläge an Kunde gesendet");
+
+      toast.success(t("calendar.accept.proposalsSent"));
       onSuccess();
       onClose();
     } catch (error) {
       console.error("Error sending proposals:", error);
-      toast.error("Fehler beim Senden der Vorschläge");
+      toast.error(t("calendar.accept.error.proposalsFailed"));
     } finally {
       setLoading(false);
     }
@@ -372,7 +396,7 @@ export const AcceptBesichtigungDialog = ({
   
   const formatSlotDisplay = (slot: SuggestedSlot) => {
     const date = parse(slot.date, "yyyy-MM-dd", new Date());
-    return `${format(date, "EEEE, dd.MM.yyyy", { locale: de })} • ${slot.start_time} - ${slot.end_time}`;
+    return `${format(date, "EEEE, dd.MM.yyyy", { locale: dateLocale })} • ${slot.start_time} - ${slot.end_time}`;
   };
   
   if (!request) return null;
@@ -383,37 +407,40 @@ export const AcceptBesichtigungDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
-            Besichtigung bestätigen
+            {t("calendar.accept.title")}
           </DialogTitle>
           <DialogDescription>
-            Anfrage von {request.customer_first_name} {request.customer_last_name}
+            {t("calendar.accept.description", {
+              name: `${request.customer_first_name} ${request.customer_last_name}`,
+            })}
           </DialogDescription>
         </DialogHeader>
-        
-        {/* Customer's requested time */}
+
+        {/* Customer's requested time. The note itself is prose in the company's language —
+            it is rendered verbatim, never re-translated. */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-800">
-            <strong>Kundenwunsch:</strong> {request.customer_response_note}
+            <strong>{t("calendar.besichtigung.customerWish")}</strong> {request.customer_response_note}
           </p>
         </div>
-        
+
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "accept" | "propose")}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="accept" className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              Termin bestätigen
+              {t("calendar.accept.tab.accept")}
             </TabsTrigger>
             <TabsTrigger value="propose" className="flex items-center gap-2">
               <Send className="w-4 h-4" />
-              Alternativen vorschlagen
+              {t("calendar.accept.tab.propose")}
             </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="accept" className="space-y-4 mt-4">
             {/* Date and time selection */}
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="accept-date">Datum</Label>
+                <Label htmlFor="accept-date">{t("common.date")}</Label>
                 <DatePicker
                   id="accept-date"
                   value={acceptDate}
@@ -421,7 +448,7 @@ export const AcceptBesichtigungDialog = ({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="accept-start">Start</Label>
+                <Label htmlFor="accept-start">{t("calendar.modal.start")}</Label>
                 <Input
                   id="accept-start"
                   type="time"
@@ -430,7 +457,7 @@ export const AcceptBesichtigungDialog = ({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="accept-end">Ende</Label>
+                <Label htmlFor="accept-end">{t("calendar.modal.end")}</Label>
                 <Input
                   id="accept-end"
                   type="time"
@@ -439,21 +466,22 @@ export const AcceptBesichtigungDialog = ({
                 />
               </div>
             </div>
-            
+
             {/* Checking indicator */}
             {checkingConflicts && (
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Prüfe Kalender...
+                {t("calendar.accept.checking")}
               </div>
             )}
-            
+
             {/* Conflict warning */}
             {conflicts.length > 0 && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Terminkonflikt!</strong> Es gibt {conflicts.length} überschneidende Termine:
+                  <strong>{t("calendar.accept.conflict.title")}</strong>{" "}
+                  {t("calendar.accept.conflict.body", { count: conflicts.length })}
                   <ul className="mt-2 space-y-1">
                     {conflicts.map((c) => (
                       <li key={c.id} className="text-sm">
@@ -470,20 +498,20 @@ export const AcceptBesichtigungDialog = ({
               <Alert className="border-green-200 bg-green-50">
                 <CheckCircle className="h-4 w-4 text-green-600" />
                 <AlertDescription className="text-green-800">
-                  Keine Konflikte - der Termin kann bestätigt werden.
+                  {t("calendar.accept.noConflict")}
                 </AlertDescription>
               </Alert>
             )}
-            
+
             {/* Suggested alternatives when there are conflicts */}
             {conflicts.length > 0 && suggestedSlots.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-500" />
-                  <Label className="text-sm font-medium">Automatische Vorschläge</Label>
+                  <Label className="text-sm font-medium">{t("calendar.accept.suggestions")}</Label>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Wählen Sie die Termine aus, die Sie dem Kunden vorschlagen möchten:
+                  {t("calendar.accept.suggestionsHint")}
                 </p>
                 <div className="space-y-2">
                   {suggestedSlots.map((slot, index) => (
@@ -510,16 +538,16 @@ export const AcceptBesichtigungDialog = ({
             {/* Manual slot selection */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Terminvorschläge</Label>
+                <Label className="text-sm font-medium">{t("calendar.accept.proposals")}</Label>
                 <Button variant="outline" size="sm" onClick={addManualSlot}>
                   <Plus className="w-4 h-4 mr-1" />
-                  Hinzufügen
+                  {t("common.add")}
                 </Button>
               </div>
-              
+
               {manualSlots.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Klicken Sie auf "Hinzufügen" um Terminvorschläge zu erstellen.
+                  {t("calendar.accept.proposalsEmpty")}
                 </p>
               )}
               
@@ -569,12 +597,12 @@ export const AcceptBesichtigungDialog = ({
             
             {/* Message to customer */}
             <div className="space-y-2">
-              <Label htmlFor="proposal-message">Nachricht an Kunde (optional)</Label>
+              <Label htmlFor="proposal-message">{t("calendar.accept.message")}</Label>
               <Textarea
                 id="proposal-message"
                 value={proposalMessage}
                 onChange={(e) => setProposalMessage(e.target.value)}
-                placeholder="z.B. Leider ist der gewünschte Termin nicht verfügbar. Bitte wählen Sie einen der folgenden Termine..."
+                placeholder={t("calendar.accept.messagePlaceholder")}
                 rows={3}
               />
             </div>
@@ -583,9 +611,9 @@ export const AcceptBesichtigungDialog = ({
         
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onClose} disabled={loading}>
-            Abbrechen
+            {t("common.cancel")}
           </Button>
-          
+
           {activeTab === "accept" ? (
             conflicts.length > 0 && suggestedSlots.some((s) => s.selected) ? (
               <Button onClick={handleSendProposals} disabled={loading}>
@@ -594,7 +622,7 @@ export const AcceptBesichtigungDialog = ({
                 ) : (
                   <Send className="w-4 h-4 mr-2" />
                 )}
-                Vorschläge senden
+                {t("calendar.accept.send")}
               </Button>
             ) : (
               <Button
@@ -606,7 +634,7 @@ export const AcceptBesichtigungDialog = ({
                 ) : (
                   <CheckCircle className="w-4 h-4 mr-2" />
                 )}
-                Termin bestätigen
+                {t("calendar.besichtigung.confirmAppointment")}
               </Button>
             )
           ) : (
@@ -619,7 +647,7 @@ export const AcceptBesichtigungDialog = ({
               ) : (
                 <Send className="w-4 h-4 mr-2" />
               )}
-              Vorschläge senden
+              {t("calendar.accept.send")}
             </Button>
           )}
         </DialogFooter>

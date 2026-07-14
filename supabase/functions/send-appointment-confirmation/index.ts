@@ -5,28 +5,21 @@ import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl,
 import { corsHeaders } from "../_shared/cors.ts";
 import { logEmail } from "../_shared/logEmail.ts";
 import { wrapEmailDocument, EMAIL_HEADER_BAND, EMAIL_BODY_PADDING } from "../_shared/emailLayout.ts";
+import {
+  createTranslator,
+  formatDateLong,
+  toLocale,
+  translateAppointmentType,
+  type Locale,
+} from "../_shared/i18n/index.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
   const d = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[send-appointment-confirmation] ${step}${d}`);
 };
 
-const APPOINTMENT_TYPE_LABELS: Record<string, string> = {
-  besichtigung: "Besichtigung",
-  service: "Auftrag",
-  follow_up: "Nachkontrolle",
-};
-
 const SKIP_TYPES = new Set(["blocked", "meeting"]);
-
-function formatDateDisplay(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("de-CH", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-}
 
 interface AppointmentRow {
   id: string;
@@ -46,6 +39,8 @@ interface AppointmentRow {
   customer_last_name: string | null;
   customer_email: string | null;
   customer_phone: string | null;
+  /** Document language — inherited from the offer/lead chain (appointments.language). */
+  language: string | null;
 }
 
 interface CompanyRow {
@@ -59,95 +54,112 @@ interface CompanyRow {
   resend_from_name: string | null;
 }
 
+/**
+ * This mail has exactly ONE recipient — the customer — so the document locale governs
+ * throughout. `isCompanyEmail` only selects the sending identity (company Resend vs. system),
+ * never the language.
+ */
 function buildEmailHtml(
   apt: AppointmentRow,
   company: CompanyRow,
   isCompanyEmail: boolean,
+  locale: Locale,
 ): string {
+  const t = createTranslator(locale);
   const customerName = [apt.customer_first_name, apt.customer_last_name]
     .filter(Boolean)
-    .join(" ") || "Kunde";
-  const typeLabel = APPOINTMENT_TYPE_LABELS[apt.appointment_type] || apt.title;
-  const senderName = isCompanyEmail ? company.company_name : "Ihr ${getAppName()} Team";
+    .join(" ") || t("common.customer");
+  const typeLabel = translateAppointmentType(apt.appointment_type, t, apt.title);
+  // BUGFIX: this was a double-quoted "Ihr ${getAppName()} Team", so customers literally
+  // received the characters `${getAppName()}`. The catalog key interpolates properly.
+  const senderName = isCompanyEmail
+    ? company.company_name
+    : t("common.teamSignature", { appName: getAppName() });
 
   const locationParts = [apt.location_address, [apt.location_plz, apt.location_city].filter(Boolean).join(" ")]
     .filter(Boolean);
   const locationHtml = locationParts.length > 0
     ? `<tr>
-        <td style="padding:10px 16px;color:#71717a;vertical-align:top;">Ort:</td>
-        <td style="padding:10px 16px;font-weight:600;text-align:right;">${locationParts.join(", ")}</td>
+        <td style="padding:10px 16px;color:#71717a;vertical-align:top;">${t("common.location")}:</td>
+        <td style="padding:10px 16px;font-weight:600;text-align:right;">${escapeHtml(locationParts.join(", "))}</td>
       </tr>`
     : "";
 
   const timeDisplay = apt.all_day
-    ? "Ganztägig"
-    : `${apt.start_time.slice(0, 5)} – ${apt.end_time.slice(0, 5)} Uhr`;
+    ? t("common.allDay")
+    : t("common.timeRange", { start: apt.start_time.slice(0, 5), end: apt.end_time.slice(0, 5) });
 
   const inner = `
     <div style="${EMAIL_HEADER_BAND}">
       <h1 style="margin:0;font-size:20px;font-weight:700;color:#18181b;">
-        Terminbestätigung: ${typeLabel}
+        ${t("email.appointmentConfirmation.headerTitle", { type: typeLabel })}
       </h1>
     </div>
     <div style="${EMAIL_BODY_PADDING}">
-      <p style="margin:0 0 16px;">Guten Tag ${customerName},</p>
+      <p style="margin:0 0 16px;">${t("common.greeting", { name: escapeHtml(customerName) })}</p>
       <p style="margin:0 0 20px;">
-        <strong>${company.company_name}</strong> hat folgenden Termin für Sie eingetragen:
+        ${t("email.appointmentConfirmation.intro", { companyName: `<strong>${escapeHtml(company.company_name)}</strong>` })}
       </p>
 
       <table style="width:100%;border-collapse:collapse;background:#ffffff;border:1px solid #e4e4e7;border-radius:8px;">
         <tr>
-          <td style="padding:10px 16px;color:#71717a;">Termin:</td>
+          <td style="padding:10px 16px;color:#71717a;">${t("common.appointment")}:</td>
           <td style="padding:10px 16px;font-weight:600;text-align:right;">${typeLabel}</td>
         </tr>
         <tr style="border-top:1px solid #f4f4f5;">
-          <td style="padding:10px 16px;color:#71717a;">Datum:</td>
-          <td style="padding:10px 16px;font-weight:600;text-align:right;">${formatDateDisplay(apt.appointment_date)}</td>
+          <td style="padding:10px 16px;color:#71717a;">${t("common.date")}:</td>
+          <td style="padding:10px 16px;font-weight:600;text-align:right;">${formatDateLong(apt.appointment_date, locale)}</td>
         </tr>
         <tr style="border-top:1px solid #f4f4f5;">
-          <td style="padding:10px 16px;color:#71717a;">Zeit:</td>
+          <td style="padding:10px 16px;color:#71717a;">${t("common.time")}:</td>
           <td style="padding:10px 16px;font-weight:600;text-align:right;">${timeDisplay}</td>
         </tr>
         ${locationHtml ? `<tr style="border-top:1px solid #f4f4f5;">${locationHtml.replace(/<\/?tr>/g, "")}</tr>` : ""}
         <tr style="border-top:1px solid #f4f4f5;">
-          <td style="padding:10px 16px;color:#71717a;">Firma:</td>
-          <td style="padding:10px 16px;font-weight:600;text-align:right;">${company.company_name}</td>
+          <td style="padding:10px 16px;color:#71717a;">${t("common.company")}:</td>
+          <td style="padding:10px 16px;font-weight:600;text-align:right;">${escapeHtml(company.company_name)}</td>
         </tr>
         ${company.phone ? `
         <tr style="border-top:1px solid #f4f4f5;">
-          <td style="padding:10px 16px;color:#71717a;">Telefon:</td>
+          <td style="padding:10px 16px;color:#71717a;">${t("common.phone")}:</td>
           <td style="padding:10px 16px;text-align:right;">
-            <a href="tel:${company.phone}" style="color:#2563eb;text-decoration:none;">${company.phone}</a>
+            <a href="tel:${encodeURIComponent(company.phone)}" style="color:#2563eb;text-decoration:none;">${escapeHtml(company.phone)}</a>
           </td>
         </tr>` : ""}
         <tr style="border-top:1px solid #f4f4f5;">
-          <td style="padding:10px 16px;color:#71717a;">E-Mail:</td>
+          <td style="padding:10px 16px;color:#71717a;">${t("common.email")}:</td>
           <td style="padding:10px 16px;text-align:right;">
-            <a href="mailto:${company.email}" style="color:#2563eb;text-decoration:none;">${company.email}</a>
+            <a href="mailto:${encodeURIComponent(company.email)}" style="color:#2563eb;text-decoration:none;">${escapeHtml(company.email)}</a>
           </td>
         </tr>
       </table>
 
       ${apt.description ? `
       <div style="margin:20px 0;padding:12px 16px;background:#f4f4f5;border-left:4px solid #a1a1aa;border-radius:4px;">
-        <p style="margin:0;color:#3f3f46;font-size:14px;">${apt.description}</p>
+        <p style="margin:0;color:#3f3f46;font-size:14px;">${escapeHtml(apt.description)}</p>
       </div>` : ""}
 
       <p style="margin:20px 0 0;color:#52525b;font-size:14px;">
-        Falls Sie den Termin nicht wahrnehmen können, kontaktieren Sie bitte rechtzeitig
-        <strong>${company.company_name}</strong>${company.phone ? ` unter <a href="tel:${company.phone}" style="color:#2563eb;text-decoration:none;">${company.phone}</a>` : ""}.
+        ${company.phone
+          ? t("email.appointmentConfirmation.cancelNoteWithPhone", {
+              companyName: `<strong>${escapeHtml(company.company_name)}</strong>`,
+              phone: `<a href="tel:${encodeURIComponent(company.phone)}" style="color:#2563eb;text-decoration:none;">${escapeHtml(company.phone)}</a>`,
+            })
+          : t("email.appointmentConfirmation.cancelNote", {
+              companyName: `<strong>${escapeHtml(company.company_name)}</strong>`,
+            })}
       </p>
 
       <p style="margin:24px 0 0;color:#71717a;font-size:14px;">
-        Mit freundlichen Grüssen<br>
-        <strong>${senderName}</strong>
+        ${t("common.regards")}<br>
+        <strong>${escapeHtml(senderName)}</strong>
       </p>
     </div>
     <div style="padding:16px;text-align:center;color:#a1a1aa;font-size:12px;">
-      Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${company.company_name}` : " von ${getAppName()}"} gesendet.
+      ${t("common.autoSentBy", { sender: escapeHtml(isCompanyEmail ? company.company_name : getAppName()) })}
     </div>`;
 
-  return wrapEmailDocument(inner);
+  return wrapEmailDocument(inner, locale);
 }
 
 serve(async (req) => {
@@ -173,7 +185,7 @@ serve(async (req) => {
     const { data: apt, error: aptErr } = await supabase
       .from("appointments")
       .select(
-        "id, company_id, lead_id, appointment_type, appointment_date, start_time, end_time, all_day, title, description, location_address, location_plz, location_city, customer_first_name, customer_last_name, customer_email, customer_phone",
+        "id, company_id, lead_id, appointment_type, appointment_date, start_time, end_time, all_day, title, description, location_address, location_plz, location_city, customer_first_name, customer_last_name, customer_email, customer_phone, language",
       )
       .eq("id", appointmentId)
       .single();
@@ -238,11 +250,20 @@ serve(async (req) => {
       });
     }
 
-    // Build email
-    const typeLabel = APPOINTMENT_TYPE_LABELS[apt.appointment_type] || apt.title;
-    const customerName = [apt.customer_first_name, apt.customer_last_name].filter(Boolean).join(" ") || "Kunde";
-    const subject = `Terminbestätigung: ${typeLabel} am ${formatDateDisplay(apt.appointment_date)}`;
-    const html = buildEmailHtml(apt as AppointmentRow, company as CompanyRow, isCompanyEmail);
+    // Build email — the customer is the only recipient, so the appointment's own language wins.
+    const customerLocale = toLocale(apt.language);
+    const tCustomer = createTranslator(customerLocale);
+
+    const typeLabel = translateAppointmentType(apt.appointment_type, tCustomer, apt.title);
+    const customerName =
+      [apt.customer_first_name, apt.customer_last_name].filter(Boolean).join(" ") ||
+      tCustomer("common.customer");
+    // This subject carries no emoji today — none is added.
+    const subject = tCustomer("email.appointmentConfirmation.subject", {
+      type: typeLabel,
+      date: formatDateLong(apt.appointment_date, customerLocale),
+    });
+    const html = buildEmailHtml(apt as AppointmentRow, company as CompanyRow, isCompanyEmail, customerLocale);
 
     // Send (company key first, fallback to global key if available)
     const sendWith = async (apiKey: string, from: string) => {
@@ -277,6 +298,7 @@ serve(async (req) => {
       emailType: "appointment_confirmation",
       companyId: company.id,
       leadId: apt.lead_id || undefined,
+      language: customerLocale,
       metadata: { appointmentId: apt.id, appointmentType: apt.appointment_type, isCompanyEmail },
     };
 

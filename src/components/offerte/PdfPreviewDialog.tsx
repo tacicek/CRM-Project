@@ -18,6 +18,7 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { OfferPDF } from "@/components/pdf/OfferPDF";
 import { mapOfferToPdfData, LegacyOfferData } from "@/components/pdf/utils/mapOfferData";
 import { generateQRCode } from "@/components/pdf/utils/qr";
+import { useT } from "@/i18n/useI18n";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -29,7 +30,14 @@ interface PdfPreviewDialogProps {
   isSending: boolean;
 }
 
-// Helper function to convert service type to readable German name
+// Helper function to convert service type to readable German name.
+//
+// NOT converted to i18n: `title` is the offer's already-generated DOCUMENT-locale title
+// (offers.title / lead-derived), so it may be German, French or English text depending on
+// the customer's language. This map fuzzy-matches German fragments only — for a non-German
+// offer it simply never matches and `cleanTitle` (the original, already-localised title) is
+// returned unchanged, which is the correct graceful fallback. Reporting per task instructions:
+// left as-is because it operates on document-locale input, not on operator chrome vocabulary.
 const formatServiceTypeTitle = (title: string): string => {
   const serviceTypeMap: Record<string, string> = {
     umzug_privat: "Privater Umzug",
@@ -81,6 +89,7 @@ export const PdfPreviewDialog = ({
   onSend,
   isSending,
 }: PdfPreviewDialogProps) => {
+  const t = useT();
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfArrayBuffer, setPdfArrayBuffer] = useState<ArrayBuffer | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -263,10 +272,10 @@ export const PdfPreviewDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
-            PDF-Vorschau: {formatServiceTypeTitle(offer.title)}
+            {t("offer.preview.dialogTitle", { title: formatServiceTypeTitle(offer.title) })}
           </DialogTitle>
           <DialogDescription>
-            Überprüfen Sie die PDF-Offerte, bevor Sie sie an {offer.customer_email} senden.
+            {t("offer.preview.description", { email: offer.customer_email })}
           </DialogDescription>
         </DialogHeader>
 
@@ -275,7 +284,7 @@ export const PdfPreviewDialog = ({
             <div className="flex items-center justify-center h-[500px]">
               <div className="text-center">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-secondary" />
-                <p className="text-sm text-muted-foreground">PDF wird generiert...</p>
+                <p className="text-sm text-muted-foreground">{t("offer.preview.generating")}</p>
               </div>
             </div>
           ) : pdfArrayBuffer ? (
@@ -287,15 +296,15 @@ export const PdfPreviewDialog = ({
           ) : (
             <div className="flex items-center justify-center h-[500px]">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-3">Fehler beim Laden der Vorschau</p>
+                <p className="text-sm text-muted-foreground mb-3">{t("offer.preview.loadError")}</p>
                 <div className="flex gap-2 justify-center">
                   <Button variant="outline" size="sm" onClick={handleDownload} disabled={!pdfBlobUrl}>
                     <Download className="w-4 h-4 mr-2" />
-                    Herunterladen
+                    {t("common.download")}
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleOpenInNewTab} disabled={!pdfBlobUrl}>
                     <ExternalLink className="w-4 h-4 mr-2" />
-                    In neuem Tab
+                    {t("offer.preview.openNewTab")}
                   </Button>
                 </div>
               </div>
@@ -310,7 +319,7 @@ export const PdfPreviewDialog = ({
               size="icon"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={isGenerating || currentPage <= 1 || totalPages <= 1}
-              aria-label="Vorherige Seite"
+              aria-label={t("offer.preview.prevPage")}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -322,26 +331,28 @@ export const PdfPreviewDialog = ({
                 disabled={isGenerating || totalPages <= 1}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Seite wählen" />
+                  <SelectValue placeholder={t("offer.preview.selectPagePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                     <SelectItem key={p} value={String(p)}>
-                      Seite {p}
+                      {t("offer.preview.pageOption", { page: p })}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <span className="text-sm text-muted-foreground">von {totalPages || "-"}</span>
+            <span className="text-sm text-muted-foreground">
+              {t("offer.preview.ofTotal", { total: totalPages || "-" })}
+            </span>
 
             <Button
               variant="outline"
               size="icon"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={isGenerating || currentPage >= totalPages || totalPages <= 1}
-              aria-label="Nächste Seite"
+              aria-label={t("offer.preview.nextPage")}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -350,11 +361,11 @@ export const PdfPreviewDialog = ({
           <div className="flex flex-wrap gap-2 sm:justify-end">
             <Button variant="outline" onClick={handleOpenInNewTab} disabled={!pdfBlobUrl || isGenerating}>
               <ExternalLink className="w-4 h-4 mr-2" />
-              In neuem Tab
+              {t("offer.preview.openNewTab")}
             </Button>
             <Button variant="outline" onClick={handleDownload} disabled={!pdfBlobUrl || isGenerating}>
               <Download className="w-4 h-4 mr-2" />
-              Herunterladen
+              {t("common.download")}
             </Button>
             <Button onClick={handleSend} disabled={isSending || isGenerating}>
               {isSending ? (
@@ -362,7 +373,7 @@ export const PdfPreviewDialog = ({
               ) : (
                 <Send className="w-4 h-4 mr-2" />
               )}
-              Offerte senden
+              {t("offer.form.send")}
             </Button>
           </div>
         </div>

@@ -25,6 +25,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertTriangle, Eye, Truck, Clock, Users, CalendarCheck, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { GooglePlacesAutocomplete, PlaceResult } from "@/components/ui/google-places-autocomplete";
+import { DEFAULT_LOCALE, toLocale, type Locale } from "@/i18n/locale";
+import { getAppointmentStatusLabel, getAppointmentTypeLabel } from "@/i18n/domain";
+import { useI18n, useT } from "@/i18n/useI18n";
 
 interface Appointment {
   id: string;
@@ -80,6 +83,8 @@ interface AcceptedLead {
   from_city: string | null;
   service_type: string;
   preferred_date: string | null;
+  /** DOCUMENT locale — the appointment (confirmation e-mail, reminder) inherits it. */
+  language: string | null;
 }
 
 interface AppointmentModalProps {
@@ -96,20 +101,17 @@ interface AppointmentModalProps {
   initialLeadId?: string | null;
 }
 
+// Icon + tooltip key only. The visible label comes from getAppointmentTypeLabel(value, locale),
+// so the picker reads the same vocabulary as the calendar filters in every dashboard language.
 const appointmentTypes = [
-  { value: "besichtigung", label: "Besichtigung", icon: Eye, description: "Kundenbesichtigung" },
-  { value: "service", label: "Auftrag", icon: Truck, description: "Service-Termin" },
-  { value: "follow_up", label: "Nachkontrolle", icon: CalendarCheck, description: "Nachkontrolle" },
-  { value: "meeting", label: "Besprechung", icon: Users, description: "Interne Besprechung" },
-  { value: "blocked", label: "Zeit blockieren", icon: Clock, description: "Zeit nicht verfügbar (z.B. Urlaub, Pause)" },
-];
+  { value: "besichtigung", icon: Eye, descriptionKey: "calendar.modal.type.besichtigung.desc" },
+  { value: "service", icon: Truck, descriptionKey: "calendar.modal.type.service.desc" },
+  { value: "follow_up", icon: CalendarCheck, descriptionKey: "calendar.modal.type.follow_up.desc" },
+  { value: "meeting", icon: Users, descriptionKey: "calendar.modal.type.meeting.desc" },
+  { value: "blocked", icon: Clock, descriptionKey: "calendar.modal.type.blocked.desc" },
+] as const;
 
-const statusOptions = [
-  { value: "pending", label: "Ausstehend" },
-  { value: "confirmed", label: "Bestätigt" },
-  { value: "completed", label: "Erledigt" },
-  { value: "cancelled", label: "Abgesagt" },
-];
+const statusOptions = ["pending", "confirmed", "completed", "cancelled"] as const;
 
 export const AppointmentModal = ({
   isOpen,
@@ -122,6 +124,8 @@ export const AppointmentModal = ({
   initialType,
   initialTitle,
 }: AppointmentModalProps) => {
+  const t = useT();
+  const { locale } = useI18n();
   const [loading, setLoading] = useState(false);
   const [conflicts, setConflicts] = useState<ConflictResult<Appointment>[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -129,6 +133,11 @@ export const AppointmentModal = ({
   const [_leadLoading, setLeadLoading] = useState(false);
   const [acceptedLeads, setAcceptedLeads] = useState<AcceptedLead[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+
+  // DOCUMENT locale for a NEW appointment: the linked lead's language, else the company
+  // default (a "blocked"/"meeting" entry has no customer at all), else German.
+  const [leadLanguage, setLeadLanguage] = useState<Locale | null>(null);
+  const [companyLanguage, setCompanyLanguage] = useState<Locale>(DEFAULT_LOCALE);
 
   const [formData, setFormData] = useState({
     appointment_type: "besichtigung",
@@ -212,7 +221,7 @@ export const AppointmentModal = ({
     const loadResources = async () => {
       if (!companyId) return;
 
-      const [teamRes, resourceRes, leadsRes] = await Promise.all([
+      const [teamRes, resourceRes, leadsRes, companyRes] = await Promise.all([
         supabase
           .from("team_members")
           .select("id, first_name, last_name, role, color_code")
@@ -238,17 +247,24 @@ export const AppointmentModal = ({
               from_plz,
               from_city,
               service_type,
-              preferred_date
+              preferred_date,
+              language
             )
           `)
           .eq("company_id", companyId)
           .eq("status", "accepted")
           .order("accepted_at", { ascending: false })
           .limit(50),
+        supabase
+          .from("companies")
+          .select("default_language")
+          .eq("id", companyId)
+          .maybeSingle(),
       ]);
 
       if (teamRes.data) setTeamMembers(teamRes.data);
       if (resourceRes.data) setResources(resourceRes.data);
+      setCompanyLanguage(toLocale(companyRes.data?.default_language));
       if (leadsRes.data) {
         // Transform the nested data structure
         const leads: AcceptedLead[] = leadsRes.data
@@ -270,6 +286,8 @@ export const AppointmentModal = ({
       } else {
         setSelectedLeadId(null);
       }
+      // No lead → no customer language yet; the company default applies until one is picked.
+      setLeadLanguage(null);
     }
   }, [isOpen, companyId, initialLeadId]);
 
@@ -331,22 +349,28 @@ export const AppointmentModal = ({
             from_plz,
             from_city,
             service_type,
-            preferred_date
+            preferred_date,
+            language
           `)
           .eq("id", initialLeadId)
           .maybeSingle();
-        
+
         if (error) throw error;
-        
+
         if (lead) {
           // Pre-fill form with lead data
           const fullAddress = [lead.from_street, lead.from_house_number].filter(Boolean).join(" ");
           const customerName = [lead.customer_first_name, lead.customer_last_name].filter(Boolean).join(" ");
-          
+
+          // Customer language travels with the lead onto the appointment.
+          setLeadLanguage(toLocale(lead.language));
+
           setFormData(prev => ({
             ...prev,
             appointment_type: "besichtigung",
-            title: `Besichtigung - ${customerName}`,
+            // Operator's own calendar entry — the confirmation e-mail renders the appointment
+            // TYPE in the customer's language and never this title.
+            title: t("calendar.appointmentTitle.besichtigung", { name: customerName }),
             location_address: fullAddress,
             location_plz: lead.from_plz || "",
             location_city: lead.from_city || "",
@@ -354,47 +378,47 @@ export const AppointmentModal = ({
             customer_last_name: lead.customer_last_name || "",
             customer_email: lead.customer_email || "",
             customer_phone: lead.customer_phone || "",
-            appointment_date: lead.preferred_date 
+            appointment_date: lead.preferred_date
               ? format(new Date(lead.preferred_date), "yyyy-MM-dd")
               : format(new Date(), "yyyy-MM-dd"),
           }));
         }
       } catch (e) {
         console.error("Error fetching lead data:", e);
-        toast.error("Fehler beim Laden der Anfragedaten");
+        toast.error(t("calendar.modal.error.leadLoadFailed"));
       } finally {
         setLeadLoading(false);
       }
     };
-    
+
     fetchLeadData();
-  }, [initialLeadId, isOpen]);
+  }, [initialLeadId, isOpen, t]);
 
   const handleSubmit = async () => {
     if (!companyId) return;
     if (!formData.title.trim()) {
-      toast.error("Bitte geben Sie einen Titel ein");
+      toast.error(t("calendar.modal.error.titleRequired"));
       return;
     }
 
     // Time validation - only if not all-day
     if (!formData.all_day) {
       if (formData.start_time >= formData.end_time) {
-        toast.error("Endzeit muss nach Startzeit liegen");
+        toast.error(t("calendar.modal.error.endBeforeStart"));
         return;
       }
-      
+
       // Calculate duration
       const [startH, startM] = formData.start_time.split(":").map(Number);
       const [endH, endM] = formData.end_time.split(":").map(Number);
       const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-      
+
       if (durationMinutes < 15) {
-        toast.error("Termin muss mindestens 15 Minuten dauern");
+        toast.error(t("calendar.modal.error.minDuration"));
         return;
       }
       if (durationMinutes > 720) {
-        toast.error("Termin darf maximal 12 Stunden dauern");
+        toast.error(t("calendar.modal.error.maxDuration"));
         return;
       }
     }
@@ -441,11 +465,14 @@ export const AppointmentModal = ({
           .eq("id", appointment.id);
 
         if (error) throw error;
-        toast.success("Termin aktualisiert");
+        toast.success(t("calendar.modal.saved.updated"));
       } else {
+        // DOCUMENT locale — inherited from the linked lead, else the company default.
+        // Written at CREATION only: the update path above must not silently flip the
+        // language of an existing appointment whose confirmation mail already went out.
         const { data: insertedAppointment, error } = await supabase
           .from("appointments")
-          .insert([payload])
+          .insert([{ ...payload, language: leadLanguage ?? companyLanguage }])
           .select("id")
           .single();
 
@@ -458,7 +485,7 @@ export const AppointmentModal = ({
           formData.appointment_type !== "meeting"
         ) {
           if (!formData.customer_email?.trim()) {
-            toast.warning("Termin erstellt, aber keine Kunden-E-Mail vorhanden");
+            toast.warning(t("calendar.modal.warn.noCustomerEmail"));
           } else {
             try {
               const {
@@ -475,7 +502,7 @@ export const AppointmentModal = ({
               }
 
               if (!activeSession?.access_token) {
-                throw new Error("Keine aktive Sitzung für E-Mail-Versand");
+                throw new Error(t("calendar.modal.error.noSession"));
               }
 
               const { data: emailData, error: emailErr } = await supabase.functions.invoke(
@@ -490,16 +517,16 @@ export const AppointmentModal = ({
 
               if (emailErr) {
                 console.error("Appointment email failed:", emailErr);
-                toast.warning("Termin erstellt, aber Bestätigungs-E-Mail konnte nicht gesendet werden");
+                toast.warning(t("calendar.modal.warn.emailFailed"));
               } else if (emailData?.skipped) {
-                const reason = emailData.reason || "unbekannt";
-                toast.warning(`Termin erstellt, E-Mail übersprungen (${reason})`);
+                const reason = emailData.reason || t("calendar.modal.reason.unknown");
+                toast.warning(t("calendar.modal.warn.emailSkipped", { reason }));
               } else {
-                toast.success("Termin erstellt – Bestätigungs-E-Mail wurde gesendet");
+                toast.success(t("calendar.modal.saved.createdWithEmail"));
               }
             } catch (emailError) {
               console.error("Appointment email invocation error:", emailError);
-              toast.warning("Termin erstellt, aber E-Mail-Versand ist fehlgeschlagen");
+              toast.warning(t("calendar.modal.warn.emailSendFailed"));
             }
           }
         }
@@ -516,23 +543,25 @@ export const AppointmentModal = ({
             
             if (recurringError) {
               console.error("Error generating recurring appointments:", recurringError);
-              toast.warning("Termin erstellt, aber wiederkehrende Termine konnten nicht generiert werden");
+              toast.warning(t("calendar.modal.warn.recurrencesFailed"));
             } else {
-              toast.success(`Termin erstellt mit ${countResult || 0} Wiederholungen`);
+              toast.success(
+                t("calendar.modal.saved.createdWithRecurrences", { count: countResult || 0 }),
+              );
             }
           } catch (recurringErr) {
             console.error("Error generating recurring appointments:", recurringErr);
-            toast.success("Termin erstellt");
+            toast.success(t("calendar.modal.saved.created"));
           }
         } else {
-          toast.success("Termin erstellt");
+          toast.success(t("calendar.modal.saved.created"));
         }
       }
 
       onSaved();
     } catch (e) {
       console.error("Error saving appointment:", e);
-      toast.error("Fehler beim Speichern");
+      toast.error(t("calendar.modal.error.saveFailed"));
     } finally {
       setLoading(false);
     }
@@ -545,6 +574,8 @@ export const AppointmentModal = ({
   const handleLeadSelect = (leadId: string) => {
     if (leadId === "manual") {
       setSelectedLeadId(null);
+      // Manual entry → no lead to inherit the language from; company default applies.
+      setLeadLanguage(null);
       // Clear customer fields for manual entry
       setFormData(prev => ({
         ...prev,
@@ -564,13 +595,16 @@ export const AppointmentModal = ({
     if (!lead) return;
 
     setSelectedLeadId(leadId);
+    setLeadLanguage(toLocale(lead.language));
     const fullAddress = [lead.from_street, lead.from_house_number].filter(Boolean).join(" ");
     const customerName = [lead.customer_first_name, lead.customer_last_name].filter(Boolean).join(" ");
 
     setFormData(prev => ({
       ...prev,
       appointment_type: "besichtigung",
-      title: customerName ? `Besichtigung - ${customerName}` : prev.title,
+      title: customerName
+        ? t("calendar.appointmentTitle.besichtigung", { name: customerName })
+        : prev.title,
       location_address: fullAddress,
       location_plz: lead.from_plz || "",
       location_city: lead.from_city || "",
@@ -588,7 +622,8 @@ export const AppointmentModal = ({
   const getLeadDisplayName = (lead: AcceptedLead) => {
     const name = [lead.customer_first_name, lead.customer_last_name].filter(Boolean).join(" ");
     const location = lead.from_city || "";
-    return name ? `${name}${location ? ` - ${location}` : ""}` : `Anfrage in ${location || "unbekannt"}`;
+    if (name) return `${name}${location ? ` - ${location}` : ""}`;
+    return t("calendar.modal.leadIn", { city: location || t("calendar.modal.unknownCity") });
   };
 
   return (
@@ -596,14 +631,14 @@ export const AppointmentModal = ({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {appointment ? "Termin bearbeiten" : "Neuer Termin"}
+            {appointment ? t("calendar.modal.editTitle") : t("calendar.modal.newTitle")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Type Selection */}
           <div className="space-y-2">
-            <Label>Termin-Typ</Label>
+            <Label>{t("calendar.modal.type")}</Label>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {appointmentTypes.map((type) => {
                 const Icon = type.icon;
@@ -617,18 +652,18 @@ export const AppointmentModal = ({
                     onClick={() =>
                       setFormData({ ...formData, appointment_type: type.value })
                     }
-                    title={type.description}
+                    title={t(type.descriptionKey)}
                   >
                     <Icon className="w-4 h-4" />
-                    <span className="text-xs">{type.label}</span>
+                    <span className="text-xs">{getAppointmentTypeLabel(type.value, locale)}</span>
                   </Button>
                 );
               })}
             </div>
             {formData.appointment_type === "blocked" && (
               <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded border border-blue-200">
-                💡 <strong>Zeit blockieren:</strong> Diese Zeit wird im Kalender als nicht verfügbar markiert. 
-                Keine Kundeninformationen erforderlich. Nützlich für Urlaub, Pausen, Wartung, etc.
+                💡 <strong>{t("calendar.modal.blockedHint.title")}</strong>{" "}
+                {t("calendar.modal.blockedHint.body")}
               </div>
             )}
           </div>
@@ -636,16 +671,16 @@ export const AppointmentModal = ({
           {/* Title & Status */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Titel *</Label>
+              <Label htmlFor="title">{t("calendar.modal.titleLabel")} *</Label>
               <Input
                 id="title"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="z.B. Besichtigung 3.5 Zimmer"
+                placeholder={t("calendar.modal.titlePlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t("common.status")}</Label>
               <Select
                 value={formData.status}
                 onValueChange={(v) => setFormData({ ...formData, status: v })}
@@ -654,9 +689,9 @@ export const AppointmentModal = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {statusOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {getAppointmentStatusLabel(status, locale)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -667,7 +702,7 @@ export const AppointmentModal = ({
           {/* Date & Time */}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="date">Datum *</Label>
+              <Label htmlFor="date">{t("common.date")} *</Label>
               <DatePicker
                 id="date"
                 value={formData.appointment_date}
@@ -677,7 +712,7 @@ export const AppointmentModal = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="start">Start</Label>
+              <Label htmlFor="start">{t("calendar.modal.start")}</Label>
               <Input
                 id="start"
                 type="time"
@@ -689,7 +724,7 @@ export const AppointmentModal = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="end">Ende</Label>
+              <Label htmlFor="end">{t("calendar.modal.end")}</Label>
               <Input
                 id="end"
                 type="time"
@@ -712,7 +747,7 @@ export const AppointmentModal = ({
                 }
               />
               <Label htmlFor="all_day" className="cursor-pointer">
-                Ganztägig
+                {t("calendar.modal.allDay")}
               </Label>
             </div>
             <div className="flex items-center gap-2">
@@ -724,7 +759,7 @@ export const AppointmentModal = ({
                 }
               />
               <Label htmlFor="is_recurring" className="cursor-pointer">
-                Wiederkehrend
+                {t("calendar.modal.recurring")}
               </Label>
             </div>
           </div>
@@ -733,7 +768,7 @@ export const AppointmentModal = ({
           {formData.is_recurring && (
             <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
               <div className="space-y-2">
-                <Label htmlFor="recurrence_pattern">Wiederholung</Label>
+                <Label htmlFor="recurrence_pattern">{t("calendar.modal.recurrence")}</Label>
                 <Select
                   value={formData.recurrence_pattern}
                   onValueChange={(v) => setFormData({ ...formData, recurrence_pattern: v as "daily" | "weekly" | "biweekly" | "monthly" })}
@@ -742,15 +777,15 @@ export const AppointmentModal = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily">Täglich</SelectItem>
-                    <SelectItem value="weekly">Wöchentlich</SelectItem>
-                    <SelectItem value="biweekly">Alle 2 Wochen</SelectItem>
-                    <SelectItem value="monthly">Monatlich</SelectItem>
+                    <SelectItem value="daily">{t("calendar.modal.recurrence.daily")}</SelectItem>
+                    <SelectItem value="weekly">{t("calendar.modal.recurrence.weekly")}</SelectItem>
+                    <SelectItem value="biweekly">{t("calendar.modal.recurrence.biweekly")}</SelectItem>
+                    <SelectItem value="monthly">{t("calendar.modal.recurrence.monthly")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="recurrence_end">Ende der Wiederholung</Label>
+                <Label htmlFor="recurrence_end">{t("calendar.modal.recurrenceEnd")}</Label>
                 <DatePicker
                   id="recurrence_end"
                   value={formData.recurrence_end_date}
@@ -770,13 +805,22 @@ export const AppointmentModal = ({
               <Alert variant={hasResourceConflict ? "destructive" : "default"}>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>{hasResourceConflict ? "Ressourcenkonflikt!" : "Zeitliche Überschneidung"}</strong>{" "}
+                  <strong>
+                    {hasResourceConflict
+                      ? t("calendar.modal.conflict.resource")
+                      : t("calendar.modal.conflict.time")}
+                  </strong>{" "}
                   {hasResourceConflict
-                    ? "Mitarbeiter oder Fahrzeug sind bereits verplant:"
-                    : `${conflicts.length} Termin(e) zur gleichen Zeit:`}
+                    ? t("calendar.modal.conflict.resourceBody")
+                    : t("calendar.modal.conflict.timeBody", { count: conflicts.length })}
                   <ul className="mt-1 text-sm">
                     {conflicts.slice(0, 3).map((c) => {
-                      const tags = [c.sharedTeam && "Mitarbeiter", c.sharedVehicles && "Fahrzeug"].filter(Boolean).join(" + ");
+                      const tags = [
+                        c.sharedTeam && t("calendar.modal.conflict.tag.team"),
+                        c.sharedVehicles && t("calendar.modal.conflict.tag.vehicle"),
+                      ]
+                        .filter(Boolean)
+                        .join(" + ");
                       return (
                         <li key={c.appointment.id}>
                           • {c.appointment.title} ({c.appointment.start_time.slice(0, 5)} – {c.appointment.end_time.slice(0, 5)})
@@ -794,11 +838,11 @@ export const AppointmentModal = ({
           {formData.appointment_type !== "blocked" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-medium">Kunde</Label>
+                <Label className="text-base font-medium">{t("calendar.modal.customer")}</Label>
                 {acceptedLeads.length > 0 && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <UserCheck className="w-3.5 h-3.5" />
-                    <span>Aus Anfrage übernehmen</span>
+                    <span>{t("calendar.modal.fromLead")}</span>
                   </div>
                 )}
               </div>
@@ -810,11 +854,11 @@ export const AppointmentModal = ({
                   onValueChange={handleLeadSelect}
                 >
                   <SelectTrigger className="bg-blue-50/50 border-blue-200">
-                    <SelectValue placeholder="Anfrage auswählen oder manuell eingeben" />
+                    <SelectValue placeholder={t("calendar.modal.leadPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="manual">
-                      <span className="text-muted-foreground">Manuell eingeben</span>
+                      <span className="text-muted-foreground">{t("calendar.modal.manualEntry")}</span>
                     </SelectItem>
                     {acceptedLeads.map((lead) => (
                       <SelectItem key={lead.lead_id} value={lead.lead_id}>
@@ -830,21 +874,21 @@ export const AppointmentModal = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  placeholder="Vorname"
+                  placeholder={t("common.firstName")}
                   value={formData.customer_first_name}
                   onChange={(e) =>
                     setFormData({ ...formData, customer_first_name: e.target.value })
                   }
                 />
                 <Input
-                  placeholder="Nachname"
+                  placeholder={t("common.lastName")}
                   value={formData.customer_last_name}
                   onChange={(e) =>
                     setFormData({ ...formData, customer_last_name: e.target.value })
                   }
                 />
                 <Input
-                  placeholder="Telefon"
+                  placeholder={t("common.phone")}
                   type="tel"
                   value={formData.customer_phone}
                   onChange={(e) =>
@@ -852,7 +896,7 @@ export const AppointmentModal = ({
                   }
                 />
                 <Input
-                  placeholder="E-Mail"
+                  placeholder={t("common.email")}
                   type="email"
                   value={formData.customer_email}
                   onChange={(e) =>
@@ -865,11 +909,11 @@ export const AppointmentModal = ({
 
           {/* Location */}
           <div className="space-y-4">
-            <Label className="text-base font-medium">Standort</Label>
-            
+            <Label className="text-base font-medium">{t("calendar.modal.location")}</Label>
+
             {/* Google Places Autocomplete */}
             <div>
-              <Label className="text-xs text-muted-foreground">Adresse suchen</Label>
+              <Label className="text-xs text-muted-foreground">{t("calendar.modal.searchAddress")}</Label>
               <GooglePlacesAutocomplete
                 value={formData.location_address ? `${formData.location_address}, ${formData.location_plz} ${formData.location_city}` : ""}
                 onPlaceSelect={(place: PlaceResult) => {
@@ -880,12 +924,12 @@ export const AppointmentModal = ({
                     location_city: place.city,
                   });
                 }}
-                placeholder="Adresse eingeben..."
+                placeholder={t("calendar.modal.addressPlaceholder")}
               />
             </div>
 
             <Input
-              placeholder="Strasse und Hausnummer"
+              placeholder={t("calendar.modal.streetPlaceholder")}
               value={formData.location_address}
               onChange={(e) =>
                 setFormData({ ...formData, location_address: e.target.value })
@@ -893,14 +937,14 @@ export const AppointmentModal = ({
             />
             <div className="grid grid-cols-2 gap-4">
               <Input
-                placeholder="PLZ"
+                placeholder={t("common.plz")}
                 value={formData.location_plz}
                 onChange={(e) =>
                   setFormData({ ...formData, location_plz: e.target.value })
                 }
               />
               <Input
-                placeholder="Ort"
+                placeholder={t("common.city")}
                 value={formData.location_city}
                 onChange={(e) =>
                   setFormData({ ...formData, location_city: e.target.value })
@@ -908,7 +952,7 @@ export const AppointmentModal = ({
               />
             </div>
             <Input
-              placeholder="Hinweise (z.B. Parkplatz hinten, 2x klingeln)"
+              placeholder={t("calendar.modal.locationNotesPlaceholder")}
               value={formData.location_notes}
               onChange={(e) =>
                 setFormData({ ...formData, location_notes: e.target.value })
@@ -919,7 +963,7 @@ export const AppointmentModal = ({
           {/* Team Assignment */}
           {teamMembers.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-base font-medium">Team zuweisen</Label>
+              <Label className="text-base font-medium">{t("calendar.modal.assignTeam")}</Label>
               <div className="grid grid-cols-2 gap-2">
                 {teamMembers.map((member) => (
                   <div key={member.id} className="flex items-center gap-2">
@@ -966,7 +1010,7 @@ export const AppointmentModal = ({
           {/* Vehicles */}
           {vehicles.length > 0 && formData.appointment_type === "service" && (
             <div className="space-y-2">
-              <Label className="text-base font-medium">Fahrzeuge</Label>
+              <Label className="text-base font-medium">{t("calendar.modal.vehicles")}</Label>
               <div className="grid grid-cols-2 gap-2">
                 {vehicles.map((v) => (
                   <div key={v.id} className="flex items-center gap-2">
@@ -1001,7 +1045,7 @@ export const AppointmentModal = ({
           {/* Equipment */}
           {equipment.length > 0 && formData.appointment_type === "service" && (
             <div className="space-y-2">
-              <Label className="text-base font-medium">Ausrüstung</Label>
+              <Label className="text-base font-medium">{t("calendar.modal.equipment")}</Label>
               <div className="grid grid-cols-2 gap-2">
                 {equipment.map((e) => (
                   <div key={e.id} className="flex items-center gap-2">
@@ -1035,26 +1079,26 @@ export const AppointmentModal = ({
 
           {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="description">Beschreibung</Label>
+            <Label htmlFor="description">{t("common.description")}</Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Zusätzliche Informationen..."
+              placeholder={t("calendar.modal.descriptionPlaceholder")}
               rows={3}
             />
           </div>
 
           {/* Internal Notes */}
           <div className="space-y-2">
-            <Label htmlFor="internal_notes">Interne Notizen</Label>
+            <Label htmlFor="internal_notes">{t("calendar.detail.internalNotes")}</Label>
             <Textarea
               id="internal_notes"
               value={formData.internal_notes}
               onChange={(e) =>
                 setFormData({ ...formData, internal_notes: e.target.value })
               }
-              placeholder="Nur für interne Verwendung..."
+              placeholder={t("calendar.modal.internalNotesPlaceholder")}
               rows={2}
             />
           </div>
@@ -1063,11 +1107,11 @@ export const AppointmentModal = ({
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-4 border-t">
           <Button variant="outline" onClick={onClose} disabled={loading}>
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            {appointment ? "Aktualisieren" : "Erstellen"}
+            {appointment ? t("calendar.modal.update") : t("common.create")}
           </Button>
         </div>
       </DialogContent>

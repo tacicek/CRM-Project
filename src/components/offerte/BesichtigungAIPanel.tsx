@@ -34,6 +34,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/i18n/useI18n";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Locale } from "@/i18n/locale";
+import type { MessageKey } from "@/i18n/translator";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface DetectedItem {
@@ -84,18 +88,29 @@ interface BesichtigungAIPanelProps {
   leadId?: string | null;
   customerName?: string; // kept for API compatibility but no longer used for matching
   onApplyItems?: (items: AIOfferItem[]) => void;
+  /**
+   * DOCUMENT locale of the offer (offers.language / lead.language). `handleApplyItems`
+   * below writes descriptions straight into offer_items.description — customer-bound
+   * text — so those strings must be resolved in the customer's language, not the
+   * operator's dashboard language. Follows the SurchargeEditor `documentLocale` pattern.
+   */
+  documentLocale: Locale;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const truckLabel = (truck: string | null) => {
-  switch (truck) {
-    case "transporter": return "Transporter";
-    case "3.5t": return "3.5t LKW";
-    case "7.5t": return "7.5t LKW";
-    case "12t": return "12t LKW";
-    case "18t": return "18t LKW";
-    default: return truck || "–";
-  }
+// Operator-facing label (dashboard locale) — never written into the offer itself.
+const truckLabelKeys: Record<string, MessageKey> = {
+  transporter: "offer.ai.truck.transporter",
+  "3.5t": "offer.ai.truck.3_5t",
+  "7.5t": "offer.ai.truck.7_5t",
+  "12t": "offer.ai.truck.12t",
+  "18t": "offer.ai.truck.18t",
+};
+
+const truckLabel = (truck: string | null, t: (key: MessageKey) => string): string => {
+  if (!truck) return "–";
+  const key = truckLabelKeys[truck];
+  return key ? t(key) : truck;
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -103,7 +118,11 @@ export const BesichtigungAIPanel = ({
   companyId,
   leadId,
   onApplyItems,
+  documentLocale,
 }: BesichtigungAIPanelProps) => {
+  const t = useT();
+  // Text that ends up INSIDE offer_items.description → customer's language.
+  const documentT = documentI18nFor(documentLocale).t;
   const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -203,11 +222,11 @@ export const BesichtigungAIPanel = ({
         accessToken = refreshed.session?.access_token;
       }
       if (!accessToken) {
-        toast.error("Sitzung abgelaufen. Bitte erneut einloggen.");
+        toast.error(t("offer.ai.toast.sessionExpired"));
         return;
       }
 
-      toast.info("KI-Analyse läuft... Dies kann 30-60 Sekunden dauern.");
+      toast.info(t("offer.ai.toast.analyzing"));
 
       const { data, error } = await supabase.functions.invoke("analyze-besichtigung", {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -227,11 +246,11 @@ export const BesichtigungAIPanel = ({
         const allIdxs = new Set((data.analysis.detected_items || []).map((_: DetectedItem, i: number) => i));
         setSelectedItems(allIdxs);
         setSession(prev => prev ? { ...prev, status: "analyzed" } : null);
-        toast.success("KI-Analyse abgeschlossen!");
+        toast.success(t("offer.ai.toast.analysisComplete"));
       }
     } catch (err: unknown) {
       console.error("Analysis error:", err);
-      toast.error("Analyse fehlgeschlagen");
+      toast.error(t("offer.ai.toast.analysisFailed"));
     } finally {
       setAnalyzing(false);
     }
@@ -245,7 +264,7 @@ export const BesichtigungAIPanel = ({
       .filter((_, idx) => selectedItems.has(idx))
       .map(item => ({
         description: item.special
-          ? `⚠️ ${item.name} (Spezialgegenstand)`
+          ? documentT("offer.doc.ai.specialItem", { name: item.name })
           : item.name,
         quantity: item.count,
         unit: "Stück",
@@ -255,7 +274,9 @@ export const BesichtigungAIPanel = ({
     // Add special requirements as a note item
     if (analysis.special_requirements.length > 0) {
       itemsToApply.push({
-        description: `Besondere Anforderungen: ${analysis.special_requirements.join(", ")}`,
+        description: documentT("offer.doc.ai.specialRequirements", {
+          list: analysis.special_requirements.join(", "),
+        }),
         quantity: 1,
         unit: "Pauschale",
       });
@@ -263,7 +284,7 @@ export const BesichtigungAIPanel = ({
 
     onApplyItems(itemsToApply);
     setApplied(true);
-    toast.success(`${itemsToApply.length} Positionen aus KI-Analyse übernommen`);
+    toast.success(t("offer.ai.toast.itemsApplied", { count: itemsToApply.length }));
   };
 
   const toggleItem = (idx: number) => {
@@ -301,15 +322,18 @@ export const BesichtigungAIPanel = ({
             </div>
             <div>
               <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                KI-Besichtigung
+                {t("offer.ai.title")}
                 <Badge className="text-xs bg-purple-100 text-purple-700 border-purple-200">
-                  {session.photo_count} Fotos
+                  {t("offer.ai.photoCount", { count: session.photo_count })}
                 </Badge>
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm">
                 {analysis
-                  ? `${analysis.detected_items.length} Gegenstände erkannt • ${analysis.estimated_volume_m3 ?? "?"} m³`
-                  : `Virtuelle Besichtigung von ${session.customer_name}`
+                  ? t("offer.ai.summaryDetected", {
+                      count: analysis.detected_items.length,
+                      volume: analysis.estimated_volume_m3 ?? "?",
+                    })
+                  : t("offer.ai.summaryVirtual", { name: session.customer_name })
                 }
               </CardDescription>
             </div>
@@ -337,7 +361,7 @@ export const BesichtigungAIPanel = ({
               </span>
               <span className="flex items-center gap-1 text-purple-700">
                 <Truck className="w-3.5 h-3.5" />
-                {truckLabel(analysis.recommended_truck)}
+                {truckLabel(analysis.recommended_truck, t)}
               </span>
             </div>
           </div>
@@ -352,8 +376,8 @@ export const BesichtigungAIPanel = ({
               <Camera className="w-10 h-10 mx-auto text-purple-400" />
               <p className="text-sm text-muted-foreground">
                 {session.photo_count > 0
-                  ? "Fotos vorhanden. Starten Sie die KI-Analyse, um eine Inventarliste zu erhalten."
-                  : "Noch keine Fotos hochgeladen. Der Kunde muss zuerst Fotos über den Besichtigungslink hochladen."
+                  ? t("offer.ai.prompt.hasPhotos")
+                  : t("offer.ai.prompt.noPhotos")
                 }
               </p>
               {session.photo_count > 0 && (
@@ -363,9 +387,9 @@ export const BesichtigungAIPanel = ({
                   className="gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
                 >
                   {analyzing ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Analyse läuft...</>
+                    <><Loader2 className="w-4 h-4 animate-spin" /> {t("offer.ai.analyzing")}</>
                   ) : (
-                    <><Sparkles className="w-4 h-4" /> KI-Analyse starten</>
+                    <><Sparkles className="w-4 h-4" /> {t("offer.ai.startAnalysis")}</>
                   )}
                 </Button>
               )}
@@ -377,22 +401,22 @@ export const BesichtigungAIPanel = ({
                 <div className="bg-white rounded-lg p-2.5 text-center border">
                   <Package className="w-4 h-4 mx-auto mb-0.5 text-blue-500" />
                   <p className="text-lg font-bold">{analysis.estimated_volume_m3 ?? "–"} m³</p>
-                  <p className="text-[10px] text-muted-foreground">Volumen</p>
+                  <p className="text-[10px] text-muted-foreground">{t("offer.ai.stat.volume")}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2.5 text-center border">
                   <Clock className="w-4 h-4 mx-auto mb-0.5 text-amber-500" />
                   <p className="text-lg font-bold">{analysis.estimated_time_hours ?? "–"} Std.</p>
-                  <p className="text-[10px] text-muted-foreground">Dauer</p>
+                  <p className="text-[10px] text-muted-foreground">{t("offer.ai.stat.duration")}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2.5 text-center border">
                   <Users className="w-4 h-4 mx-auto mb-0.5 text-emerald-500" />
                   <p className="text-lg font-bold">{analysis.recommended_workers ?? "–"}</p>
-                  <p className="text-[10px] text-muted-foreground">Arbeiter</p>
+                  <p className="text-[10px] text-muted-foreground">{t("offer.ai.stat.workers")}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2.5 text-center border">
                   <Truck className="w-4 h-4 mx-auto mb-0.5 text-purple-500" />
-                  <p className="text-lg font-bold">{truckLabel(analysis.recommended_truck)}</p>
-                  <p className="text-[10px] text-muted-foreground">Fahrzeug</p>
+                  <p className="text-lg font-bold">{truckLabel(analysis.recommended_truck, t)}</p>
+                  <p className="text-[10px] text-muted-foreground">{t("offer.ai.stat.vehicle")}</p>
                 </div>
               </div>
 
@@ -411,9 +435,9 @@ export const BesichtigungAIPanel = ({
               {/* Items Selection Table */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h5 className="text-sm font-medium">Erkannte Gegenstände</h5>
+                  <h5 className="text-sm font-medium">{t("offer.ai.detectedItems")}</h5>
                   <Button variant="ghost" size="sm" className="text-xs h-7" onClick={toggleAll}>
-                    {selectedItems.size === analysis.detected_items.length ? "Alle abwählen" : "Alle wählen"}
+                    {selectedItems.size === analysis.detected_items.length ? t("offer.ai.toggleAll.deselect") : t("offer.ai.toggleAll.select")}
                   </Button>
                 </div>
 
@@ -422,8 +446,8 @@ export const BesichtigungAIPanel = ({
                     <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
                       <tr className="text-xs text-muted-foreground uppercase tracking-wide">
                         <th className="w-8 p-2"></th>
-                        <th className="text-left p-2">Gegenstand</th>
-                        <th className="text-center p-2 w-14">Anz.</th>
+                        <th className="text-left p-2">{t("offer.ai.table.item")}</th>
+                        <th className="text-center p-2 w-14">{t("offer.ai.table.count")}</th>
                         <th className="text-center p-2 w-16">m³</th>
                       </tr>
                     </thead>
@@ -461,13 +485,17 @@ export const BesichtigungAIPanel = ({
               {/* Data retention notice */}
               <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-50/80 border border-amber-200/60 text-[11px] text-amber-600">
                 <span className="shrink-0">⏰</span>
-                <span>Fotos werden <strong>3 Tage nach Offerte-Versand</strong> automatisch gelöscht.</span>
+                <span>
+                  {t("offer.ai.retentionNotice.pre")}
+                  <strong>{t("offer.ai.retentionNotice.bold")}</strong>
+                  {t("offer.ai.retentionNotice.post")}
+                </span>
               </div>
 
               {onApplyItems && (
                 <div className="flex items-center justify-between pt-2 border-t">
                   <p className="text-xs text-muted-foreground">
-                    {selectedItems.size} von {analysis.detected_items.length} ausgewählt
+                    {t("offer.ai.selectedCount", { selected: selectedItems.size, total: analysis.detected_items.length })}
                   </p>
                   <Button
                     onClick={(e) => { e.stopPropagation(); handleApplyItems(); }}
@@ -477,9 +505,9 @@ export const BesichtigungAIPanel = ({
                     size="sm"
                   >
                     {applied ? (
-                      <><Check className="w-4 h-4 text-green-600" /> Übernommen</>
+                      <><Check className="w-4 h-4 text-green-600" /> {t("offer.ai.applied")}</>
                     ) : (
-                      <><ArrowRight className="w-4 h-4" /> In Offerte übernehmen</>
+                      <><ArrowRight className="w-4 h-4" /> {t("offer.ai.applyAction")}</>
                     )}
                   </Button>
                 </div>

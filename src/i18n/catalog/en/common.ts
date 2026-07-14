@@ -1,0 +1,98 @@
+import { common as de } from "@/i18n/catalog/de/common";
+
+/**
+ * Shared UI vocabulary: actions, states, generic field labels, navigation.
+ * Used across the whole dashboard — page-specific copy lives in `ui.ts`.
+ */
+export const common: Record<keyof typeof de, string> = {
+  // --- Actions ---------------------------------------------------------------
+  "common.save": "Save",
+  "common.saving": "Saving…",
+  "common.cancel": "Cancel",
+  "common.delete": "Delete",
+  "common.edit": "Edit",
+  "common.create": "Create",
+  "common.add": "Add",
+  "common.remove": "Remove",
+  "common.close": "Close",
+  "common.back": "Back",
+  "common.next": "Next",
+  "common.confirm": "Confirm",
+  "common.search": "Search",
+  "common.filter": "Filter",
+  "common.reset": "Reset",
+  "common.send": "Send",
+  "common.sending": "Sending…",
+  "common.download": "Download",
+  "common.upload": "Upload",
+  "common.preview": "Preview",
+  "common.print": "Print",
+  "common.copy": "Copy",
+  "common.copied": "Copied",
+  "common.duplicate": "Duplicate",
+  "common.archive": "Archive",
+  "common.restore": "Restore",
+  "common.select": "Select",
+  "common.selectAll": "Select all",
+  "common.apply": "Apply",
+  "common.retry": "Try again",
+  "common.details": "Details",
+  "common.actions": "Actions",
+  "common.more": "More",
+  "common.optional": "Optional",
+  "common.required": "Required field",
+
+  // --- States -----------------------------------------------------------------
+  "common.loading": "Loading…",
+  "common.empty": "No entries yet",
+  "common.error": "Error",
+  "common.errorGeneric": "Something went wrong. Please try again.",
+  "common.success": "Done",
+  "common.noResults": "No results found",
+  "common.notSpecified": "Not specified",
+  "common.unknown": "Unknown",
+
+  // --- Generic fields -----------------------------------------------------------
+  "common.name": "Name",
+  "common.firstName": "First name",
+  "common.lastName": "Surname",
+  "common.email": "Email",
+  "common.phone": "Phone",
+  "common.address": "Address",
+  "common.street": "Street",
+  "common.houseNumber": "House number",
+  "common.plz": "Postcode",
+  "common.city": "Town",
+  "common.canton": "Canton",
+  "common.country": "Country",
+  "common.date": "Date",
+  "common.selectDate": "Select date",
+  "common.time": "Time",
+  "common.from": "From",
+  "common.to": "To",
+  "common.status": "Status",
+  "common.type": "Type",
+  "common.category": "Category",
+  "common.description": "Description",
+  "common.notes": "Notes",
+  "common.price": "Price",
+  "common.quantity": "Quantity",
+  "common.unit": "Unit",
+  "common.total": "Total",
+  "common.subtotal": "Subtotal",
+  "common.vat": "VAT",
+  "common.discount": "Discount",
+  "common.language": "Language",
+  "common.createdAt": "Created on",
+  "common.updatedAt": "Updated on",
+
+  // --- Confirmations ---------------------------------------------------------------
+  "common.confirmDelete.title": "Delete this permanently?",
+  "common.confirmDelete.description": "This action cannot be undone.",
+
+  // --- Language switcher --------------------------------------------------------------
+  "common.language.dashboard": "Dashboard language",
+  "common.language.followCompany": "Use the company language ({language})",
+  "common.language.hint":
+    "Changes your own view only. Documents and emails sent to customers stay in the customer's language.",
+};

@@ -23,8 +23,11 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
-  Quittung, QuittungStatus, formatChf,
+  Quittung, QuittungStatus,
 } from "@/types/quittung.types";
+import { useI18n } from "@/i18n/useI18n";
+import { formatCurrency } from "@/i18n/format";
+import { resolveDocumentLocale } from "@/i18n/documentLocale";
 
 const STATUS_TABS: { value: 'all' | QuittungStatus; label: string }[] = [
   { value: 'all',    label: 'Alle' },
@@ -46,6 +49,8 @@ interface QuittungCompany {
   id: string;
   company_name: string;
   email: string;
+  /** Fallback document language for rows that carry none. */
+  default_language?: string | null;
   logo_url?: string | null;
   primary_color?: string | null;
   phone?: string | null;
@@ -62,6 +67,8 @@ export default function FirmaQuittungen() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  // Dashboard locale — list amounts only. Each PDF follows its own receipt's language.
+  const { locale: uiLocale } = useI18n();
   const { companyId } = useCachedCompany();
   // Full company record (incl. address/iban/bank) — useCachedCompany ignores the select → fresh fetch.
   const [company, setCompany] = useState<QuittungCompany | null>(null);
@@ -70,7 +77,7 @@ export default function FirmaQuittungen() {
     fetchSingleCompanyForUser<QuittungCompany>({
       userId: user.id,
       userEmail: user.email,
-      select: "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, crm_enabled",
+      select: "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, crm_enabled, default_language",
     }).then((row) => { if (row) setCompany(row); });
   }, [user?.id, user?.email]);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
@@ -112,8 +119,13 @@ export default function FirmaQuittungen() {
     if (!companyForPdf) return;
     setDownloadingId(q.id);
     try {
+      // Customer language of THIS receipt — not the operator's dashboard language.
       const blob = await pdf(
-        <QuittungPDF quittung={q} company={companyForPdf} />
+        <QuittungPDF
+          quittung={q}
+          company={companyForPdf}
+          locale={resolveDocumentLocale(q, company)}
+        />
       ).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -157,7 +169,7 @@ export default function FirmaQuittungen() {
     { emoji: "🧾", label: "Gesamt",        value: stats.total,             isValue: false },
     { emoji: "✍️", label: "Unterzeichnet", value: stats.signed,            isValue: false },
     { emoji: "✅", label: "Bezahlt",       value: stats.paid,              isValue: false },
-    { emoji: "💰", label: "Umsatz",        value: formatChf(stats.revenue), isValue: true },
+    { emoji: "💰", label: "Umsatz",        value: formatCurrency(stats.revenue, uiLocale), isValue: true },
   ];
 
   return (
@@ -172,7 +184,7 @@ export default function FirmaQuittungen() {
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Quittungen</h1>
               <span className="text-[15px] text-folk-ink3">
-                <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.paid}</span> bezahlt · Umsatz <span className="font-mono">{formatChf(stats.revenue)}</span>
+                <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.paid}</span> bezahlt · Umsatz <span className="font-mono">{formatCurrency(stats.revenue, uiLocale)}</span>
               </span>
             </div>
             <p className="mt-1 text-[15px] text-folk-ink2">
@@ -359,7 +371,7 @@ export default function FirmaQuittungen() {
                             )}
                           </div>
                           <span className="font-sans text-[14px] font-bold tracking-tight text-folk-ink">
-                            {formatChf(q.gesamttotal || 0)}
+                            {formatCurrency(q.gesamttotal || 0, uiLocale)}
                           </span>
                         </div>
                       </div>

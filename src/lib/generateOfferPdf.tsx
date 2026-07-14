@@ -89,6 +89,10 @@ const convertImageToBase64ViaCanvas = (src: string): Promise<string | undefined>
 /**
  * Build PDF blob from offer data using @react-pdf/renderer.
  * Shared between download and email-send flows so both produce an identical PDF.
+ *
+ * The document language is NOT read from React context — it travels with the offer
+ * (offers.language, else companies.default_language, else German) and is resolved once in
+ * mapOfferToPdfData, then threaded into every PDF subtree as OfferData.locale.
  */
 const buildOfferPdfBlob = async (offer: LegacyOfferData): Promise<Blob> => {
   const acceptanceUrl =

@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { generateOfferPdfBase64 } from "@/lib/generateOfferPdf";
 import { generateAgbPdfBase64 } from "@/lib/generateAgbPdf";
 import { getChecklistPdfBase64 } from "@/lib/generateChecklistPdf";
+import { resolveDocumentLocale } from "@/i18n/documentLocale";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 
@@ -98,6 +99,9 @@ export const buildOfferEmailAttachments = async (
       logo_url: companyData.logo_url || undefined,
       primary_color: companyData.primary_color || undefined,
       pdf_template: companyData.pdf_template ?? null,
+      // Fallback der Dokumentsprache für Offerten, die vor der Spalte `offers.language`
+      // entstanden sind. Die Offerte selbst (offerData.language, via Spread) hat Vorrang.
+      default_language: companyData.default_language ?? null,
     },
     customer_address: leadData
       ? {
@@ -162,7 +166,14 @@ export const buildOfferEmailAttachments = async (
     ]);
 
     if (agbRes.data && agbRes.data.length > 0) {
-      agbPdfBase64 = await generateAgbPdfBase64(agbRes.data, companyData.company_name);
+      // AGB-Chrome (Titel/Untertitel) in der Kundensprache. Die Abschnittstexte selbst
+      // kommen aus agb_sections und sind DB-Inhalt — sie folgen der `translations`-Spalte,
+      // nicht diesem Argument.
+      agbPdfBase64 = await generateAgbPdfBase64(
+        agbRes.data,
+        companyData.company_name,
+        resolveDocumentLocale(offerData, companyData)
+      );
     }
 
     if (checklistRes.data?.sections && Array.isArray(checklistRes.data.sections) && checklistRes.data.sections.length > 0) {
@@ -171,6 +182,8 @@ export const buildOfferEmailAttachments = async (
           title: checklistRes.data.title,
           subtitle: checklistRes.data.subtitle ?? undefined,
           sections: checklistRes.data.sections as Parameters<typeof getChecklistPdfBase64>[0]["sections"],
+          // Chrome of the checklist PDF follows the customer's language (the offer's).
+          locale: resolveDocumentLocale(offerData, companyData),
           company: {
             company_name: companyData.company_name,
             street: companyData.street ?? undefined,

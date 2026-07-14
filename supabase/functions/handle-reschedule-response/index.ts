@@ -3,6 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { getCalendarFrom, getAppName } from "../_shared/envConfig.ts";
+import {
+  createTranslator,
+  formatDateLong,
+  toLocale,
+} from "../_shared/i18n/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,7 +82,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: appointment, error: appointmentError } = await supabase
       .from("appointments")
       .select(
-        "id, company_id, status, title, customer_email, customer_first_name, customer_last_name, reschedule_token, reschedule_token_expires_at"
+        "id, company_id, status, title, customer_email, customer_first_name, customer_last_name, reschedule_token, reschedule_token_expires_at, language"
       )
       .eq("id", appointmentId)
       .single();
@@ -114,8 +119,14 @@ const handler = async (req: Request): Promise<Response> => {
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    // Both mails below go to the CUSTOMER, so the appointment's own language governs. It is read
+    // from the DB row — the request body on this public endpoint is not trusted for identity.
+    const customerLocale = toLocale(appointment.language);
+    const t = createTranslator(customerLocale);
+
     const customerName =
-      `${appointment.customer_first_name ?? ""} ${appointment.customer_last_name ?? ""}`.trim() || "Kunde";
+      `${appointment.customer_first_name ?? ""} ${appointment.customer_last_name ?? ""}`.trim() ||
+      t("common.customer");
     const appointmentTitle = appointment.title;
 
     const { data: company } = await supabase
@@ -131,16 +142,7 @@ const handler = async (req: Request): Promise<Response> => {
     const aTitle = escapeHtml(appointmentTitle);
     const msg = message ? escapeHtml(message) : "";
 
-    // Format dates for display
-    const formatDateDisplay = (dateStr: string) => {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString("de-CH", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      });
-    };
+    const formatDateDisplay = (dateStr: string) => formatDateLong(dateStr, customerLocale);
 
     // Track the send outcome so email_logs reflects reality (resend returns { error }, no throw).
     let emailSendError: unknown = null;
@@ -188,37 +190,37 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
-              <h1 style="margin: 0; font-size: 24px;">✅ Termin bestätigt!</h1>
-              <p style="margin: 10px 0 0; opacity: 0.9;">Ihr neuer Termin wurde akzeptiert</p>
+              <h1 style="margin: 0; font-size: 24px;">✅ ${t("email.rescheduleConfirmed.headerTitle")}</h1>
+              <p style="margin: 10px 0 0; opacity: 0.9;">${t("email.rescheduleConfirmed.headerSubtitle")}</p>
             </div>
             <div class="content">
-              <p>Guten Tag ${cName},</p>
-              <p>Tolle Neuigkeiten! ${coName} hat Ihren Terminvorschlag akzeptiert.</p>
+              <p>${t("common.greeting", { name: cName })}</p>
+              <p>${t("email.rescheduleConfirmed.intro", { companyName: coName })}</p>
 
               <div class="info-box">
                 <h2 style="margin: 0 0 15px; color: #1f2937;">${aTitle}</h2>
 
                 <div class="date-box">
-                  <div class="label">Ihr neuer Termin</div>
+                  <div class="label">${t("email.rescheduleConfirmed.newAppointmentLabel")}</div>
                   <div class="value">${formatDateDisplay(proposedDate)}</div>
-                  <div class="value">${proposedTime} Uhr</div>
+                  <div class="value">${t("common.timeValue", { time: proposedTime })}</div>
                 </div>
               </div>
 
               ${msg ? `
               <div class="message-box">
-                <div class="label">💬 Nachricht von ${coName}</div>
+                <div class="label">💬 ${t("common.messageFrom", { name: coName })}</div>
                 <p style="margin: 10px 0 0;">${msg}</p>
               </div>
               ` : ""}
 
               <p style="margin-top: 25px;">
-                Bitte erscheinen Sie pünktlich zum Termin. Bei Fragen können Sie sich jederzeit an ${coName} wenden.
+                ${t("email.rescheduleConfirmed.outro", { companyName: coName })}
               </p>
-              
+
               <div class="footer">
                 <p style="color: #6b7280;">
-                  Diese E-Mail wurde automatisch von ${getAppName()} gesendet.
+                  ${t("common.autoSentBy", { sender: getAppName() })}
                 </p>
               </div>
             </div>
@@ -227,10 +229,11 @@ const handler = async (req: Request): Promise<Response> => {
         </html>
       `;
 
+      // Emoji prefix preserved (the catalog values are emoji-free by design).
       const { error: confirmSendError } = await resend.emails.send({
         from: getCalendarFrom(),
         to: [customerEmail],
-        subject: `✅ Termin bestätigt: ${appointmentTitle}`,
+        subject: `✅ ${t("email.rescheduleConfirmed.subject", { title: appointmentTitle })}`,
         html: confirmEmailHtml,
       });
       emailSendError = confirmSendError;
@@ -272,31 +275,35 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
-              <h1 style="margin: 0; font-size: 24px;">📅 Terminvorschlag nicht möglich</h1>
-              <p style="margin: 10px 0 0; opacity: 0.9;">Leider konnte Ihr Vorschlag nicht angenommen werden</p>
+              <h1 style="margin: 0; font-size: 24px;">📅 ${t("email.rescheduleRejected.headerTitle")}</h1>
+              <p style="margin: 10px 0 0; opacity: 0.9;">${t("email.rescheduleRejected.headerSubtitle")}</p>
             </div>
             <div class="content">
-              <p>Guten Tag ${cName},</p>
-              <p>Leider kann ${coName} Ihren vorgeschlagenen Termin am ${formatDateDisplay(proposedDate)} um ${proposedTime} Uhr nicht annehmen.</p>
+              <p>${t("common.greeting", { name: cName })}</p>
+              <p>${t("email.rescheduleRejected.intro", {
+                companyName: coName,
+                date: formatDateDisplay(proposedDate),
+                time: proposedTime,
+              })}</p>
 
               ${msg ? `
               <div class="message-box">
-                <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">💬 Nachricht von ${coName}</div>
+                <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">💬 ${t("common.messageFrom", { name: coName })}</div>
                 <p style="margin: 10px 0 0;">${msg}</p>
               </div>
               ` : ""}
 
               <div class="info-box">
-                <h3 style="margin: 0 0 10px; color: #1f2937;">Was können Sie tun?</h3>
+                <h3 style="margin: 0 0 10px; color: #1f2937;">${t("email.rescheduleRejected.optionsTitle")}</h3>
                 <ul style="margin: 0; padding-left: 20px;">
-                  <li>Kontaktieren Sie ${coName} direkt, um einen alternativen Termin zu finden</li>
-                  <li>Der ursprüngliche Termin bleibt vorerst bestehen</li>
+                  <li>${t("email.rescheduleRejected.option1", { companyName: coName })}</li>
+                  <li>${t("email.rescheduleRejected.option2")}</li>
                 </ul>
               </div>
-              
+
               <div class="footer">
                 <p style="color: #6b7280;">
-                  Diese E-Mail wurde automatisch von ${getAppName()} gesendet.
+                  ${t("common.autoSentBy", { sender: getAppName() })}
                 </p>
               </div>
             </div>
@@ -305,10 +312,11 @@ const handler = async (req: Request): Promise<Response> => {
         </html>
       `;
 
+      // Emoji prefix preserved (the catalog values are emoji-free by design).
       const { error: rejectSendError } = await resend.emails.send({
         from: getCalendarFrom(),
         to: [customerEmail],
-        subject: `📅 Terminvorschlag nicht möglich: ${appointmentTitle}`,
+        subject: `📅 ${t("email.rescheduleRejected.subject", { title: appointmentTitle })}`,
         html: rejectEmailHtml,
       });
       emailSendError = rejectSendError;
@@ -316,15 +324,16 @@ const handler = async (req: Request): Promise<Response> => {
       else console.log(`[handle-reschedule-response] Sent rejection to customer: ${customerEmail}`);
     }
 
-    // Log the email
+    // Log the email — in the language it actually went out in.
     await supabase.from("email_logs").insert({
       email_type: action === "confirm" ? "reschedule_confirmed" : "reschedule_rejected",
       recipient_email: customerEmail,
       recipient_name: customerName,
-      subject: action === "confirm" 
-        ? `Termin bestätigt: ${appointmentTitle}`
-        : `Terminvorschlag nicht möglich: ${appointmentTitle}`,
+      subject: action === "confirm"
+        ? t("email.rescheduleConfirmed.subject", { title: appointmentTitle })
+        : t("email.rescheduleRejected.subject", { title: appointmentTitle }),
       status: emailSendError ? "failed" : "sent",
+      language: customerLocale,
       metadata: {
         appointment_id: appointmentId,
         action,

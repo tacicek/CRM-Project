@@ -1,86 +1,38 @@
-import type { OfferData } from "../types/offer.types";
+import { getAddressLabels, getAppointmentLabel, normalizeServiceKey } from "@/i18n/domain";
+import type { Locale } from "@/i18n/locale";
 
-type ServiceType = OfferData["service"]["type"];
-
-type ServiceLayout = {
+/**
+ * Per-service layout decisions for the Offerte PDF.
+ *
+ * The eight German label sets that used to live here are gone: address headers and the
+ * appointment label now come from the catalog (getAddressLabels / getAppointmentLabel),
+ * so they follow the customer's language. What stays here is the layout question the
+ * catalog cannot answer: does this service have a FROM→TO route worth printing in the
+ * title?
+ */
+export interface ServiceLayout {
   useRouteInTitle: boolean;
   executionDateLabel: string;
   primaryAddressLabel: string;
   secondaryAddressLabel: string;
-  showSecondaryByDefault: boolean;
-};
+}
 
-const MOVING_TYPES: ServiceType[] = ["Privatumzug", "Firmenumzug", "Büroumzug", "Umzug"];
+/** Besides a removal, only a transport prints its route in the title ("… Zürich nach Bern"). */
+const ROUTE_SERVICES = new Set(["klaviertransport", "transport"]);
 
-export const isMovingService = (serviceType: ServiceType): boolean => MOVING_TYPES.includes(serviceType);
+export const isMovingService = (serviceType: string | null | undefined): boolean =>
+  normalizeServiceKey(serviceType).startsWith("umzug");
 
-export const getServiceLayout = (serviceType: ServiceType): ServiceLayout => {
-  if (isMovingService(serviceType)) {
-    return {
-      useRouteInTitle: true,
-      executionDateLabel: "Umzugstermin",
-      primaryAddressLabel: "Auszugsadresse",
-      secondaryAddressLabel: "Einzugsadresse",
-      showSecondaryByDefault: true,
-    };
-  }
-
-  switch (serviceType) {
-    case "Reinigung":
-      return {
-        useRouteInTitle: false,
-        executionDateLabel: "Reinigungstermin",
-        primaryAddressLabel: "Reinigungsadresse",
-        secondaryAddressLabel: "Zusätzliche Adresse",
-        showSecondaryByDefault: false,
-      };
-    case "Räumung":
-      return {
-        useRouteInTitle: false,
-        executionDateLabel: "Räumungstermin",
-        primaryAddressLabel: "Räumungsadresse",
-        secondaryAddressLabel: "Zusätzliche Adresse",
-        showSecondaryByDefault: false,
-      };
-    case "Entsorgung":
-      return {
-        useRouteInTitle: false,
-        executionDateLabel: "Entsorgungstermin",
-        primaryAddressLabel: "Abholadresse",
-        secondaryAddressLabel: "Entsorgungsadresse",
-        showSecondaryByDefault: false,
-      };
-    case "Lagerung":
-      return {
-        useRouteInTitle: false,
-        executionDateLabel: "Lagerungstermin",
-        primaryAddressLabel: "Abholadresse",
-        secondaryAddressLabel: "Lageradresse",
-        showSecondaryByDefault: false,
-      };
-    case "Klaviertransport":
-      return {
-        useRouteInTitle: true,
-        executionDateLabel: "Transporttermin",
-        primaryAddressLabel: "Abholadresse",
-        secondaryAddressLabel: "Zieladresse",
-        showSecondaryByDefault: true,
-      };
-    case "Möbellift":
-      return {
-        useRouteInTitle: false,
-        executionDateLabel: "Einsatztermin",
-        primaryAddressLabel: "Einsatzadresse",
-        secondaryAddressLabel: "Zusätzliche Adresse",
-        showSecondaryByDefault: false,
-      };
-    default:
-      return {
-        useRouteInTitle: false,
-        executionDateLabel: "Ausführungstermin",
-        primaryAddressLabel: "Einsatzadresse",
-        secondaryAddressLabel: "Zusätzliche Adresse",
-        showSecondaryByDefault: false,
-      };
-  }
+export const getServiceLayout = (
+  serviceType: string | null | undefined,
+  locale: Locale
+): ServiceLayout => {
+  const key = normalizeServiceKey(serviceType);
+  const addresses = getAddressLabels(key, locale);
+  return {
+    useRouteInTitle: isMovingService(key) || ROUTE_SERVICES.has(key),
+    executionDateLabel: getAppointmentLabel(key, locale),
+    primaryAddressLabel: addresses.primary,
+    secondaryAddressLabel: addresses.secondary,
+  };
 };

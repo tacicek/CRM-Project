@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Database, Json } from "@/integrations/supabase/types";
 import type { RechnungData, RechnungCompany, RechnungPosition } from "@/lib/generateRechnungPdf";
+import { resolveDocumentLocale } from "@/i18n/documentLocale";
 
 export type Rechnung = Database["public"]["Tables"]["rechnungen"]["Row"];
 export type RechnungInsert = Database["public"]["Tables"]["rechnungen"]["Insert"];
@@ -24,6 +25,8 @@ export const rechnungToPdfData = (r: Rechnung, company: RechnungCompany): Rechnu
   currency: "CHF",
   qr_referenz: r.qr_referenz,
   qr_iban: r.qr_iban,
+  // Customer language, frozen on the invoice row — the PDF must never follow the operator.
+  locale: resolveDocumentLocale(r),
   // Anschreiben & Konditionen — without these the list-page PDF silently dropped the
   // whole letter block (salutation, intro, payment terms, closing) that the DB row carries.
   anrede: r.anrede,

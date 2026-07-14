@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "rea
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/CompanyProvider";
+import { I18nProvider } from "@/i18n/I18nProvider";
 import { lazy, Suspense, useLayoutEffect } from "react";
 
 // CRM-FORK: removed TrackingProvider, CookieBanner — portal-only features
@@ -88,11 +89,16 @@ const FirmaRechnungDetail = lazy(firmaImports.RechnungDetail);
 // Layout wrapper
 const FirmaLayout = lazy(() => import("./components/firma/FirmaLayout"));
 
+// I18nProvider sitzt INNERHALB des CompanyProvider: die Dashboard-Sprache kommt aus
+// companies.default_language. Öffentliche Seiten liegen bewusst ausserhalb — sie
+// richten sich nach der Sprache des Dokuments, nicht nach der der Firma.
 const FirmaRouteWrapper = () => (
   <CompanyProvider>
-    <FirmaLayout>
-      <Outlet />
-    </FirmaLayout>
+    <I18nProvider>
+      <FirmaLayout>
+        <Outlet />
+      </FirmaLayout>
+    </I18nProvider>
   </CompanyProvider>
 );
 

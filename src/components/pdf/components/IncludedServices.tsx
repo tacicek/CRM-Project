@@ -1,6 +1,8 @@
 import { StyleSheet, Text, View } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Translator } from "@/i18n/translator";
 
 const styles = StyleSheet.create({
   container: {
@@ -37,18 +39,19 @@ const styles = StyleSheet.create({
   },
 });
 
-const DEFAULT_INCLUDED = [
-  "Transport- und Betriebshaftpflichtversicherung",
-  "Umzugsfachkräfte (inkl. Spesen)",
-  "Fahrzeuge und Treibstoff",
-  "An- und Abfahrt",
-  "Befestigungsgurte, Schutzmaterial, Werkzeuge",
+/** Fallback list — only used when the offer carries no Leistungsübersicht of its own. */
+const defaultIncluded = (t: Translator): string[] => [
+  t("doc.offer.included.default.insurance"),
+  t("doc.offer.included.default.staff"),
+  t("doc.offer.included.default.vehicles"),
+  t("doc.offer.included.default.travel"),
+  t("doc.offer.included.default.equipment"),
 ];
 
-const DEFAULT_EXCLUDED = [
-  "Sonderentsorgung (z. B. Chemikalien, Asbest, Gefahrgut)",
-  "Parkbewilligungen, externe Lift-/Kranmiete",
-  "Zusatzaufwand bei abweichendem Leistungsumfang",
+const defaultExcluded = (t: Translator): string[] => [
+  t("doc.offer.excluded.default.hazardous"),
+  t("doc.offer.excluded.default.permits"),
+  t("doc.offer.excluded.default.extraScope"),
 ];
 
 interface IncludedServicesProps {
@@ -56,12 +59,15 @@ interface IncludedServicesProps {
 }
 
 export const IncludedServices = ({ data }: IncludedServicesProps) => {
-  const services = data.includedServices?.length ? data.includedServices : DEFAULT_INCLUDED;
+  const { t } = documentI18nFor(data.locale);
+  // DB-authored included services (leistungsuebersicht_templates) stay as authored — only
+  // the fallback list, which the PDF itself owns, is translated.
+  const services = data.includedServices?.length ? data.includedServices : defaultIncluded(t);
 
   return (
     <View style={styles.container} wrap={false}>
       <View style={styles.block}>
-        <Text style={styles.title}>Im Preis inbegriffen</Text>
+        <Text style={styles.title}>{t("doc.offer.included.title")}</Text>
         {services.map((service, index) => (
           <Text key={`${service}-${index}`} style={styles.text}>
             • {service}
@@ -70,15 +76,13 @@ export const IncludedServices = ({ data }: IncludedServicesProps) => {
       </View>
 
       <View style={styles.blockLast}>
-        <Text style={styles.title}>Nicht enthalten / Zusatzkosten</Text>
-        {DEFAULT_EXCLUDED.map((service, index) => (
+        <Text style={styles.title}>{t("doc.offer.excluded.title")}</Text>
+        {defaultExcluded(t).map((service, index) => (
           <Text key={`${service}-${index}`} style={styles.text}>
             • {service}
           </Text>
         ))}
-        <Text style={styles.hint}>
-          Endgültige Zusatzkosten werden nur nach vorgängiger Rücksprache verrechnet.
-        </Text>
+        <Text style={styles.hint}>{t("doc.offer.excluded.hint")}</Text>
       </View>
     </View>
   );

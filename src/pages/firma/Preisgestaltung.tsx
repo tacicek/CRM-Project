@@ -57,7 +57,20 @@ import {
   Clock
 } from 'lucide-react';
 import { PRICING_TEMPLATES, DEFAULT_PRICING_CONFIG } from '@/components/offers/moving-calculator';
-import { formatCHF } from '@/components/offers/moving-calculator/calculation-utils';
+import { useI18n, useT } from '@/i18n/useI18n';
+import { formatCurrency, formatDateTime } from '@/i18n/format';
+import type { Locale } from '@/i18n/locale';
+
+/**
+ * Money in the OPERATOR's dashboard language (this page never leaves the dashboard).
+ *
+ * Replaces the shared `formatCHF`, which is hardcoded to de-CH. That helper is used by the
+ * moving-calculator components too, so its signature is left alone here; only this page's
+ * call sites move to the locale-aware formatter. The non-finite guard is kept — `formatCHF`
+ * returned "CHF 0.00" for NaN/undefined and some config fields can be undefined.
+ */
+const money = (amount: number | null | undefined, locale: Locale): string =>
+  formatCurrency(Number.isFinite(Number(amount)) ? Number(amount) : 0, locale);
 
 // =============================================================================
 // Input Validation Helpers
@@ -132,10 +145,12 @@ interface PreviewCalculatorProps {
 }
 
 const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCalculatorProps) {
+  const t = useT();
+  const { locale } = useI18n();
   // Guard against empty teamRates
   const hasTeamRates = config.teamRates && config.teamRates.length > 0;
   const defaultWorkers = hasTeamRates ? config.teamRates[0].workers : 2;
-  
+
   const [workers, setWorkers] = useState(defaultWorkers);
   const [hours, setHours] = useState(5);
   const [isWeekend, setIsWeekend] = useState(false);
@@ -149,7 +164,7 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
     // Guard against empty teamRates
     if (!config.teamRates || config.teamRates.length === 0) {
       return {
-        teamLabel: 'Kein Team-Tarif definiert',
+        teamLabel: t('pricing.team.noRateHint'),
         hourlyRate: 0,
         effectiveHours: config.minimumHours || 4,
         laborCost: 0,
@@ -172,7 +187,7 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
     // Additional null safety
     if (!teamRate) {
       return {
-        teamLabel: 'Kein passender Tarif',
+        teamLabel: t('pricing.team.noMatchingRate'),
         hourlyRate: 0,
         effectiveHours: config.minimumHours || 4,
         laborCost: 0,
@@ -217,7 +232,9 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
     const total = subtotal + vat;
     
     return {
-      teamLabel: teamRate.label || `${teamRate.trucks || 1} LKW + ${workers} Helfer`,
+      teamLabel:
+        teamRate.label ||
+        t('pricing.team.label', { trucks: teamRate.trucks || 1, workers }),
       hourlyRate,
       effectiveHours,
       laborCost,
@@ -230,14 +247,14 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
       vatRate,
       total,
     };
-  }, [config, workers, hours, isWeekend, hasPiano, heavyItems, floors, hasElevator]);
-  
+  }, [config, workers, hours, isWeekend, hasPiano, heavyItems, floors, hasElevator, t]);
+
   // If no team rates, show warning
   if (!hasTeamRates) {
     return (
       <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-center">
         <AlertTriangle className="h-6 w-6 mx-auto mb-2" />
-        <p>Kein Team-Tarif definiert. Bitte fügen Sie mindestens einen Tarif hinzu.</p>
+        <p>{t('pricing.team.noRateHint')}</p>
       </div>
     );
   }
@@ -248,23 +265,23 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
       {/* Input Controls */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="space-y-1">
-          <Label htmlFor="preview-workers" className="text-xs">Anzahl Helfer</Label>
+          <Label htmlFor="preview-workers" className="text-xs">{t('pricing.preview.workers')}</Label>
           <select
             id="preview-workers"
             className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             value={workers}
             onChange={(e) => setWorkers(safeParseIntPreview(e.target.value, defaultWorkers, 1, 20))}
-            aria-label="Anzahl Helfer auswählen"
+            aria-label={t('pricing.preview.workersAria')}
           >
             {config.teamRates.map((rate, idx) => (
               <option key={`worker-option-${idx}-${rate.workers}`} value={rate.workers}>
-                {rate.workers} Helfer
+                {t('pricing.preview.workersOption', { count: rate.workers })}
               </option>
             ))}
           </select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="preview-hours" className="text-xs">Stunden</Label>
+          <Label htmlFor="preview-hours" className="text-xs">{t('pricing.preview.hours')}</Label>
           <Input
             id="preview-hours"
             type="number"
@@ -273,11 +290,11 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
             value={hours}
             onChange={(e) => setHours(safeParseIntPreview(e.target.value, 5, 1, 24))}
             className="h-9"
-            aria-label="Anzahl Stunden"
+            aria-label={t('pricing.preview.hoursAria')}
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="preview-floors" className="text-xs">Stockwerke</Label>
+          <Label htmlFor="preview-floors" className="text-xs">{t('pricing.preview.floors')}</Label>
           <Input
             id="preview-floors"
             type="number"
@@ -286,11 +303,11 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
             value={floors}
             onChange={(e) => setFloors(safeParseIntPreview(e.target.value, 0, 0, 20))}
             className="h-9"
-            aria-label="Anzahl Stockwerke"
+            aria-label={t('pricing.preview.floorsAria')}
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="preview-heavy" className="text-xs">Schwere Gegenstände</Label>
+          <Label htmlFor="preview-heavy" className="text-xs">{t('pricing.preview.heavyItems')}</Label>
           <Input
             id="preview-heavy"
             type="number"
@@ -299,7 +316,7 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
             value={heavyItems}
             onChange={(e) => setHeavyItems(safeParseIntPreview(e.target.value, 0, 0, 10))}
             className="h-9"
-            aria-label="Anzahl schwerer Gegenstände"
+            aria-label={t('pricing.preview.heavyItemsAria')}
           />
         </div>
       </div>
@@ -312,9 +329,13 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
             checked={isWeekend}
             onChange={(e) => setIsWeekend(e.target.checked)}
             className="rounded border-gray-300 w-4 h-4 focus:ring-2 focus:ring-primary"
-            aria-label="Wochenende Zuschlag aktivieren"
+            aria-label={t('pricing.preview.weekendAria')}
           />
-          <span>Wochenende (+{Math.round(((config.multipliers?.weekend ?? 1.25) - 1) * 100)}%)</span>
+          <span>
+            {t('pricing.preview.weekend', {
+              percent: Math.round(((config.multipliers?.weekend ?? 1.25) - 1) * 100),
+            })}
+          </span>
         </label>
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input
@@ -322,9 +343,11 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
             checked={hasPiano}
             onChange={(e) => setHasPiano(e.target.checked)}
             className="rounded border-gray-300 w-4 h-4 focus:ring-2 focus:ring-primary"
-            aria-label="Klavier Zuschlag aktivieren"
+            aria-label={t('pricing.preview.pianoAria')}
           />
-          <span>Klavier (+{formatCHF(config.surcharges?.pianoUpright ?? 350)})</span>
+          <span>
+            {t('pricing.preview.piano', { amount: money(config.surcharges?.pianoUpright ?? 350, locale) })}
+          </span>
         </label>
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input
@@ -332,9 +355,9 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
             checked={hasElevator}
             onChange={(e) => setHasElevator(e.target.checked)}
             className="rounded border-gray-300 w-4 h-4 focus:ring-2 focus:ring-primary"
-            aria-label="Lift vorhanden"
+            aria-label={t('pricing.preview.elevator')}
           />
-          <span>Lift vorhanden</span>
+          <span>{t('pricing.preview.elevator')}</span>
         </label>
       </div>
 
@@ -343,74 +366,94 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
       {/* Calculation Breakdown */}
       <div className="p-4 rounded-lg bg-primary/5 space-y-2">
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Team:</span>
+          <span className="text-muted-foreground">{t('pricing.preview.team')}</span>
           <span className="font-medium">{calculation.teamLabel}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Stundensatz:</span>
-          <span>{formatCHF(calculation.hourlyRate)}/Std</span>
+          <span className="text-muted-foreground">{t('pricing.preview.hourlyRate')}</span>
+          <span>{money(calculation.hourlyRate, locale)}{t('pricing.perHourSuffix')}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Arbeitszeit:</span>
-          <span>{calculation.effectiveHours}h {hours < (config.minimumHours || 4) && <span className="text-amber-600">(Min. {config.minimumHours}h)</span>}</span>
+          <span className="text-muted-foreground">{t('pricing.preview.workingTime')}</span>
+          <span>
+            {calculation.effectiveHours}h{' '}
+            {hours < (config.minimumHours || 4) && (
+              <span className="text-amber-600">
+                {t('pricing.preview.minHours', { hours: config.minimumHours })}
+              </span>
+            )}
+          </span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Arbeitskosten:</span>
-          <span>{formatCHF(calculation.laborCost)}</span>
+          <span className="text-muted-foreground">{t('pricing.preview.laborCost')}</span>
+          <span>{money(calculation.laborCost, locale)}</span>
         </div>
-        
+
         {calculation.pianoCost > 0 && (
           <div className="flex justify-between text-sm text-amber-600">
-            <span>+ Klavier:</span>
-            <span>{formatCHF(calculation.pianoCost)}</span>
+            <span>{t('pricing.preview.pianoCost')}</span>
+            <span>{money(calculation.pianoCost, locale)}</span>
           </div>
         )}
         {calculation.heavyItemCost > 0 && (
           <div className="flex justify-between text-sm text-amber-600">
-            <span>+ Schwerlast ({heavyItems}×):</span>
-            <span>{formatCHF(calculation.heavyItemCost)}</span>
+            <span>{t('pricing.preview.heavyCost', { count: heavyItems })}</span>
+            <span>{money(calculation.heavyItemCost, locale)}</span>
           </div>
         )}
         {calculation.floorCost > 0 && (
           <div className="flex justify-between text-sm text-amber-600">
-            <span>+ Stockwerk ({floors}. OG, {hasElevator ? 'mit' : 'ohne'} Lift):</span>
-            <span>{formatCHF(calculation.floorCost)}</span>
+            <span>
+              {t('pricing.preview.floorCost', {
+                floors,
+                lift: hasElevator
+                  ? t('pricing.preview.withLift')
+                  : t('pricing.preview.withoutLift'),
+              })}
+            </span>
+            <span>{money(calculation.floorCost, locale)}</span>
           </div>
         )}
-        
+
         <Separator />
-        
+
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Zwischensumme:</span>
-          <span>{formatCHF(calculation.subtotal / calculation.weekendMultiplier)}</span>
+          <span className="text-muted-foreground">{t('pricing.preview.subtotal')}</span>
+          <span>{money(calculation.subtotal / calculation.weekendMultiplier, locale)}</span>
         </div>
-        
+
         {isWeekend && (
           <div className="flex justify-between text-sm text-blue-600">
-            <span>× Wochenende ({calculation.weekendMultiplier}×):</span>
-            <span>{formatCHF(calculation.subtotal)}</span>
+            <span>{t('pricing.preview.weekendFactor', { factor: calculation.weekendMultiplier })}</span>
+            <span>{money(calculation.subtotal, locale)}</span>
           </div>
         )}
-        
+
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">+ MwSt. ({calculation.vatRate}%):</span>
-          <span>{formatCHF(calculation.vat)}</span>
+          <span className="text-muted-foreground">{t('pricing.preview.vat', { rate: calculation.vatRate })}</span>
+          <span>{money(calculation.vat, locale)}</span>
         </div>
         
         <Separator className="border-primary" />
         
         <div className="flex justify-between text-lg font-bold">
-          <span>Gesamtbetrag:</span>
-          <span className="text-primary">{formatCHF(calculation.total)}</span>
+          <span>{t('pricing.preview.total')}</span>
+          <span className="text-primary">{money(calculation.total, locale)}</span>
         </div>
       </div>
 
       {/* Market comparison hint */}
       <div className="text-xs text-muted-foreground text-center">
-        Delta Umzug Referenz: {workers} Helfer × {hours}h = ca. {formatCHF(
-          (DEFAULT_PRICING_CONFIG.teamRates.find(r => r.workers === workers)?.hourlyRate ?? 180) * 
-          Math.max(hours, 4) * 1.081
-        )} (inkl. MwSt.)
+        {t('pricing.preview.reference', {
+          workers,
+          hours,
+          amount: money(
+            (DEFAULT_PRICING_CONFIG.teamRates.find((r) => r.workers === workers)?.hourlyRate ?? 180) *
+              Math.max(hours, 4) *
+              1.081,
+            locale,
+          ),
+        })}
       </div>
     </div>
     </>
@@ -423,6 +466,8 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
 
 export default function FirmaPreisgestaltung() {
   const { user } = useAuth();
+  const t = useT();
+  const { locale } = useI18n();
   const instanceId = useId(); // Stable ID for form controls
   
   // Company state - fetch from database like other firma pages
@@ -537,14 +582,14 @@ export default function FirmaPreisgestaltung() {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
         e.preventDefault();
-        e.returnValue = 'Sie haben ungespeicherte Änderungen. Möchten Sie die Seite wirklich verlassen?';
+        e.returnValue = t('pricing.beforeUnload');
         return e.returnValue;
       }
     };
-    
+
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, t]);
 
   const handleSave = async () => {
     if (companyId) {
@@ -623,16 +668,16 @@ export default function FirmaPreisgestaltung() {
   return (
     <>
       <Helmet>
-        <title>Preisgestaltung | Firma</title>
+        <title>{t('pricing.pageTitle')}</title>
       </Helmet>
         <div className="space-y-6">
           {/* Folk-style header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
             <span className="text-4xl leading-none">💰</span>
             <div className="flex-1">
-              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Preisgestaltung</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t('pricing.title')}</h1>
               <p className="mt-1 text-[15px] text-folk-ink2">
-                Preise für Offerten und Kalkulationen konfigurieren — Stundensätze, Aufschläge, Standards.
+                {t('pricing.subtitle')}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -643,7 +688,7 @@ export default function FirmaPreisgestaltung() {
                 className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Zurücksetzen
+                {t('common.reset')}
               </Button>
               <Button
                 onClick={handleSave}
@@ -657,7 +702,9 @@ export default function FirmaPreisgestaltung() {
                 ) : (
                   <Save className="h-3.5 w-3.5" />
                 )}
-                {saveCountdown > 0 ? `Warten (${Math.ceil(saveCountdown / 1000)}s)` : 'Speichern'}
+                {saveCountdown > 0
+                  ? t('pricing.waiting', { seconds: Math.ceil(saveCountdown / 1000) })
+                  : t('common.save')}
               </Button>
             </div>
           </div>
@@ -666,11 +713,11 @@ export default function FirmaPreisgestaltung() {
           {error && (
             <Alert variant="destructive">
               <XCircle className="h-4 w-4" />
-              <AlertTitle>Fehler</AlertTitle>
+              <AlertTitle>{t('common.error')}</AlertTitle>
               <AlertDescription className="flex items-center justify-between">
                 <span>{error}</span>
                 <Button variant="ghost" size="sm" onClick={clearError}>
-                  Schliessen
+                  {t('common.close')}
                 </Button>
               </AlertDescription>
             </Alert>
@@ -682,48 +729,48 @@ export default function FirmaPreisgestaltung() {
             {isOnline ? (
               <Badge variant="outline" className="border-green-500 text-green-600">
                 <Wifi className="h-3 w-3 mr-1" />
-                Online
+                {t('pricing.online')}
               </Badge>
             ) : (
               <Badge variant="destructive">
                 <WifiOff className="h-3 w-3 mr-1" />
-                Offline
+                {t('pricing.offline')}
               </Badge>
             )}
-            
+
             {/* Draft Indicator */}
             {hasDraft && (
               <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                 <FileText className="h-3 w-3 mr-1" />
-                Lokaler Entwurf vorhanden
+                {t('pricing.draftExists')}
               </Badge>
             )}
-            
+
             {/* Unsaved Changes */}
             {hasUnsavedChanges && (
               <Badge variant="destructive">
                 <AlertTriangle className="h-3 w-3 mr-1" />
-                Ungespeicherte Änderungen
+                {t('pricing.unsavedChanges')}
               </Badge>
             )}
-            
+
             {/* Custom Config Status */}
             {hasCustomConfig ? (
               <Badge variant="default" className="bg-green-500">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
-                Eigene Konfiguration aktiv
+                {t('pricing.customConfigActive')}
               </Badge>
             ) : (
               <Badge variant="secondary">
                 <Info className="h-3 w-3 mr-1" />
-                Standard-Preise (Marktüblich)
+                {t('pricing.defaultPrices')}
               </Badge>
             )}
-            
+
             {/* Last Saved */}
             {lastSaved && (
               <Badge variant="outline">
-                Zuletzt gespeichert: {lastSaved.toLocaleDateString('de-CH')} {lastSaved.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
+                {t('pricing.lastSaved', { datetime: formatDateTime(lastSaved, locale) })}
               </Badge>
             )}
           </div>
@@ -732,7 +779,7 @@ export default function FirmaPreisgestaltung() {
           {validation.warnings.length > 0 && (
             <Alert variant="default" className="border-amber-500 bg-amber-50">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-800">Hinweise</AlertTitle>
+              <AlertTitle className="text-amber-800">{t('pricing.warnings')}</AlertTitle>
               <AlertDescription className="text-amber-700">
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {validation.warnings.map((warning, i) => (
@@ -748,15 +795,15 @@ export default function FirmaPreisgestaltung() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
-                Marktvergleich
+                {t('pricing.market.title')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg bg-muted/50">
-                  <div className="text-xs text-muted-foreground mb-1">Kleines Team (2 Helfer)</div>
+                  <div className="text-xs text-muted-foreground mb-1">{t('pricing.market.smallTeam')}</div>
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{formatCHF(marketComparison.smallTeamComparison.yours)}/Std</span>
+                    <span className="font-medium">{money(marketComparison.smallTeamComparison.yours, locale)}{t('pricing.perHourSuffix')}</span>
                     <div className="flex items-center gap-1">
                       {marketComparison.smallTeamComparison.diff > 0 ? (
                         <TrendingUp className="h-3 w-3 text-amber-500" />
@@ -769,15 +816,15 @@ export default function FirmaPreisgestaltung() {
                         'text-muted-foreground'
                       }`}>
                         {marketComparison.smallTeamComparison.diffPercent > 0 ? '+' : ''}
-                        {marketComparison.smallTeamComparison.diffPercent}% vs. Markt
+                        {marketComparison.smallTeamComparison.diffPercent}{t('pricing.market.vsMarket')}
                       </span>
                     </div>
                   </div>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/50">
-                  <div className="text-xs text-muted-foreground mb-1">Grosses Team (5 Helfer)</div>
+                  <div className="text-xs text-muted-foreground mb-1">{t('pricing.market.largeTeam')}</div>
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{formatCHF(marketComparison.largeTeamComparison.yours)}/Std</span>
+                    <span className="font-medium">{money(marketComparison.largeTeamComparison.yours, locale)}{t('pricing.perHourSuffix')}</span>
                     <div className="flex items-center gap-1">
                       {marketComparison.largeTeamComparison.diff > 0 ? (
                         <TrendingUp className="h-3 w-3 text-amber-500" />
@@ -790,14 +837,14 @@ export default function FirmaPreisgestaltung() {
                         'text-muted-foreground'
                       }`}>
                         {marketComparison.largeTeamComparison.diffPercent > 0 ? '+' : ''}
-                        {marketComparison.largeTeamComparison.diffPercent}% vs. Markt
+                        {marketComparison.largeTeamComparison.diffPercent}{t('pricing.market.vsMarket')}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Marktstandard basiert auf Delta Umzug Preisen (120-420 CHF/Std)
+                {t('pricing.market.note')}
               </p>
             </CardContent>
           </Card>
@@ -805,9 +852,9 @@ export default function FirmaPreisgestaltung() {
           {/* Template Selection */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Vorlage auswählen</CardTitle>
+              <CardTitle className="text-sm">{t('pricing.template.title')}</CardTitle>
               <CardDescription className="text-xs">
-                Starten Sie mit einer vorgefertigten Preiskonfiguration
+                {t('pricing.template.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -820,12 +867,12 @@ export default function FirmaPreisgestaltung() {
                       template.isMarketStandard ? 'border-green-500 bg-green-50' : ''
                     }`}
                     disabled={isLoading || isSaving || isCompanyLoading}
-                    aria-label={`Vorlage "${template.name}" anwenden`}
+                    aria-label={t('pricing.template.applyAria', { name: template.name })}
                   >
                     <div className="font-medium text-sm">{template.name}</div>
                     <div className="text-xs text-muted-foreground mt-1">{template.description}</div>
                     {template.isMarketStandard && (
-                      <Badge variant="secondary" className="mt-2 text-[10px]">Empfohlen</Badge>
+                      <Badge variant="secondary" className="mt-2 text-[10px]">{t('pricing.recommended')}</Badge>
                     )}
                   </button>
                 ))}
@@ -838,19 +885,19 @@ export default function FirmaPreisgestaltung() {
             <TabsList className="grid grid-cols-4 w-full">
               <TabsTrigger value="team" className="text-xs sm:text-sm">
                 <Users className="h-4 w-4 mr-1 hidden sm:inline" />
-                Team-Preise
+                {t('pricing.tab.team')}
               </TabsTrigger>
               <TabsTrigger value="surcharges" className="text-xs sm:text-sm">
                 <Package className="h-4 w-4 mr-1 hidden sm:inline" />
-                Zuschläge
+                {t('pricing.tab.surcharges')}
               </TabsTrigger>
               <TabsTrigger value="services" className="text-xs sm:text-sm">
                 <Coins className="h-4 w-4 mr-1 hidden sm:inline" />
-                Services
+                {t('pricing.tab.services')}
               </TabsTrigger>
               <TabsTrigger value="preview" className="text-xs sm:text-sm">
                 <Calculator className="h-4 w-4 mr-1 hidden sm:inline" />
-                Vorschau
+                {t('pricing.tab.preview')}
               </TabsTrigger>
             </TabsList>
 
@@ -860,18 +907,17 @@ export default function FirmaPreisgestaltung() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Truck className="h-5 w-5" />
-                    Team-Stundenpreise
+                    {t('pricing.team.title')}
                   </CardTitle>
                   <CardDescription>
-                    Definieren Sie Ihre Stundenpreise für verschiedene Team-Konfigurationen.
-                    Der Preis beinhaltet Fahrzeug + Helfer.
+                    {t('pricing.team.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Basic Settings */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div>
-                      <Label htmlFor={`${instanceId}-vatRate`}>MwSt. (%)</Label>
+                      <Label htmlFor={`${instanceId}-vatRate`}>{t('pricing.vatRate')}</Label>
                       <Input
                         id={`${instanceId}-vatRate`}
                         type="number"
@@ -886,11 +932,11 @@ export default function FirmaPreisgestaltung() {
                         aria-describedby={`${instanceId}-vatRate-hint`}
                       />
                       <p id={`${instanceId}-vatRate-hint`} className="text-xs text-muted-foreground mt-1">
-                        Schweiz: 8.1%
+                        {t('pricing.vatHint')}
                       </p>
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-minHours`}>Min. Stunden</Label>
+                      <Label htmlFor={`${instanceId}-minHours`}>{t('pricing.minHours')}</Label>
                       <Input
                         id={`${instanceId}-minHours`}
                         type="number"
@@ -904,7 +950,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-minCharge`}>Min. Auftrag (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-minCharge`}>{t('pricing.minCharge')}</Label>
                       <Input
                         id={`${instanceId}-minCharge`}
                         type="number"
@@ -919,7 +965,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-distThreshold`}>Distanz-Schwelle (km)</Label>
+                      <Label htmlFor={`${instanceId}-distThreshold`}>{t('pricing.distanceThreshold')}</Label>
                       <Input
                         id={`${instanceId}-distThreshold`}
                         type="number"
@@ -939,15 +985,15 @@ export default function FirmaPreisgestaltung() {
                   {/* Team Rates */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label className="text-base">Team-Tarife</Label>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Label className="text-base">{t('pricing.team.rates')}</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={addTeamRate}
                         disabled={pricingConfig.teamRates.length >= 10}
                       >
                         <Plus className="h-4 w-4 mr-1" />
-                        Hinzufügen
+                        {t('common.add')}
                       </Button>
                     </div>
                     
@@ -958,11 +1004,11 @@ export default function FirmaPreisgestaltung() {
                       >
                         <div className="flex-1 grid grid-cols-4 gap-3">
                           <div>
-                            <Label 
+                            <Label
                               htmlFor={`${instanceId}-rate-${index}-trucks`}
                               className="text-xs"
                             >
-                              LKW
+                              {t('pricing.team.trucks')}
                             </Label>
                             <Input
                               id={`${instanceId}-rate-${index}-trucks`}
@@ -972,20 +1018,20 @@ export default function FirmaPreisgestaltung() {
                               value={rate.trucks}
                               onChange={(e) => {
                                 const trucks = safeParseInt(e.target.value, { min: 1, max: 5, fallback: 1 });
-                                updateTeamRate(index, { 
+                                updateTeamRate(index, {
                                   trucks,
-                                  label: `${trucks} LKW + ${rate.workers} Helfer`
+                                  label: t('pricing.team.label', { trucks, workers: rate.workers }),
                                 });
                               }}
                               className="h-8"
                             />
                           </div>
                           <div>
-                            <Label 
+                            <Label
                               htmlFor={`${instanceId}-rate-${index}-workers`}
                               className="text-xs"
                             >
-                              Helfer
+                              {t('pricing.team.workers')}
                             </Label>
                             <Input
                               id={`${instanceId}-rate-${index}-workers`}
@@ -995,20 +1041,20 @@ export default function FirmaPreisgestaltung() {
                               value={rate.workers}
                               onChange={(e) => {
                                 const workers = safeParseInt(e.target.value, { min: 1, max: 10, fallback: 1 });
-                                updateTeamRate(index, { 
+                                updateTeamRate(index, {
                                   workers,
-                                  label: `${rate.trucks} LKW + ${workers} Helfer`
+                                  label: t('pricing.team.label', { trucks: rate.trucks, workers }),
                                 });
                               }}
                               className="h-8"
                             />
                           </div>
                           <div>
-                            <Label 
+                            <Label
                               htmlFor={`${instanceId}-rate-${index}-hourly`}
                               className="text-xs"
                             >
-                              CHF/Std
+                              {t('pricing.team.hourlyRate')}
                             </Label>
                             <Input
                               id={`${instanceId}-rate-${index}-hourly`}
@@ -1025,7 +1071,7 @@ export default function FirmaPreisgestaltung() {
                           </div>
                           <div className="flex items-end">
                             <Badge variant="outline" className="h-8 flex items-center text-xs">
-                              {rate.label || `${rate.trucks} LKW + ${rate.workers} Helfer`}
+                              {rate.label || t('pricing.team.label', { trucks: rate.trucks, workers: rate.workers })}
                             </Badge>
                           </div>
                         </div>
@@ -1035,7 +1081,9 @@ export default function FirmaPreisgestaltung() {
                           onClick={() => removeTeamRate(index)}
                           disabled={pricingConfig.teamRates.length <= 1}
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          aria-label={`Team-Tarif ${rate.label || `${rate.trucks} LKW + ${rate.workers} Helfer`} entfernen`}
+                          aria-label={t('pricing.team.removeAria', {
+                            label: rate.label || t('pricing.team.label', { trucks: rate.trucks, workers: rate.workers }),
+                          })}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1045,9 +1093,9 @@ export default function FirmaPreisgestaltung() {
                     {pricingConfig.teamRates.length === 0 && (
                       <Alert variant="destructive">
                         <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Kein Team-Tarif</AlertTitle>
+                        <AlertTitle>{t('pricing.team.noRate')}</AlertTitle>
                         <AlertDescription>
-                          Mindestens ein Team-Tarif muss definiert sein.
+                          {t('pricing.team.noRateDescription')}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -1060,15 +1108,15 @@ export default function FirmaPreisgestaltung() {
             <TabsContent value="surcharges" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Spezielle Zuschläge</CardTitle>
+                  <CardTitle>{t('pricing.surcharges.title')}</CardTitle>
                   <CardDescription>
-                    Zusätzliche Kosten für schwere oder spezielle Gegenstände
+                    {t('pricing.surcharges.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor={`${instanceId}-piano`}>Klavier (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-piano`}>{t('pricing.surcharge.piano')}</Label>
                       <Input
                         id={`${instanceId}-piano`}
                         type="number"
@@ -1082,7 +1130,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-grandPiano`}>Flügel (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-grandPiano`}>{t('pricing.surcharge.grandPiano')}</Label>
                       <Input
                         id={`${instanceId}-grandPiano`}
                         type="number"
@@ -1096,7 +1144,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-safeSmall`}>Tresor klein (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-safeSmall`}>{t('pricing.surcharge.safeSmall')}</Label>
                       <Input
                         id={`${instanceId}-safeSmall`}
                         type="number"
@@ -1110,7 +1158,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-safeLarge`}>Tresor gross (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-safeLarge`}>{t('pricing.surcharge.safeLarge')}</Label>
                       <Input
                         id={`${instanceId}-safeLarge`}
                         type="number"
@@ -1124,7 +1172,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-heavy`}>Schwerlast &gt;100kg (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-heavy`}>{t('pricing.surcharge.heavy')}</Label>
                       <Input
                         id={`${instanceId}-heavy`}
                         type="number"
@@ -1138,7 +1186,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-pool`}>Billardtisch (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-pool`}>{t('pricing.surcharge.poolTable')}</Label>
                       <Input
                         id={`${instanceId}-pool`}
                         type="number"
@@ -1157,15 +1205,15 @@ export default function FirmaPreisgestaltung() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Stockwerk-Zuschläge</CardTitle>
+                  <CardTitle>{t('pricing.floors.title')}</CardTitle>
                   <CardDescription>
-                    Zusatzkosten basierend auf Stockwerk und Lift-Verfügbarkeit
+                    {t('pricing.floors.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor={`${instanceId}-floorNoLift`}>Pro Stockwerk ohne Lift (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-floorNoLift`}>{t('pricing.floors.withoutLift')}</Label>
                       <Input
                         id={`${instanceId}-floorNoLift`}
                         type="number"
@@ -1181,7 +1229,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-floorLift`}>Pro Stockwerk mit Lift (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-floorLift`}>{t('pricing.floors.withLift')}</Label>
                       <Input
                         id={`${instanceId}-floorLift`}
                         type="number"
@@ -1202,15 +1250,15 @@ export default function FirmaPreisgestaltung() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Zeit-Multiplikatoren</CardTitle>
+                  <CardTitle>{t('pricing.multipliers.title')}</CardTitle>
                   <CardDescription>
-                    Preisaufschläge für spezielle Zeiten (z.B. 1.25 = +25%)
+                    {t('pricing.multipliers.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div>
-                      <Label htmlFor={`${instanceId}-weekend`}>Wochenende (×)</Label>
+                      <Label htmlFor={`${instanceId}-weekend`}>{t('pricing.multipliers.weekend')}</Label>
                       <Input
                         id={`${instanceId}-weekend`}
                         type="number"
@@ -1225,7 +1273,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-evening`}>Abend (×)</Label>
+                      <Label htmlFor={`${instanceId}-evening`}>{t('pricing.multipliers.evening')}</Label>
                       <Input
                         id={`${instanceId}-evening`}
                         type="number"
@@ -1240,7 +1288,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-holiday`}>Feiertag (×)</Label>
+                      <Label htmlFor={`${instanceId}-holiday`}>{t('pricing.multipliers.holiday')}</Label>
                       <Input
                         id={`${instanceId}-holiday`}
                         type="number"
@@ -1255,7 +1303,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-express`}>Express (×)</Label>
+                      <Label htmlFor={`${instanceId}-express`}>{t('pricing.multipliers.express')}</Label>
                       <Input
                         id={`${instanceId}-express`}
                         type="number"
@@ -1278,15 +1326,15 @@ export default function FirmaPreisgestaltung() {
             <TabsContent value="services" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Zusatzleistungen</CardTitle>
+                  <CardTitle>{t('pricing.services.title')}</CardTitle>
                   <CardDescription>
-                    Preise für optionale Services
+                    {t('pricing.services.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor={`${instanceId}-packing`}>Verpackung (CHF/m³)</Label>
+                      <Label htmlFor={`${instanceId}-packing`}>{t('pricing.services.packing')}</Label>
                       <Input
                         id={`${instanceId}-packing`}
                         type="number"
@@ -1300,7 +1348,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-liftSingle`}>Möbellift 1× (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-liftSingle`}>{t('pricing.services.liftSingle')}</Label>
                       <Input
                         id={`${instanceId}-liftSingle`}
                         type="number"
@@ -1316,7 +1364,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-liftDouble`}>Möbellift 2× (CHF)</Label>
+                      <Label htmlFor={`${instanceId}-liftDouble`}>{t('pricing.services.liftDouble')}</Label>
                       <Input
                         id={`${instanceId}-liftDouble`}
                         type="number"
@@ -1332,7 +1380,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-disposal`}>Entsorgung (CHF/m³)</Label>
+                      <Label htmlFor={`${instanceId}-disposal`}>{t('pricing.services.disposal')}</Label>
                       <Input
                         id={`${instanceId}-disposal`}
                         type="number"
@@ -1346,7 +1394,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-storage`}>Lagerung (CHF/m³/Mt)</Label>
+                      <Label htmlFor={`${instanceId}-storage`}>{t('pricing.services.storage')}</Label>
                       <Input
                         id={`${instanceId}-storage`}
                         type="number"
@@ -1360,7 +1408,7 @@ export default function FirmaPreisgestaltung() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`${instanceId}-distance`}>Distanz-Zuschlag (CHF/km)</Label>
+                      <Label htmlFor={`${instanceId}-distance`}>{t('pricing.services.distance')}</Label>
                       <Input
                         id={`${instanceId}-distance`}
                         type="number"
@@ -1386,10 +1434,10 @@ export default function FirmaPreisgestaltung() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Calculator className="h-5 w-5 text-primary" />
-                    Interaktive Preisvorschau
+                    {t('pricing.preview.title')}
                   </CardTitle>
                   <CardDescription>
-                    Testen Sie Ihre Preise mit verschiedenen Szenarien
+                    {t('pricing.preview.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1400,9 +1448,9 @@ export default function FirmaPreisgestaltung() {
               {/* Standard Scenario Table */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Standardszenarien</CardTitle>
+                  <CardTitle>{t('pricing.scenarios.title')}</CardTitle>
                   <CardDescription>
-                    Beispielrechnungen basierend auf Ihrer Konfiguration
+                    {t('pricing.scenarios.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1410,51 +1458,52 @@ export default function FirmaPreisgestaltung() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b">
-                          <th className="text-left py-3 px-2">Szenario</th>
-                          <th className="text-right py-3 px-2">Team</th>
-                          <th className="text-right py-3 px-2">Stunden</th>
-                          <th className="text-right py-3 px-2">Netto</th>
-                          <th className="text-right py-3 px-2">inkl. MwSt.</th>
+                          <th className="text-left py-3 px-2">{t('pricing.scenarios.scenario')}</th>
+                          <th className="text-right py-3 px-2">{t('pricing.scenarios.team')}</th>
+                          <th className="text-right py-3 px-2">{t('pricing.scenarios.hours')}</th>
+                          <th className="text-right py-3 px-2">{t('pricing.scenarios.net')}</th>
+                          <th className="text-right py-3 px-2">{t('pricing.scenarios.gross')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr className="border-b">
                           <td className="py-3 px-2">
-                            <div className="font-medium">Kleiner Umzug</div>
-                            <div className="text-xs text-muted-foreground">Studio/1-Zimmer</div>
+                            <div className="font-medium">{t('pricing.scenarios.small')}</div>
+                            <div className="text-xs text-muted-foreground">{t('pricing.scenarios.smallHint')}</div>
                           </td>
-                          <td className="text-right py-3 px-2">2 Helfer</td>
-                          <td className="text-right py-3 px-2">{pricingConfig.minimumHours}h (Min.)</td>
-                          <td className="text-right py-3 px-2">{formatCHF(examplePrices.small.net)}</td>
-                          <td className="text-right py-3 px-2 font-medium">{formatCHF(examplePrices.small.gross)}</td>
+                          <td className="text-right py-3 px-2">{t('pricing.scenarios.workers', { count: 2 })}</td>
+                          <td className="text-right py-3 px-2">
+                            {t('pricing.scenarios.minHoursValue', { hours: pricingConfig.minimumHours })}
+                          </td>
+                          <td className="text-right py-3 px-2">{money(examplePrices.small.net, locale)}</td>
+                          <td className="text-right py-3 px-2 font-medium">{money(examplePrices.small.gross, locale)}</td>
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-2">
-                            <div className="font-medium">Mittlerer Umzug</div>
-                            <div className="text-xs text-muted-foreground">3.5-Zimmer</div>
+                            <div className="font-medium">{t('pricing.scenarios.medium')}</div>
+                            <div className="text-xs text-muted-foreground">{t('pricing.scenarios.mediumHint')}</div>
                           </td>
-                          <td className="text-right py-3 px-2">3 Helfer</td>
-                          <td className="text-right py-3 px-2">6h</td>
-                          <td className="text-right py-3 px-2">{formatCHF(examplePrices.medium.net)}</td>
-                          <td className="text-right py-3 px-2 font-medium">{formatCHF(examplePrices.medium.gross)}</td>
+                          <td className="text-right py-3 px-2">{t('pricing.scenarios.workers', { count: 3 })}</td>
+                          <td className="text-right py-3 px-2">{t('pricing.scenarios.hoursValue', { hours: 6 })}</td>
+                          <td className="text-right py-3 px-2">{money(examplePrices.medium.net, locale)}</td>
+                          <td className="text-right py-3 px-2 font-medium">{money(examplePrices.medium.gross, locale)}</td>
                         </tr>
                         <tr className="border-b">
                           <td className="py-3 px-2">
-                            <div className="font-medium">Grosser Umzug</div>
-                            <div className="text-xs text-muted-foreground">5+ Zimmer</div>
+                            <div className="font-medium">{t('pricing.scenarios.large')}</div>
+                            <div className="text-xs text-muted-foreground">{t('pricing.scenarios.largeHint')}</div>
                           </td>
-                          <td className="text-right py-3 px-2">5 Helfer</td>
-                          <td className="text-right py-3 px-2">8h</td>
-                          <td className="text-right py-3 px-2">{formatCHF(examplePrices.large.net)}</td>
-                          <td className="text-right py-3 px-2 font-medium text-primary">{formatCHF(examplePrices.large.gross)}</td>
+                          <td className="text-right py-3 px-2">{t('pricing.scenarios.workers', { count: 5 })}</td>
+                          <td className="text-right py-3 px-2">{t('pricing.scenarios.hoursValue', { hours: 8 })}</td>
+                          <td className="text-right py-3 px-2">{money(examplePrices.large.net, locale)}</td>
+                          <td className="text-right py-3 px-2 font-medium text-primary">{money(examplePrices.large.gross, locale)}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
 
                   <div className="mt-4 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
-                    <strong>Hinweis:</strong> Diese Beispiele zeigen nur die Basis-Teamkosten. 
-                    Zuschläge für Stockwerk, Distanz, Klavier etc. werden separat berechnet.
+                    <strong>{t('pricing.scenarios.noteLabel')}</strong> {t('pricing.scenarios.note')}
                   </div>
                 </CardContent>
               </Card>
@@ -1462,16 +1511,18 @@ export default function FirmaPreisgestaltung() {
               {/* Team Rate Overview */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Ihre Tarif-Übersicht</CardTitle>
+                  <CardTitle>{t('pricing.rateOverview')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {pricingConfig.teamRates.map((rate, index) => (
                       <div key={generateTeamRateKey(rate, index)} className="p-3 rounded-lg border bg-card">
-                        <div className="font-medium text-sm">{rate.label || `${rate.trucks} LKW + ${rate.workers} Helfer`}</div>
+                        <div className="font-medium text-sm">
+                          {rate.label || t('pricing.team.label', { trucks: rate.trucks, workers: rate.workers })}
+                        </div>
                         <div className="text-2xl font-bold text-primary mt-1">
-                          {formatCHF(rate.hourlyRate)}
-                          <span className="text-sm font-normal text-muted-foreground">/Std</span>
+                          {money(rate.hourlyRate, locale)}
+                          <span className="text-sm font-normal text-muted-foreground">{t('pricing.perHourSuffix')}</span>
                         </div>
                       </div>
                     ))}
@@ -1482,50 +1533,61 @@ export default function FirmaPreisgestaltung() {
               {/* Calculation Formula Explanation */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Berechnungsformel</CardTitle>
-                  <CardDescription>So werden Ihre Offerten berechnet</CardDescription>
+                  <CardTitle>{t('pricing.formula.title')}</CardTitle>
+                  <CardDescription>{t('pricing.formula.description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="p-4 rounded-lg bg-muted/30 font-mono text-sm space-y-2">
                     <div className="flex justify-between">
-                      <span>Basispreis</span>
-                      <span>= Team-Stundenpreis × Stunden (min. {pricingConfig.minimumHours}h)</span>
+                      <span>{t('pricing.formula.base')}</span>
+                      <span>{t('pricing.formula.baseValue', { hours: pricingConfig.minimumHours })}</span>
                     </div>
                     <div className="flex justify-between text-muted-foreground">
-                      <span>+ Zuschläge</span>
-                      <span>Stockwerk, Klavier, Schwerlast, etc.</span>
+                      <span>{t('pricing.formula.surcharges')}</span>
+                      <span>{t('pricing.formula.surchargesValue')}</span>
                     </div>
                     <div className="flex justify-between text-muted-foreground">
-                      <span>+ Services</span>
-                      <span>Verpackung, Entsorgung, Lagerung</span>
+                      <span>{t('pricing.formula.services')}</span>
+                      <span>{t('pricing.formula.servicesValue')}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between">
-                      <span>Zwischensumme</span>
-                      <span>(mind. {formatCHF(pricingConfig.minimumCharge)})</span>
+                      <span>{t('pricing.formula.subtotal')}</span>
+                      <span>
+                        {t('pricing.formula.subtotalValue', {
+                          amount: money(pricingConfig.minimumCharge, locale),
+                        })}
+                      </span>
                     </div>
                     <div className="flex justify-between text-muted-foreground">
-                      <span>× Multiplikatoren</span>
-                      <span>Wochenende (+{((pricingConfig.multipliers?.weekend || 1) - 1) * 100}%), Abend (+{((pricingConfig.multipliers?.evening || 1) - 1) * 100}%)</span>
+                      <span>{t('pricing.formula.multipliers')}</span>
+                      <span>
+                        {t('pricing.formula.multipliersValue', {
+                          weekend: ((pricingConfig.multipliers?.weekend || 1) - 1) * 100,
+                          evening: ((pricingConfig.multipliers?.evening || 1) - 1) * 100,
+                        })}
+                      </span>
                     </div>
                     <Separator />
                     <div className="flex justify-between">
-                      <span>+ MwSt.</span>
+                      <span>{t('pricing.formula.vat')}</span>
                       <span>{pricingConfig.vatRate}%</span>
                     </div>
                     <Separator className="border-primary" />
                     <div className="flex justify-between font-bold text-primary">
-                      <span>= Gesamtbetrag</span>
+                      <span>{t('pricing.formula.total')}</span>
                       <span></span>
                     </div>
                   </div>
 
                   <Alert>
                     <Info className="h-4 w-4" />
-                    <AlertTitle>Delta Umzug Referenz</AlertTitle>
+                    <AlertTitle>{t('pricing.formula.referenceTitle')}</AlertTitle>
                     <AlertDescription className="text-xs">
-                      Schweizer Marktstandard: 120-420 CHF/Std je nach Team-Grösse. 
-                      Ihre aktuellen Preise: {formatCHF(teamRateBounds.min)} - {formatCHF(teamRateBounds.max)}/Std
+                      {t('pricing.formula.referenceBody', {
+                        min: money(teamRateBounds.min, locale),
+                        max: money(teamRateBounds.max, locale),
+                      })}
                     </AlertDescription>
                   </Alert>
                 </CardContent>
@@ -1538,16 +1600,15 @@ export default function FirmaPreisgestaltung() {
       <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Preise zurücksetzen?</AlertDialogTitle>
+            <AlertDialogTitle>{t('pricing.reset.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Alle Ihre Preiseinstellungen werden auf die Standardwerte (Marktüblich) zurückgesetzt.
-              Diese Aktion kann nicht rückgängig gemacht werden.
+              {t('pricing.reset.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleResetConfirm}>
-              Zurücksetzen
+              {t('common.reset')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1557,16 +1618,15 @@ export default function FirmaPreisgestaltung() {
       <AlertDialog open={!!showTemplateDialog} onOpenChange={() => setShowTemplateDialog(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Vorlage anwenden?</AlertDialogTitle>
+            <AlertDialogTitle>{t('pricing.applyTemplate.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sie haben ungespeicherte Änderungen. Wenn Sie eine Vorlage anwenden, gehen diese verloren.
-              Möchten Sie fortfahren?
+              {t('pricing.applyTemplate.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleTemplateConfirm}>
-              Vorlage anwenden
+              {t('pricing.applyTemplate.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1579,11 +1639,10 @@ export default function FirmaPreisgestaltung() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-blue-500" />
-              Lokaler Entwurf gefunden
+              {t('pricing.draft.title')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Es gibt einen nicht gespeicherten Entwurf Ihrer Preiskonfiguration.
-              Möchten Sie diesen wiederherstellen oder verwerfen?
+              {t('pricing.draft.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
@@ -1595,16 +1654,16 @@ export default function FirmaPreisgestaltung() {
               }}
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Verwerfen
+              {t('pricing.draft.discard')}
             </Button>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => {
                 if (companyId) restoreDraft(companyId);
                 setShowDraftDialog(false);
               }}
             >
               <RotateCcw className="h-4 w-4 mr-2" />
-              Wiederherstellen
+              {t('pricing.draft.restore')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

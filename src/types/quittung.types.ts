@@ -1,6 +1,8 @@
 // ============================================================
 // Quittung (Receipt) Types
 // ============================================================
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Locale } from "@/i18n/locale";
 
 export interface QuittungPosition {
   id: string;
@@ -22,6 +24,9 @@ export interface Quittung {
   id: string;
   company_id: string;
   offer_id?: string | null;
+  auftrag_id?: string | null;
+  /** Customer language, frozen from the lead/offer. Drives the PDF + e-mail locale. */
+  language: string;
   quittung_nr: string;
   datum: string; // ISO date string
   customer_name: string;
@@ -70,27 +75,42 @@ export interface QuittungWithCompany extends Quittung {
   };
 }
 
-// Predefined service line items pulled from offer
-export const PREDEFINED_POSITIONEN: Omit<QuittungPosition, 'id'>[] = [
-  { beschreibung: 'Umzug',                    satz: '', betrag: 0, checked: true,  is_custom: false },
-  { beschreibung: 'Reinigung',                satz: '', betrag: 0, checked: false, is_custom: false },
-  { beschreibung: 'Verpackungsmaterial',      satz: '', betrag: 0, checked: false, is_custom: false },
-  { beschreibung: 'Möbelliftmiete',           satz: '', betrag: 0, checked: false, is_custom: false },
-  { beschreibung: 'Entsorgung / Räumung',     satz: '', betrag: 0, checked: false, is_custom: false },
-  { beschreibung: 'Schwertransportzuschlag',  satz: '', betrag: 0, checked: false, is_custom: false },
-  { beschreibung: 'Zusatzleistung',           satz: '', betrag: 0, checked: false, is_custom: false },
-  { beschreibung: 'Wegpauschale',             satz: '', betrag: 0, checked: false, is_custom: false },
-];
+/**
+ * The eight rows a new receipt starts with.
+ *
+ * These are not UI chrome: whatever stands here is written into `quittungen.positionen`
+ * and printed verbatim on the customer's receipt. They therefore follow the DOCUMENT
+ * locale, not the operator's — a German operator writing a receipt for a French customer
+ * gets (and sees) "Déménagement", which is exactly the text the customer will read.
+ *
+ * The receipt form shows these rows as read-only labels, so picker and document text are
+ * the same string; there is no second, operator-language label to render.
+ */
+export const getPredefinedPositionen = (locale: Locale): Omit<QuittungPosition, 'id'>[] => {
+  const { t } = documentI18nFor(locale);
+  const row = (
+    beschreibung: string,
+    checked: boolean,
+  ): Omit<QuittungPosition, 'id'> => ({
+    beschreibung,
+    satz: '',
+    betrag: 0,
+    checked,
+    is_custom: false,
+  });
+  return [
+    row(t('doc.receipt.item.umzug'), true),
+    row(t('doc.receipt.item.reinigung'), false),
+    row(t('doc.receipt.item.packingMaterial'), false),
+    row(t('doc.receipt.item.liftRental'), false),
+    row(t('doc.receipt.item.disposal'), false),
+    row(t('doc.receipt.item.heavySurcharge'), false),
+    row(t('doc.receipt.item.extraService'), false),
+    row(t('doc.receipt.item.travelFlatRate'), false),
+  ];
+};
 
 export const CUSTOM_ROW_COUNT = 5;
-
-/** Format CHF amount in Swiss style: CHF 1'234.50 */
-export function formatChf(amount: number): string {
-  return 'CHF ' + amount.toLocaleString('de-CH', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
 
 /** Calculate totals from positionen */
 export function calculateTotals(
@@ -114,14 +134,18 @@ export function calculateTotals(
   return { zwischensumme, mwst_betrag, total, gesamttotal };
 }
 
+/**
+ * Colour/variant only — the label comes from `getQuittungStatusLabel(status, locale)`
+ * (@/i18n/domain), because the same status is rendered in the operator's language on the
+ * dashboard and in the customer's language on documents.
+ */
 export const STATUS_CONFIG: Record<QuittungStatus, {
-  label: string;
   color: string;
   bg: string;
   border: string;
 }> = {
-  draft:  { label: 'Entwurf', color: 'text-slate-600',   bg: 'bg-slate-100',   border: 'border-slate-200' },
-  signed: { label: 'Unterzeichnet', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
-  sent:   { label: 'Versendet', color: 'text-indigo-700', bg: 'bg-indigo-50',  border: 'border-indigo-200' },
-  paid:   { label: 'Bezahlt', color: 'text-emerald-700',  bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  draft:  { color: 'text-slate-600',   bg: 'bg-slate-100',   border: 'border-slate-200' },
+  signed: { color: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200' },
+  sent:   { color: 'text-indigo-700',  bg: 'bg-indigo-50',   border: 'border-indigo-200' },
+  paid:   { color: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200' },
 };

@@ -52,6 +52,7 @@ export type Database = {
           is_active: boolean | null
           service_type: string
           title: string
+          translations: Json
           updated_at: string | null
         }
         Insert: {
@@ -63,6 +64,7 @@ export type Database = {
           is_active?: boolean | null
           service_type: string
           title: string
+          translations?: Json
           updated_at?: string | null
         }
         Update: {
@@ -74,6 +76,7 @@ export type Database = {
           is_active?: boolean | null
           service_type?: string
           title?: string
+          translations?: Json
           updated_at?: string | null
         }
         Relationships: [
@@ -246,6 +249,7 @@ export type Database = {
           id: string
           internal_notes: string | null
           is_recurring: boolean | null
+          language: string
           lead_id: string | null
           location_address: string | null
           location_city: string | null
@@ -293,6 +297,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           is_recurring?: boolean | null
+          language?: string
           lead_id?: string | null
           location_address?: string | null
           location_city?: string | null
@@ -340,6 +345,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           is_recurring?: boolean | null
+          language?: string
           lead_id?: string | null
           location_address?: string | null
           location_city?: string | null
@@ -659,6 +665,7 @@ export type Database = {
           id: string
           internal_notes: string | null
           items: Json | null
+          language: string
           lead_id: string | null
           offer_id: string | null
           pricing_type: string | null
@@ -702,6 +709,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           items?: Json | null
+          language?: string
           lead_id?: string | null
           offer_id?: string | null
           pricing_type?: string | null
@@ -745,6 +753,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           items?: Json | null
+          language?: string
           lead_id?: string | null
           offer_id?: string | null
           pricing_type?: string | null
@@ -1020,6 +1029,7 @@ export type Database = {
           service_type: string
           subtitle: string | null
           title: string
+          translations: Json
           updated_at: string | null
         }
         Insert: {
@@ -1032,6 +1042,7 @@ export type Database = {
           service_type: string
           subtitle?: string | null
           title: string
+          translations?: Json
           updated_at?: string | null
         }
         Update: {
@@ -1044,6 +1055,7 @@ export type Database = {
           service_type?: string
           subtitle?: string | null
           title?: string
+          translations?: Json
           updated_at?: string | null
         }
         Relationships: [
@@ -1067,6 +1079,7 @@ export type Database = {
           crm_enabled: boolean | null
           crm_enabled_at: string | null
           crm_enabled_by: string | null
+          default_language: string
           default_payment_terms: string | null
           default_terms_and_conditions: string | null
           email: string
@@ -1102,6 +1115,7 @@ export type Database = {
           sms_reminders_enabled: boolean | null
           street: string | null
           subscription_notes: string | null
+          translations: Json
           trial_granted_at: string | null
           trial_granted_by: string | null
           twilio_account_sid: string | null
@@ -1123,6 +1137,7 @@ export type Database = {
           crm_enabled?: boolean | null
           crm_enabled_at?: string | null
           crm_enabled_by?: string | null
+          default_language?: string
           default_payment_terms?: string | null
           default_terms_and_conditions?: string | null
           email: string
@@ -1158,6 +1173,7 @@ export type Database = {
           sms_reminders_enabled?: boolean | null
           street?: string | null
           subscription_notes?: string | null
+          translations?: Json
           trial_granted_at?: string | null
           trial_granted_by?: string | null
           twilio_account_sid?: string | null
@@ -1179,6 +1195,7 @@ export type Database = {
           crm_enabled?: boolean | null
           crm_enabled_at?: string | null
           crm_enabled_by?: string | null
+          default_language?: string
           default_payment_terms?: string | null
           default_terms_and_conditions?: string | null
           email?: string
@@ -1214,6 +1231,7 @@ export type Database = {
           sms_reminders_enabled?: boolean | null
           street?: string | null
           subscription_notes?: string | null
+          translations?: Json
           trial_granted_at?: string | null
           trial_granted_by?: string | null
           twilio_account_sid?: string | null
@@ -1612,6 +1630,7 @@ export type Database = {
           is_optional: boolean | null
           name: string
           service_type: string
+          translations: Json
           unit: string | null
           updated_at: string | null
         }
@@ -1627,6 +1646,7 @@ export type Database = {
           is_optional?: boolean | null
           name: string
           service_type: string
+          translations?: Json
           unit?: string | null
           updated_at?: string | null
         }
@@ -1642,6 +1662,7 @@ export type Database = {
           is_optional?: boolean | null
           name?: string
           service_type?: string
+          translations?: Json
           unit?: string | null
           updated_at?: string | null
         }
@@ -1754,6 +1775,7 @@ export type Database = {
           email_type: string
           error_message: string | null
           id: string
+          language: string | null
           lead_id: string | null
           metadata: Json | null
           recipient_email: string
@@ -1767,6 +1789,7 @@ export type Database = {
           email_type: string
           error_message?: string | null
           id?: string
+          language?: string | null
           lead_id?: string | null
           metadata?: Json | null
           recipient_email: string
@@ -1780,6 +1803,7 @@ export type Database = {
           email_type?: string
           error_message?: string | null
           id?: string
+          language?: string | null
           lead_id?: string | null
           metadata?: Json | null
           recipient_email?: string
@@ -2378,6 +2402,7 @@ export type Database = {
           is_flexible_date: boolean | null
           items_description: string | null
           kitchen_type: string | null
+          language: string
           lead_score: number | null
           moebellift_floor: number | null
           moebellift_item_description: string | null
@@ -2500,6 +2525,7 @@ export type Database = {
           is_flexible_date?: boolean | null
           items_description?: string | null
           kitchen_type?: string | null
+          language?: string
           lead_score?: number | null
           moebellift_floor?: number | null
           moebellift_item_description?: string | null
@@ -2622,6 +2648,7 @@ export type Database = {
           is_flexible_date?: boolean | null
           items_description?: string | null
           kitchen_type?: string | null
+          language?: string
           lead_score?: number | null
           moebellift_floor?: number | null
           moebellift_item_description?: string | null
@@ -2710,6 +2737,7 @@ export type Database = {
           name: string
           notes: string | null
           service_type: string
+          translations: Json
           updated_at: string | null
         }
         Insert: {
@@ -2723,6 +2751,7 @@ export type Database = {
           name: string
           notes?: string | null
           service_type: string
+          translations?: Json
           updated_at?: string | null
         }
         Update: {
@@ -2736,6 +2765,7 @@ export type Database = {
           name?: string
           notes?: string | null
           service_type?: string
+          translations?: Json
           updated_at?: string | null
         }
         Relationships: [
@@ -3463,6 +3493,7 @@ export type Database = {
           id: string
           internal_notes: string | null
           kostendach_max: number | null
+          language: string
           lead_distribution_id: string | null
           lead_id: string | null
           leistungsuebersicht_url: string | null
@@ -3561,6 +3592,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           kostendach_max?: number | null
+          language?: string
           lead_distribution_id?: string | null
           lead_id?: string | null
           leistungsuebersicht_url?: string | null
@@ -3659,6 +3691,7 @@ export type Database = {
           id?: string
           internal_notes?: string | null
           kostendach_max?: number | null
+          language?: string
           lead_distribution_id?: string | null
           lead_id?: string | null
           leistungsuebersicht_url?: string | null
@@ -3871,6 +3904,7 @@ export type Database = {
           id: string
           kunde_signed_at: string | null
           kunde_unterschrift: string | null
+          language: string
           mwst_betrag: number
           mwst_satz: number
           notiz: string | null
@@ -3901,6 +3935,7 @@ export type Database = {
           id?: string
           kunde_signed_at?: string | null
           kunde_unterschrift?: string | null
+          language?: string
           mwst_betrag?: number
           mwst_satz?: number
           notiz?: string | null
@@ -3931,6 +3966,7 @@ export type Database = {
           id?: string
           kunde_signed_at?: string | null
           kunde_unterschrift?: string | null
+          language?: string
           mwst_betrag?: number
           mwst_satz?: number
           notiz?: string | null
@@ -4154,6 +4190,7 @@ export type Database = {
           faellig_am: string
           gesamttotal: number
           id: string
+          language: string
           mwst_betrag: number
           mwst_satz: number
           notiz: string | null
@@ -4186,6 +4223,7 @@ export type Database = {
           faellig_am: string
           gesamttotal?: number
           id?: string
+          language?: string
           mwst_betrag?: number
           mwst_satz?: number
           notiz?: string | null
@@ -4218,6 +4256,7 @@ export type Database = {
           faellig_am?: string
           gesamttotal?: number
           id?: string
+          language?: string
           mwst_betrag?: number
           mwst_satz?: number
           notiz?: string | null
@@ -6152,6 +6191,7 @@ export type Database = {
           id: string
           is_expired: boolean
           kostendach_max: number
+          language: string
           lead_id: string
           offerte_type: string
           price_model: string
@@ -6208,6 +6248,7 @@ export type Database = {
         Returns: {
           city: string
           company_name: string
+          default_language: string
           email: string
           house_number: string
           id: string

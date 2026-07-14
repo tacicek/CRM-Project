@@ -327,8 +327,31 @@ prerender konfigünü güncelle.
 
 ---
 
+## 11b. Çok Dillilik (DE / FR / EN)
+
+> Tam rehber: **[src/i18n/README.md](src/i18n/README.md)**. Aşağısı sadece bozulmaması gereken kural.
+
+Sistemin **iki bağımsız dil ekseni** var. İkisini karıştırmak bu özelliği bozmanın tek yolu:
+
+| Eksen | Kaynak | Kapsam | Nasıl okunur |
+|---|---|---|---|
+| **Dashboard dili** — *firmanın* çalıştığı dil | `companies.default_language` (+ tarayıcı bazlı override) | `/firma/*` | `useT()` (React context) |
+| **Doküman dili** — *müşteriye* hitap edilen dil | `<satır>.language`, `leads.language`'dan dondurulur | PDF, e-posta, SMS, public token sayfaları | **Argüman olarak** geçirilir |
+
+Almanca konuşan bir operatör, Fransız müşteriye Fransızca teklif gönderir. İki eksen aynı sekmede aynı anda canlıdır. **Bu yüzden müşteriye giden hiçbir renderer React context'ten dil okuyamaz** — okursa operatörün dili müşterinin belgesine sızar.
+
+- Dil **DB'de kalıcıdır** ve zincir boyunca taşınır:
+  `leads.language → offers.language (frozen) → appointments / auftraege / rechnungen / quittungen`.
+  Sebep: `notify-appointment-reminder` ve `notify-auftrag-reminder` pg_cron ile çalışır — dil geçirecek bir çağıran yoktur, satırdan okumak zorundadır.
+- **Almanca anahtar kümesi tek doğruluk kaynağıdır.** `fr`/`en` katalogları `Record<keyof typeof de, string>` tipindedir → eksik anahtar **derleme hatasıdır**, sessizce Almanca kalan bir metin değil.
+- **Firma içeriği** (katalog kalemleri, AGB, checklist) `translations` JSONB kolonunda taşınır: `{"fr": {...}, "en": {...}}`. Almanca temel kolon fallback'tir — müşteri asla boş alan görmez. `offer_items` çeviri kolonu **almaz**: oluşturma anında katalogdan müşterinin dilinde snapshot alınır.
+- **İsviçre QR-fatura etiketleri SIX tarafından normlanmıştır** (`doc.qr.*`). Serbest çeviri yasak — resmî DE/FR/EN metinleri kullanılır.
+
+---
+
 ## 12. Hızlı Trouble-Shoot
 
+- ⚠️ **`npm run type-check` HİÇBİR ŞEYİ KONTROL ETMİYOR.** Kök `tsconfig.json` solution-style (`files: []`) — `tsc --noEmit` her zaman boş geçer. Gerçek kontrol: **`npx tsc --noEmit -p tsconfig.app.json`**. (Bu önceden var olan bir sorun; commit gate'i buna göre kullan.)
 - **Supabase 401** → `.env.local`'deki `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` doğru mu, anon key public mı?
 - **RLS hatası** → `auth.uid()` ile `companies.user_id` veya `company_members` üzerinden eşleşme var mı?
 - **Edge fn timeout** → 60s default, ağır işleri (PDF, AI) chunk'la veya queue'ya at.

@@ -25,6 +25,8 @@ import type { ServiceItem } from "@/types/leistungskatalog";
 import { getServiceTypeLabel } from "@/constants/service-catalog";
 import { SERVICE_ORDER } from "@/lib/offerServiceType";
 import { derivePriceTypeFromCatalog } from "@/lib/offerPricing";
+import { useI18n, useT } from "@/i18n/useI18n";
+import { formatCurrency } from "@/i18n/format";
 
 interface CatalogServiceSelectorProps {
   open: boolean;
@@ -68,6 +70,8 @@ export function CatalogServiceSelector({
   onServicesSelected,
   excludeServiceIds = [],
 }: CatalogServiceSelectorProps) {
+  const t = useT();
+  const { locale } = useI18n();
   const [services, setServices]       = useState<ServiceItem[]>([]);
   const [loading, setLoading]         = useState(true);
   const [searchTerm, setSearchTerm]   = useState("");
@@ -204,10 +208,10 @@ export function CatalogServiceSelector({
         <DialogHeader className="px-4 pt-4 pb-3 border-b">
           <DialogTitle className="flex items-center gap-2 text-base">
             <ClipboardList className="w-4 h-4 text-secondary" />
-            Leistung auswählen
+            {t("offer.catalogSelector.title")}
           </DialogTitle>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Tippen Sie auf eine Leistung um sie auszuwählen
+            {t("offer.catalogSelector.subtitle")}
           </p>
         </DialogHeader>
 
@@ -216,7 +220,7 @@ export function CatalogServiceSelector({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Leistung suchen…"
+              placeholder={t("offer.catalogSelector.searchPlaceholder")}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="pl-9 h-10"
@@ -234,21 +238,21 @@ export function CatalogServiceSelector({
           ) : services.length === 0 ? (
             <div className="text-center py-12 px-6">
               <Package className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
-              <p className="font-medium mb-1">Kein Katalog vorhanden</p>
+              <p className="font-medium mb-1">{t("offer.catalogSelector.empty.title")}</p>
               <p className="text-sm text-muted-foreground mb-4">
-                Richten Sie zuerst Ihren Leistungskatalog ein.
+                {t("offer.catalogSelector.empty.description")}
               </p>
               <Link to="/firma/leistungskatalog" onClick={() => onOpenChange(false)}>
                 <Button variant="outline" size="sm">
                   <Plus className="w-4 h-4 mr-2" />
-                  Leistungskatalog einrichten
+                  {t("offer.catalogSelector.empty.action")}
                 </Button>
               </Link>
             </div>
           ) : available.length === 0 && alreadyAdded.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground text-sm px-6">
               <Search className="w-10 h-10 mx-auto mb-2 opacity-40" />
-              Keine Leistungen gefunden
+              {t("offer.catalogSelector.noResults")}
             </div>
           ) : (
             <div className="divide-y">
@@ -264,7 +268,7 @@ export function CatalogServiceSelector({
                       Status (auf Anfrage/inklusive) ist PER-ITEM im Grid (Katalog ist pro Service gemischt). */}
                   <div className="w-full px-4 py-2.5 bg-secondary/10 flex items-center justify-between gap-2 sticky top-0 z-20 border-b">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="text-sm font-semibold truncate">{getServiceTypeLabel(st)}</span>
+                      <span className="text-sm font-semibold truncate">{getServiceTypeLabel(st, locale)}</span>
                       <Badge className="text-[10px] shrink-0 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">{serviceCount}</Badge>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -273,12 +277,12 @@ export function CatalogServiceSelector({
                         onClick={() => toggleSelectService(st)}
                         className="text-xs text-secondary hover:text-secondary/80 underline"
                       >
-                        {allSel ? "Auswahl aufheben" : `Alle (${serviceCount})`}
+                        {allSel ? t("offer.catalogSelector.deselectAll") : t("offer.catalogSelector.selectAll", { count: serviceCount })}
                       </button>
                       <button
                         type="button"
                         onClick={() => hideService(st)}
-                        aria-label="Dienstleistung ausblenden"
+                        aria-label={t("offer.catalogSelector.hideService")}
                         className="text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors"
                       >
                         <X className="w-4 h-4" />
@@ -296,10 +300,10 @@ export function CatalogServiceSelector({
                         // inkl→inklusive, paid→small price. Instead of a single-type badge on the header (mixed catalog).
                         const pt = derivePriceTypeFromCatalog(service);
                         const itemStatus =
-                          pt === "optional" ? { text: "auf Anfrage", cls: "text-emerald-600" }
-                          : pt === "inkl"   ? { text: "inklusive", cls: "text-sky-600" }
+                          pt === "optional" ? { text: t("domain.priceModel.onRequest"), cls: "text-emerald-600" }
+                          : pt === "inkl"   ? { text: t("offer.catalogSelector.status.included"), cls: "text-sky-600" }
                           : service.default_price > 0
-                            ? { text: `CHF ${service.default_price.toFixed(0)}`, cls: "text-muted-foreground" }
+                            ? { text: formatCurrency(service.default_price, locale), cls: "text-muted-foreground" }
                             : null;
                         return (
                           <button
@@ -346,7 +350,7 @@ export function CatalogServiceSelector({
                   <div className="px-4 py-2 bg-muted/20 border-t-2 border-dashed flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground/60" />
                     <span className="text-xs text-muted-foreground">
-                      Bereits in dieser Offerte vorhanden ({alreadyAdded.length})
+                      {t("offer.catalogSelector.alreadyAdded", { count: alreadyAdded.length })}
                     </span>
                   </div>
                   {alreadyAdded.map(service => (
@@ -360,7 +364,7 @@ export function CatalogServiceSelector({
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium line-through">{service.name}</p>
                       </div>
-                      <span className="text-[10px] text-muted-foreground shrink-0">In Offerte</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{t("offer.catalogSelector.inOffer")}</span>
                     </div>
                   ))}
                 </div>
@@ -380,14 +384,14 @@ export function CatalogServiceSelector({
                   onClick={clearAll}
                   className="text-xs text-muted-foreground hover:text-foreground underline"
                 >
-                  Auswahl aufheben ({selectedIds.size})
+                  {t("offer.catalogSelector.clearSelection", { count: selectedIds.size })}
                 </button>
               ) : null}
             </div>
 
             <div className="flex gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-                Abbrechen
+                {t("common.cancel")}
               </Button>
               <Button
                 size="sm"
@@ -397,8 +401,8 @@ export function CatalogServiceSelector({
               >
                 <Plus className="w-4 h-4" />
                 {selectedIds.size > 0
-                  ? `${selectedIds.size} hinzufügen`
-                  : "Auswählen"}
+                  ? t("offer.catalogSelector.addCount", { count: selectedIds.size })
+                  : t("offer.catalogSelector.addSelect")}
               </Button>
             </div>
           </div>
