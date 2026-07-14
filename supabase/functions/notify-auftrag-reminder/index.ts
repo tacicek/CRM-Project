@@ -15,6 +15,7 @@ import {
   toLocale,
   type Locale,
 } from "../_shared/i18n/index.ts";
+import { isCronRequest, unauthorizedResponse } from "../_shared/cronAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,18 +66,9 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET");
-  if (!cronSecret) {
-    console.error("INTERNAL_CRON_SECRET not configured — refusing to run (fail closed)");
-    return new Response(JSON.stringify({ error: "Server misconfigured" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  const providedSecret = req.headers.get("x-internal-secret");
-  if (providedSecret !== cronSecret) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  // Only the pg_cron job (service_role bearer) may trigger reminder mails.
+  if (!isCronRequest(req)) {
+    return unauthorizedResponse(corsHeaders);
   }
 
   try {
