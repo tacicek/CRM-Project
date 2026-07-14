@@ -26,7 +26,10 @@ import {
   RECHNUNG_STATUS_LABELS, RECHNUNG_STATUS_COLORS, allowedRechnungTargets,
   isRechnungStatus, type RechnungStatus,
 } from "@/lib/rechnungStatus";
-import { formatChf } from "@/types/quittung.types";
+import { useI18n } from "@/i18n/useI18n";
+import { formatCurrency } from "@/i18n/format";
+import { resolveDocumentLocale } from "@/i18n/documentLocale";
+import { LOCALE_NAMES, LOCALES, toLocale, type Locale } from "@/i18n/locale";
 
 interface CompanyInfo {
   id: string;
@@ -44,6 +47,7 @@ interface CompanyInfo {
   primary_color: string | null;
   legal_name: string | null;
   default_payment_terms: string | null;
+  default_language: string | null;
 }
 
 // Standardtexte für neue Rechnungen (rechnungsbezogen editierbar, siehe Formular).
@@ -85,6 +89,9 @@ export default function RechnungDetail() {
   const location = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
+  // Dashboard locale — for the amounts shown in this form. The PDF uses the invoice's own
+  // language (state `language` below), which is a different axis entirely.
+  const { locale: uiLocale } = useI18n();
   const prefillAppliedRef = useRef(false);
 
   const [company, setCompany] = useState<CompanyInfo | null>(null);
@@ -115,6 +122,8 @@ export default function RechnungDetail() {
   const [schlusstext, setSchlusstext] = useState(DEFAULT_SCHLUSSTEXT);
   const [zahlungskonditionen, setZahlungskonditionen] = useState("");
   const [status, setStatus] = useState<RechnungStatus>("entwurf");
+  // Document language — the language the CUSTOMER is invoiced in (rechnungen.language).
+  const [language, setLanguage] = useState<Locale>("de");
   const [rechnungNr, setRechnungNr] = useState("");
   const [qrReferenz, setQrReferenz] = useState<string | null>(null);
   const [qrIban, setQrIban] = useState<string | null>(null);
@@ -132,12 +141,15 @@ export default function RechnungDetail() {
     fetchSingleCompanyForUser<CompanyInfo>({
       userId: user.id,
       userEmail: user.email,
-      select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url, primary_color, legal_name, default_payment_terms",
+      select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url, primary_color, legal_name, default_payment_terms, default_language",
     }).then((c) => {
       if (c) {
         setCompany(c);
         // Neue Rechnung: Zahlungskonditionen aus Firmen-Default vorbelegen (falls noch leer).
         if (isNew) setZahlungskonditionen((prev) => prev || c.default_payment_terms || "");
+        // A new invoice starts in the company default language; the Auftrag prefill and the
+        // language select below override it. An existing invoice keeps its stored language.
+        if (isNew && !prefillAppliedRef.current) setLanguage(toLocale(c.default_language));
       }
     });
   }, [user?.id, user?.email, isNew]);
@@ -173,6 +185,7 @@ export default function RechnungDetail() {
     setSchlusstext(data.schlusstext ?? DEFAULT_SCHLUSSTEXT);
     setZahlungskonditionen(data.zahlungskonditionen ?? "");
     setStatus(isRechnungStatus(data.status) ? data.status : "entwurf");
+    setLanguage(resolveDocumentLocale(data));
     setRechnungNr(data.rechnung_nr || "");
     setQrReferenz(data.qr_referenz);
     setQrIban(data.qr_iban);
@@ -184,11 +197,18 @@ export default function RechnungDetail() {
   useEffect(() => { loadRechnung(); }, [loadRechnung]);
 
   // Prefill aus einem Auftrag (erstelleRechnungAusAuftrag-Ergebnis via location.state).
+  // `documentLanguage` reist separat mit: NeueRechnung selbst führt (noch) keine Sprache.
   useEffect(() => {
     if (!isNew || prefillAppliedRef.current) return;
-    const fr = (location.state as { fromRechnung?: NeueRechnung } | null)?.fromRechnung;
+    const state = location.state as
+      | { fromRechnung?: NeueRechnung; documentLanguage?: string }
+      | null;
+    const fr = state?.fromRechnung;
     if (!fr) return;
     prefillAppliedRef.current = true;
+
+    // Language of the Auftrag the invoice is created from — the customer keeps their language.
+    if (state?.documentLanguage) setLanguage(toLocale(state.documentLanguage));
 
     setCustomerName(fr.customer_name || "");
     if (fr.customer_address) setCustomerAddress(fr.customer_address);
@@ -262,6 +282,8 @@ export default function RechnungDetail() {
       einleitung: einleitung || null,
       schlusstext: schlusstext || null,
       zahlungskonditionen: zahlungskonditionen || null,
+      // Customer language of this invoice — NOT the operator's dashboard language.
+      locale: language,
       company: c,
     };
   };
@@ -295,6 +317,7 @@ export default function RechnungDetail() {
       // notiz had state/load/UI but was missing here — typed text silently never persisted.
       notiz: notiz || null,
       status,
+      language,
     };
   };
 
@@ -554,6 +577,18 @@ export default function RechnungDetail() {
                   </Select>
                 </div>
                 <div>
+                  {/* Document language: which language the CUSTOMER is invoiced in. */}
+                  <Label className="text-xs">Sprache der Rechnung</Label>
+                  <Select value={language} onValueChange={(v) => setLanguage(toLocale(v))}>
+                    <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {LOCALES.map((l) => (
+                        <SelectItem key={l} value={l}>{LOCALE_NAMES[l]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label className="text-xs">Notiz (intern)</Label>
                   <Textarea value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="Interne Notiz..." rows={2} className="mt-1 text-sm resize-none" />
                 </div>
@@ -599,7 +634,7 @@ export default function RechnungDetail() {
               <div className="w-full max-w-xs space-y-1.5 rounded-xl border border-slate-200 p-4 bg-slate-50">
                 <div className="flex justify-between text-sm text-slate-600">
                   <span>Zwischensumme:</span>
-                  <span>{formatChf(zwischensumme)}</span>
+                  <span>{formatCurrency(zwischensumme, uiLocale)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-slate-600">
                   <div className="flex items-center gap-2">
@@ -612,11 +647,11 @@ export default function RechnungDetail() {
                       </div>
                     )}
                   </div>
-                  <span>{formatChf(mwstBetrag)}</span>
+                  <span>{formatCurrency(mwstBetrag, uiLocale)}</span>
                 </div>
                 <div className="border-t border-slate-300 pt-1.5 flex justify-between font-bold text-base text-slate-900">
                   <span>Total:</span>
-                  <span className="text-folk-coral">{formatChf(total)}</span>
+                  <span className="text-folk-coral">{formatCurrency(total, uiLocale)}</span>
                 </div>
               </div>
             </div>

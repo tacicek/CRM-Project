@@ -17,6 +17,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
+import { LanguageSwitcher } from "@/components/firma/LanguageSwitcher";
+import { useI18n, useT } from "@/i18n/useI18n";
+import type { MessageKey } from "@/i18n/translator";
+import { getAppointmentStatusLabel, getAppointmentTypeLabel } from "@/i18n/domain";
+import { formatDate } from "@/i18n/format";
 import {
   LogOut,
   Loader2,
@@ -50,14 +55,15 @@ interface Company {
 // =============================================================================
 
 type MenuItem = {
-  title: string;
+  /** Catalog key — the label is resolved in the operator's dashboard locale at render time. */
+  titleKey: MessageKey;
   url: string;
   emoji: string;
   moduleKey: ModuleKey;
   badge?: number;
 };
 
-type MenuGroup = { id: string; label: string; items: MenuItem[] };
+type MenuGroup = { id: string; labelKey: MessageKey; items: MenuItem[] };
 
 // =============================================================================
 // Sidebar
@@ -79,6 +85,7 @@ const FirmaSidebar = ({
   onClose?: () => void;
 }) => {
   const location = useLocation();
+  const t = useT();
   const isActive = (url: string) => location.pathname === url;
 
   const initials = company.company_name
@@ -92,7 +99,7 @@ const FirmaSidebar = ({
     .toUpperCase() || "CO";
 
   const userEmail = user.email || "";
-  const userName = userEmail.split("@")[0] || "Benutzer";
+  const userName = userEmail.split("@")[0] || t("nav.user");
   const userInitials = userName.slice(0, 2).toUpperCase();
 
   return (
@@ -111,18 +118,18 @@ const FirmaSidebar = ({
             <div className="truncate text-[15px] font-semibold leading-tight text-folk-ink">
               {company.company_name}
             </div>
-            <div className="mt-px text-[13px] text-folk-ink3">Workspace</div>
+            <div className="mt-px text-[13px] text-folk-ink3">{t("nav.workspace")}</div>
           </div>
           <ChevronDown className="h-3.5 w-3.5 text-folk-ink3" strokeWidth={1.8} />
           {onClose && (
-            <button onClick={onClose} className="ml-1 grid h-6 w-6 place-items-center rounded-md text-folk-ink3 hover:bg-folk-bg-warm md:hidden" aria-label="Menü schliessen">
+            <button onClick={onClose} className="ml-1 grid h-6 w-6 place-items-center rounded-md text-folk-ink3 hover:bg-folk-bg-warm md:hidden" aria-label={t("nav.closeMenu")}>
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
         <div className="mt-2 flex items-center gap-1.5 rounded-md border border-folk-line bg-folk-card px-2 py-1.5">
           <Search className="h-3.5 w-3.5 text-folk-ink3" strokeWidth={1.8} />
-          <span className="flex-1 text-[12.5px] text-folk-ink4">Suche oder Befehl …</span>
+          <span className="flex-1 text-[12.5px] text-folk-ink4">{t("nav.searchPlaceholder")}</span>
           <kbd className="rounded-[3px] bg-folk-bg px-1.5 py-px font-mono text-[10px] text-folk-ink3">⌘K</kbd>
         </div>
       </div>
@@ -142,7 +149,7 @@ const FirmaSidebar = ({
                 }`}
               >
                 <span className="text-[14px] leading-none">{item.emoji}</span>
-                <span className="flex-1 truncate">{item.title}</span>
+                <span className="flex-1 truncate">{t(item.titleKey)}</span>
                 {item.badge ? (
                   <span className="font-mono text-[13px] text-folk-ink3">{item.badge}</span>
                 ) : null}
@@ -157,7 +164,7 @@ const FirmaSidebar = ({
         {groups.map((group) => (
           <div key={group.id} className="mt-3">
             <div className="flex items-center justify-between px-2.5 pb-1.5 pt-0.5">
-              <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{group.label}</span>
+              <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t(group.labelKey)}</span>
             </div>
             {group.items.map((item) => {
               const active = isActive(item.url);
@@ -173,7 +180,7 @@ const FirmaSidebar = ({
                   }`}
                 >
                   <span className="text-[14px] leading-none">{item.emoji}</span>
-                  <span className="flex-1 truncate">{item.title}</span>
+                  <span className="flex-1 truncate">{t(item.titleKey)}</span>
                   {item.badge ? (
                     <span className="font-mono text-[13px] text-folk-ink3">{item.badge}</span>
                   ) : null}
@@ -195,7 +202,7 @@ const FirmaSidebar = ({
         </div>
         <button
           onClick={onSignOut}
-          title="Abmelden"
+          title={t("nav.logout")}
           className="grid h-7 w-7 place-items-center rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink"
         >
           <MoreHorizontal className="h-4 w-4" />
@@ -214,6 +221,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   const { companies, activeCompany, companyId, role, loading: companyLoading, switchCompany } = useCompanyContext();
   const { isSoundEnabled, toggleSound, isPushEnabled, togglePushNotifications, pushPermission, notify } = useNotificationSound();
   const { notifications, unreadCount, addNotification, markAsRead, markAllAsRead, clearAll, loadNotifications } = useNotificationHistory();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -309,21 +317,31 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     const channel = supabase.channel("firma-appointments")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "appointments", filter: `company_id=eq.${companyId}` }, (payload) => {
         const a = payload.new as { title: string; appointment_type: string; appointment_date: string };
-        const labels: Record<string, string> = { besichtigung: "Besichtigung", service: "Service-Termin", follow_up: "Follow-up", meeting: "Meeting", blocked: "Blockiert" };
-        notifyWithHistory(`Neuer ${labels[a.appointment_type] || "Termin"}`, `${a.title} am ${new Date(a.appointment_date).toLocaleDateString("de-CH")}`, "/firma/kalender", "appointment");
+        notifyWithHistory(
+          t("nav.notifications.newAppointment", { type: getAppointmentTypeLabel(a.appointment_type, locale) }),
+          t("nav.notifications.appointmentOn", { title: a.title, date: formatDate(a.appointment_date, locale) }),
+          "/firma/kalender",
+          "appointment",
+        );
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "appointments", filter: `company_id=eq.${companyId}` }, (payload) => {
         const a = payload.new as { title: string; status: string };
         const old = payload.old as { status?: string } | null;
-        if (old && old.status !== a.status) {
-          const labels: Record<string, string> = { confirmed: "bestätigt", cancelled: "abgesagt", completed: "abgeschlossen", rescheduled: "verschoben" };
-          const label = labels[a.status];
-          if (label) notifyWithHistory(`Termin ${label}`, a.title, "/firma/kalender", "appointment");
+        // Nur diese Statuswechsel lösen eine Meldung aus — wie zuvor (die alte Label-Map
+        // war zugleich die Whitelist).
+        const NOTIFIED_STATUSES = ["confirmed", "cancelled", "completed", "rescheduled"];
+        if (old && old.status !== a.status && NOTIFIED_STATUSES.includes(a.status)) {
+          notifyWithHistory(
+            t("nav.notifications.appointmentStatusChanged", { status: getAppointmentStatusLabel(a.status, locale) }),
+            a.title,
+            "/firma/kalender",
+            "appointment",
+          );
         }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [companyId, notifyWithHistory, user]);
+  }, [companyId, notifyWithHistory, user, t, locale]);
 
   const handleSignOut = async () => {
     try { sessionStorage.removeItem("crm_active_company_id"); } catch { /* */ }
@@ -376,34 +394,34 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
 
   // Folk-style menu: emoji + label, organized in sections
   const quickLinksRaw: MenuItem[] = useMemo(() => [
-    { title: "Übersicht", url: "/firma", emoji: "🏠", moduleKey: "reports" },
-    { title: "Anfragen", url: "/firma/anfragen", emoji: "📥", moduleKey: "manualImport" },
-    { title: "Kalender", url: "/firma/kalender", emoji: "📅", moduleKey: "calendar" },
+    { titleKey: "nav.overview", url: "/firma", emoji: "🏠", moduleKey: "reports" },
+    { titleKey: "nav.anfragen", url: "/firma/anfragen", emoji: "📥", moduleKey: "manualImport" },
+    { titleKey: "nav.kalender", url: "/firma/kalender", emoji: "📅", moduleKey: "calendar" },
   ], []);
 
   const menuGroups: MenuGroup[] = useMemo(() => [
     {
-      id: "hauptbereich", label: "Hauptbereich", items: [
-        { title: "Offerten", url: "/firma/offerten", emoji: "📄", moduleKey: "offers" },
-        { title: "Aufträge", url: "/firma/auftraege", emoji: "✅", moduleKey: "orders" },
-        { title: "Quittungen", url: "/firma/quittungen", emoji: "🧾", moduleKey: "receipts" },
-        { title: "Rechnungen", url: "/firma/rechnungen", emoji: "💳", moduleKey: "invoices" },
+      id: "hauptbereich", labelKey: "nav.group.hauptbereich", items: [
+        { titleKey: "nav.offerten", url: "/firma/offerten", emoji: "📄", moduleKey: "offers" },
+        { titleKey: "nav.auftraege", url: "/firma/auftraege", emoji: "✅", moduleKey: "orders" },
+        { titleKey: "nav.quittungen", url: "/firma/quittungen", emoji: "🧾", moduleKey: "receipts" },
+        { titleKey: "nav.rechnungen", url: "/firma/rechnungen", emoji: "💳", moduleKey: "invoices" },
       ],
     },
     {
-      id: "betrieb", label: "Betrieb", items: [
-        { title: "Besichtigungen", url: "/firma/besichtigungen", emoji: "🔎", moduleKey: "inspections", badge: besichtigungUploadedCount > 0 ? besichtigungUploadedCount : undefined },
-        { title: "Umzugsboxen", url: "/firma/umzugsboxen", emoji: "📦", moduleKey: "movingBoxes" },
-        { title: "Team", url: "/firma/team", emoji: "👥", moduleKey: "team" },
-        { title: "Checkliste", url: "/firma/checkliste", emoji: "☑️", moduleKey: "checklist" },
+      id: "betrieb", labelKey: "nav.group.betrieb", items: [
+        { titleKey: "nav.besichtigungen", url: "/firma/besichtigungen", emoji: "🔎", moduleKey: "inspections", badge: besichtigungUploadedCount > 0 ? besichtigungUploadedCount : undefined },
+        { titleKey: "nav.umzugsboxen", url: "/firma/umzugsboxen", emoji: "📦", moduleKey: "movingBoxes" },
+        { titleKey: "nav.team", url: "/firma/team", emoji: "👥", moduleKey: "team" },
+        { titleKey: "nav.checkliste", url: "/firma/checkliste", emoji: "☑️", moduleKey: "checklist" },
       ],
     },
     {
-      id: "verwaltung", label: "Verwaltung", items: [
-        { title: "Meine Leistungen", url: "/firma/leistungskatalog", emoji: "🛠️", moduleKey: "serviceCatalog" },
-        { title: "Meine Preise", url: "/firma/preisgestaltung", emoji: "💰", moduleKey: "pricing" },
-        { title: "Archiv", url: "/firma/datenarchiv", emoji: "🗂️", moduleKey: "archive" },
-        { title: "Einstellungen", url: "/firma/einstellungen", emoji: "⚙️", moduleKey: "settings" },
+      id: "verwaltung", labelKey: "nav.group.verwaltung", items: [
+        { titleKey: "nav.leistungskatalog", url: "/firma/leistungskatalog", emoji: "🛠️", moduleKey: "serviceCatalog" },
+        { titleKey: "nav.preisgestaltung", url: "/firma/preisgestaltung", emoji: "💰", moduleKey: "pricing" },
+        { titleKey: "nav.archiv", url: "/firma/datenarchiv", emoji: "🗂️", moduleKey: "archive" },
+        { titleKey: "nav.einstellungen", url: "/firma/einstellungen", emoji: "⚙️", moduleKey: "settings" },
       ],
     },
   ], [besichtigungUploadedCount]);
@@ -444,9 +462,9 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     <div className="flex min-h-screen items-center justify-center bg-folk-bg">
       <div className="mx-auto max-w-md space-y-4 p-6 text-center">
         <ShieldAlert className="mx-auto h-16 w-16 text-folk-coral" />
-        <h1 className="text-2xl font-bold">Keine Firma gefunden</h1>
-        <p className="text-folk-ink3">Ihr Account ist nicht mit einer Firma verknüpft. Bitte kontaktieren Sie den Support.</p>
-        <Button variant="hero" onClick={handleSignOut}>Abmelden</Button>
+        <h1 className="text-2xl font-bold">{t("nav.noCompany.title")}</h1>
+        <p className="text-folk-ink3">{t("nav.noCompany.description")}</p>
+        <Button variant="hero" onClick={handleSignOut}>{t("nav.logout")}</Button>
       </div>
     </div>
   );
@@ -456,9 +474,9 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     <div className="flex min-h-screen items-center justify-center bg-folk-bg">
       <div className="mx-auto max-w-md space-y-4 p-6 text-center">
         <ShieldAlert className="mx-auto h-16 w-16 text-folk-coral" />
-        <h1 className="text-2xl font-bold">Firma noch nicht verifiziert</h1>
-        <p className="text-folk-ink3">Ihr Firmenkonto ist registriert, aber noch nicht freigeschaltet. Bitte kontaktieren Sie den Support.</p>
-        <Button variant="hero" onClick={handleSignOut}>Abmelden</Button>
+        <h1 className="text-2xl font-bold">{t("nav.notVerified.title")}</h1>
+        <p className="text-folk-ink3">{t("nav.notVerified.description")}</p>
+        <Button variant="hero" onClick={handleSignOut}>{t("nav.logout")}</Button>
       </div>
     </div>
   );
@@ -466,7 +484,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   const hasMultipleCompanies = companies.length > 1;
   const allItems = [...quickLinks, ...menuGroups.flatMap(g => g.items)];
   const currentItem = allItems.find(i => i.url === location.pathname);
-  const pageTitle = currentItem?.title || "Übersicht";
+  const pageTitle = t(currentItem?.titleKey ?? "nav.overview");
   const pageEmoji = currentItem?.emoji || "🏠";
 
   return (
@@ -509,7 +527,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
           <button
             onClick={() => setMobileSidebarOpen(true)}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-folk-ink2 hover:bg-folk-bg-warm md:hidden"
-            aria-label="Menü öffnen"
+            aria-label={t("nav.openMenu")}
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -534,6 +552,9 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
             onNotificationClick={handleNotificationClick}
           />
 
+          {/* Dashboard-Sprache: wirkt nur auf diese Ansicht, nicht auf Kundendokumente */}
+          <LanguageSwitcher />
+
           {/* Company switcher / profile */}
           {hasMultipleCompanies ? (
             <DropdownMenu>
@@ -547,7 +568,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-folk-ink3">Firma wechseln</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-folk-ink3">{t("nav.switchCompany")}</DropdownMenuLabel>
                 {companies.map(c => (
                   <DropdownMenuItem key={c.id} onClick={() => switchCompany(c.id)} className="cursor-pointer gap-2">
                     <Building2 className="h-4 w-4 shrink-0" />
@@ -557,7 +578,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive">
-                  <LogOut className="h-4 w-4" />Abmelden
+                  <LogOut className="h-4 w-4" />{t("nav.logout")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -577,23 +598,23 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
                   <span className="truncate text-sm font-semibold">{user.email}</span>
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-folk-coral">
                     <Building2 className="h-3 w-3" />
-                    {role === 'owner' ? 'Inhaber' : role === 'admin' ? 'Admin' : 'Mitarbeiter'}
+                    {role === 'owner' ? t("nav.role.owner") : role === 'admin' ? t("nav.role.admin") : t("nav.role.member")}
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={toggleSound} className="cursor-pointer gap-2">
                   {isSoundEnabled ? <Volume2 className="h-4 w-4 text-folk-mint" /> : <VolumeX className="h-4 w-4 text-folk-ink3" />}
-                  <span>{isSoundEnabled ? "Ton aktiv" : "Ton deaktiviert"}</span>
-                  <span className={`ml-auto rounded-full px-1.5 py-0.5 text-xs ${isSoundEnabled ? "bg-folk-mint-bg text-folk-mint" : "bg-folk-bg-warm text-folk-ink3"}`}>{isSoundEnabled ? "An" : "Aus"}</span>
+                  <span>{isSoundEnabled ? t("nav.sound.on") : t("nav.sound.off")}</span>
+                  <span className={`ml-auto rounded-full px-1.5 py-0.5 text-xs ${isSoundEnabled ? "bg-folk-mint-bg text-folk-mint" : "bg-folk-bg-warm text-folk-ink3"}`}>{isSoundEnabled ? t("nav.state.on") : t("nav.state.off")}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={togglePushNotifications} disabled={pushPermission === "denied"} className="cursor-pointer gap-2">
                   {isPushEnabled ? <Bell className="h-4 w-4 text-folk-sky" /> : <BellOff className="h-4 w-4 text-folk-ink3" />}
-                  <span className="flex-1">{pushPermission === "denied" ? "Benachr. blockiert" : isPushEnabled ? "Push aktiv" : "Push deaktiviert"}</span>
-                  {pushPermission !== "denied" && <span className={`rounded-full px-1.5 py-0.5 text-xs ${isPushEnabled ? "bg-folk-sky-bg text-folk-sky" : "bg-folk-bg-warm text-folk-ink3"}`}>{isPushEnabled ? "An" : "Aus"}</span>}
+                  <span className="flex-1">{pushPermission === "denied" ? t("nav.push.blocked") : isPushEnabled ? t("nav.push.on") : t("nav.push.off")}</span>
+                  {pushPermission !== "denied" && <span className={`rounded-full px-1.5 py-0.5 text-xs ${isPushEnabled ? "bg-folk-sky-bg text-folk-sky" : "bg-folk-bg-warm text-folk-ink3"}`}>{isPushEnabled ? t("nav.state.on") : t("nav.state.off")}</span>}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive">
-                  <LogOut className="h-4 w-4" />Abmelden
+                  <LogOut className="h-4 w-4" />{t("nav.logout")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

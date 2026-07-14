@@ -126,11 +126,14 @@ describe("groupItemsByService", () => {
     expect(g[0].label).toBe("Umzug");
   });
 
-  it("SINGLE GROUP: all null → length 1, Allgemein", () => {
+  it("SINGLE GROUP: all null → length 1, allgemein bucket", () => {
     const g = groupItemsByService<TestItem>([{ id: "a" }, { id: "b", service_type: null }]);
     expect(g).toHaveLength(1);
     expect(g[0].serviceType).toBeNull();
-    expect(g[0].label).toBe("Allgemein");
+    // `label` is a locale-less KEY, never display copy: grouping is a pure function with no
+    // locale, so it must not invent German text. Renderers resolve `serviceType` through
+    // getServiceLabel(key, locale) instead.
+    expect(g[0].label).toBe("allgemein");
   });
 
   it("MULTIPLE GROUPS: SERVICE_ORDER ordered, Allgemein LAST", () => {
@@ -178,14 +181,14 @@ describe("groupItemsByService", () => {
     expect(g[1].label).toBe("Reinigung_end");
   });
 
-  it("null/'' service_type → Allgemein group", () => {
+  it("null/'' service_type → allgemein bucket", () => {
     const g = groupItemsByService<TestItem>([
       { id: "a", service_type: "" },
       { id: "b", service_type: "   " },
     ]);
     expect(g).toHaveLength(1);
     expect(g[0].serviceType).toBeNull();
-    expect(g[0].label).toBe("Allgemein");
+    expect(g[0].label).toBe("allgemein");
   });
 
   it("empty items → []", () => {
@@ -209,19 +212,39 @@ describe("groupItemsByService", () => {
   });
 });
 
-describe("SERVICE_OPTIONS (per-item dropdown)", () => {
+describe("getServiceOptions (per-item dropdown)", () => {
   it("8 items: 7 bases in SERVICE_ORDER order + allgemein last", async () => {
-    const { SERVICE_OPTIONS } = await import("@/lib/offerServiceType");
-    expect(SERVICE_OPTIONS.map((o) => o.value)).toEqual([
+    const { getServiceOptions } = await import("@/lib/offerServiceType");
+    expect(getServiceOptions("de").map((o) => o.value)).toEqual([
       "umzug", "moebellift", "reinigung", "raeumung", "entsorgung", "transport", "lagerung", "allgemein",
     ]);
   });
-  it("labels from LABEL_MAP + Allgemein", async () => {
-    const { SERVICE_OPTIONS } = await import("@/lib/offerServiceType");
-    expect(SERVICE_OPTIONS.find((o) => o.value === "umzug")?.label).toBe("Umzug");
-    expect(SERVICE_OPTIONS.find((o) => o.value === "moebellift")?.label).toBe("Möbellift");
-    expect(SERVICE_OPTIONS.find((o) => o.value === "raeumung")?.label).toBe("Räumung");
-    expect(SERVICE_OPTIONS.find((o) => o.value === "allgemein")?.label).toBe("Allgemein");
+
+  it("the stored VALUE stays the German DB token in every locale", async () => {
+    const { getServiceOptions } = await import("@/lib/offerServiceType");
+    // The value is the key written to offer_items.service_type — it must never be localized,
+    // or grouping and the PDF lookup would break.
+    for (const locale of ["de", "fr", "en"] as const) {
+      expect(getServiceOptions(locale).map((o) => o.value)).toEqual(
+        getServiceOptions("de").map((o) => o.value),
+      );
+    }
+  });
+
+  it("the visible LABEL follows the operator's locale", async () => {
+    const { getServiceOptions } = await import("@/lib/offerServiceType");
+    const label = (locale: "de" | "fr" | "en", value: string) =>
+      getServiceOptions(locale).find((o) => o.value === value)?.label;
+
+    expect(label("de", "umzug")).toBe("Umzug");
+    expect(label("de", "moebellift")).toBe("Möbellift");
+    expect(label("de", "raeumung")).toBe("Räumung");
+
+    // This is the regression that shipped: a French operator saw the German dropdown.
+    expect(label("fr", "umzug")).not.toBe("Umzug");
+    expect(label("en", "umzug")).not.toBe("Umzug");
+    expect(label("fr", "reinigung")).not.toBe("Reinigung");
+    expect(label("fr", "allgemein")).not.toBe("Allgemein");
   });
 });
 

@@ -26,6 +26,9 @@ import {
   openCalendarUrl,
   generateIcsContent,
 } from "@/lib/calendarSync";
+import { useT, useI18n } from "@/i18n/useI18n";
+import { formatDateLong } from "@/i18n/format";
+import { format } from "date-fns";
 import { toast } from "sonner";
 
 // Calendar provider icons as SVG components
@@ -67,6 +70,8 @@ interface CalendarExportMenuProps {
 }
 
 export function CalendarExportMenu({ event, triggerClassName, showLabel = true }: CalendarExportMenuProps) {
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -88,12 +93,12 @@ export function CalendarExportMenu({ event, triggerClassName, showLabel = true }
 
   const handleAppleCalendar = () => {
     downloadIcsFile(event);
-    toast.success("ICS-Datei heruntergeladen. Öffnen Sie die Datei, um den Termin zu Apple Kalender hinzuzufügen.");
+    toast.success(t("calendar.export.toast.appleDownloaded"));
   };
 
   const handleDownloadIcs = () => {
     downloadIcsFile(event);
-    toast.success("Kalender-Datei heruntergeladen");
+    toast.success(t("calendar.export.toast.downloaded"));
   };
 
   const handleCopyIcs = async () => {
@@ -101,10 +106,10 @@ export function CalendarExportMenu({ event, triggerClassName, showLabel = true }
       const icsContent = generateIcsContent(event);
       await navigator.clipboard.writeText(icsContent);
       setCopied(true);
-      toast.success("ICS-Inhalt in die Zwischenablage kopiert");
+      toast.success(t("calendar.export.toast.copied"));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Fehler beim Kopieren");
+      toast.error(t("calendar.export.toast.copyFailed"));
     }
   };
 
@@ -114,11 +119,11 @@ export function CalendarExportMenu({ event, triggerClassName, showLabel = true }
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className={triggerClassName}>
             <Calendar className="w-4 h-4 mr-2" />
-            {showLabel && "Zum Kalender"}
+            {showLabel && t("calendar.export.trigger")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Kalender hinzufügen</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("calendar.export.menuLabel")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           
           {/* Google Calendar */}
@@ -131,7 +136,7 @@ export function CalendarExportMenu({ event, triggerClassName, showLabel = true }
           {/* Apple Calendar */}
           <DropdownMenuItem onClick={handleAppleCalendar} className="cursor-pointer">
             <AppleIcon />
-            <span className="ml-2">Apple Kalender</span>
+            <span className="ml-2">{t("calendar.export.apple")}</span>
             <Download className="w-3 h-3 ml-auto text-muted-foreground" />
           </DropdownMenuItem>
           
@@ -152,7 +157,7 @@ export function CalendarExportMenu({ event, triggerClassName, showLabel = true }
           {/* Yahoo */}
           <DropdownMenuItem onClick={handleYahooCalendar} className="cursor-pointer">
             <YahooIcon />
-            <span className="ml-2">Yahoo Kalender</span>
+            <span className="ml-2">{t("calendar.export.yahoo")}</span>
             <ExternalLink className="w-3 h-3 ml-auto text-muted-foreground" />
           </DropdownMenuItem>
           
@@ -161,19 +166,19 @@ export function CalendarExportMenu({ event, triggerClassName, showLabel = true }
           {/* Download ICS */}
           <DropdownMenuItem onClick={handleDownloadIcs} className="cursor-pointer">
             <Download className="w-4 h-4" />
-            <span className="ml-2">ICS herunterladen</span>
+            <span className="ml-2">{t("calendar.export.downloadIcs")}</span>
           </DropdownMenuItem>
           
           {/* Copy ICS */}
           <DropdownMenuItem onClick={handleCopyIcs} className="cursor-pointer">
             {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-            <span className="ml-2">{copied ? "Kopiert!" : "ICS kopieren"}</span>
+            <span className="ml-2">{copied ? t("calendar.export.copied") : t("calendar.export.copyIcs")}</span>
           </DropdownMenuItem>
           
           {/* Mobile QR Code */}
           <DropdownMenuItem onClick={() => setQrDialogOpen(true)} className="cursor-pointer">
             <Smartphone className="w-4 h-4" />
-            <span className="ml-2">Für Mobilgerät</span>
+            <span className="ml-2">{t("calendar.export.mobile")}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -182,9 +187,9 @@ export function CalendarExportMenu({ event, triggerClassName, showLabel = true }
       <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Termin auf Mobilgerät hinzufügen</DialogTitle>
+            <DialogTitle>{t("calendar.export.qr.title")}</DialogTitle>
             <DialogDescription>
-              Laden Sie die ICS-Datei herunter und öffnen Sie sie auf Ihrem Smartphone, um den Termin zu Ihrem Kalender hinzuzufügen.
+              {t("calendar.export.qr.description")}
             </DialogDescription>
           </DialogHeader>
           
@@ -192,17 +197,15 @@ export function CalendarExportMenu({ event, triggerClassName, showLabel = true }
             <div className="bg-muted/50 rounded-lg p-4 space-y-2">
               <p className="font-medium">{event.title}</p>
               <p className="text-sm text-muted-foreground">
-                {event.startDate.toLocaleDateString("de-CH", {
-                  weekday: "long",
-                  day: "2-digit",
-                  month: "long",
-                  year: "numeric",
-                })}
+                {`${format(event.startDate, "EEEE", { locale: dateLocale })}, ${formatDateLong(event.startDate, locale)}`}
               </p>
               <p className="text-sm text-muted-foreground">
-                {event.allDay 
-                  ? "Ganztägig"
-                  : `${event.startDate.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })} - ${event.endDate.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}`
+                {event.allDay
+                  ? t("calendar.export.allDay")
+                  : t("calendar.detail.timeRange", {
+                      start: format(event.startDate, "HH:mm"),
+                      end: format(event.endDate, "HH:mm"),
+                    })
                 }
               </p>
               {event.location && (
@@ -213,10 +216,10 @@ export function CalendarExportMenu({ event, triggerClassName, showLabel = true }
             <div className="flex flex-col gap-2">
               <Button onClick={handleDownloadIcs} className="w-full">
                 <Download className="w-4 h-4 mr-2" />
-                ICS-Datei herunterladen
+                {t("calendar.export.qr.download")}
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                Die Datei wird automatisch von Ihrem Kalender erkannt
+                {t("calendar.export.qr.hint")}
               </p>
             </div>
           </div>

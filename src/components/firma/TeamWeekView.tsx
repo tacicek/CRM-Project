@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { ChevronLeft, ChevronRight, Clock, MapPin, Calendar, CheckCircle, XCircle, AlertCircle, Edit2, Trash2, Loader2 } from "lucide-react";
+import { useT, useI18n } from "@/i18n/useI18n";
+import { getAppointmentTypeLabel } from "@/i18n/domain";
 import { toast } from "sonner";
 
 // Import shared types and constants
@@ -51,6 +52,8 @@ const statusIcons: Record<string, React.ReactNode> = {
 };
 
 export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointmentClick }: TeamWeekViewProps) {
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
   const [teamMembers, setTeamMembers] = useState<TeamMemberView[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [availability, setAvailability] = useState<TeamAvailability[]>([]);
@@ -194,7 +197,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
     
     // FIX: Validate time range
     if (editForm.isAvailable && !isValidTimeRange(editForm.startTime, editForm.endTime)) {
-      toast.error("Endzeit muss nach Startzeit sein");
+      toast.error(t("calendar.team.availability.invalidRange"));
       return;
     }
     
@@ -235,12 +238,12 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
         if (error) throw error;
       }
 
-      toast.success("Verfügbarkeit gespeichert");
+      toast.success(t("calendar.team.availability.saved"));
       setEditState(null);
       fetchData();
     } catch (e) {
       console.error("Error saving availability:", e);
-      toast.error("Fehler beim Speichern");
+      toast.error(t("calendar.team.availability.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -263,14 +266,14 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
           .eq("id", specificAvail.id);
 
         if (error) throw error;
-        toast.success("Verfügbarkeit gelöscht");
+        toast.success(t("calendar.team.availability.deleted"));
       }
 
       setEditState(null);
       fetchData();
     } catch (e) {
       console.error("Error deleting availability:", e);
-      toast.error("Fehler beim Löschen");
+      toast.error(t("calendar.team.availability.deleteFailed"));
     } finally {
       setDeleting(false);
     }
@@ -280,7 +283,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
     return (
       <Card>
         <CardContent className="p-8 text-center text-muted-foreground">
-          Laden...
+          {t("common.loading")}
         </CardContent>
       </Card>
     );
@@ -290,7 +293,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
     return (
       <Card>
         <CardContent className="p-8 text-center text-muted-foreground">
-          Keine Team-Mitglieder gefunden. Fügen Sie zuerst Team-Mitglieder hinzu.
+          {t("calendar.team.empty")}
         </CardContent>
       </Card>
     );
@@ -304,7 +307,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
             {/* Title — only show on sm and above */}
             <div className="hidden sm:flex items-center gap-2 shrink-0">
               <Calendar className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm sm:text-base whitespace-nowrap">Team-Wochenübersicht</CardTitle>
+              <CardTitle className="text-sm sm:text-base whitespace-nowrap">{t("calendar.team.title")}</CardTitle>
             </div>
             {/* Icon only on mobile */}
             <div className="flex sm:hidden items-center shrink-0">
@@ -313,13 +316,13 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
 
             {/* Week navigation — align right with ml-auto */}
             <div className="flex items-center gap-1.5 ml-auto">
-              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigateWeek("prev")} aria-label="Vorherige Woche">
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigateWeek("prev")} aria-label={t("calendar.team.prevWeek")}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-xs sm:text-sm font-medium text-center whitespace-nowrap px-1">
-                {format(weekStart, "d. MMM", { locale: de })} – {format(weekEnd, "d. MMM yyyy", { locale: de })}
+                {format(weekStart, "d. MMM", { locale: dateLocale })} – {format(weekEnd, "d. MMM yyyy", { locale: dateLocale })}
               </span>
-              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigateWeek("next")} aria-label="Nächste Woche">
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigateWeek("next")} aria-label={t("calendar.team.nextWeek")}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -330,7 +333,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
             <div className="min-w-[900px]">
               {/* Header Row */}
               <div className="grid grid-cols-[200px_repeat(7,1fr)] border-b bg-muted/50">
-                <div className="p-3 font-medium text-sm border-r">Mitarbeiter</div>
+                <div className="p-3 font-medium text-sm border-r">{t("calendar.team.employee")}</div>
                 {weekDays.map((day) => (
                   <div
                     key={day.toISOString()}
@@ -339,10 +342,10 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
                     }`}
                   >
                     <div className="text-xs text-muted-foreground">
-                      {format(day, "EEE", { locale: de })}
+                      {format(day, "EEE", { locale: dateLocale })}
                     </div>
                     <div className={`text-sm font-medium ${isSameDay(day, new Date()) ? "text-primary" : ""}`}>
-                      {format(day, "d. MMM", { locale: de })}
+                      {format(day, "d. MMM", { locale: dateLocale })}
                     </div>
                   </div>
                 ))}
@@ -366,7 +369,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
                         <div className="text-xs text-muted-foreground truncate">{member.role}</div>
                       )}
                       <div className="text-xs text-muted-foreground mt-1">
-                        {getTotalHoursForMember(member.id).toFixed(1)}h diese Woche
+                        {t("calendar.team.hoursThisWeek", { hours: getTotalHoursForMember(member.id).toFixed(1) })}
                       </div>
                     </div>
                   </div>
@@ -388,14 +391,17 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
                         <button
                           onClick={() => openEditAvailability(member, day)}
                           className="absolute top-1 right-1 p-1 rounded bg-background/80 border opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary"
-                          aria-label={`${member.first_name} ${member.last_name} Verfügbarkeit für ${format(day, "d. MMMM", { locale: de })} bearbeiten`}
+                          aria-label={t("calendar.team.editAvailabilityAria", {
+                            name: `${member.first_name} ${member.last_name}`,
+                            date: format(day, "d. MMMM", { locale: dateLocale }),
+                          })}
                         >
                           <Edit2 className="h-3 w-3" />
                         </button>
 
                         {isUnavailable ? (
                           <div className="text-xs text-muted-foreground italic text-center py-2">
-                            Nicht verfügbar
+                            {t("calendar.team.unavailable")}
                             {dayAvailability.notes && (
                               <div className="text-[10px] mt-1">{dayAvailability.notes}</div>
                             )}
@@ -441,7 +447,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
                                         </div>
                                       )}
                                       <Badge variant="outline" className="text-[10px]">
-                                        {APPOINTMENT_TYPE_COLORS[apt.appointment_type]?.label || apt.appointment_type}
+                                        {getAppointmentTypeLabel(apt.appointment_type, locale)}
                                       </Badge>
                                     </div>
                                   </TooltipContent>
@@ -450,7 +456,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
                             ))}
                             {dayAppointments.length === 0 && !isUnavailable && (
                               <div className="text-xs text-muted-foreground text-center py-4">
-                                Keine Termine
+                                {t("calendar.team.noAppointments")}
                               </div>
                             )}
                           </div>
@@ -469,18 +475,18 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
       <Dialog open={!!editState} onOpenChange={(open) => !open && setEditState(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Verfügbarkeit bearbeiten</DialogTitle>
+            <DialogTitle>{t("calendar.team.availability.title")}</DialogTitle>
           </DialogHeader>
           {editState && (
             <div className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 <span className="font-medium text-foreground">{editState.memberName}</span>
                 {" – "}
-                {format(editState.date, "EEEE, d. MMMM yyyy", { locale: de })}
+                {format(editState.date, "EEEE, d. MMMM yyyy", { locale: dateLocale })}
               </div>
 
               <div className="flex items-center justify-between">
-                <Label htmlFor="available">Verfügbar</Label>
+                <Label htmlFor="available">{t("calendar.team.availability.available")}</Label>
                 <Switch
                   id="available"
                   checked={editForm.isAvailable}
@@ -491,7 +497,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
               {editForm.isAvailable && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="startTime">Von</Label>
+                    <Label htmlFor="startTime">{t("calendar.team.availability.from")}</Label>
                     <Input
                       id="startTime"
                       type="time"
@@ -500,7 +506,7 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="endTime">Bis</Label>
+                    <Label htmlFor="endTime">{t("calendar.team.availability.to")}</Label>
                     <Input
                       id="endTime"
                       type="time"
@@ -512,12 +518,16 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Notiz (optional)</Label>
+                <Label htmlFor="notes">{t("calendar.team.availability.notes")}</Label>
                 <Textarea
                   id="notes"
                   value={editForm.notes}
                   onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder={editForm.isAvailable ? "z.B. Homeoffice" : "z.B. Urlaub, Krank"}
+                  placeholder={
+                    editForm.isAvailable
+                      ? t("calendar.team.availability.notesPlaceholderAvailable")
+                      : t("calendar.team.availability.notesPlaceholderUnavailable")
+                  }
                   rows={2}
                 />
               </div>
@@ -536,20 +546,20 @@ export function TeamWeekView({ companyId, currentDate, onDateChange, onAppointme
                 ) : (
                   <Trash2 className="h-4 w-4" />
                 )}
-                {deleting ? "Löschen..." : "Löschen"}
+                {deleting ? t("calendar.team.availability.deleting") : t("common.delete")}
               </Button>
             )}
             <Button variant="outline" onClick={() => setEditState(null)} disabled={saving || deleting}>
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button onClick={saveAvailability} disabled={saving || deleting} className="gap-2">
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Speichern...
+                  {t("common.saving")}
                 </>
               ) : (
-                "Speichern"
+                t("common.save")
               )}
             </Button>
           </DialogFooter>

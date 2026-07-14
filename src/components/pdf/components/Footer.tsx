@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
+import { documentI18nFor } from "@/i18n/documentLocale";
 
 /** Space reserved above bottom edge; keep in sync with Page paddingBottom */
 const FOOTER_BOTTOM_PT = 24;
@@ -45,7 +46,8 @@ interface FooterProps {
 }
 
 export const Footer = ({ data }: FooterProps) => {
-  const { company } = data;
+  const { company, locale } = data;
+  const { t } = documentI18nFor(locale);
   const addressLine = [
     company.address,
     [company.zip, company.city].filter(Boolean).join(" "),
@@ -54,7 +56,10 @@ export const Footer = ({ data }: FooterProps) => {
     .join(", ");
   // design v2: kompakte Einzeiler — links Firma · Tel · Adresse, rechts IBAN · E-Mail
   const leftLine = [company.name, company.phone, addressLine].filter(Boolean).join(" · ");
-  const rightLine = [company.iban ? `IBAN ${company.iban}` : null, company.email]
+  const rightLine = [
+    company.iban ? `${t("doc.footer.iban")}${company.iban}` : null,
+    company.email,
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -70,7 +75,9 @@ export const Footer = ({ data }: FooterProps) => {
         <Text style={styles.line}>{rightLine}</Text>
         <Text
           style={styles.pageNumber}
-          render={({ pageNumber, totalPages }) => `Seite ${pageNumber} / ${totalPages}`}
+          render={({ pageNumber, totalPages }) =>
+            t("doc.footer.page", { page: pageNumber, total: totalPages })
+          }
         />
       </View>
     </View>

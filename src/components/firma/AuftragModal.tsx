@@ -50,12 +50,14 @@ import {
   Plus,
 } from "lucide-react";
 import { format } from "date-fns";
-import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getServiceLabel } from "@/lib/serviceLabels";
+import { getAuftragStatusLabel, getServiceLabel } from "@/i18n/domain";
+import { formatCurrency } from "@/i18n/format";
+import { useI18n, useT } from "@/i18n/useI18n";
 import { allowedAuftragTargets } from "@/lib/auftragStatus";
+import { toLocale } from "@/i18n/locale";
 
 // =============================================================================
 // INTERFACES
@@ -96,11 +98,15 @@ interface FullOffer {
   vat_amount: number | null;
   total: number | null;
   status: string;
+  /** DOCUMENT locale, frozen on the offer — the Auftrag inherits it. */
+  language?: string | null;
 }
 
 interface Lead {
   id: string;
   service_type: string;
+  /** DOCUMENT locale — only used when the Auftrag is created without an offer. */
+  language?: string | null;
   // Customer
   customer_first_name: string;
   customer_last_name: string;
@@ -238,6 +244,8 @@ export function AuftragModal({
   onSuccess,
 }: AuftragModalProps) {
   const { toast } = useToast();
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const isSavingRef = useRef(false);
@@ -252,7 +260,8 @@ export function AuftragModal({
   // Full data from offer and lead
   const [offer, setOffer] = useState<FullOffer | null>(null);
   const [_offerItems, setOfferItems] = useState<OfferItem[]>([]);
-  const [_lead, setLead] = useState<Lead | null>(null);
+  // No longer unused: the lead is the language source when an Auftrag is created without an offer.
+  const [lead, setLead] = useState<Lead | null>(null);
   
   // UI state
   const [showOfferDetails, setShowOfferDetails] = useState(true);
@@ -356,8 +365,8 @@ export function AuftragModal({
       } catch (error) {
         console.error("Error fetching approved offers:", error);
         toast({
-          title: "Fehler",
-          description: "Genehmigte Offerten konnten nicht geladen werden.",
+          title: t("common.error"),
+          description: t("auftrag.toast.offersLoadFailed"),
           variant: "destructive",
         });
       } finally {
@@ -370,7 +379,7 @@ export function AuftragModal({
     } else {
       setShowOfferSelection(false);
     }
-  }, [isOpen, companyId, offerId, auftrag, toast]);
+  }, [isOpen, companyId, offerId, auftrag, toast, t]);
 
   // Handle offer selection from the list
   const handleOfferSelect = (selectedId: string) => {
@@ -477,8 +486,8 @@ export function AuftragModal({
       } catch (error) {
         console.error("Error fetching offer data:", error);
         toast({
-          title: "Fehler",
-          description: "Offerte-Daten konnten nicht geladen werden.",
+          title: t("common.error"),
+          description: t("auftrag.toast.offerLoadFailed"),
           variant: "destructive",
         });
       } finally {
@@ -489,7 +498,7 @@ export function AuftragModal({
     if (isOpen && (offerId || selectedOfferId) && !auftrag) {
       fetchOfferData();
     }
-  }, [isOpen, offerId, selectedOfferId, auftrag, toast]);
+  }, [isOpen, offerId, selectedOfferId, auftrag, toast, t]);
 
   // Initialize form for editing existing auftrag
   useEffect(() => {
@@ -563,6 +572,9 @@ export function AuftragModal({
   // HELPER FUNCTIONS
   // =============================================================================
 
+  // NOT operator chrome: the result is stored in auftraege.from_address / to_address and is
+  // later printed on the customer's work order. It must stay in the DATA language, so it is
+  // deliberately not routed through useT() (the dashboard locale).
   const buildAddress = (
     street: string | null,
     houseNumber: string | null,
@@ -641,13 +653,6 @@ export function AuftragModal({
     return details;
   };
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("de-CH", {
-      style: "currency",
-      currency: "CHF",
-    }).format(amount);
-  };
-
   // "HH:MM" + Minuten → "HH:MM:SS" (für appointment end_time)
   const addMinutesToTime = (time: string, minutes: number): string => {
     const [h, m] = time.split(":").map((n) => parseInt(n, 10));
@@ -695,8 +700,8 @@ export function AuftragModal({
 
     if (!formData.title || !formData.customer_name || !formData.scheduled_date) {
       toast({
-        title: "Fehler",
-        description: "Bitte füllen Sie alle Pflichtfelder aus.",
+        title: t("common.error"),
+        description: t("auftrag.toast.requiredFields"),
         variant: "destructive",
       });
       return;
@@ -707,8 +712,8 @@ export function AuftragModal({
     const resolvedOfferId = selectedOfferId || offerId || auftrag?.offer_id || null;
     if (!auftrag && !resolvedOfferId) {
       toast({
-        title: "Offerte erforderlich",
-        description: "Ein Auftrag muss einer akzeptierten Offerte zugeordnet sein. Bitte wählen Sie eine Offerte aus oder öffnen Sie den Auftrag direkt aus einer Offerte.",
+        title: t("auftrag.toast.offerRequired"),
+        description: t("auftrag.toast.offerRequiredHint"),
         variant: "destructive",
       });
       return;
@@ -719,8 +724,8 @@ export function AuftragModal({
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.customer_email)) {
         toast({
-          title: "Ungültige E-Mail",
-          description: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+          title: t("auftrag.toast.invalidEmail"),
+          description: t("auftrag.toast.invalidEmailHint"),
           variant: "destructive",
         });
         return;
@@ -730,16 +735,16 @@ export function AuftragModal({
     // Negative Preise verhindern
     if (formData.pricing_type === "hourly" && (formData.hourly_rate ?? 0) < 0) {
       toast({
-        title: "Ungültiger Preis",
-        description: "Der Stundensatz darf nicht negativ sein.",
+        title: t("auftrag.toast.invalidPrice"),
+        description: t("auftrag.toast.negativeHourlyRate"),
         variant: "destructive",
       });
       return;
     }
     if (formData.pricing_type === "fixed" && (formData.subtotal ?? 0) < 0) {
       toast({
-        title: "Ungültiger Preis",
-        description: "Der Preis darf nicht negativ sein.",
+        title: t("auftrag.toast.invalidPrice"),
+        description: t("auftrag.toast.negativePrice"),
         variant: "destructive",
       });
       return;
@@ -748,8 +753,8 @@ export function AuftragModal({
     // Vergangenes Datum warnen (nur bei Neuanlage)
     if (!auftrag && formData.scheduled_date < new Date(new Date().toDateString())) {
       toast({
-        title: "Datum in der Vergangenheit",
-        description: "Das gewählte Datum liegt in der Vergangenheit.",
+        title: t("auftrag.toast.pastDate"),
+        description: t("auftrag.toast.pastDateHint"),
         variant: "destructive",
       });
       return;
@@ -834,13 +839,19 @@ export function AuftragModal({
         if (error) throw error;
 
         toast({
-          title: "Erfolg",
-          description: "Auftrag wurde aktualisiert.",
+          title: t("common.success"),
+          description: t("auftrag.toast.updated"),
         });
       } else {
         // Create new — jeder aktive Auftrag bekommt einen kanonischen service-Termin.
         const linkedOfferId = auftragData.offer_id;
         let appointmentId: string | null = null;
+
+        // DOCUMENT locale: inherited from the offer (which froze it from the lead), or
+        // straight from the lead when the Auftrag is created without an offer. Set at
+        // CREATION only — like the offer's frozen fields, it must not silently flip on a
+        // later edit (where offer/lead are not even loaded).
+        const documentLanguage = toLocale(offer?.language ?? lead?.language);
 
         // Vorhandenen service-Termin der Offerte wiederverwenden (vom Accept-Flow)
         if (linkedOfferId) {
@@ -876,6 +887,7 @@ export function AuftragModal({
               customer_phone: formData.customer_phone || null,
               title: formData.title,
               description: formData.description || null,
+              language: documentLanguage,
             })
             .select("id")
             .single();
@@ -885,13 +897,13 @@ export function AuftragModal({
 
         const { error } = await supabase
           .from("auftraege")
-          .insert({ ...auftragData, appointment_id: appointmentId });
+          .insert({ ...auftragData, appointment_id: appointmentId, language: documentLanguage });
 
         if (error) throw error;
 
         toast({
-          title: "Erfolg",
-          description: "Auftrag wurde erstellt.",
+          title: t("common.success"),
+          description: t("auftrag.toast.created"),
         });
       }
 
@@ -899,21 +911,23 @@ export function AuftragModal({
       onClose();
     } catch (error) {
       console.error("Error saving auftrag:", error);
-      let errorMessage = "Auftrag konnte nicht gespeichert werden.";
+      let errorMessage = t("auftrag.toast.saveFailedDefault");
       if (error && typeof error === "object" && "code" in error) {
         const pgError = error as { code: string; message?: string };
         if (pgError.code === "23503") {
-          errorMessage = "Die verknüpfte Offerte oder ein Mitarbeiter wurde nicht gefunden. Bitte überprüfen Sie die Auswahl.";
+          errorMessage = t("auftrag.toast.saveFailedForeignKey");
         } else if (pgError.code === "23505") {
-          errorMessage = "Ein Auftrag mit dieser Nummer existiert bereits. Bitte versuchen Sie es erneut.";
+          errorMessage = t("auftrag.toast.saveFailedDuplicate");
         } else if (pgError.code === "23514") {
-          errorMessage = "Ungültige Eingabe: " + (pgError.message || "Ein Wert entspricht nicht den erlaubten Optionen.");
+          errorMessage = t("auftrag.toast.saveFailedCheck", {
+            message: pgError.message || t("auftrag.toast.saveFailedCheckFallback"),
+          });
         } else if (pgError.message) {
           errorMessage = pgError.message;
         }
       }
       toast({
-        title: "Fehler beim Speichern",
+        title: t("auftrag.toast.saveFailed"),
         description: errorMessage,
         variant: "destructive",
       });
@@ -932,12 +946,14 @@ export function AuftragModal({
     }));
   };
 
+  // Visual only — the label comes from getAuftragStatusLabel(value, locale), so the
+  // operator's dashboard language decides it (same source as the Aufträge list).
   const statusOptions = [
-    { value: "geplant", label: "Geplant", color: "bg-blue-100 text-blue-700" },
-    { value: "bestaetigt", label: "Bestätigt", color: "bg-green-100 text-green-700" },
-    { value: "in_bearbeitung", label: "In Bearbeitung", color: "bg-amber-100 text-amber-700" },
-    { value: "abgeschlossen", label: "Abgeschlossen", color: "bg-emerald-100 text-emerald-700" },
-    { value: "storniert", label: "Storniert", color: "bg-red-100 text-red-700" },
+    { value: "geplant", color: "bg-blue-100 text-blue-700" },
+    { value: "bestaetigt", color: "bg-green-100 text-green-700" },
+    { value: "in_bearbeitung", color: "bg-amber-100 text-amber-700" },
+    { value: "abgeschlossen", color: "bg-emerald-100 text-emerald-700" },
+    { value: "storniert", color: "bg-red-100 text-red-700" },
   ];
 
   // State machine: beim Bearbeiten nur erlaubte Zielstatus anzeigen.
@@ -970,7 +986,7 @@ export function AuftragModal({
             {details.from_rooms && (
               <div className="flex items-center gap-2">
                 <Home className="w-4 h-4 text-muted-foreground" />
-                <span>{details.from_rooms as number} Zimmer</span>
+                <span>{t("auftrag.details.rooms", { count: details.from_rooms as number })}</span>
               </div>
             )}
             {details.from_living_space_m2 && (
@@ -986,24 +1002,24 @@ export function AuftragModal({
               </div>
             )}
             {details.packing_service_needed && (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700">Verpackungsservice</Badge>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-700">{t("auftrag.details.packing")}</Badge>
             )}
             {details.cleaning_service_needed && (
-              <Badge variant="secondary" className="bg-purple-100 text-purple-700">Reinigung</Badge>
+              <Badge variant="secondary" className="bg-purple-100 text-purple-700">{t("auftrag.details.cleaning")}</Badge>
             )}
             {details.piano_transport_needed && (
-              <Badge variant="secondary" className="bg-amber-100 text-amber-700">Klavier</Badge>
+              <Badge variant="secondary" className="bg-amber-100 text-amber-700">{t("auftrag.details.piano")}</Badge>
             )}
           </div>
         );
-        
+
       case "reinigung":
         return (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             {details.from_rooms && (
               <div className="flex items-center gap-2">
                 <Home className="w-4 h-4 text-muted-foreground" />
-                <span>{details.from_rooms as number} Zimmer</span>
+                <span>{t("auftrag.details.rooms", { count: details.from_rooms as number })}</span>
               </div>
             )}
             {details.from_living_space_m2 && (
@@ -1013,16 +1029,18 @@ export function AuftragModal({
               </div>
             )}
             {details.bathroom_count && (
-              <Badge variant="secondary">{details.bathroom_count as number} Bad(s)</Badge>
+              <Badge variant="secondary">
+                {t("auftrag.details.bathrooms", { count: details.bathroom_count as number })}
+              </Badge>
             )}
             {details.cleaning_windows && (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700">Fenster</Badge>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-700">{t("auftrag.details.windows")}</Badge>
             )}
             {details.has_balcony && (
-              <Badge variant="secondary">Balkon</Badge>
+              <Badge variant="secondary">{t("auftrag.details.balcony")}</Badge>
             )}
             {details.has_garage && (
-              <Badge variant="secondary">Garage</Badge>
+              <Badge variant="secondary">{t("auftrag.details.garage")}</Badge>
             )}
           </div>
         );
@@ -1061,7 +1079,7 @@ export function AuftragModal({
               </div>
             )}
             {details.has_heavy_items && (
-              <Badge variant="secondary" className="bg-amber-100 text-amber-700">Schwere Gegenstände</Badge>
+              <Badge variant="secondary" className="bg-amber-100 text-amber-700">{t("auftrag.details.heavyItems")}</Badge>
             )}
           </div>
         );
@@ -1081,23 +1099,25 @@ export function AuftragModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-600" />
-            {auftrag ? `Auftrag bearbeiten: ${auftrag.auftrag_nummer}` : "Neuer Auftrag"}
+            {auftrag
+              ? t("auftrag.modal.edit", { number: auftrag.auftrag_nummer })
+              : t("auftrag.modal.new")}
           </DialogTitle>
           <DialogDescription>
             {(offerId || selectedOfferId) && offer ? (
               <span className="flex items-center gap-2">
-                Erstellt aus Offerte: <strong>{offer.title}</strong>
+                {t("auftrag.modal.fromOffer")} <strong>{offer.title}</strong>
                 {formData.service_type && (
                   <Badge variant="secondary" className="ml-2">
                     {getServiceIcon(formData.service_type)}
-                    <span className="ml-1">{getServiceLabel(formData.service_type)}</span>
+                    <span className="ml-1">{getServiceLabel(formData.service_type, locale)}</span>
                   </Badge>
                 )}
               </span>
             ) : showOfferSelection ? (
-              "Wählen Sie eine genehmigte Offerte aus"
+              t("auftrag.modal.selectOffer")
             ) : (
-              "Auftrag erstellen und Team zuweisen"
+              t("auftrag.modal.createAndAssign")
             )}
           </DialogDescription>
         </DialogHeader>
@@ -1108,7 +1128,7 @@ export function AuftragModal({
             {isLoadingOffers ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                <span className="ml-3 text-muted-foreground">Genehmigte Offerten werden geladen...</span>
+                <span className="ml-3 text-muted-foreground">{t("auftrag.modal.loadingOffers")}</span>
               </div>
             ) : approvedOffers.length === 0 ? (
               <div className="text-center py-12 space-y-4">
@@ -1116,21 +1136,21 @@ export function AuftragModal({
                   <AlertTriangle className="w-8 h-8 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium">Keine genehmigten Offerten</h3>
+                  <h3 className="text-lg font-medium">{t("auftrag.modal.noApprovedOffers")}</h3>
                   <p className="text-muted-foreground mt-1">
-                    Es gibt keine genehmigten Offerten, aus denen ein Auftrag erstellt werden kann.
+                    {t("auftrag.modal.noApprovedOffersHint")}
                   </p>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Sie können trotzdem einen Auftrag manuell erstellen.
+                    {t("auftrag.modal.manualHint")}
                   </p>
                 </div>
                 <div className="flex gap-2 justify-center">
                   <Button variant="outline" onClick={onClose}>
-                    Schliessen
+                    {t("common.close")}
                   </Button>
                   <Button onClick={() => setShowOfferSelection(false)}>
                     <Plus className="w-4 h-4 mr-1" />
-                    Manuell erstellen
+                    {t("auftrag.modal.createManually")}
                   </Button>
                 </div>
               </div>
@@ -1138,7 +1158,7 @@ export function AuftragModal({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
-                    {approvedOffers.length} genehmigte Offerte(n) verfügbar
+                    {t("auftrag.modal.offersAvailable", { count: approvedOffers.length })}
                   </p>
                   <Button
                     variant="outline"
@@ -1146,7 +1166,7 @@ export function AuftragModal({
                     onClick={() => setShowOfferSelection(false)}
                   >
                     <Plus className="w-4 h-4 mr-1" />
-                    Manuell erstellen
+                    {t("auftrag.modal.createManually")}
                   </Button>
                 </div>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
@@ -1177,17 +1197,17 @@ export function AuftragModal({
                           {approvedOffer.service_date && (
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <CalendarIcon className="w-3 h-3" />
-                              <span>{format(new Date(approvedOffer.service_date), "dd.MM.yyyy", { locale: de })}</span>
+                              <span>{format(new Date(approvedOffer.service_date), "dd.MM.yyyy", { locale: dateLocale })}</span>
                             </div>
                           )}
                         </div>
                         <div className="text-right">
                           <Badge variant="secondary" className="bg-green-100 text-green-700 mb-2">
-                            Genehmigt
+                            {t("auftrag.modal.approved")}
                           </Badge>
                           {approvedOffer.total && (
                             <div className="font-bold text-blue-600">
-                              {formatCurrency(approvedOffer.total)}
+                              {formatCurrency(approvedOffer.total, locale)}
                             </div>
                           )}
                         </div>
@@ -1209,13 +1229,13 @@ export function AuftragModal({
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Euro className="w-4 h-4 text-blue-600" />
-                    Preisgestaltung
+                    {t("auftrag.pricing.title")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label>Preistyp</Label>
+                      <Label>{t("auftrag.pricing.type")}</Label>
                       <Select
                         value={formData.pricing_type}
                         onValueChange={(value: "fixed" | "hourly" | "estimate") =>
@@ -1228,17 +1248,17 @@ export function AuftragModal({
                         <SelectContent>
                           <SelectItem value="fixed">
                             <span className="flex items-center gap-2">
-                              <Badge variant="secondary" className="bg-green-100 text-green-700">Festpreis</Badge>
+                              <Badge variant="secondary" className="bg-green-100 text-green-700">{t("auftrag.pricing.fixed")}</Badge>
                             </span>
                           </SelectItem>
                           <SelectItem value="hourly">
                             <span className="flex items-center gap-2">
-                              <Badge variant="secondary" className="bg-amber-100 text-amber-700">Nach Aufwand</Badge>
+                              <Badge variant="secondary" className="bg-amber-100 text-amber-700">{t("auftrag.pricing.hourly")}</Badge>
                             </span>
                           </SelectItem>
                           <SelectItem value="estimate">
                             <span className="flex items-center gap-2">
-                              <Badge variant="secondary" className="bg-blue-100 text-blue-700">Kostenvoranschlag</Badge>
+                              <Badge variant="secondary" className="bg-blue-100 text-blue-700">{t("auftrag.pricing.estimate")}</Badge>
                             </span>
                           </SelectItem>
                         </SelectContent>
@@ -1247,7 +1267,7 @@ export function AuftragModal({
 
                     {formData.pricing_type === "hourly" && (
                       <div className="space-y-2">
-                        <Label>Stundensatz (CHF)</Label>
+                        <Label>{t("auftrag.pricing.hourlyRate")}</Label>
                         <Input
                           type="number"
                           min={0}
@@ -1259,7 +1279,7 @@ export function AuftragModal({
                               hourly_rate: parseFloat(e.target.value) || 0,
                             }))
                           }
-                          placeholder="z.B. 85"
+                          placeholder={t("auftrag.pricing.hourlyRatePlaceholder")}
                         />
                       </div>
                     )}
@@ -1268,7 +1288,7 @@ export function AuftragModal({
                       <div className="flex items-end">
                         <p className="text-sm text-amber-600 bg-amber-50 p-2 rounded-lg">
                           <Clock className="w-4 h-4 inline mr-1" />
-                          Endpreis wird nach Abschluss berechnet
+                          {t("auftrag.pricing.finalPriceNote")}
                         </p>
                       </div>
                     )}
@@ -1286,7 +1306,7 @@ export function AuftragModal({
                     <CardTitle className="text-base flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <Euro className="w-4 h-4 text-blue-600" />
-                        Offerte-Positionen
+                        {t("auftrag.offerItems.title")}
                       </span>
                       {showOfferDetails ? (
                         <ChevronUp className="w-4 h-4" />
@@ -1302,10 +1322,10 @@ export function AuftragModal({
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="text-left p-2 font-medium">Beschreibung</th>
-                              <th className="text-right p-2 font-medium w-20">Menge</th>
-                              <th className="text-right p-2 font-medium w-24">Preis</th>
-                              <th className="text-right p-2 font-medium w-24">Total</th>
+                              <th className="text-left p-2 font-medium">{t("common.description")}</th>
+                              <th className="text-right p-2 font-medium w-20">{t("common.quantity")}</th>
+                              <th className="text-right p-2 font-medium w-24">{t("common.price")}</th>
+                              <th className="text-right p-2 font-medium w-24">{t("common.total")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1313,31 +1333,31 @@ export function AuftragModal({
                               <tr key={item.id || idx} className="border-t">
                                 <td className="p-2">{item.description}</td>
                                 <td className="p-2 text-right">{item.quantity} {item.unit}</td>
-                                <td className="p-2 text-right">{formatCurrency(item.unit_price)}</td>
+                                <td className="p-2 text-right">{formatCurrency(item.unit_price, locale)}</td>
                                 <td className="p-2 text-right font-medium">
-                                  {formatCurrency(item.total || item.quantity * item.unit_price)}
+                                  {formatCurrency(item.total || item.quantity * item.unit_price, locale)}
                                 </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
-                      
+
                       {/* Totals */}
                       <div className="flex justify-end">
                         <div className="w-64 space-y-1 text-sm">
                           <div className="flex justify-between">
-                            <span>Zwischensumme:</span>
-                            <span>{formatCurrency(formData.subtotal)}</span>
+                            <span>{t("common.subtotal")}:</span>
+                            <span>{formatCurrency(formData.subtotal, locale)}</span>
                           </div>
                           <div className="flex justify-between text-muted-foreground">
-                            <span>MwSt. ({formData.vat_rate}%):</span>
-                            <span>{formatCurrency(formData.vat_amount)}</span>
+                            <span>{t("auftrag.vatWithRate", { rate: formData.vat_rate })}:</span>
+                            <span>{formatCurrency(formData.vat_amount, locale)}</span>
                           </div>
                           <Separator />
                           <div className="flex justify-between font-bold text-base">
-                            <span>Total:</span>
-                            <span className="text-blue-600">{formatCurrency(formData.total)}</span>
+                            <span>{t("common.total")}:</span>
+                            <span className="text-blue-600">{formatCurrency(formData.total, locale)}</span>
                           </div>
                         </div>
                       </div>
@@ -1352,7 +1372,7 @@ export function AuftragModal({
                   <CardTitle className="text-base flex items-center justify-between">
                     <span className="flex items-center gap-2">
                       <Package className="w-4 h-4 text-purple-600" />
-                      Zusätzliche Leistungen
+                      {t("auftrag.extras.title")}
                     </span>
                     <Button
                       type="button"
@@ -1373,23 +1393,23 @@ export function AuftragModal({
                       }}
                     >
                       <Plus className="w-4 h-4 mr-1" />
-                      Hinzufügen
+                      {t("common.add")}
                     </Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {formData.extra_services.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      Keine zusätzlichen Leistungen. Klicken Sie auf "Hinzufügen" um eine neue Position zu erstellen.
+                      {t("auftrag.extras.empty")}
                     </p>
                   ) : (
                     <div className="space-y-3">
                       {formData.extra_services.map((service, idx) => (
                         <div key={service.id} className="grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-lg">
                           <div className="col-span-5 space-y-1">
-                            <Label className="text-xs">Beschreibung</Label>
+                            <Label className="text-xs">{t("common.description")}</Label>
                             <Input
-                              placeholder="z.B. Möbelmontage"
+                              placeholder={t("auftrag.extras.descriptionPlaceholder")}
                               value={service.description}
                               onChange={(e) => {
                                 const updated = [...formData.extra_services];
@@ -1399,7 +1419,7 @@ export function AuftragModal({
                             />
                           </div>
                           <div className="col-span-2 space-y-1">
-                            <Label className="text-xs">Menge</Label>
+                            <Label className="text-xs">{t("common.quantity")}</Label>
                             <Input
                               type="number"
                               min={1}
@@ -1411,8 +1431,11 @@ export function AuftragModal({
                               }}
                             />
                           </div>
+                          {/* Unit tokens are DATA: they are stored on the Auftrag row and printed
+                              on the customer's work order / receipt, so they stay in the data
+                              language and are NOT routed through useT(). */}
                           <div className="col-span-2 space-y-1">
-                            <Label className="text-xs">Einheit</Label>
+                            <Label className="text-xs">{t("common.unit")}</Label>
                             <Select
                               value={service.unit}
                               onValueChange={(value) => {
@@ -1434,7 +1457,7 @@ export function AuftragModal({
                             </Select>
                           </div>
                           <div className="col-span-2 space-y-1">
-                            <Label className="text-xs">Preis (CHF)</Label>
+                            <Label className="text-xs">{t("auftrag.extras.priceChf")}</Label>
                             <Input
                               type="number"
                               min={0}
@@ -1480,7 +1503,9 @@ export function AuftragModal({
                     <CardTitle className="text-base flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         {getServiceIcon(formData.service_type)}
-                        {getServiceLabel(formData.service_type)} - Details
+                        {t("auftrag.serviceDetails", {
+                          service: getServiceLabel(formData.service_type, locale),
+                        })}
                       </span>
                       {showServiceDetails ? (
                         <ChevronUp className="w-4 h-4" />
@@ -1500,16 +1525,16 @@ export function AuftragModal({
               {/* Title & Status */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title">Titel *</Label>
+                  <Label htmlFor="title">{t("auftrag.field.title")}</Label>
                   <Input
                     id="title"
                     value={formData.title}
                     onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-                    placeholder="z.B. Umzug Familie Müller"
+                    placeholder={t("auftrag.field.titlePlaceholder")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>{t("common.status")}</Label>
                   <Select
                     value={formData.status}
                     onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
@@ -1521,7 +1546,7 @@ export function AuftragModal({
                       {visibleStatusOptions.map((status) => (
                         <SelectItem key={status.value} value={status.value}>
                           <Badge variant="secondary" className={status.color}>
-                            {status.label}
+                            {getAuftragStatusLabel(status.value, locale)}
                           </Badge>
                         </SelectItem>
                       ))}
@@ -1534,22 +1559,22 @@ export function AuftragModal({
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <User className="w-4 h-4" />
-                  Kundendaten
+                  {t("auftrag.field.customerData")}
                 </Label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Input
-                    placeholder="Name *"
+                    placeholder={t("auftrag.field.namePlaceholder")}
                     value={formData.customer_name}
                     onChange={(e) => setFormData((prev) => ({ ...prev, customer_name: e.target.value }))}
                   />
                   <Input
-                    placeholder="E-Mail"
+                    placeholder={t("common.email")}
                     type="email"
                     value={formData.customer_email}
                     onChange={(e) => setFormData((prev) => ({ ...prev, customer_email: e.target.value }))}
                   />
                   <Input
-                    placeholder="Telefon"
+                    placeholder={t("common.phone")}
                     value={formData.customer_phone}
                     onChange={(e) => setFormData((prev) => ({ ...prev, customer_phone: e.target.value }))}
                   />
@@ -1561,10 +1586,10 @@ export function AuftragModal({
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-green-600" />
-                    Von-Adresse
+                    {t("auftrag.field.fromAddress")}
                   </Label>
                   <Textarea
-                    placeholder="Strasse Nr.&#10;PLZ Ort&#10;Stock (Lift)"
+                    placeholder={t("auftrag.field.addressPlaceholder")}
                     rows={3}
                     value={formData.from_address}
                     onChange={(e) => setFormData((prev) => ({ ...prev, from_address: e.target.value }))}
@@ -1573,10 +1598,10 @@ export function AuftragModal({
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-red-600" />
-                    Nach-Adresse
+                    {t("auftrag.field.toAddress")}
                   </Label>
                   <Textarea
-                    placeholder="Strasse Nr.&#10;PLZ Ort&#10;Stock (Lift)"
+                    placeholder={t("auftrag.field.addressPlaceholder")}
                     rows={3}
                     value={formData.to_address}
                     onChange={(e) => setFormData((prev) => ({ ...prev, to_address: e.target.value }))}
@@ -1589,7 +1614,7 @@ export function AuftragModal({
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4" />
-                    Datum *
+                    {t("auftrag.field.date")}
                   </Label>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1602,8 +1627,8 @@ export function AuftragModal({
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {formData.scheduled_date
-                          ? format(formData.scheduled_date, "PPP", { locale: de })
-                          : "Datum wählen"}
+                          ? format(formData.scheduled_date, "PPP", { locale: dateLocale })
+                          : t("common.selectDate")}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
@@ -1611,7 +1636,7 @@ export function AuftragModal({
                         mode="single"
                         selected={formData.scheduled_date}
                         onSelect={(date) => date && setFormData((prev) => ({ ...prev, scheduled_date: date }))}
-                        locale={de}
+                        locale={dateLocale}
                       />
                     </PopoverContent>
                   </Popover>
@@ -1619,7 +1644,7 @@ export function AuftragModal({
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Clock className="w-4 h-4" />
-                    Zeit
+                    {t("common.time")}
                   </Label>
                   <Input
                     type="time"
@@ -1628,7 +1653,7 @@ export function AuftragModal({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Geschätzte Dauer</Label>
+                  <Label>{t("auftrag.field.duration")}</Label>
                   <Select
                     value={formData.estimated_duration_minutes.toString()}
                     onValueChange={(value) =>
@@ -1639,21 +1664,21 @@ export function AuftragModal({
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Dauer wählen" />
+                      <SelectValue placeholder={t("auftrag.field.durationPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="30">30 Min.</SelectItem>
-                      <SelectItem value="60">1 Stunde</SelectItem>
-                      <SelectItem value="90">1.5 Stunden</SelectItem>
-                      <SelectItem value="120">2 Stunden</SelectItem>
-                      <SelectItem value="180">3 Stunden</SelectItem>
-                      <SelectItem value="240">4 Stunden</SelectItem>
-                      <SelectItem value="300">5 Stunden</SelectItem>
-                      <SelectItem value="360">6 Stunden</SelectItem>
-                      <SelectItem value="420">7 Stunden</SelectItem>
-                      <SelectItem value="480">8 Stunden (Ganzer Tag)</SelectItem>
-                      <SelectItem value="600">10 Stunden</SelectItem>
-                      <SelectItem value="720">12 Stunden</SelectItem>
+                      <SelectItem value="30">{t("auftrag.duration.min30")}</SelectItem>
+                      <SelectItem value="60">{t("auftrag.duration.h1")}</SelectItem>
+                      <SelectItem value="90">{t("auftrag.duration.h1_5")}</SelectItem>
+                      <SelectItem value="120">{t("auftrag.duration.h2")}</SelectItem>
+                      <SelectItem value="180">{t("auftrag.duration.h3")}</SelectItem>
+                      <SelectItem value="240">{t("auftrag.duration.h4")}</SelectItem>
+                      <SelectItem value="300">{t("auftrag.duration.h5")}</SelectItem>
+                      <SelectItem value="360">{t("auftrag.duration.h6")}</SelectItem>
+                      <SelectItem value="420">{t("auftrag.duration.h7")}</SelectItem>
+                      <SelectItem value="480">{t("auftrag.duration.h8")}</SelectItem>
+                      <SelectItem value="600">{t("auftrag.duration.h10")}</SelectItem>
+                      <SelectItem value="720">{t("auftrag.duration.h12")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1663,12 +1688,12 @@ export function AuftragModal({
               <div className="space-y-4">
                 <Label className="flex items-center gap-2">
                   <Users className="w-4 h-4" />
-                  Team-Zuweisung
+                  {t("auftrag.team.title")}
                 </Label>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">Team-Leiter (erhält Erinnerung)</Label>
+                    <Label className="text-sm text-muted-foreground">{t("auftrag.team.leader")}</Label>
                     <Select
                       value={formData.team_leader_id}
                       onValueChange={(value) =>
@@ -1676,10 +1701,10 @@ export function AuftragModal({
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Team-Leiter wählen (optional)" />
+                        <SelectValue placeholder={t("auftrag.team.leaderPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Kein Team-Leiter</SelectItem>
+                        <SelectItem value="none">{t("auftrag.team.noLeader")}</SelectItem>
                         {teamMembers
                           .filter((m) => m.email)
                           .map((member) => (
@@ -1692,13 +1717,13 @@ export function AuftragModal({
                     {!teamMembers.some((m) => m.email) && (
                       <p className="text-xs text-amber-600 flex items-center gap-1">
                         <Info className="w-3 h-3" />
-                        Kein Team-Mitglied hat eine E-Mail-Adresse.
+                        {t("auftrag.team.noEmailWarning")}
                       </p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">Erinnerung senden</Label>
+                    <Label className="text-sm text-muted-foreground">{t("auftrag.team.reminder")}</Label>
                     <Select
                       value={formData.reminder_days_before.toString()}
                       onValueChange={(value) =>
@@ -1709,10 +1734,10 @@ export function AuftragModal({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">1 Tag vorher</SelectItem>
-                        <SelectItem value="2">2 Tage vorher</SelectItem>
-                        <SelectItem value="3">3 Tage vorher</SelectItem>
-                        <SelectItem value="7">1 Woche vorher</SelectItem>
+                        <SelectItem value="1">{t("auftrag.reminder.d1")}</SelectItem>
+                        <SelectItem value="2">{t("auftrag.reminder.d2")}</SelectItem>
+                        <SelectItem value="3">{t("auftrag.reminder.d3")}</SelectItem>
+                        <SelectItem value="7">{t("auftrag.reminder.w1")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1721,7 +1746,7 @@ export function AuftragModal({
                 {/* Team Members Selection */}
                 {teamMembers.length > 0 && (
                   <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">Weitere Team-Mitglieder</Label>
+                    <Label className="text-sm text-muted-foreground">{t("auftrag.team.members")}</Label>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {teamMembers.map((member) => (
                         <div
@@ -1749,18 +1774,18 @@ export function AuftragModal({
               {/* Description & Notes */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Beschreibung</Label>
+                  <Label>{t("common.description")}</Label>
                   <Textarea
-                    placeholder="Allgemeine Beschreibung des Auftrags..."
+                    placeholder={t("auftrag.field.descriptionPlaceholder")}
                     rows={3}
                     value={formData.description}
                     onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Interne Notizen</Label>
+                  <Label>{t("auftrag.field.internalNotes")}</Label>
                   <Textarea
-                    placeholder="Nur für intern sichtbar..."
+                    placeholder={t("auftrag.field.internalNotesPlaceholder")}
                     rows={3}
                     value={formData.internal_notes}
                     onChange={(e) => setFormData((prev) => ({ ...prev, internal_notes: e.target.value }))}
@@ -1772,10 +1797,10 @@ export function AuftragModal({
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-600" />
-                  Spezielle Anweisungen
+                  {t("auftrag.field.specialInstructions")}
                 </Label>
                 <Textarea
-                  placeholder="Wichtige Hinweise für das Team (erscheint hervorgehoben in der Erinnerungs-E-Mail)..."
+                  placeholder={t("auftrag.field.specialInstructionsPlaceholder")}
                   rows={2}
                   className="border-amber-200 focus:border-amber-400"
                   value={formData.special_instructions}
@@ -1788,7 +1813,7 @@ export function AuftragModal({
         <DialogFooter className="flex gap-2 pt-4 border-t">
           <Button variant="outline" onClick={onClose} disabled={isSaving}>
             <X className="w-4 h-4 mr-2" />
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving || isLoading}>
             {isSaving ? (
@@ -1796,7 +1821,7 @@ export function AuftragModal({
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}
-            {auftrag ? "Speichern" : "Auftrag erstellen"}
+            {auftrag ? t("common.save") : t("auftrag.action.create")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -6,7 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, Calendar, Clock, MapPin, CheckCircle2, XCircle, Building2, Download } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { downloadIcsFile } from "@/lib/generateIcsFile";
+import { documentI18nFor, resolveDocumentLocale } from "@/i18n/documentLocale";
+import { toLocale } from "@/i18n/locale";
+import { getAppointmentTypeLabel } from "@/i18n/domain";
+import { type MessageKey } from "@/i18n/translator";
 
 interface Appointment {
   id: string;
@@ -23,6 +28,9 @@ interface Appointment {
   customer_email: string | null;
   status: string;
   company_id: string;
+  // The customer's language, inherited from the lead. This page is addressed at the
+  // customer, so it is the only correct source for the page's copy.
+  language: string;
 }
 
 interface Company {
@@ -30,24 +38,42 @@ interface Company {
   email: string;
   notification_email: string | null;
   phone: string | null;
+  default_language: string;
 }
+
+/**
+ * Load/blocking conditions are kept as CODES rather than translated strings: the locale
+ * is only known once the appointment row has arrived, so the message must be translated
+ * at render time, not at the moment the error is discovered.
+ */
+type PageError = "invalid_link" | "not_found" | "load_failed";
+
+const ERROR_KEYS: Record<PageError, MessageKey> = {
+  invalid_link: "public.invalidLink",
+  not_found: "public.appointment.notFoundOrEmailMismatch",
+  load_failed: "public.error",
+};
 
 export default function AppointmentCancel() {
   const { appointmentId } = useParams<{ appointmentId: string }>();
   const [searchParams] = useSearchParams();
   const email = searchParams.get("email");
-  
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [reason, setReason] = useState("");
   const [cancelled, setCancelled] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<PageError | null>(null);
+
+  // DOCUMENT locale — appointments.language, falling back to the company default for
+  // rows written before the column existed.
+  const { t, locale, dateLocale } = documentI18nFor(resolveDocumentLocale(appointment, company));
 
   const fetchAppointment = useCallback(async () => {
     if (!appointmentId || !email) {
-      setError("Ungültiger Link. Bitte verwenden Sie den Link aus Ihrer E-Mail.");
+      setError("invalid_link");
       setLoading(false);
       return;
     }
@@ -63,22 +89,21 @@ export default function AppointmentCancel() {
       if (appointmentError) throw appointmentError;
 
       if (!appointmentData) {
-        setError("Termin nicht gefunden oder E-Mail-Adresse stimmt nicht überein.");
+        setError("not_found");
         setLoading(false);
         return;
       }
 
       if (appointmentData.status === "cancelled") {
         setCancelled(true);
-        setAppointment(appointmentData);
-      } else {
-        setAppointment(appointmentData);
       }
+      setAppointment(appointmentData);
 
-      // Fetch company info
+      // Fetch company info — default_language is the fallback locale for this page and
+      // the language of the cancellation reason we write back for the company to read.
       const { data: companyData } = await supabase
         .from("companies")
-        .select("company_name, email, notification_email, phone")
+        .select("company_name, email, notification_email, phone, default_language")
         .eq("id", appointmentData.company_id)
         .maybeSingle();
 
@@ -87,7 +112,7 @@ export default function AppointmentCancel() {
       }
     } catch (err) {
       console.error("Error fetching appointment:", err);
-      setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+      setError("load_failed");
     } finally {
       setLoading(false);
     }
@@ -99,17 +124,20 @@ export default function AppointmentCancel() {
 
   const handleCancel = async () => {
     if (!appointment) return;
-    
+
     setSubmitting(true);
     try {
-      // Update appointment status
+      // cancellation_reason is read by the COMPANY in the dashboard, so the default text
+      // follows the company's language, not the customer's.
+      const { t: companyT } = documentI18nFor(toLocale(company?.default_language));
+
       const { error: updateError } = await supabase
         .from("appointments")
         .update({
           status: "cancelled",
           cancelled_at: new Date().toISOString(),
           cancelled_by: "customer",
-          cancellation_reason: reason || "Vom Kunden abgesagt",
+          cancellation_reason: reason || companyT("public.cancel.defaultReason"),
         })
         .eq("id", appointment.id);
 
@@ -131,41 +159,28 @@ export default function AppointmentCancel() {
       });
 
       setCancelled(true);
-      toast.success("Termin erfolgreich abgesagt");
+      toast.success(t("public.cancel.toastSuccess"));
     } catch (err) {
       console.error("Error cancelling appointment:", err);
-      toast.error("Fehler beim Absagen des Termins");
+      toast.error(t("public.cancel.toastFailed"));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("de-CH", {
-      weekday: "long",
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-  };
+  // "PPPP" = locale-aware long date incl. weekday (Freitag, 14. Juli 2026 ·
+  // vendredi 14 juillet 2026 · Friday, 14 July 2026).
+  const formatFullDate = (dateStr: string) =>
+    format(new Date(dateStr), "PPPP", { locale: dateLocale });
 
-  const formatTime = (timeStr: string) => {
-    return timeStr.substring(0, 5);
-  };
+  const formatTime = (timeStr: string) => timeStr.substring(0, 5);
 
-  const getAppointmentTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      besichtigung: "Besichtigung",
-      service: "Auftrag",
-      follow_up: "Nachkontrolle",
-      meeting: "Besprechung",
-    };
-    return labels[type] || type;
-  };
+  const timeRange = (start: string, end: string) =>
+    t("doc.time.fromUntil", { start: formatTime(start), end: formatTime(end) });
 
   const handleDownloadIcs = () => {
     if (!appointment) return;
-    
+
     const location = [
       appointment.location_address,
       appointment.location_plz,
@@ -174,7 +189,9 @@ export default function AppointmentCancel() {
 
     downloadIcsFile({
       title: appointment.title,
-      description: `Termin bei ${company?.company_name || ""}`,
+      description: t("public.appointment.icsDescription", {
+        company: company?.company_name || "",
+      }),
       date: appointment.appointment_date,
       startTime: appointment.start_time,
       endTime: appointment.end_time,
@@ -202,14 +219,14 @@ export default function AppointmentCancel() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+      <div lang={locale} className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <CardHeader className="text-center">
             <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
               <XCircle className="h-8 w-8 text-destructive" />
             </div>
-            <CardTitle>Fehler</CardTitle>
-            <CardDescription>{error}</CardDescription>
+            <CardTitle>{t("common.error")}</CardTitle>
+            <CardDescription>{t(ERROR_KEYS[error])}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -218,15 +235,15 @@ export default function AppointmentCancel() {
 
   if (cancelled) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+      <div lang={locale} className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <CardHeader className="text-center">
             <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle2 className="h-8 w-8 text-orange-600" />
             </div>
-            <CardTitle>Termin abgesagt</CardTitle>
+            <CardTitle>{t("public.cancel.doneTitle")}</CardTitle>
             <CardDescription>
-              Der Termin wurde erfolgreich abgesagt. {company?.company_name} wurde benachrichtigt.
+              {t("public.cancel.doneBody", { company: company?.company_name || "" })}
             </CardDescription>
           </CardHeader>
           {appointment && (
@@ -235,11 +252,11 @@ export default function AppointmentCancel() {
                 <div className="font-medium">{appointment.title}</div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  {formatDate(appointment.appointment_date)}
+                  {formatFullDate(appointment.appointment_date)}
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  {formatTime(appointment.start_time)} - {formatTime(appointment.end_time)} Uhr
+                  {timeRange(appointment.start_time, appointment.end_time)}
                 </div>
               </div>
             </CardContent>
@@ -250,35 +267,33 @@ export default function AppointmentCancel() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+    <div lang={locale} className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
             <AlertTriangle className="h-8 w-8 text-orange-600" />
           </div>
-          <CardTitle>Termin absagen</CardTitle>
-          <CardDescription>
-            Möchten Sie diesen Termin wirklich absagen?
-          </CardDescription>
+          <CardTitle>{t("public.cancel.title")}</CardTitle>
+          <CardDescription>{t("public.cancel.question")}</CardDescription>
         </CardHeader>
-        
+
         {appointment && (
           <CardContent className="space-y-6">
             {/* Appointment Details */}
             <div className="bg-muted/50 rounded-lg p-4 space-y-3">
               <div className="font-semibold text-lg">{appointment.title}</div>
               <div className="text-sm text-muted-foreground">
-                {getAppointmentTypeLabel(appointment.appointment_type)}
+                {getAppointmentTypeLabel(appointment.appointment_type, locale)}
               </div>
-              
+
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center gap-3">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{formatDate(appointment.appointment_date)}</span>
+                  <span>{formatFullDate(appointment.appointment_date)}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>{formatTime(appointment.start_time)} - {formatTime(appointment.end_time)} Uhr</span>
+                  <span>{timeRange(appointment.start_time, appointment.end_time)}</span>
                 </div>
                 {appointment.location_address && (
                   <div className="flex items-center gap-3">
@@ -299,11 +314,9 @@ export default function AppointmentCancel() {
 
             {/* Cancellation Reason */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Absagegrund (optional)
-              </label>
+              <label className="text-sm font-medium">{t("public.cancel.reason")}</label>
               <Textarea
-                placeholder="Teilen Sie uns mit, warum Sie absagen müssen..."
+                placeholder={t("public.cancel.placeholder")}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
@@ -318,7 +331,7 @@ export default function AppointmentCancel() {
                 className="w-full"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Zum Kalender hinzufügen
+                {t("public.appointment.addToCalendar")}
               </Button>
               <Button
                 variant="destructive"
@@ -326,10 +339,10 @@ export default function AppointmentCancel() {
                 disabled={submitting}
                 className="w-full"
               >
-                {submitting ? "Wird abgesagt..." : "Termin absagen"}
+                {submitting ? t("public.cancel.submitting") : t("public.cancel.submit")}
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                {company?.company_name} wird über die Absage informiert.
+                {t("public.cancel.companyInformed", { company: company?.company_name || "" })}
               </p>
             </div>
           </CardContent>

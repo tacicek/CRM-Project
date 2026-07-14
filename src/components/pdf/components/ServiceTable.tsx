@@ -6,10 +6,21 @@ import {
   OfferItemEffortMeta,
   OfferItemVolumeMeta,
 } from "../types/offer.types";
-import { formatCurrency, formatDate, formatTime } from "../utils/formatters";
+import {
+  formatCurrency,
+  formatDate,
+  formatMeasure,
+  formatRoundedCurrency,
+  formatTime,
+} from "../utils/formatters";
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
-import { isFreeItem, itemAmountDisplay, toAmountBasis, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
-import { groupItemsByService, groupScheduled, serviceTerminLabel } from "@/lib/offerServiceType";
+import { isFreeItem, itemAmountDisplay, toAmountBasis } from "@/lib/offerPricing";
+import { groupItemsByService, groupScheduled } from "@/lib/offerServiceType";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import { getAppointmentLabel, getServiceLabel } from "@/i18n/domain";
+import { formatPercent } from "@/i18n/format";
+import type { Locale } from "@/i18n/locale";
+import type { Translator } from "@/i18n/translator";
 
 const DARK = "#1C1C27";
 const SECTION_BG = "#F9FAFB";
@@ -223,18 +234,23 @@ const styles = StyleSheet.create({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const buildBreakdownLines = (data: OfferData) => {
+const buildBreakdownLines = (data: OfferData, t: Translator, locale: Locale): string[] => {
   const b = data.breakdown;
   if (!b) return [];
   return [
-    b.volume ? `Volumen: ${b.volume} m³` : null,
-    b.estimatedTime ? `Geschätzte Arbeitszeit: ${formatTime(b.estimatedTime)}` : null,
-    b.carryTime ? `Tragezeit: ${formatTime(b.carryTime)}` : null,
-    b.assemblyTime ? `Montage/Demontage: ${formatTime(b.assemblyTime)}` : null,
-    b.driveTime ? `Fahrzeit: ${formatTime(b.driveTime)}` : null,
-    b.bufferTime ? `Pufferzeit: ${formatTime(b.bufferTime)}` : null,
-    b.truckType ? `LKW Typ: ${b.truckType}` : null,
-    b.workers ? `Anzahl Mitarbeiter: ${b.workers}` : null,
+    b.volume ? `${t("doc.offer.breakdown.volume")}${b.volume} m³` : null,
+    b.estimatedTime
+      ? `${t("doc.offer.breakdown.workTime")}${formatTime(b.estimatedTime, locale)}`
+      : null,
+    b.carryTime ? `${t("doc.offer.breakdown.carryTime")}${formatTime(b.carryTime, locale)}` : null,
+    b.assemblyTime
+      ? `${t("doc.offer.breakdown.assembly")}${formatTime(b.assemblyTime, locale)}`
+      : null,
+    b.driveTime ? `${t("doc.offer.breakdown.driveTime")}${formatTime(b.driveTime, locale)}` : null,
+    b.bufferTime ? `${t("doc.offer.breakdown.buffer")}${formatTime(b.bufferTime, locale)}` : null,
+    // Truck type is operator-authored free text — printed as stored.
+    b.truckType ? `${t("doc.offer.breakdown.truckType")}${b.truckType}` : null,
+    b.workers ? `${t("doc.offer.breakdown.crewSize")}${b.workers}` : null,
   ].filter(Boolean) as string[];
 };
 
@@ -280,16 +296,6 @@ const metaStyles = StyleSheet.create({
 /** Null/undefined guard that satisfies eqeqeq (meta fields are `T | null | undefined`). */
 const isSet = <T,>(v: T | null | undefined): v is T => v !== null && v !== undefined;
 
-/** Swiss rate notation: whole francs as "CHF 280.–", fractional amounts via formatCurrency. */
-const formatRate = (value: number): string => {
-  const n = Number(value);
-  return Number.isInteger(n) ? `CHF ${n.toLocaleString("de-CH")}.–` : formatCurrency(n);
-};
-
-/** m²/m³ measures without artificial decimals: 110.00 → "110", 3.5 → "3.5". */
-const formatMeasure = (value: number): string =>
-  Number(value).toLocaleString("de-CH", { maximumFractionDigits: 1 });
-
 const PersonIcon = ({ color }: { color: string }) => (
   <Svg width={8} height={8} viewBox="0 0 10 10" style={{ marginRight: 3 }}>
     <Circle cx={5} cy={3.1} r={1.9} fill="none" stroke={color} strokeWidth={1.1} />
@@ -306,18 +312,26 @@ const TruckIcon = ({ color }: { color: string }) => (
   </Svg>
 );
 
-const EffortLine = ({ effort }: { effort: OfferItemEffortMeta }) => (
+interface MetaLineProps {
+  t: Translator;
+  locale: Locale;
+}
+
+const EffortLine = ({ effort, t, locale }: MetaLineProps & { effort: OfferItemEffortMeta }) => (
   <View style={metaStyles.effortRow}>
     <View style={metaStyles.effortItems}>
       {isSet(effort.crew) ? (
         <View style={metaStyles.effortItem}>
           <PersonIcon color={COLORS.text.secondary} />
-          <Text style={metaStyles.effortText}>{`${effort.crew} Mitarbeiter`}</Text>
+          <Text style={metaStyles.effortText}>
+            {t("doc.offer.item.crew", { count: Number(effort.crew) })}
+          </Text>
         </View>
       ) : null}
       {isSet(effort.vehicles) ? (
         <View style={metaStyles.effortItem}>
           <TruckIcon color={COLORS.text.secondary} />
+          {/* vehicle_type is operator-authored free text ("LKW 7.5t") — printed as stored. */}
           <Text style={metaStyles.effortText}>
             {`${effort.vehicles}${effort.vehicle_type ? ` ${effort.vehicle_type}` : ""}`}
           </Text>
@@ -326,47 +340,61 @@ const EffortLine = ({ effort }: { effort: OfferItemEffortMeta }) => (
     </View>
     {isSet(effort.hourly_rate) ? (
       <View style={metaStyles.rateBadge}>
-        <Text style={metaStyles.rateBadgeText}>{`à ${formatRate(Number(effort.hourly_rate))}/Stunde`}</Text>
+        <Text style={metaStyles.rateBadgeText}>
+          {t("doc.offer.perHour", {
+            rate: formatRoundedCurrency(Number(effort.hourly_rate), locale),
+          })}
+        </Text>
       </View>
     ) : null}
   </View>
 );
 
-const AreaLine = ({ area }: { area: OfferItemAreaMeta }) => {
+const AreaLine = ({ area, t, locale }: MetaLineProps & { area: OfferItemAreaMeta }) => {
   const parts = [
+    // object_type is operator-authored free text — printed as stored.
     area.object_type?.trim() || null,
-    isSet(area.area_m2) ? `ca. ${formatMeasure(Number(area.area_m2))} m²` : null,
+    isSet(area.area_m2)
+      ? t("doc.offer.item.approxM2", { value: formatMeasure(Number(area.area_m2), locale) })
+      : null,
   ].filter(Boolean) as string[];
   return (
     <View>
       <View style={metaStyles.metaLine}>
-        <Text style={metaStyles.metaLabel}>OBJEKT</Text>
+        <Text style={metaStyles.metaLabel}>{t("doc.offer.item.object")}</Text>
         <Text style={metaStyles.metaText}>{parts.join(", ")}</Text>
       </View>
       {area.abnahmegarantie ? (
-        <Text style={metaStyles.metaNote}>inkl. Abnahme mit der Verwaltung</Text>
+        <Text style={metaStyles.metaNote}>{t("doc.offer.item.handover")}</Text>
       ) : null}
     </View>
   );
 };
 
-const VolumeLine = ({ volume }: { volume: OfferItemVolumeMeta }) => {
-  const unitLabel = volume.rate_unit === "monthly" ? "Monat" : "m³";
-  const vol =
-    isSet(volume.volume_m3)
-      ? `ca. ${formatMeasure(Number(volume.volume_m3))} m³`
-      : isSet(volume.volume_min_m3) && isSet(volume.volume_max_m3)
-        ? `ca. ${formatMeasure(Number(volume.volume_min_m3))}–${formatMeasure(Number(volume.volume_max_m3))} m³`
-        : null;
+const VolumeLine = ({ volume, t, locale }: MetaLineProps & { volume: OfferItemVolumeMeta }) => {
+  const unitLabel = volume.rate_unit === "monthly" ? t("domain.unit.month") : "m³";
+  const vol = isSet(volume.volume_m3)
+    ? t("doc.offer.item.approxM3", { value: formatMeasure(Number(volume.volume_m3), locale) })
+    : isSet(volume.volume_min_m3) && isSet(volume.volume_max_m3)
+      ? t("doc.offer.item.approxM3", {
+          value: `${formatMeasure(Number(volume.volume_min_m3), locale)}–${formatMeasure(Number(volume.volume_max_m3), locale)}`,
+        })
+      : null;
   return (
     <View>
       {isSet(volume.rate) ? (
         <View style={metaStyles.metaLine}>
-          <Text style={metaStyles.metaLabel}>TARIF</Text>
-          <Text style={metaStyles.metaText}>{`${formatRate(Number(volume.rate))}/${unitLabel}`}</Text>
+          <Text style={metaStyles.metaLabel}>{t("doc.offer.item.tariff")}</Text>
+          <Text style={metaStyles.metaText}>
+            {`${formatRoundedCurrency(Number(volume.rate), locale)}/${unitLabel}`}
+          </Text>
         </View>
       ) : null}
-      {vol ? <Text style={metaStyles.metaNote}>{`geschätztes Volumen ${vol}`}</Text> : null}
+      {vol ? (
+        <Text style={metaStyles.metaNote}>
+          {t("doc.offer.item.estimatedVolume", { volume: vol })}
+        </Text>
+      ) : null}
     </View>
   );
 };
@@ -375,16 +403,20 @@ const VolumeLine = ({ volume }: { volume: OfferItemVolumeMeta }) => {
 
 interface RowProps {
   item: OfferData["items"][number];
+  t: Translator;
+  locale: Locale;
 }
 
 // Two-column position row (servisler.png): description (+ a small Menge/Einzel context
 // line) on the left, price on the right. Same price computation as before — only the
 // presentation collapses from the old 5 columns to 2. No POS badge (screenshot pattern).
-const ItemRow = ({ item }: RowProps) => {
+const ItemRow = ({ item, t, locale }: RowProps) => {
   const te = item.timeEstimate;
   // Ansatz + Einheit fuer rate-Posten aus effort/volume-Meta bzw. unit_price ableiten.
   const rateUnit =
-    item.volumeMeta?.rate_unit === "monthly" ? "Monat" : (item.unit?.trim() || "Std.");
+    item.volumeMeta?.rate_unit === "monthly"
+      ? t("domain.unit.month")
+      : (item.unit?.trim() || t("domain.unit.hour"));
   const rateValue = isSet(item.effortMeta?.hourly_rate)
     ? Number(item.effortMeta?.hourly_rate)
     : isSet(item.volumeMeta?.rate)
@@ -422,46 +454,60 @@ const ItemRow = ({ item }: RowProps) => {
   // Menge/Einzel context, folded into a small sub-line under the description.
   const sub =
     display.kind === "range" && te
-      ? `${te.minHours}–${te.maxHours} Std. à ${formatCurrency(te.hourlyRate)}/Std.`
+      ? t("doc.offer.rateRange", {
+          min: te.minHours,
+          max: te.maxHours,
+          rate: formatCurrency(te.hourlyRate, locale),
+        })
       : display.kind === "rate"
         ? null // Preisspalte zeigt den Ansatz; keine irrefuehrende Menge-Zeile
         : item.priceType === "pauschale"
-          ? "Pauschal"
+          ? t("doc.offer.flatRate")
           : item.quantity !== 1
-            ? `${formatQuantityUnit(item.quantity, item.unit)} à ${formatCurrency(item.price)}`
-            : formatQuantityUnit(item.quantity, item.unit);
+            ? t("doc.offer.item.quantityAtPrice", {
+                quantity: formatQuantityUnit(item.quantity, item.unit, locale),
+                price: formatCurrency(item.price, locale),
+              })
+            : formatQuantityUnit(item.quantity, item.unit, locale);
 
   return (
     <View style={cardStyles.posRow} wrap={false}>
       <View style={cardStyles.posLeft}>
+        {/* offer_items.description is a snapshot taken in the customer's language at
+            creation time (see i18n README) — printed exactly as authored. */}
         <Text style={cardStyles.posDesc}>{item.description}</Text>
         {/* Dedup (P2c): effort meta REPLACES the Menge/Einzel sub-line — the hourly rate
             lives in its badge and the hours already sit in the price column (hourlyRange),
             so nothing is shown twice. Without effort meta the old sub-line stays as-is. */}
         {effort ? (
-          <EffortLine effort={effort} />
+          <EffortLine effort={effort} t={t} locale={locale} />
         ) : sub ? (
           <Text style={cardStyles.posSub}>{sub}</Text>
         ) : null}
-        {area ? <AreaLine area={area} /> : null}
-        {volume ? <VolumeLine volume={volume} /> : null}
+        {area ? <AreaLine area={area} t={t} locale={locale} /> : null}
+        {volume ? <VolumeLine volume={volume} t={t} locale={locale} /> : null}
       </View>
       <View style={cardStyles.posRight}>
         {display.kind === "range" ? (
           <>
-            <Text style={[cardStyles.posPrice, { color: "#B45309" }]}>{formatRate(display.min)}</Text>
+            <Text style={[cardStyles.posPrice, { color: "#B45309" }]}>
+              {formatRoundedCurrency(display.min, locale)}
+            </Text>
             {/* "bis", not a dash — a stacked leading "–" reads as subtraction/negative */}
-            <Text style={[cardStyles.posPriceSub, { color: "#B45309" }]}>bis {formatRate(display.max)}</Text>
+            <Text style={[cardStyles.posPriceSub, { color: "#B45309" }]}>
+              {t("doc.offer.upTo")}
+              {formatRoundedCurrency(display.max, locale)}
+            </Text>
           </>
         ) : display.kind === "rate" ? (
           <>
             {/* rate: Einheitspreis statt Betrag — Menge/Dauer unbestimmt, nicht in der Summe */}
-            <Text style={cardStyles.posPrice}>{formatRate(display.unitPrice)}</Text>
+            <Text style={cardStyles.posPrice}>{formatRoundedCurrency(display.unitPrice, locale)}</Text>
             <Text style={cardStyles.posPriceSub}>{`/ ${display.unit}`}</Text>
           </>
         ) : (
           <Text style={cardStyles.posPrice}>
-            {formatRate(display.kind === "fixed" ? display.amount : item.total)}
+            {formatRoundedCurrency(display.kind === "fixed" ? display.amount : item.total, locale)}
           </Text>
         )}
       </View>
@@ -514,9 +560,17 @@ const CheckMark = ({ color }: { color: string }) => (
   </Svg>
 );
 
-const LeistungsumfangBlock = ({ lines, accent }: { lines: string[]; accent: string }) => (
+const LeistungsumfangBlock = ({
+  lines,
+  accent,
+  t,
+}: {
+  lines: string[];
+  accent: string;
+  t: Translator;
+}) => (
   <View style={leistungStyles.box}>
-    <Text style={leistungStyles.title}>LEISTUNGSUMFANG</Text>
+    <Text style={leistungStyles.title}>{t("doc.offer.section.scope")}</Text>
     {lines.map((line, i) => (
       <View key={`${line}-${i}`} style={leistungStyles.line} wrap={false}>
         <CheckMark color={accent} />
@@ -596,7 +650,8 @@ export const ServiceTable = ({
   showTotalsBlock = true,
 }: ServiceTableProps) => {
   const items = itemsOverride ?? data.items;
-  const breakdownLines = buildBreakdownLines(data);
+  const { t, locale } = documentI18nFor(data.locale);
+  const breakdownLines = buildBreakdownLines(data, t, locale);
   const accent = data.company.primaryColor || "#F97316";
 
   // Group items by stored service_type; each renders as its own card (dark band = service
@@ -613,10 +668,17 @@ export const ServiceTable = ({
     const sched = groupScheduled(group.items);
     const date = sched?.date ?? data.executionDate;
     if (!date) return null;
-    const st = sched?.startTime?.slice(0, 5);
-    const et = sched?.endTime?.slice(0, 5);
-    const time = st && et ? ` · ${st}–${et} Uhr` : st ? ` · ab ${st} Uhr` : "";
-    return `${serviceTerminLabel(group.serviceType)}: ${formatDate(date)}${time}`;
+    const start = sched?.startTime?.slice(0, 5);
+    const end = sched?.endTime?.slice(0, 5);
+    const time =
+      start && end
+        ? ` · ${t("doc.time.fromUntil", { start, end })}`
+        : start
+          ? ` · ${t("doc.time.from", { start })}`
+          : "";
+    // The German-only serviceTerminLabel() is replaced by the catalog lookup on the same
+    // stored service key, so the band reads in the customer's language.
+    return `${getAppointmentLabel(group.serviceType, locale)}: ${formatDate(date, locale)}${time}`;
   };
 
   return (
@@ -637,15 +699,19 @@ export const ServiceTable = ({
           // P2b-i already sizes groups to fit; rare oversized groups still degrade gracefully).
           <View key={`group-${gi}`} style={cardStyles.card} wrap={false}>
             <View style={cardStyles.cardBand}>
-              <Text style={cardStyles.cardBandText}>{group.label.toUpperCase()}</Text>
+              {/* group.label from offerServiceType is German-only — the band resolves the
+                  stored service key through the catalog instead. */}
+              <Text style={cardStyles.cardBandText}>
+                {getServiceLabel(group.serviceType, locale).toUpperCase()}
+              </Text>
               {bandDate(group) ? <Text style={cardStyles.cardBandDate}>{bandDate(group)}</Text> : null}
             </View>
             <View style={cardStyles.cardBody}>
               {billable.map((item, idx) => (
-                <ItemRow key={`${item.description}-${idx}`} item={item} />
+                <ItemRow key={`${item.description}-${idx}`} item={item} t={t} locale={locale} />
               ))}
               {leistungLines.length > 0 ? (
-                <LeistungsumfangBlock lines={leistungLines} accent={accent} />
+                <LeistungsumfangBlock lines={leistungLines} accent={accent} t={t} />
               ) : null}
               {/* Service-block Kostendach: nur wenn ein rate-Posten dieser Gruppe ein Item-Cap traegt.
                   Das globale offer-level Kostendach (unten) rendert dann als Fallback nicht mehr. */}
@@ -655,15 +721,26 @@ export const ServiceTable = ({
                   wrap={false}
                 >
                   <View style={styles.priceModelRow}>
-                    <Text style={[styles.priceModelLabel, { color: "#B45309" }]}>Kostendach:</Text>
+                    <Text style={[styles.priceModelLabel, { color: "#B45309" }]}>
+                      {t("doc.offer.costCap")}
+                    </Text>
                     <Text style={[styles.priceModelValue, { color: "#B45309" }]}>
                       {isSet(groupRate) && Number(groupRate) > 0
-                        ? `Stundenansatz ${formatRate(Number(groupRate))}/Std. — max. CHF ${Number(groupCap).toLocaleString("de-CH")} (${+(Number(groupCap) / Number(groupRate)).toFixed(1)} Std.)`
-                        : `max. CHF ${Number(groupCap).toLocaleString("de-CH")}`}
+                        ? t("doc.offer.costCapDetail", {
+                            rate: formatRoundedCurrency(Number(groupRate), locale),
+                            cap: formatMeasure(Number(groupCap), locale),
+                            hours: formatMeasure(
+                              +(Number(groupCap) / Number(groupRate)).toFixed(1),
+                              locale,
+                            ),
+                          })
+                        : t("doc.offer.costCapMax", {
+                            cap: formatMeasure(Number(groupCap), locale),
+                          })}
                     </Text>
                   </View>
                   <Text style={[styles.priceModelNote, { color: "#92400E" }]}>
-                    {`Sie zahlen maximal CHF ${Number(groupCap).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.`}
+                    {t("doc.offer.costCapNote", { cap: formatMeasure(Number(groupCap), locale) })}
                   </Text>
                 </View>
               ) : null}
@@ -675,9 +752,11 @@ export const ServiceTable = ({
       {/* rate-Posten → keine Aggregatsumme; Hinweis links, Gültigkeit rechts (design v2). */}
       {showTotalsBlock && data.pricing.hasRateItem ? (
         <View style={styles.rateNoteRow} wrap={false}>
-          <Text style={styles.rateNoteText}>{RATE_AGGREGATE_NOTE}</Text>
+          <Text style={styles.rateNoteText}>{t("doc.offer.rateAggregateNote")}</Text>
           {data.validUntil ? (
-            <Text style={styles.rateNoteValid}>{`Angebot gültig bis ${formatDate(data.validUntil)}`}</Text>
+            <Text style={styles.rateNoteValid}>
+              {t("doc.offer.offerValidUntil", { date: formatDate(data.validUntil, locale) })}
+            </Text>
           ) : null}
         </View>
       ) : null}
@@ -690,28 +769,30 @@ export const ServiceTable = ({
             {/* Zwischensumme */}
             {data.pricing.maxSubtotal !== null ? (
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Zwischensumme:</Text>
+                <Text style={styles.totalLabel}>{t("doc.offer.subtotal")}</Text>
                 <View style={{ alignItems: "flex-end" }}>
                   <Text style={[styles.totalValue, { color: "#B45309" }]}>
-                    {formatCurrency(data.pricing.subtotal)}
+                    {formatCurrency(data.pricing.subtotal, locale)}
                   </Text>
                   <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                    bis {formatCurrency(data.pricing.maxSubtotal)}
+                    {t("doc.offer.upTo")}
+                    {formatCurrency(data.pricing.maxSubtotal, locale)}
                   </Text>
                 </View>
               </View>
             ) : (
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Zwischensumme</Text>
-                <Text style={styles.totalValue}>{formatCurrency(data.pricing.subtotal)}</Text>
+                <Text style={styles.totalLabel}>{t("doc.offer.subtotal")}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(data.pricing.subtotal, locale)}</Text>
               </View>
             )}
 
-            {/* Zuschläge — zwischen Zwischensumme und MwSt */}
+            {/* Zuschläge — zwischen Zwischensumme und MwSt.
+                s.label is operator-authored free text and is printed as stored. */}
             {(data.pricing.surcharges ?? []).map((s, i) => (
               <View key={i} style={styles.totalRow}>
-                <Text style={styles.totalLabel}>{s.label || "Zuschlag"}</Text>
-                <Text style={styles.totalValue}>{formatCurrency(s.amount)}</Text>
+                <Text style={styles.totalLabel}>{s.label || t("doc.offer.surcharge")}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(s.amount, locale)}</Text>
               </View>
             ))}
 
@@ -722,34 +803,42 @@ export const ServiceTable = ({
               <>
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>
-                    {`Rabatt ${Number(data.pricing.discountPercent).toLocaleString("de-CH")} %`}
+                    {t("doc.offer.discount", {
+                      percent: formatPercent(Number(data.pricing.discountPercent), locale),
+                    })}
                   </Text>
                   {isSet(data.pricing.maxDiscountAmount) ? (
                     <View style={{ alignItems: "flex-end" }}>
                       <Text style={[styles.totalValue, { color: "#B45309" }]}>
-                        {`- ${formatCurrency(data.pricing.discountAmount ?? 0)}`}
+                        {`- ${formatCurrency(data.pricing.discountAmount ?? 0, locale)}`}
                       </Text>
                       <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                        bis {`- ${formatCurrency(data.pricing.maxDiscountAmount)}`}
+                        {t("doc.offer.upTo")}
+                        {`- ${formatCurrency(data.pricing.maxDiscountAmount, locale)}`}
                       </Text>
                     </View>
                   ) : (
-                    <Text style={styles.totalValue}>{`- ${formatCurrency(data.pricing.discountAmount ?? 0)}`}</Text>
+                    <Text style={styles.totalValue}>
+                      {`- ${formatCurrency(data.pricing.discountAmount ?? 0, locale)}`}
+                    </Text>
                   )}
                 </View>
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Total exkl. MwSt</Text>
+                  <Text style={styles.totalLabel}>{t("doc.offer.totalExclVat")}</Text>
                   {isSet(data.pricing.maxTaxableBase) ? (
                     <View style={{ alignItems: "flex-end" }}>
                       <Text style={[styles.totalValue, { color: "#B45309" }]}>
-                        {formatCurrency(data.pricing.taxableBase ?? 0)}
+                        {formatCurrency(data.pricing.taxableBase ?? 0, locale)}
                       </Text>
                       <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                        bis {formatCurrency(data.pricing.maxTaxableBase)}
+                        {t("doc.offer.upTo")}
+                        {formatCurrency(data.pricing.maxTaxableBase, locale)}
                       </Text>
                     </View>
                   ) : (
-                    <Text style={styles.totalValue}>{formatCurrency(data.pricing.taxableBase ?? 0)}</Text>
+                    <Text style={styles.totalValue}>
+                      {formatCurrency(data.pricing.taxableBase ?? 0, locale)}
+                    </Text>
                   )}
                 </View>
               </>
@@ -763,40 +852,48 @@ export const ServiceTable = ({
             {data.pricing.mwstRate > 0 ? (
               data.pricing.maxMwstAmount !== null ? (
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>{`MwSt ${data.pricing.mwstRate} %`}</Text>
+                  <Text style={styles.totalLabel}>
+                    {t("doc.offer.vat", { rate: formatPercent(data.pricing.mwstRate, locale) })}
+                  </Text>
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={[styles.totalValue, { color: "#B45309" }]}>
-                      {formatCurrency(data.pricing.mwstAmount)}
+                      {formatCurrency(data.pricing.mwstAmount, locale)}
                     </Text>
                     <Text style={{ fontSize: FONT_SIZES.xs, color: "#B45309" }}>
-                      bis {formatCurrency(data.pricing.maxMwstAmount)}
+                      {t("doc.offer.upTo")}
+                      {formatCurrency(data.pricing.maxMwstAmount, locale)}
                     </Text>
                   </View>
                 </View>
               ) : (
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>{`MwSt ${data.pricing.mwstRate} %`}</Text>
-                  <Text style={styles.totalValue}>{formatCurrency(data.pricing.mwstAmount)}</Text>
+                  <Text style={styles.totalLabel}>
+                    {t("doc.offer.vat", { rate: formatPercent(data.pricing.mwstRate, locale) })}
+                  </Text>
+                  <Text style={styles.totalValue}>
+                    {formatCurrency(data.pricing.mwstAmount, locale)}
+                  </Text>
                 </View>
               )
             ) : null}
 
             {/* GESAMTBETRAG — dark box */}
             <View style={[styles.grandTotalBox, { backgroundColor: accent }]}>
-              <Text style={styles.grandTotalLabel}>GESAMTBETRAG</Text>
+              <Text style={styles.grandTotalLabel}>{t("doc.offer.grandTotal")}</Text>
               <View style={styles.grandTotalValueRow}>
                 {data.pricing.maxTotal !== null ? (
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={[styles.grandTotalValue, { color: "#FFFFFF" }]}>
-                      {formatCurrency(data.pricing.total)}
+                      {formatCurrency(data.pricing.total, locale)}
                     </Text>
                     <Text style={{ fontSize: FONT_SIZES.xs, color: "#F1F5F9" }}>
-                      bis {formatCurrency(data.pricing.maxTotal)}
+                      {t("doc.offer.upTo")}
+                      {formatCurrency(data.pricing.maxTotal, locale)}
                     </Text>
                   </View>
                 ) : (
                   <Text style={[styles.grandTotalValue, { color: "#FFFFFF" }]}>
-                    {formatCurrency(data.pricing.total)}
+                    {formatCurrency(data.pricing.total, locale)}
                   </Text>
                 )}
               </View>
@@ -814,7 +911,7 @@ export const ServiceTable = ({
                   paddingHorizontal: SPACING.sm,
                 }}
               >
-                {`Angebot gültig bis ${formatDate(data.validUntil)}`}
+                {t("doc.offer.offerValidUntil", { date: formatDate(data.validUntil, locale) })}
               </Text>
             ) : null}
           </View>
@@ -824,7 +921,7 @@ export const ServiceTable = ({
       {/* Breakdown */}
       {showTotalsBlock && breakdownLines.length > 0 ? (
         <View style={styles.breakdownBox} wrap={false}>
-          <Text style={styles.breakdownTitle}>Service-Details</Text>
+          <Text style={styles.breakdownTitle}>{t("doc.offer.section.serviceDetails")}</Text>
           {breakdownLines.map((line) => (
             <Text key={line} style={styles.breakdownLine}>
               • {line}
@@ -842,13 +939,17 @@ export const ServiceTable = ({
             wrap={false}
           >
             <View style={styles.priceModelRow}>
-              <Text style={[styles.priceModelLabel, { color: accent }]}>Preismodell:</Text>
+              <Text style={[styles.priceModelLabel, { color: accent }]}>
+                {t("doc.offer.priceModel")}
+              </Text>
               <Text style={[styles.priceModelValue, { color: accent }]}>
-                {`Stundenansatz — CHF ${Number(data.pricing.hourlyRate).toLocaleString("de-CH")} / Std.`}
+                {t("doc.offer.hourlyRate", {
+                  rate: formatMeasure(Number(data.pricing.hourlyRate), locale),
+                })}
               </Text>
             </View>
             <Text style={[styles.priceModelNote, { color: COLORS.text.secondary }]}>
-              Die Abrechnung erfolgt nach effektivem Zeitaufwand zum angegebenen Stundenansatz.
+              {t("doc.offer.hourlyRateNote")}
             </Text>
           </View>
         )}
@@ -865,13 +966,20 @@ export const ServiceTable = ({
             wrap={false}
           >
             <View style={styles.priceModelRow}>
-              <Text style={[styles.priceModelLabel, { color: "#92400E" }]}>Preismodell:</Text>
+              <Text style={[styles.priceModelLabel, { color: "#92400E" }]}>
+                {t("doc.offer.priceModel")}
+              </Text>
               <Text style={[styles.priceModelValue, { color: "#92400E" }]}>
-                {`Stundenansatz CHF ${Number(data.pricing.hourlyRate).toLocaleString("de-CH")} / Std. — Kostendach max. CHF ${Number(data.pricing.kostendachMax).toLocaleString("de-CH")}`}
+                {t("doc.offer.hourlyWithCap", {
+                  rate: formatMeasure(Number(data.pricing.hourlyRate), locale),
+                  cap: formatMeasure(Number(data.pricing.kostendachMax), locale),
+                })}
               </Text>
             </View>
             <Text style={[styles.priceModelNote, { color: "#92400E" }]}>
-              {`Sie zahlen maximal CHF ${Number(data.pricing.kostendachMax).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.`}
+              {t("doc.offer.costCapNote", {
+                cap: formatMeasure(Number(data.pricing.kostendachMax), locale),
+              })}
             </Text>
           </View>
         )}

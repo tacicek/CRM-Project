@@ -1,4 +1,12 @@
+import type { Locale } from "@/i18n/locale";
+
 export interface OfferData {
+  /**
+   * The CUSTOMER's language (offers.language, frozen from the lead) — never the
+   * operator's dashboard locale. Threaded through every PDF subtree as a prop so no
+   * renderer has to reach into React context (see src/i18n/README.md).
+   */
+  locale: Locale;
   company: {
     name: string;
     logo?: string;
@@ -23,12 +31,19 @@ export interface OfferData {
   description?: string | null;
   customer: {
     name: string;
+    /** Needed on its own for the letter salutation ("Sehr geehrte Frau {lastName},"). */
+    lastName?: string;
     email: string;
     phone?: string;
     address?: string;
   };
   service: {
-    type: "Privatumzug" | "Firmenumzug" | "Büroumzug" | "Umzug" | "Reinigung" | "Räumung" | "Entsorgung" | "Lagerung" | "Klaviertransport" | "Möbellift";
+    /**
+     * Normalised service KEY (normalizeServiceKey), e.g. "umzug_privat" | "reinigung".
+     * It used to be a German display name that was printed verbatim; the renderers now
+     * resolve it through getServiceLabel(type, locale).
+     */
+    type: string;
     fromCity?: string;
     toCity?: string;
   };

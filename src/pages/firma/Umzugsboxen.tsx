@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { format, differenceInDays } from "date-fns";
-import { de } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,10 +62,15 @@ import { toast } from "sonner";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { UmzugsboxModal, UmzugsboxRental } from "@/components/firma/UmzugsboxModal";
 import { generateBoxRentalPdf } from "@/lib/generateBoxRentalPdf";
+import { resolveDocumentLocale } from "@/i18n/documentLocale";
+import { useI18n, useT } from "@/i18n/useI18n";
+import type { Translator } from "@/i18n/translator";
 
 interface CompanyForPdf {
   id: string;
   company_name: string;
+  /** Box rentals carry no own language column — the company default is the document locale. */
+  default_language?: string | null;
   street?: string | null;
   house_number?: string | null;
   plz: string;
@@ -94,28 +98,26 @@ const getTotalBoxQuantity = (rental: UmzugsboxRental): number => {
   return rental.box_quantity || 0;
 };
 
+const BOX_TYPES = ["standard", "wardrobe", "book", "fragile", "archive", "other"] as const;
+type BoxType = (typeof BOX_TYPES)[number];
+
+const isBoxType = (value: string): value is BoxType =>
+  (BOX_TYPES as readonly string[]).includes(value);
+
+/** Short box-type label in the OPERATOR's language; unknown legacy values pass through as-is. */
+const boxTypeLabel = (type: string, t: Translator): string =>
+  isBoxType(type) ? t(`boxes.typeShort.${type}`) : type;
+
 // Helper function to format box items for display
-const formatBoxItems = (rental: UmzugsboxRental): string => {
+const formatBoxItems = (rental: UmzugsboxRental, t: Translator): string => {
   if (rental.box_items && Array.isArray(rental.box_items) && rental.box_items.length > 0) {
-    const boxTypes = [
-      { value: "standard", label: "Standard" },
-      { value: "wardrobe", label: "Kleider" },
-      { value: "book", label: "Bücher" },
-      { value: "fragile", label: "Fragile" },
-      { value: "archive", label: "Archiv" },
-      { value: "other", label: "Andere" },
-    ];
-    
     return rental.box_items
-      .map(item => {
-        const typeLabel = boxTypes.find(t => t.value === item.type)?.label || item.type;
-        return `${item.quantity}x ${typeLabel}`;
-      })
+      .map((item) => `${item.quantity}x ${boxTypeLabel(item.type, t)}`)
       .join(", ");
   }
   // Fallback to legacy format
   if (rental.box_quantity) {
-    return `${rental.box_quantity}x ${rental.box_type || "Standard"}`;
+    return `${rental.box_quantity}x ${boxTypeLabel(rental.box_type ?? "standard", t)}`;
   }
   return "-";
 };
@@ -128,19 +130,38 @@ interface BoxStats {
   total_boxes_out: number;
 }
 
-const statusOptions = [
-  { value: "reserved", label: "Reserviert", color: "bg-blue-500", textColor: "text-blue-700" },
-  { value: "delivered", label: "Geliefert", color: "bg-green-500", textColor: "text-green-700" },
-  { value: "in_use", label: "In Gebrauch", color: "bg-yellow-500", textColor: "text-yellow-700" },
-  { value: "pickup_requested", label: "Abholung angefragt", color: "bg-orange-500", textColor: "text-orange-700" },
-  { value: "pickup_scheduled", label: "Abholung geplant", color: "bg-purple-500", textColor: "text-purple-700" },
-  { value: "returned", label: "Zurückgegeben", color: "bg-gray-500", textColor: "text-gray-700" },
-  { value: "lost", label: "Verloren", color: "bg-red-500", textColor: "text-red-700" },
-  { value: "damaged", label: "Beschädigt", color: "bg-red-300", textColor: "text-red-700" },
+type BoxStatus =
+  | "reserved"
+  | "delivered"
+  | "in_use"
+  | "pickup_requested"
+  | "pickup_scheduled"
+  | "returned"
+  | "lost"
+  | "damaged";
+
+interface StatusOption {
+  value: BoxStatus;
+  color: string;
+  textColor: string;
+}
+
+// Colours only — the label comes from `boxes.status.<value>` in the operator's language.
+const statusOptions: StatusOption[] = [
+  { value: "reserved", color: "bg-blue-500", textColor: "text-blue-700" },
+  { value: "delivered", color: "bg-green-500", textColor: "text-green-700" },
+  { value: "in_use", color: "bg-yellow-500", textColor: "text-yellow-700" },
+  { value: "pickup_requested", color: "bg-orange-500", textColor: "text-orange-700" },
+  { value: "pickup_scheduled", color: "bg-purple-500", textColor: "text-purple-700" },
+  { value: "returned", color: "bg-gray-500", textColor: "text-gray-700" },
+  { value: "lost", color: "bg-red-500", textColor: "text-red-700" },
+  { value: "damaged", color: "bg-red-300", textColor: "text-red-700" },
 ];
 
 export default function Umzugsboxen() {
   const { company } = useCachedCompany();
+  const t = useT();
+  const { dateLocale } = useI18n();
   const [rentals, setRentals] = useState<UmzugsboxRental[]>([]);
   const [historyRentals, setHistoryRentals] = useState<UmzugsboxRental[]>([]); // FIX: Separate state for history
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -213,11 +234,11 @@ export default function Umzugsboxen() {
       }
     } catch (error) {
       console.error("Error fetching data:", error);
-      toast.error("Fehler beim Laden der Daten");
+      toast.error(t("boxes.toast.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [company?.id, statusFilter]);
+  }, [company?.id, statusFilter, t]);
 
   useEffect(() => {
     fetchData();
@@ -261,7 +282,7 @@ export default function Umzugsboxen() {
     if (!opt) return null;
     return (
       <Badge className={`${opt.color} text-white`}>
-        {opt.label}
+        {t(`boxes.status.${opt.value}`)}
       </Badge>
     );
   };
@@ -276,7 +297,9 @@ export default function Umzugsboxen() {
       return (
         <div className="flex items-center gap-1 text-red-600">
           <AlertTriangle className="w-4 h-4" />
-          <span className="text-xs font-medium">{Math.abs(daysUntil)} Tage überfällig</span>
+          <span className="text-xs font-medium">
+            {t("boxes.overdueDays", { count: Math.abs(daysUntil) })}
+          </span>
         </div>
       );
     }
@@ -284,7 +307,7 @@ export default function Umzugsboxen() {
       return (
         <div className="flex items-center gap-1 text-orange-600">
           <Clock className="w-4 h-4" />
-          <span className="text-xs font-medium">Heute fällig</span>
+          <span className="text-xs font-medium">{t("boxes.dueToday")}</span>
         </div>
       );
     }
@@ -292,7 +315,7 @@ export default function Umzugsboxen() {
       return (
         <div className="flex items-center gap-1 text-yellow-600">
           <Bell className="w-4 h-4" />
-          <span className="text-xs font-medium">In {daysUntil} Tagen</span>
+          <span className="text-xs font-medium">{t("boxes.inDays", { count: daysUntil })}</span>
         </div>
       );
     }
@@ -329,11 +352,11 @@ export default function Umzugsboxen() {
         .eq("id", rentalId);
 
       if (error) throw error;
-      toast.success("Status aktualisiert");
+      toast.success(t("boxes.toast.statusUpdated"));
       fetchData();
     } catch (error) {
       console.error("Error updating status:", error);
-      toast.error("Fehler beim Aktualisieren");
+      toast.error(t("boxes.toast.updateFailed"));
     }
   };
 
@@ -346,11 +369,11 @@ export default function Umzugsboxen() {
         .eq("id", rentalToDelete);
 
       if (error) throw error;
-      toast.success("Eintrag gelöscht");
+      toast.success(t("boxes.toast.deleted"));
       fetchData();
     } catch (error) {
       console.error("Error deleting rental:", error);
-      toast.error("Fehler beim Löschen");
+      toast.error(t("boxes.toast.deleteFailed"));
     } finally {
       setDeleteDialogOpen(false);
       setRentalToDelete(null);
@@ -364,28 +387,32 @@ export default function Umzugsboxen() {
 
   const handleDownloadPdf = async (rental: UmzugsboxRental) => {
     if (!company?.id) {
-      toast.error("Firmendaten nicht verfügbar");
+      toast.error(t("boxes.toast.companyMissing"));
       return;
     }
 
     try {
-      toast.info("PDF wird erstellt...");
-      
+      toast.info(t("boxes.toast.pdfCreating"));
+
       // Fetch full company data for PDF
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
-        .select("id, company_name, street, house_number, plz, city, phone, email, website, logo_url, primary_color")
+        .select("id, company_name, street, house_number, plz, city, phone, email, website, logo_url, primary_color, default_language")
         .eq("id", company.id)
         .single();
 
       if (companyError || !companyData) {
-        throw new Error("Firmendaten konnten nicht geladen werden");
+        throw new Error(t("boxes.toast.companyLoadFailed"));
       }
 
       const fullCompany = companyData as CompanyForPdf;
       
       await generateBoxRentalPdf({
         ...rental,
+        // The rental row has no `language` column → resolveDocumentLocale falls back to the
+        // company default. See the report: a box delivery note cannot follow the customer's
+        // language until umzugsboxen carries one.
+        locale: resolveDocumentLocale(null, fullCompany),
         company: {
           company_name: fullCompany.company_name,
           street: fullCompany.street,
@@ -400,10 +427,10 @@ export default function Umzugsboxen() {
         },
       });
       
-      toast.success("PDF wurde heruntergeladen");
+      toast.success(t("boxes.toast.pdfDone"));
     } catch (error) {
       console.error("Error generating PDF:", error);
-      toast.error("Fehler beim Erstellen des PDFs");
+      toast.error(t("boxes.toast.pdfFailed"));
     }
   };
 
@@ -430,13 +457,13 @@ export default function Umzugsboxen() {
           <span className="text-4xl leading-none">📦</span>
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Umzugsboxen</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("nav.umzugsboxen")}</h1>
               <span className="text-[15px] text-folk-ink3 whitespace-nowrap">
-                <span className="font-mono">{stats?.total_active || 0}</span> aktiv · <span className="font-mono">{stats?.overdue || 0}</span> überfällig · <span className="font-mono">{stats?.total_boxes_out || 0}</span> im Umlauf
+                <span className="font-mono">{stats?.total_active || 0}</span> {t("boxes.stats.active")} · <span className="font-mono">{stats?.overdue || 0}</span> {t("boxes.stats.overdue")} · <span className="font-mono">{stats?.total_boxes_out || 0}</span> {t("boxes.stats.inCirculation")}
               </span>
             </div>
             <p className="mt-1 text-[15px] text-folk-ink2">
-              Mietboxen verwalten und Abholungen planen.
+              {t("boxes.subtitle")}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -446,14 +473,14 @@ export default function Umzugsboxen() {
               className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm hover:text-folk-ink2"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Aktualisieren</span>
+              <span className="hidden sm:inline">{t("misc.action.refresh")}</span>
             </Button>
             <Button
               onClick={handleNew}
               className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Neue Vermietung</span>
+              <span className="hidden sm:inline">{t("boxes.action.new")}</span>
             </Button>
           </div>
         </div>
@@ -461,11 +488,11 @@ export default function Umzugsboxen() {
         {/* KPI grid */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
           {[
-            { emoji: '📦', label: 'Aktiv',          value: stats?.total_active || 0,       highlight: false },
-            { emoji: '⚠️', label: 'Überfällig',    value: stats?.overdue || 0,            highlight: (stats?.overdue || 0) > 0 },
-            { emoji: '🚛', label: 'Heute abholen', value: stats?.pickup_today || 0,       highlight: false },
-            { emoji: '📅', label: 'Diese Woche',   value: stats?.pickup_this_week || 0,   highlight: false },
-            { emoji: '🚚', label: 'Im Umlauf',     value: stats?.total_boxes_out || 0,    highlight: false },
+            { emoji: '📦', label: t("boxes.kpi.active"),        value: stats?.total_active || 0,     highlight: false },
+            { emoji: '⚠️', label: t("boxes.kpi.overdue"),       value: stats?.overdue || 0,          highlight: (stats?.overdue || 0) > 0 },
+            { emoji: '🚛', label: t("boxes.kpi.pickupToday"),   value: stats?.pickup_today || 0,     highlight: false },
+            { emoji: '📅', label: t("boxes.kpi.thisWeek"),      value: stats?.pickup_this_week || 0, highlight: false },
+            { emoji: '🚚', label: t("boxes.kpi.inCirculation"), value: stats?.total_boxes_out || 0,  highlight: false },
           ].map((tile) => (
             <div
               key={tile.label}
@@ -488,10 +515,10 @@ export default function Umzugsboxen() {
             <CardHeader className="pb-3">
               <CardTitle className="text-red-700 flex items-center gap-2">
                 <BellRing className="w-5 h-5" />
-                Dringende Abholungen ({urgentRentals.length})
+                {t("boxes.urgent.title", { count: urgentRentals.length })}
               </CardTitle>
               <CardDescription className="text-red-600">
-                Diese Boxen sind überfällig oder heute zur Rückgabe fällig
+                {t("boxes.urgent.description")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -507,7 +534,9 @@ export default function Umzugsboxen() {
                           {rental.customer_first_name} {rental.customer_last_name}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {getTotalBoxQuantity(rental)} Boxen • {rental.delivery_city}
+                          {getTotalBoxQuantity(rental)}{" "}
+                          {t("boxes.count", { count: getTotalBoxQuantity(rental) })} •{" "}
+                          {rental.delivery_city}
                         </p>
                         <div className="mt-1">{getUrgencyIndicator(rental)}</div>
                       </div>
@@ -521,13 +550,13 @@ export default function Umzugsboxen() {
                         </Button>
                       )}
                       <Button variant="outline" size="sm" onClick={() => handleEdit(rental)}>
-                        Bearbeiten
+                        {t("common.edit")}
                       </Button>
                       <Button
                         size="sm"
                         onClick={() => handleQuickStatusChange(rental.id, "pickup_scheduled")}
                       >
-                        Abholung planen
+                        {t("boxes.action.schedulePickup")}
                       </Button>
                     </div>
                   </div>
@@ -540,16 +569,16 @@ export default function Umzugsboxen() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="overview">Übersicht</TabsTrigger>
+            <TabsTrigger value="overview">{t("boxes.tab.overview")}</TabsTrigger>
             <TabsTrigger value="due-soon" className="relative">
-              Bald fällig
+              {t("boxes.tab.dueSoon")}
               {dueThisWeek.length > 0 && (
                 <Badge variant="destructive" className="ml-2 h-5 w-5 p-0 text-xs justify-center">
                   {dueThisWeek.length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="history">Verlauf</TabsTrigger>
+            <TabsTrigger value="history">{t("boxes.tab.history")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -561,7 +590,7 @@ export default function Umzugsboxen() {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        placeholder="Suchen nach Name, Ort, Telefon..."
+                        placeholder={t("boxes.searchPlaceholder")}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-9"
@@ -574,11 +603,11 @@ export default function Umzugsboxen() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Aktive Vermietungen</SelectItem>
-                      <SelectItem value="all">Alle anzeigen</SelectItem>
+                      <SelectItem value="active">{t("boxes.filter.active")}</SelectItem>
+                      <SelectItem value="all">{t("boxes.filter.all")}</SelectItem>
                       {statusOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                          {t(`boxes.status.${opt.value}`)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -594,13 +623,13 @@ export default function Umzugsboxen() {
                 <Table className="min-w-[720px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Kunde</TableHead>
-                      <TableHead>Boxen</TableHead>
-                      <TableHead>Ort</TableHead>
-                      <TableHead>Lieferdatum</TableHead>
-                      <TableHead className="whitespace-nowrap">Rückgabe fällig</TableHead>
-                      <TableHead>Zuständig</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>{t("boxes.table.customer")}</TableHead>
+                      <TableHead>{t("boxes.table.boxes")}</TableHead>
+                      <TableHead>{t("boxes.table.city")}</TableHead>
+                      <TableHead>{t("boxes.table.deliveryDate")}</TableHead>
+                      <TableHead className="whitespace-nowrap">{t("boxes.table.returnDue")}</TableHead>
+                      <TableHead>{t("boxes.table.assignee")}</TableHead>
+                      <TableHead>{t("common.status")}</TableHead>
                       <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -610,14 +639,14 @@ export default function Umzugsboxen() {
                         <TableCell colSpan={8} className="text-center py-8">
                           <div className="flex items-center justify-center gap-2">
                             <RefreshCw className="w-4 h-4 animate-spin" />
-                            Lade Daten...
+                            {t("common.loading")}
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : filteredRentals.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          Keine Einträge gefunden
+                          {t("common.noResults")}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -645,7 +674,7 @@ export default function Umzugsboxen() {
                                 <span className="font-medium">{getTotalBoxQuantity(rental)}</span>
                               </div>
                               <span className="text-xs text-muted-foreground">
-                                {formatBoxItems(rental)}
+                                {formatBoxItems(rental, t)}
                               </span>
                             </div>
                           </TableCell>
@@ -656,13 +685,13 @@ export default function Umzugsboxen() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {format(new Date(rental.delivery_date), "dd.MM.yyyy", { locale: de })}
+                            {format(new Date(rental.delivery_date), "dd.MM.yyyy", { locale: dateLocale })}
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
                               {rental.expected_return_date ? (
                                 <>
-                                  <p>{format(new Date(rental.expected_return_date), "dd.MM.yyyy", { locale: de })}</p>
+                                  <p>{format(new Date(rental.expected_return_date), "dd.MM.yyyy", { locale: dateLocale })}</p>
                                   {getUrgencyIndicator(rental)}
                                 </>
                               ) : (
@@ -682,20 +711,20 @@ export default function Umzugsboxen() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => handleEdit(rental)}>
                                   <Edit className="w-4 h-4 mr-2" />
-                                  Bearbeiten
+                                  {t("common.edit")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleDownloadPdf(rental)}>
                                   <FileDown className="w-4 h-4 mr-2" />
-                                  PDF herunterladen
+                                  {t("boxes.action.downloadPdf")}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => handleQuickStatusChange(rental.id, "pickup_scheduled")}>
                                   <Calendar className="w-4 h-4 mr-2" />
-                                  Abholung planen
+                                  {t("boxes.action.schedulePickup")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleQuickStatusChange(rental.id, "returned")}>
                                   <CheckCircle className="w-4 h-4 mr-2" />
-                                  Als zurückgegeben markieren
+                                  {t("boxes.action.markReturned")}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
@@ -706,7 +735,7 @@ export default function Umzugsboxen() {
                                   }}
                                 >
                                   <Trash2 className="w-4 h-4 mr-2" />
-                                  Löschen
+                                  {t("common.delete")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -724,15 +753,15 @@ export default function Umzugsboxen() {
           <TabsContent value="due-soon" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Diese Woche fällig</CardTitle>
+                <CardTitle>{t("boxes.dueSoon.title")}</CardTitle>
                 <CardDescription>
-                  Boxen, die in den nächsten 7 Tagen zurückgegeben werden sollten
+                  {t("boxes.dueSoon.description")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {dueThisWeek.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">
-                    Keine Boxen diese Woche fällig
+                    {t("boxes.dueSoon.empty")}
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -750,7 +779,9 @@ export default function Umzugsboxen() {
                               {rental.customer_first_name} {rental.customer_last_name}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {getTotalBoxQuantity(rental)} Boxen • {rental.delivery_city}
+                              {getTotalBoxQuantity(rental)}{" "}
+                              {t("boxes.count", { count: getTotalBoxQuantity(rental) })} •{" "}
+                              {rental.delivery_city}
                             </p>
                           </div>
                         </div>
@@ -758,10 +789,12 @@ export default function Umzugsboxen() {
                           {rental.expected_return_date && (
                             <div className="text-left sm:text-right">
                               <p className="font-medium">
-                                {format(new Date(rental.expected_return_date), "dd.MM.yyyy", { locale: de })}
+                                {format(new Date(rental.expected_return_date), "dd.MM.yyyy", { locale: dateLocale })}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                In {differenceInDays(new Date(rental.expected_return_date), new Date())} Tagen
+                                {t("boxes.inDays", {
+                                  count: differenceInDays(new Date(rental.expected_return_date), new Date()),
+                                })}
                               </p>
                             </div>
                           )}
@@ -781,7 +814,7 @@ export default function Umzugsboxen() {
                               </Button>
                             )}
                             <Button onClick={() => handleEdit(rental)}>
-                              Bearbeiten
+                              {t("common.edit")}
                             </Button>
                           </div>
                         </div>
@@ -796,9 +829,9 @@ export default function Umzugsboxen() {
           <TabsContent value="history" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Verlauf</CardTitle>
+                <CardTitle>{t("boxes.history.title")}</CardTitle>
                 <CardDescription>
-                  Zurückgegebene und abgeschlossene Vermietungen
+                  {t("boxes.history.description")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -806,18 +839,18 @@ export default function Umzugsboxen() {
                 <Table className="min-w-[500px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Kunde</TableHead>
-                      <TableHead>Boxen</TableHead>
-                      <TableHead className="whitespace-nowrap">Geliefert</TableHead>
-                      <TableHead className="whitespace-nowrap">Zurückgegeben</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>{t("boxes.table.customer")}</TableHead>
+                      <TableHead>{t("boxes.table.boxes")}</TableHead>
+                      <TableHead className="whitespace-nowrap">{t("boxes.table.delivered")}</TableHead>
+                      <TableHead className="whitespace-nowrap">{t("boxes.table.returned")}</TableHead>
+                      <TableHead>{t("common.status")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {historyRentals.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                          Keine abgeschlossenen Vermietungen
+                          {t("boxes.history.empty")}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -829,15 +862,15 @@ export default function Umzugsboxen() {
                           <TableCell>
                             <div className="flex flex-col">
                               <span className="font-medium">{getTotalBoxQuantity(rental)}</span>
-                              <span className="text-xs text-muted-foreground">{formatBoxItems(rental)}</span>
+                              <span className="text-xs text-muted-foreground">{formatBoxItems(rental, t)}</span>
                             </div>
                           </TableCell>
                           <TableCell>
-                            {format(new Date(rental.delivery_date), "dd.MM.yyyy", { locale: de })}
+                            {format(new Date(rental.delivery_date), "dd.MM.yyyy", { locale: dateLocale })}
                           </TableCell>
                           <TableCell>
                             {rental.actual_return_date
-                              ? format(new Date(rental.actual_return_date), "dd.MM.yyyy", { locale: de })
+                              ? format(new Date(rental.actual_return_date), "dd.MM.yyyy", { locale: dateLocale })
                               : "-"}
                           </TableCell>
                           <TableCell>{getStatusBadge(rental.status)}</TableCell>
@@ -866,15 +899,15 @@ export default function Umzugsboxen() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
+            <AlertDialogTitle>{t("boxes.delete.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Dieser Eintrag wird dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
+              {t("boxes.delete.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Löschen
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

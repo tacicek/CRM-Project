@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
 import { buildInvoiceEmailHtml, buildInvoiceEmailSubject, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
+import { createTranslator, toLocale, type Locale } from "../_shared/i18n/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,6 +60,8 @@ interface RechnungRow {
   gesamttotal: number;
   qr_referenz: string | null;
   qr_iban: string | null;
+  /** Document language — inherited from the offer chain (rechnungen.language). */
+  language: string | null;
   positionen: RechnungPositionRow[];
   companies: {
     id: string;
@@ -77,7 +80,9 @@ interface RechnungRow {
   };
 }
 
-function buildCustomerEmail(r: RechnungRow, brand: string): string {
+/** Customer copy — rendered in the DOCUMENT language (rechnungen.language). */
+function buildCustomerEmail(r: RechnungRow, brand: string, locale: Locale): string {
+  const t = createTranslator(locale);
   const lines = r.positionen
     .filter((p) => p.betrag > 0 || (p.beschreibung ?? "").trim().length > 0)
     .map((p) => ({
@@ -87,37 +92,38 @@ function buildCustomerEmail(r: RechnungRow, brand: string): string {
     }));
 
   const iban = r.qr_iban || r.companies.iban || "";
+  const ibanPart = iban ? `${t("email.invoice.ibanLabel")}: ${iban}` : "";
 
   const extraSection = `
       <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:12px 14px;margin-bottom:16px;">
         <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#1E40AF;font-family:${EMAIL_FONT_STACK}">
-          Zahlbar bis ${fmtDate(r.faellig_am)}
+          ${t("email.rechnung.payableBy", { date: fmtDate(r.faellig_am, locale) })}
         </p>
         <p style="margin:0;font-size:12px;color:#3f3f46;font-family:${EMAIL_FONT_STACK}">
-          ${[iban ? "IBAN: " + iban : "", r.qr_referenz ? "Referenz: " + r.qr_referenz : ""].filter(Boolean).join("  ·  ")}
+          ${[ibanPart, r.qr_referenz ? `${t("email.rechnung.referenceLabel")}: ${r.qr_referenz}` : ""].filter(Boolean).join("  ·  ")}
         </p>
       </div>`;
 
   return buildInvoiceEmailHtml({
     companyName: r.companies.company_name,
     brand,
-    documentLabel: "Rechnung",
+    locale,
+    kind: "rechnung",
     documentNumber: r.rechnung_nr,
     datum: r.datum,
     customerName: r.customer_name,
-    intro: "Anbei erhalten Sie Ihre Rechnung mit QR-Zahlteil im PDF-Anhang.",
-    detailLabel: "Menge",
     lines,
     zwischensumme: r.zwischensumme,
     mwstSatz: r.mwst_satz,
     mwstBetrag: r.mwst_betrag,
-    totalLabel: "Total",
     total: r.gesamttotal || r.total,
     extraSection,
     footerParts: [
-      iban ? "IBAN: " + iban : "",
+      ibanPart,
       r.companies.bank_name || "",
-      r.companies.mwst_number ? "MwSt-Nr.: " + r.companies.mwst_number : "",
+      r.companies.mwst_number
+        ? `${t("email.invoice.vatNumberLabel")}: ${r.companies.mwst_number}`
+        : "",
       r.companies.phone || "",
     ],
   });
@@ -162,7 +168,7 @@ serve(async (req) => {
       .select(`
         id, rechnung_nr, datum, faellig_am, customer_name, customer_email,
         zwischensumme, mwst_satz, mwst_betrag, total, gesamttotal,
-        qr_referenz, qr_iban, positionen,
+        qr_referenz, qr_iban, positionen, language,
         companies (
           id, company_name, email, notification_email, primary_color,
           phone, mwst_number, iban, bank_name,
@@ -250,21 +256,31 @@ serve(async (req) => {
     const pdfBase64 = bytesToBase64(new Uint8Array(await pdfBlob.arrayBuffer()));
     const attachments = [{ filename: `Rechnung-${r.rechnung_nr}.pdf`, content: pdfBase64 }];
 
+    // Only one recipient here (the customer) — the DOCUMENT language governs.
+    const customerLocale = toLocale(r.language);
+    const customerSubject = buildInvoiceEmailSubject({
+      kind: "rechnung",
+      locale: customerLocale,
+      documentNumber: r.rechnung_nr,
+      companyName: company.company_name,
+    });
+
     const { data: emailData, error: emailErr } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
       to: [r.customer_email],
-      subject: buildInvoiceEmailSubject({ documentTitle: "Rechnung", documentNumber: r.rechnung_nr, companyName: company.company_name }),
-      html: buildCustomerEmail(r, brand),
+      subject: customerSubject,
+      html: buildCustomerEmail(r, brand, customerLocale),
       attachments,
     });
 
     await logEmail({
       emailType: "rechnung_customer",
       recipientEmail: r.customer_email,
-      subject: `Rechnung ${r.rechnung_nr}`,
+      subject: customerSubject,
       status: emailErr ? "failed" : "sent",
       errorMessage: emailErr?.message,
       companyId: company.id,
+      language: customerLocale,
       metadata: { rechnung_id: rechnungId, resend_id: emailData?.id },
     });
 

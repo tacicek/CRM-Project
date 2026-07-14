@@ -3,6 +3,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
+import {
+  createTranslator,
+  DEFAULT_LOCALE,
+  formatDateLong,
+  toLocale,
+  type Locale,
+} from "../_shared/i18n/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +29,11 @@ interface RescheduleRequest {
   companyEmail: string;
   companyName: string;
   companyId: string;
+  /**
+   * Optional caller-supplied locale. appointments.language is authoritative and wins; this is
+   * only a fallback for a caller that knows the language before the row carries one.
+   */
+  language?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -64,16 +76,33 @@ const handler = async (req: Request): Promise<Response> => {
       companyName,
     } = body;
 
-    // Format dates for display
-    const formatDateDisplay = (dateStr: string) => {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString("de-CH", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      });
-    };
+    // ── Locales ────────────────────────────────────────────────────────────────
+    // Two recipients, two languages. appointments.language drives the customer copy (read from
+    // the DB — this endpoint is public and the body is not trusted for identity);
+    // companies.default_language drives the firma copy.
+    const { data: aptRow } = await supabase
+      .from("appointments")
+      .select("company_id, language")
+      .eq("id", appointmentId)
+      .maybeSingle();
+
+    const customerLocale: Locale = aptRow?.language
+      ? toLocale(aptRow.language)
+      : toLocale(body.language);
+
+    const companyIdForLocale = body.companyId || aptRow?.company_id;
+    let companyLocale: Locale = DEFAULT_LOCALE;
+    if (companyIdForLocale) {
+      const { data: companyLangRow } = await supabase
+        .from("companies")
+        .select("default_language")
+        .eq("id", companyIdForLocale)
+        .maybeSingle();
+      companyLocale = toLocale(companyLangRow?.default_language);
+    }
+
+    const tCustomer = createTranslator(customerLocale);
+    const tCompany = createTranslator(companyLocale);
 
     const formatTime = (timeStr: string) => timeStr.substring(0, 5);
 
@@ -142,23 +171,23 @@ const handler = async (req: Request): Promise<Response> => {
               
               <div class="old-date">
                 <div class="label">❌ Ursprünglicher Termin</div>
-                <div class="value">${formatDateDisplay(originalDate)}</div>
-                <div class="value" style="color: #DC2626;">${formatTime(originalTime)} Uhr</div>
+                <div class="value">${formatDateLong(originalDate, companyLocale)}</div>
+                <div class="value" style="color: #DC2626;">${tCompany("common.timeValue", { time: formatTime(originalTime) })}</div>
               </div>
-              
+
               <div class="new-date">
                 <div class="label">✅ Vorgeschlagener neuer Termin</div>
-                <div class="value">${formatDateDisplay(proposedDate)}</div>
-                <div class="value" style="color: #059669;">${proposedTime} Uhr</div>
+                <div class="value">${formatDateLong(proposedDate, companyLocale)}</div>
+                <div class="value" style="color: #059669;">${tCompany("common.timeValue", { time: proposedTime })}</div>
               </div>
             </div>
-            
+
             <div class="customer-info">
-              <div class="label">👤 Kunde</div>
+              <div class="label">👤 ${tCompany("common.customer")}</div>
               <div class="value">${escapeHtml(customerName)}</div>
-              <div style="color: #6b7280; font-size: 14px; margin-top: 5px;">${customerEmail}</div>
+              <div style="color: #6b7280; font-size: 14px; margin-top: 5px;">${escapeHtml(customerEmail)}</div>
             </div>
-            
+
             ${customerMessage ? `
             <div class="message-box">
               <div class="label">💬 Nachricht des Kunden</div>
@@ -195,10 +224,10 @@ const handler = async (req: Request): Promise<Response> => {
     if (companyEmailError) console.error("[notify-appointment-reschedule] company email failed:", companyEmailError);
     else console.log(`[notify-appointment-reschedule] Sent notification to company: ${companyEmail}`);
 
-    // Send confirmation email to customer
+    // Send confirmation email to customer — CUSTOMER language
     const customerEmailHtml = `
       <!DOCTYPE html>
-      <html>
+      <html lang="${customerLocale}">
       <head>
         <meta charset="utf-8">
         <style>
@@ -216,30 +245,30 @@ const handler = async (req: Request): Promise<Response> => {
       <body>
         <div class="container">
           <div class="header">
-            <h1 style="margin: 0; font-size: 24px;">✅ Terminvorschlag gesendet</h1>
-            <p style="margin: 10px 0 0; opacity: 0.9;">Ihr Verschiebungswunsch wurde übermittelt</p>
+            <h1 style="margin: 0; font-size: 24px;">✅ ${tCustomer("email.rescheduleRequestSent.headerTitle")}</h1>
+            <p style="margin: 10px 0 0; opacity: 0.9;">${tCustomer("email.rescheduleRequestSent.headerSubtitle")}</p>
           </div>
           <div class="content">
-            <p>Guten Tag ${escapeHtml(customerName)},</p>
-            <p>Ihr Terminvorschlag wurde erfolgreich an ${escapeHtml(companyName)} gesendet.</p>
-            
+            <p>${tCustomer("common.greeting", { name: escapeHtml(customerName) })}</p>
+            <p>${tCustomer("email.rescheduleRequestSent.intro", { companyName: escapeHtml(companyName) })}</p>
+
             <div class="info-box">
-              <h2 style="margin: 0 0 15px; color: #1f2937;">${appointmentTitle}</h2>
-              
+              <h2 style="margin: 0 0 15px; color: #1f2937;">${escapeHtml(appointmentTitle)}</h2>
+
               <div class="proposed-date">
-                <div class="label">Ihr vorgeschlagener Termin</div>
-                <div class="value" style="font-size: 18px;">${formatDateDisplay(proposedDate)}</div>
-                <div class="value" style="color: #059669;">${proposedTime} Uhr</div>
+                <div class="label">${tCustomer("email.rescheduleRequestSent.proposedLabel")}</div>
+                <div class="value" style="font-size: 18px;">${formatDateLong(proposedDate, customerLocale)}</div>
+                <div class="value" style="color: #059669;">${tCustomer("common.timeValue", { time: proposedTime })}</div>
               </div>
             </div>
-            
+
             <p>
-              ${escapeHtml(companyName)} wird sich bei Ihnen melden, um den Termin zu bestätigen oder einen alternativen Vorschlag zu machen.
+              ${tCustomer("email.rescheduleRequestSent.outro", { companyName: escapeHtml(companyName) })}
             </p>
-            
+
             <div class="footer">
               <p style="color: #6b7280;">
-                Bei Fragen können Sie sich direkt an ${escapeHtml(companyName)} wenden.
+                ${tCustomer("email.rescheduleRequestSent.footer", { companyName: escapeHtml(companyName) })}
               </p>
             </div>
           </div>
@@ -248,10 +277,11 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
+    // Emoji prefix preserved (the catalog values are emoji-free by design).
     const { error: customerEmailError } = await resend.emails.send({
       from: getCalendarFrom(),
       to: [customerEmail],
-      subject: `✅ Terminvorschlag gesendet: ${appointmentTitle}`,
+      subject: `✅ ${tCustomer("email.rescheduleRequestSent.subject", { title: appointmentTitle })}`,
       html: customerEmailHtml,
     });
     if (customerEmailError) console.error("[notify-appointment-reschedule] customer email failed:", customerEmailError);
@@ -264,7 +294,7 @@ const handler = async (req: Request): Promise<Response> => {
         company_id: companyId,
         type: "appointment_reschedule",
         title: "Terminverschiebung angefragt",
-        body: `${customerName} möchte den Termin "${appointmentTitle}" auf ${formatDateDisplay(proposedDate)} um ${proposedTime} Uhr verschieben.`,
+        body: `${customerName} möchte den Termin "${appointmentTitle}" auf ${formatDateLong(proposedDate, companyLocale)} um ${proposedTime} Uhr verschieben.`,
         metadata: {
           appointment_id: appointmentId,
           customer_name: customerName,
@@ -287,6 +317,7 @@ const handler = async (req: Request): Promise<Response> => {
       recipient_name: companyName,
       subject: `Terminverschiebung angefragt: ${appointmentTitle}`,
       status: companyEmailError ? "failed" : "sent",
+      language: companyLocale,
       metadata: {
         appointment_id: appointmentId,
         customer_name: customerName,

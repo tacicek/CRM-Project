@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Package, Truck, Calendar, User, AlertTriangle, Plus, X } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/i18n/useI18n";
 
 export interface BoxItem {
   type: string;
@@ -108,25 +109,27 @@ interface UmzugsboxModalProps {
   initialLeadId?: string | null;
 }
 
-const boxTypes = [
-  { value: "standard", label: "Standard Umzugskarton" },
-  { value: "wardrobe", label: "Kleiderbox" },
-  { value: "book", label: "Bücherbox" },
-  { value: "fragile", label: "Fragile / Glas" },
-  { value: "archive", label: "Archivbox" },
-  { value: "other", label: "Andere" },
-];
+/**
+ * Box types and statuses carry no label here: the label comes from `boxes.type.<value>` /
+ * `boxes.status.<value>` in the OPERATOR's dashboard language. The box delivery note PDF is
+ * generated in Umzugsboxen.tsx from the DOCUMENT locale (`resolveDocumentLocale`) and is not
+ * affected by anything in this modal.
+ */
+const BOX_TYPES = ["standard", "wardrobe", "book", "fragile", "archive", "other"] as const;
+type BoxType = (typeof BOX_TYPES)[number];
 
-const statusOptions = [
-  { value: "reserved", label: "Reserviert", color: "bg-blue-500" },
-  { value: "delivered", label: "Geliefert", color: "bg-green-500" },
-  { value: "in_use", label: "In Gebrauch", color: "bg-yellow-500" },
-  { value: "pickup_requested", label: "Abholung angefragt", color: "bg-orange-500" },
-  { value: "pickup_scheduled", label: "Abholung geplant", color: "bg-purple-500" },
-  { value: "returned", label: "Zurückgegeben", color: "bg-gray-500" },
-  { value: "lost", label: "Verloren", color: "bg-red-500" },
-  { value: "damaged", label: "Beschädigt", color: "bg-red-300" },
-];
+const REMINDER_DAY_OPTIONS = [1, 2, 3, 5, 7] as const;
+
+const STATUS_OPTIONS = [
+  { value: "reserved", color: "bg-blue-500" },
+  { value: "delivered", color: "bg-green-500" },
+  { value: "in_use", color: "bg-yellow-500" },
+  { value: "pickup_requested", color: "bg-orange-500" },
+  { value: "pickup_scheduled", color: "bg-purple-500" },
+  { value: "returned", color: "bg-gray-500" },
+  { value: "lost", color: "bg-red-500" },
+  { value: "damaged", color: "bg-red-300" },
+] as const;
 
 export const UmzugsboxModal = ({
   isOpen,
@@ -136,6 +139,7 @@ export const UmzugsboxModal = ({
   onSaved,
   initialLeadId,
 }: UmzugsboxModalProps) => {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -315,13 +319,13 @@ export const UmzugsboxModal = ({
   const handleSubmit = async () => {
     if (!companyId) return;
     if (!formData.customer_first_name.trim() || !formData.customer_last_name.trim()) {
-      toast.error("Bitte geben Sie den Kundennamen ein");
+      toast.error(t("boxModal.error.nameRequired"));
       return;
     }
 
     // FIX: Email format validation
     if (formData.customer_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customer_email)) {
-      toast.error("Bitte geben Sie eine gültige E-Mail-Adresse ein");
+      toast.error(t("boxModal.error.invalidEmail"));
       return;
     }
 
@@ -330,7 +334,7 @@ export const UmzugsboxModal = ({
       const deliveryDate = new Date(formData.delivery_date);
       const returnDate = new Date(formData.expected_return_date);
       if (returnDate < deliveryDate) {
-        toast.error("Das Rückgabedatum muss nach dem Lieferdatum liegen");
+        toast.error(t("boxModal.error.returnBeforeDelivery"));
         return;
       }
     }
@@ -338,7 +342,7 @@ export const UmzugsboxModal = ({
     // Validate box items
     const validBoxItems = boxItems.filter(item => item.quantity > 0);
     if (validBoxItems.length === 0) {
-      toast.error("Bitte geben Sie mindestens eine Box mit Menge > 0 ein");
+      toast.error(t("boxModal.error.noBoxes"));
       return;
     }
 
@@ -382,31 +386,31 @@ export const UmzugsboxModal = ({
           .eq("id", rental.id);
 
         if (error) throw error;
-        toast.success("Umzugsbox-Eintrag aktualisiert");
+        toast.success(t("boxModal.toast.updated"));
       } else {
         const { error } = await supabase
           .from("umzugsbox_rentals")
           .insert([payload]);
 
         if (error) throw error;
-        toast.success("Umzugsbox-Eintrag erstellt");
+        toast.success(t("boxModal.toast.created"));
       }
 
       onSaved();
     } catch (e) {
       console.error("Error saving umzugsbox rental:", e);
-      toast.error("Fehler beim Speichern");
+      toast.error(t("boxModal.toast.saveFailed"));
     } finally {
       setLoading(false);
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const opt = statusOptions.find(s => s.value === status);
+    const opt = STATUS_OPTIONS.find(s => s.value === status);
     if (!opt) return null;
     return (
       <Badge className={`${opt.color} text-white`}>
-        {opt.label}
+        {t(`boxes.status.${opt.value}`)}
       </Badge>
     );
   };
@@ -423,7 +427,7 @@ export const UmzugsboxModal = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="w-5 h-5" />
-            {rental ? "Umzugsbox bearbeiten" : "Neue Umzugsbox-Vermietung"}
+            {rental ? t("boxModal.title.edit") : t("boxModal.title.new")}
           </DialogTitle>
         </DialogHeader>
 
@@ -431,13 +435,13 @@ export const UmzugsboxModal = ({
           {/* Status & Overdue Warning */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Label>Status:</Label>
+              <Label>{t("common.status")}</Label>
               {getStatusBadge(formData.status)}
             </div>
             {isOverdue() && (
               <div className="flex items-center gap-2 text-red-600 bg-red-50 px-3 py-1 rounded-full">
                 <AlertTriangle className="w-4 h-4" />
-                <span className="text-sm font-medium">Überfällig!</span>
+                <span className="text-sm font-medium">{t("boxModal.overdue")}</span>
               </div>
             )}
           </div>
@@ -445,16 +449,16 @@ export const UmzugsboxModal = ({
           {/* Lead Selection (for new entries) */}
           {!rental && leads.length > 0 && (
             <div className="space-y-2">
-              <Label>Mit Anfrage verknüpfen (optional)</Label>
+              <Label>{t("boxModal.linkLead")}</Label>
               <Select
                 value={selectedLeadId || "none"}
                 onValueChange={(v) => setSelectedLeadId(v === "none" ? null : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Anfrage auswählen..." />
+                  <SelectValue placeholder={t("boxModal.linkLead.placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Keine Verknüpfung</SelectItem>
+                  <SelectItem value="none">{t("boxModal.linkLead.none")}</SelectItem>
                   {leads.map((lead) => (
                     <SelectItem key={lead.id} value={lead.id}>
                       {lead.customer_first_name} {lead.customer_last_name} - {lead.from_city}
@@ -469,25 +473,25 @@ export const UmzugsboxModal = ({
           <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
             <div className="flex items-center gap-2 text-sm font-medium">
               <User className="w-4 h-4" />
-              Kundendaten
+              {t("boxModal.customerData")}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Vorname *</Label>
+                <Label>{t("common.firstName")} *</Label>
                 <Input
                   value={formData.customer_first_name}
                   onChange={(e) => setFormData({ ...formData, customer_first_name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Nachname *</Label>
+                <Label>{t("common.lastName")} *</Label>
                 <Input
                   value={formData.customer_last_name}
                   onChange={(e) => setFormData({ ...formData, customer_last_name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Telefon</Label>
+                <Label>{t("common.phone")}</Label>
                 <Input
                   type="tel"
                   value={formData.customer_phone}
@@ -495,7 +499,7 @@ export const UmzugsboxModal = ({
                 />
               </div>
               <div className="space-y-2">
-                <Label>E-Mail</Label>
+                <Label>{t("common.email")}</Label>
                 <Input
                   type="email"
                   value={formData.customer_email}
@@ -511,21 +515,21 @@ export const UmzugsboxModal = ({
             <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
                 <Truck className="w-4 h-4" />
-                📦 Lieferadresse (Boxen hinbringen)
+                {t("boxModal.delivery.title")}
               </div>
-              <p className="text-xs text-blue-600">Wohin die Boxen zuerst geliefert werden (alte Wohnung)</p>
+              <p className="text-xs text-blue-600">{t("boxModal.delivery.hint")}</p>
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label className="text-xs">Strasse</Label>
+                  <Label className="text-xs">{t("common.street")}</Label>
                   <Input
                     value={formData.delivery_address}
                     onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
-                    placeholder="Musterstrasse 1"
+                    placeholder={t("boxModal.delivery.streetPlaceholder")}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <Label className="text-xs">PLZ</Label>
+                    <Label className="text-xs">{t("common.plz")}</Label>
                     <Input
                       value={formData.delivery_plz}
                       onChange={(e) => setFormData({ ...formData, delivery_plz: e.target.value })}
@@ -533,7 +537,7 @@ export const UmzugsboxModal = ({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Ort</Label>
+                    <Label className="text-xs">{t("common.city")}</Label>
                     <Input
                       value={formData.delivery_city}
                       onChange={(e) => setFormData({ ...formData, delivery_city: e.target.value })}
@@ -548,21 +552,21 @@ export const UmzugsboxModal = ({
             <div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
               <div className="flex items-center gap-2 text-sm font-medium text-green-700">
                 <Truck className="w-4 h-4" />
-                🚚 Abholadresse (Boxen abholen)
+                {t("boxModal.pickup.title")}
               </div>
-              <p className="text-xs text-green-600">Woher die Boxen später abgeholt werden (neue Wohnung)</p>
+              <p className="text-xs text-green-600">{t("boxModal.pickup.hint")}</p>
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label className="text-xs">Strasse</Label>
+                  <Label className="text-xs">{t("common.street")}</Label>
                   <Input
                     value={formData.pickup_address}
                     onChange={(e) => setFormData({ ...formData, pickup_address: e.target.value })}
-                    placeholder="Neuestrasse 2"
+                    placeholder={t("boxModal.pickup.streetPlaceholder")}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <Label className="text-xs">PLZ</Label>
+                    <Label className="text-xs">{t("common.plz")}</Label>
                     <Input
                       value={formData.pickup_plz}
                       onChange={(e) => setFormData({ ...formData, pickup_plz: e.target.value })}
@@ -570,7 +574,7 @@ export const UmzugsboxModal = ({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Ort</Label>
+                    <Label className="text-xs">{t("common.city")}</Label>
                     <Input
                       value={formData.pickup_city}
                       onChange={(e) => setFormData({ ...formData, pickup_city: e.target.value })}
@@ -587,19 +591,21 @@ export const UmzugsboxModal = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Package className="w-4 h-4" />
-                Box-Details
+                {t("boxModal.boxDetails")}
               </div>
               <div className="text-xs text-muted-foreground">
-                Gesamt: {boxItems.reduce((sum, item) => sum + item.quantity, 0)} Boxen
+                {t("boxModal.total", {
+                  count: boxItems.reduce((sum, item) => sum + item.quantity, 0),
+                })}
               </div>
             </div>
-            
+
             {/* Box Items List */}
             <div className="space-y-3">
               {boxItems.map((item, index) => (
                 <div key={index} className="flex gap-2 items-end">
                   <div className="flex-1 space-y-2">
-                    <Label>Box-Typ</Label>
+                    <Label>{t("boxModal.boxType")}</Label>
                     <Select
                       value={item.type}
                       onValueChange={(v) => {
@@ -612,16 +618,16 @@ export const UmzugsboxModal = ({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {boxTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
+                        {BOX_TYPES.map((type: BoxType) => (
+                          <SelectItem key={type} value={type}>
+                            {t(`boxes.type.${type}`)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="w-32 space-y-2">
-                    <Label>Anzahl</Label>
+                    <Label>{t("common.quantity")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -659,16 +665,16 @@ export const UmzugsboxModal = ({
                 }}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Weitere Box-Typ hinzufügen
+                {t("boxModal.addBoxType")}
               </Button>
             </div>
 
             <div className="space-y-2">
-              <Label>Beschreibung (optional)</Label>
+              <Label>{t("boxModal.description")}</Label>
               <Input
                 value={formData.box_description}
                 onChange={(e) => setFormData({ ...formData, box_description: e.target.value })}
-                placeholder="Zusätzliche Informationen zu den Boxen..."
+                placeholder={t("boxModal.description.placeholder")}
               />
             </div>
             
@@ -680,7 +686,7 @@ export const UmzugsboxModal = ({
                   onCheckedChange={(checked) => setFormData({ ...formData, is_rental: !!checked })}
                 />
                 <Label htmlFor="is_rental" className="cursor-pointer">
-                  Mietboxen (müssen zurückgegeben werden)
+                  {t("boxModal.isRental")}
                 </Label>
               </div>
             </div>
@@ -691,11 +697,11 @@ export const UmzugsboxModal = ({
             <div className="space-y-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
               <div className="flex items-center gap-2 text-sm font-medium text-orange-800">
                 <Calendar className="w-4 h-4" />
-                Miet-Details
+                {t("boxModal.rentalDetails")}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Mietpreis pro Tag (CHF)</Label>
+                  <Label>{t("boxModal.pricePerDay")}</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -704,7 +710,7 @@ export const UmzugsboxModal = ({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Kaution (CHF)</Label>
+                  <Label>{t("boxModal.deposit")}</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -720,7 +726,7 @@ export const UmzugsboxModal = ({
                   onCheckedChange={(checked) => setFormData({ ...formData, deposit_paid: !!checked })}
                 />
                 <Label htmlFor="deposit_paid" className="cursor-pointer">
-                  Kaution bezahlt
+                  {t("boxModal.depositPaid")}
                 </Label>
               </div>
             </div>
@@ -730,18 +736,18 @@ export const UmzugsboxModal = ({
           <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Calendar className="w-4 h-4" />
-              Termine
+              {t("boxModal.dates")}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Lieferdatum *</Label>
+                <Label>{t("boxModal.deliveryDate")}</Label>
                 <DatePicker
                   value={formData.delivery_date}
                   onChange={(value) => setFormData({ ...formData, delivery_date: value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Erwartetes Rückgabedatum</Label>
+                <Label>{t("boxModal.expectedReturnDate")}</Label>
                 <DatePicker
                   value={formData.expected_return_date}
                   onChange={(value) => setFormData({ ...formData, expected_return_date: value })}
@@ -751,14 +757,14 @@ export const UmzugsboxModal = ({
             {(formData.status === "pickup_requested" || formData.status === "pickup_scheduled") && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Geplantes Abholdatum</Label>
+                  <Label>{t("boxModal.pickupDate")}</Label>
                   <DatePicker
                     value={formData.pickup_scheduled_date}
                     onChange={(value) => setFormData({ ...formData, pickup_scheduled_date: value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Geplante Abholzeit</Label>
+                  <Label>{t("boxModal.pickupTime")}</Label>
                   <Input
                     type="time"
                     value={formData.pickup_scheduled_time}
@@ -768,7 +774,7 @@ export const UmzugsboxModal = ({
               </div>
             )}
             <div className="space-y-2">
-              <Label>Erinnerung X Tage vor Rückgabe</Label>
+              <Label>{t("boxModal.reminderDays")}</Label>
               <Select
                 value={formData.reminder_days_before.toString()}
                 onValueChange={(v) => setFormData({ ...formData, reminder_days_before: parseInt(v) })}
@@ -777,11 +783,11 @@ export const UmzugsboxModal = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">1 Tag</SelectItem>
-                  <SelectItem value="2">2 Tage</SelectItem>
-                  <SelectItem value="3">3 Tage</SelectItem>
-                  <SelectItem value="5">5 Tage</SelectItem>
-                  <SelectItem value="7">7 Tage</SelectItem>
+                  {REMINDER_DAY_OPTIONS.map((days) => (
+                    <SelectItem key={days} value={days.toString()}>
+                      {t("boxModal.days", { count: days })}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -789,7 +795,7 @@ export const UmzugsboxModal = ({
 
           {/* Status */}
           <div className="space-y-2">
-            <Label>Status</Label>
+            <Label>{t("common.status")}</Label>
             <Select
               value={formData.status}
               onValueChange={(v) => setFormData({ ...formData, status: v })}
@@ -798,11 +804,11 @@ export const UmzugsboxModal = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {statusOptions.map((opt) => (
+                {STATUS_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${opt.color}`} />
-                      {opt.label}
+                      {t(`boxes.status.${opt.value}`)}
                     </div>
                   </SelectItem>
                 ))}
@@ -813,19 +819,19 @@ export const UmzugsboxModal = ({
           {/* Team Assignment */}
           {teamMembers.length > 0 && (
             <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
-              <div className="text-sm font-medium">Team-Zuordnung</div>
+              <div className="text-sm font-medium">{t("boxModal.teamAssignment")}</div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Zuständig für Abholung</Label>
+                  <Label>{t("boxModal.assignee")}</Label>
                   <Select
                     value={formData.assigned_team_member_id || "none"}
                     onValueChange={(v) => setFormData({ ...formData, assigned_team_member_id: v === "none" ? "" : v })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Team-Mitglied wählen..." />
+                      <SelectValue placeholder={t("boxModal.selectMember")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nicht zugewiesen</SelectItem>
+                      <SelectItem value="none">{t("boxModal.unassigned")}</SelectItem>
                       {teamMembers.map((member) => (
                         <SelectItem key={member.id} value={member.id}>
                           <div className="flex items-center gap-2">
@@ -841,16 +847,16 @@ export const UmzugsboxModal = ({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Geliefert von</Label>
+                  <Label>{t("boxModal.deliveredBy")}</Label>
                   <Select
                     value={formData.delivered_by_team_member_id || "none"}
                     onValueChange={(v) => setFormData({ ...formData, delivered_by_team_member_id: v === "none" ? "" : v })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Team-Mitglied wählen..." />
+                      <SelectValue placeholder={t("boxModal.selectMember")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nicht zugewiesen</SelectItem>
+                      <SelectItem value="none">{t("boxModal.unassigned")}</SelectItem>
                       {teamMembers.map((member) => (
                         <SelectItem key={member.id} value={member.id}>
                           <div className="flex items-center gap-2">
@@ -872,20 +878,20 @@ export const UmzugsboxModal = ({
           {/* Notes */}
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Interne Notizen</Label>
+              <Label>{t("boxModal.internalNotes")}</Label>
               <Textarea
                 value={formData.internal_notes}
                 onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
-                placeholder="Nur für interne Verwendung..."
+                placeholder={t("boxModal.internalNotes.placeholder")}
                 rows={2}
               />
             </div>
             <div className="space-y-2">
-              <Label>Kundenhinweise zur Abholung</Label>
+              <Label>{t("boxModal.customerNotes")}</Label>
               <Textarea
                 value={formData.customer_notes}
                 onChange={(e) => setFormData({ ...formData, customer_notes: e.target.value })}
-                placeholder="z.B. Boxen stehen im Keller, Zugang via Hintereingang"
+                placeholder={t("boxModal.customerNotes.placeholder")}
                 rows={2}
               />
             </div>
@@ -895,11 +901,11 @@ export const UmzugsboxModal = ({
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-4 border-t">
           <Button variant="outline" onClick={onClose} disabled={loading}>
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            {rental ? "Aktualisieren" : "Erstellen"}
+            {rental ? t("misc.action.update") : t("common.create")}
           </Button>
         </div>
       </DialogContent>

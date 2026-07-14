@@ -30,8 +30,14 @@ import {
   Trash2,
   Piano,
   Warehouse,
-  Building
+  Building,
+  Languages
 } from "lucide-react";
+import { LOCALES, LOCALE_NAMES, toLocale, type Locale } from "@/i18n/locale";
+import { useI18n, useT } from "@/i18n/useI18n";
+import type { Translator } from "@/i18n/translator";
+import { getAddressLabels, getServiceLabel } from "@/i18n/domain";
+import { formatNumber } from "@/i18n/format";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -116,9 +122,9 @@ const isValidDateFormat = (date: string | null | undefined): boolean => {
 };
 
 /**
- * Get user-friendly error message
+ * Get user-friendly error message in the OPERATOR's dashboard language.
  */
-const getUserFriendlyError = (error: unknown): string => {
+const getUserFriendlyError = (error: unknown, t: Translator): string => {
   if (error instanceof Error) {
     const msg = error.message;
     // Pass through specific errors thrown by our own code
@@ -127,25 +133,31 @@ const getUserFriendlyError = (error: unknown): string => {
     }
     const msgLower = msg.toLowerCase();
     if (msgLower.includes('network') || msgLower.includes('fetch')) {
-      return 'Netzwerkfehler. Bitte überprüfen Sie Ihre Internetverbindung.';
+      return t('lead.error.network');
     }
     if (msgLower.includes('timeout')) {
-      return 'Die Anfrage hat zu lange gedauert. Bitte versuchen Sie es erneut.';
+      return t('lead.error.timeout');
     }
     if (msgLower.includes('unauthorized') || msgLower.includes('401')) {
-      return 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.';
+      return t('lead.error.unauthorized');
     }
     if (msgLower.includes('rate limit') || msgLower.includes('429')) {
-      return 'Zu viele Anfragen. Bitte warten Sie einen Moment.';
+      return t('lead.error.rateLimit');
     }
   }
-  return 'Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.';
+  return t('lead.error.unexpected');
 };
 
 // Generic extracted data interface that can hold any service type fields
 interface ExtractedData {
   // Base fields (all service types)
   detected_service_type: string;
+  /**
+   * DOCUMENT locale — the language the CUSTOMER wrote in (AI-detected, operator-editable).
+   * NOT the operator's dashboard language. Start of the propagation chain:
+   * leads.language → offers.language → auftraege / rechnungen / quittungen / appointments.
+   */
+  language: Locale;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -237,18 +249,24 @@ interface Company {
   company_name: string;
   manual_import_monthly_fee: number;
   crm_enabled?: boolean;
+  /** Dashboard default — used as the fallback customer language when the AI is unsure. */
+  default_language: string;
 }
 
-const SERVICE_TYPE_LABELS: Record<string, string> = {
-  umzug_privat: "Privatumzug",
-  umzug_firma: "Firmenumzug",
-  reinigung: "Reinigung",
-  raeumung: "Räumung",
-  entsorgung: "Entsorgung",
-  lagerung: "Lagerung",
-  klaviertransport: "Klaviertransport",
-  moebellift: "Möbellift",
-};
+/**
+ * Service types this import screen supports. The stored VALUE stays a German DB token;
+ * the visible label comes from getServiceLabel(value, locale) in the operator's language.
+ */
+const SERVICE_TYPES = [
+  "umzug_privat",
+  "umzug_firma",
+  "reinigung",
+  "raeumung",
+  "entsorgung",
+  "lagerung",
+  "klaviertransport",
+  "moebellift",
+] as const;
 
 const SERVICE_TYPE_ICONS: Record<string, React.ReactNode> = {
   umzug_privat: <Home className="w-4 h-4" />,
@@ -265,6 +283,10 @@ const FirmaManualImport = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const t = useT();
+  // Dashboard locale — the operator reads this screen. The CUSTOMER's language is a
+  // separate, captured value (extractedData.language) and never comes from here.
+  const { locale } = useI18n();
 
   // Refs for cleanup
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -306,7 +328,7 @@ const FirmaManualImport = () => {
         const companyData = await fetchSingleCompanyForUser<Company>({
           userId: user.id,
           userEmail: user.email,
-          select: "id, company_name, manual_import_monthly_fee, crm_enabled",
+          select: "id, company_name, manual_import_monthly_fee, crm_enabled, default_language",
         });
 
         if (isMountedRef.current && companyData) {
@@ -316,8 +338,8 @@ const FirmaManualImport = () => {
         if (isMountedRef.current) {
           console.error("Error fetching company:", error);
           toast({
-            title: "Fehler",
-            description: "Firmendaten konnten nicht geladen werden.",
+            title: t("common.error"),
+            description: t("lead.import.companyLoadFailed"),
             variant: "destructive",
           });
         }
@@ -327,7 +349,7 @@ const FirmaManualImport = () => {
     };
 
     fetchCompany();
-  }, [user, toast]);
+  }, [user, toast, t]);
 
   const processWithAI = useCallback(async () => {
     const trimmedText = rawText.trim();
@@ -337,8 +359,8 @@ const FirmaManualImport = () => {
     
     if (trimmedText.length < MIN_RAW_TEXT_LENGTH) {
       toast({
-        title: "Text zu kurz",
-        description: `Bitte geben Sie mindestens ${MIN_RAW_TEXT_LENGTH} Zeichen ein.`,
+        title: t("lead.import.textTooShort"),
+        description: t("lead.import.textTooShortHint", { count: MIN_RAW_TEXT_LENGTH }),
         variant: "destructive",
       });
       return;
@@ -346,8 +368,10 @@ const FirmaManualImport = () => {
 
     if (trimmedText.length > MAX_RAW_TEXT_LENGTH) {
       toast({
-        title: "Text zu lang",
-        description: `Bitte kürzen Sie den Text auf maximal ${MAX_RAW_TEXT_LENGTH.toLocaleString('de-CH')} Zeichen.`,
+        title: t("lead.import.textTooLong"),
+        description: t("lead.import.textTooLongHint", {
+          count: formatNumber(MAX_RAW_TEXT_LENGTH, locale),
+        }),
         variant: "destructive",
       });
       return;
@@ -360,13 +384,13 @@ const FirmaManualImport = () => {
     abortControllerRef.current = new AbortController();
 
     setIsProcessing(true);
-    setProcessingStep("Analysiere Text...");
+    setProcessingStep(t("lead.import.stepAnalyzing"));
 
     try {
       // Sanitize the input
       const sanitizedText = sanitizeText(trimmedText);
-      
-      setProcessingStep("Extrahiere Daten mit AI...");
+
+      setProcessingStep(t("lead.import.stepExtracting"));
       
       const { data, error } = await supabase.functions.invoke("extract-anfrage-ai", {
         body: { raw_text: sanitizedText, company_id: company.id },
@@ -396,10 +420,13 @@ const FirmaManualImport = () => {
         preferred_date: data.extracted_data.preferred_date || null,
         preferred_time: data.extracted_data.preferred_time || null,
         special_notes: data.extracted_data.special_notes || null,
-        confidence_score: typeof data.extracted_data.confidence_score === 'number' 
-          ? data.extracted_data.confidence_score 
+        confidence_score: typeof data.extracted_data.confidence_score === 'number'
+          ? data.extracted_data.confidence_score
           : 0,
         ...data.extracted_data,
+        // AFTER the spread on purpose: the AI-detected customer language is untrusted input
+        // and must be narrowed. Falls back to the company default when the model is unsure.
+        language: toLocale(data.extracted_data.language ?? company.default_language),
       };
 
       // Validate date format if provided
@@ -412,18 +439,21 @@ const FirmaManualImport = () => {
       setHasUnsavedChanges(false);
       
       toast({
-        title: "Daten extrahiert",
-        description: `Service: ${SERVICE_TYPE_LABELS[extractedWithDefaults.detected_service_type] || extractedWithDefaults.detected_service_type} | AI-Konfidenz: ${extractedWithDefaults.confidence_score}%`,
+        title: t("lead.import.extracted"),
+        description: t("lead.import.extractedHint", {
+          service: getServiceLabel(extractedWithDefaults.detected_service_type, locale),
+          score: extractedWithDefaults.confidence_score,
+        }),
       });
     } catch (error: unknown) {
       if (!isMountedRef.current) return;
-      
+
       // Don't show error if request was aborted
       if (error instanceof Error && error.name === 'AbortError') return;
-      
+
       toast({
-        title: "Extraktion fehlgeschlagen",
-        description: getUserFriendlyError(error),
+        title: t("lead.import.extractFailed"),
+        description: getUserFriendlyError(error, t),
         variant: "destructive",
       });
     } finally {
@@ -432,7 +462,7 @@ const FirmaManualImport = () => {
         setProcessingStep("");
       }
     }
-  }, [rawText, company, toast]);
+  }, [rawText, company, toast, t, locale]);
 
   const updateExtractedData = useCallback((field: keyof ExtractedData, value: string | number | boolean | null) => {
     setHasUnsavedChanges(true);
@@ -455,8 +485,8 @@ const FirmaManualImport = () => {
     // Validate email format
     if (extractedData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(extractedData.email)) {
       toast({
-        title: "Ungültige E-Mail",
-        description: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+        title: t("lead.validation.invalidEmail"),
+        description: t("lead.validation.invalidEmailHint"),
         variant: "destructive",
       });
       return;
@@ -465,8 +495,8 @@ const FirmaManualImport = () => {
     // Validate phone format
     if (extractedData.phone && !isValidSwissPhone(extractedData.phone)) {
       toast({
-        title: "Ungültige Telefonnummer",
-        description: "Bitte geben Sie eine gültige Schweizer Telefonnummer ein (z.B. +41 79 123 45 67).",
+        title: t("lead.validation.invalidPhone"),
+        description: t("lead.validation.invalidPhoneHint"),
         variant: "destructive",
       });
       return;
@@ -476,8 +506,8 @@ const FirmaManualImport = () => {
     const validatePLZ = (plz: string | null | undefined, fieldName: string): boolean => {
       if (plz && !/^\d{4}$/.test(plz)) {
         toast({
-          title: "Ungültige PLZ",
-          description: `${fieldName}: "${plz}" ist keine gültige Schweizer PLZ (4 Ziffern).`,
+          title: t("lead.validation.invalidPlz"),
+          description: t("lead.validation.invalidPlzValue", { field: fieldName, plz }),
           variant: "destructive",
         });
         return false;
@@ -486,10 +516,10 @@ const FirmaManualImport = () => {
     };
 
     const plzFields = [
-      { value: extractedData.from_plz, name: "Von PLZ" },
-      { value: extractedData.to_plz, name: "Nach PLZ" },
-      { value: extractedData.address_plz, name: "Adresse PLZ" },
-      { value: extractedData.pickup_plz, name: "Abhol-PLZ" },
+      { value: extractedData.from_plz, name: t("lead.plz.from") },
+      { value: extractedData.to_plz, name: t("lead.plz.to") },
+      { value: extractedData.address_plz, name: t("lead.plz.address") },
+      { value: extractedData.pickup_plz, name: t("lead.plz.pickup") },
     ];
 
     for (const field of plzFields) {
@@ -509,13 +539,13 @@ const FirmaManualImport = () => {
     if (!requiredPlzField?.trim() || !/^\d{4}$/.test(requiredPlzField.trim())) {
       const fieldLabel =
         serviceType === "lagerung"
-          ? "Abhol-PLZ"
+          ? t("lead.plz.pickup")
           : serviceType === "umzug_privat" || serviceType === "klaviertransport"
-            ? "Von PLZ"
-            : "Adresse PLZ";
+            ? t("lead.plz.from")
+            : t("lead.plz.address");
       toast({
-        title: "PLZ erforderlich",
-        description: `${fieldLabel} ist für diesen Servicetyp erforderlich. Bitte geben Sie eine gültige Schweizer PLZ (4 Ziffern) ein.`,
+        title: t("lead.validation.plzRequired"),
+        description: t("lead.validation.plzRequiredHint", { field: fieldLabel }),
         variant: "destructive",
       });
       return;
@@ -524,8 +554,8 @@ const FirmaManualImport = () => {
     // Validate date format
     if (extractedData.preferred_date && !isValidDateFormat(extractedData.preferred_date)) {
       toast({
-        title: "Ungültiges Datum",
-        description: "Bitte geben Sie ein gültiges Datum ein.",
+        title: t("lead.validation.invalidDate"),
+        description: t("lead.validation.invalidDateHint"),
         variant: "destructive",
       });
       return;
@@ -535,8 +565,8 @@ const FirmaManualImport = () => {
     if (extractedData.confidence_score < 50) {
       if (!extractedData.first_name && !extractedData.last_name) {
         toast({
-          title: "Fehlende Kundendaten",
-          description: "Bei niedriger AI-Konfidenz muss mindestens ein Name angegeben werden.",
+          title: t("lead.validation.missingCustomer"),
+          description: t("lead.validation.missingCustomerHint"),
           variant: "destructive",
         });
         return;
@@ -555,8 +585,8 @@ const FirmaManualImport = () => {
       const { data: { session: freshSession } } = await supabase.auth.getSession();
       if (!freshSession) {
         toast({
-          title: "Sitzung abgelaufen",
-          description: "Bitte laden Sie die Seite neu oder melden Sie sich erneut an.",
+          title: t("lead.import.sessionExpired"),
+          description: t("lead.import.sessionExpiredHint"),
           variant: "destructive",
         });
         setIsSaving(false);
@@ -578,6 +608,9 @@ const FirmaManualImport = () => {
         preferred_time_slot: extractedData.preferred_time || null,
         description: extractedData.special_notes?.trim() || null,
         service_type: serviceType,
+        // Customer language — persisted to leads.language by import-manual-lead and
+        // frozen onto the offer from there.
+        language: extractedData.language,
       };
 
       let leadData: Record<string, unknown> = { ...baseLeadData };
@@ -721,7 +754,7 @@ const FirmaManualImport = () => {
       const data = response.data;
       
       if (!data || !data.success) {
-        throw new Error(`Import: ${data?.error || "Import fehlgeschlagen"}`);
+        throw new Error(`Import: ${data?.error || t("lead.error.importFailed")}`);
       }
 
       // Reset form state before navigation
@@ -731,20 +764,20 @@ const FirmaManualImport = () => {
       setHasUnsavedChanges(false);
 
       toast({
-        title: "Anfrage importiert",
-        description: "Die Anfrage wurde erfolgreich importiert und ist jetzt in Ihren Anfragen sichtbar.",
+        title: t("lead.import.imported"),
+        description: t("lead.import.importedHint"),
       });
 
       navigate("/firma/anfragen");
     } catch (error: unknown) {
       if (!isMountedRef.current) return;
-      
+
       // Don't show error if request was aborted
       if (error instanceof Error && error.name === 'AbortError') return;
-      
+
       toast({
-        title: "Fehler beim Speichern",
-        description: getUserFriendlyError(error),
+        title: t("lead.import.saveFailed"),
+        description: getUserFriendlyError(error, t),
         variant: "destructive",
       });
     } finally {
@@ -752,7 +785,7 @@ const FirmaManualImport = () => {
         setIsSaving(false);
       }
     }
-  }, [extractedData, company, user, isSaving, rawText, toast, navigate]);
+  }, [extractedData, company, user, isSaving, rawText, toast, navigate, t]);
 
   // Handle back button with confirmation
   const handleBackClick = useCallback(() => {
@@ -835,25 +868,25 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
-          Auszugadresse
+          {getAddressLabels("umzug", locale).primary}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Strasse</Label>
+            <Label>{t("common.street")}</Label>
             <Input
               value={extractedData?.from_street || ""}
               onChange={(e) => updateExtractedData("from_street", e.target.value)}
             />
           </div>
           <div>
-            <Label>Hausnummer</Label>
+            <Label>{t("common.houseNumber")}</Label>
             <Input
               value={extractedData?.from_house_number || ""}
               onChange={(e) => updateExtractedData("from_house_number", e.target.value)}
             />
           </div>
           <div>
-            <Label>PLZ</Label>
+            <Label>{t("common.plz")}</Label>
             <Input
               value={extractedData?.from_plz || ""}
               onChange={(e) => updateExtractedData("from_plz", e.target.value)}
@@ -861,14 +894,14 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Ort</Label>
+            <Label>{t("common.city")}</Label>
             <Input
               value={extractedData?.from_city || ""}
               onChange={(e) => updateExtractedData("from_city", e.target.value)}
             />
           </div>
           <div>
-            <Label>Etage</Label>
+            <Label>{t("lead.field.floor")}</Label>
             <Input
               type="number"
               value={extractedData?.from_floor ?? ""}
@@ -876,7 +909,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Lift vorhanden?</Label>
+            <Label>{t("lead.field.hasLift")}</Label>
             <Select
               value={extractedData?.from_has_elevator ? "yes" : "no"}
               onValueChange={(v) => updateExtractedData("from_has_elevator", v === "yes")}
@@ -885,13 +918,13 @@ const FirmaManualImport = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="yes">Ja</SelectItem>
-                <SelectItem value="no">Nein</SelectItem>
+                <SelectItem value="yes">{t("domain.yes")}</SelectItem>
+                <SelectItem value="no">{t("domain.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Estrich vorhanden?</Label>
+            <Label>{t("lead.field.hasEstrich")}</Label>
             <Select
               value={extractedData?.from_has_estrich === true ? "yes" : extractedData?.from_has_estrich === false ? "no" : "unknown"}
               onValueChange={(v) => updateExtractedData("from_has_estrich", v === "unknown" ? null : v === "yes")}
@@ -900,14 +933,14 @@ const FirmaManualImport = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="unknown">Unbekannt</SelectItem>
-                <SelectItem value="yes">Ja</SelectItem>
-                <SelectItem value="no">Nein</SelectItem>
+                <SelectItem value="unknown">{t("common.unknown")}</SelectItem>
+                <SelectItem value="yes">{t("domain.yes")}</SelectItem>
+                <SelectItem value="no">{t("domain.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Keller/Garage vorhanden?</Label>
+            <Label>{t("lead.field.hasKellerGarage")}</Label>
             <Select
               value={extractedData?.from_has_keller === true ? "yes" : extractedData?.from_has_keller === false ? "no" : "unknown"}
               onValueChange={(v) => updateExtractedData("from_has_keller", v === "unknown" ? null : v === "yes")}
@@ -916,14 +949,14 @@ const FirmaManualImport = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="unknown">Unbekannt</SelectItem>
-                <SelectItem value="yes">Ja</SelectItem>
-                <SelectItem value="no">Nein</SelectItem>
+                <SelectItem value="unknown">{t("common.unknown")}</SelectItem>
+                <SelectItem value="yes">{t("domain.yes")}</SelectItem>
+                <SelectItem value="no">{t("domain.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Zimmer</Label>
+            <Label>{t("lead.field.rooms")}</Label>
             <Input
               type="number"
               step="0.5"
@@ -932,7 +965,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Wohnfläche (m²)</Label>
+            <Label>{t("lead.field.livingSpace")}</Label>
             <Input
               type="number"
               value={extractedData?.from_living_space_m2 ?? ""}
@@ -948,25 +981,25 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
-          Einzugadresse
+          {getAddressLabels("umzug", locale).secondary}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Strasse</Label>
+            <Label>{t("common.street")}</Label>
             <Input
               value={extractedData?.to_street || ""}
               onChange={(e) => updateExtractedData("to_street", e.target.value)}
             />
           </div>
           <div>
-            <Label>Hausnummer</Label>
+            <Label>{t("common.houseNumber")}</Label>
             <Input
               value={extractedData?.to_house_number || ""}
               onChange={(e) => updateExtractedData("to_house_number", e.target.value)}
             />
           </div>
           <div>
-            <Label>PLZ</Label>
+            <Label>{t("common.plz")}</Label>
             <Input
               value={extractedData?.to_plz || ""}
               onChange={(e) => updateExtractedData("to_plz", e.target.value)}
@@ -974,14 +1007,14 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Ort</Label>
+            <Label>{t("common.city")}</Label>
             <Input
               value={extractedData?.to_city || ""}
               onChange={(e) => updateExtractedData("to_city", e.target.value)}
             />
           </div>
           <div>
-            <Label>Etage</Label>
+            <Label>{t("lead.field.floor")}</Label>
             <Input
               type="number"
               value={extractedData?.to_floor ?? ""}
@@ -989,7 +1022,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Lift vorhanden?</Label>
+            <Label>{t("lead.field.hasLift")}</Label>
             <Select
               value={extractedData?.to_has_elevator ? "yes" : "no"}
               onValueChange={(v) => updateExtractedData("to_has_elevator", v === "yes")}
@@ -998,8 +1031,8 @@ const FirmaManualImport = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="yes">Ja</SelectItem>
-                <SelectItem value="no">Nein</SelectItem>
+                <SelectItem value="yes">{t("domain.yes")}</SelectItem>
+                <SelectItem value="no">{t("domain.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1012,15 +1045,15 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Package className="w-4 h-4" />
-          Zusatzleistungen
+          {t("lead.section.extras")}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           {[
-            { key: "packing_service_needed", label: "Einpackservice" },
-            { key: "furniture_assembly_needed", label: "Möbelmontage" },
-            { key: "cleaning_service_needed", label: "Reinigung" },
-            { key: "storage_needed", label: "Einlagerung" },
-            { key: "piano_transport_needed", label: "Klaviertransport" },
+            { key: "packing_service_needed", label: t("lead.extra.packing") },
+            { key: "furniture_assembly_needed", label: t("lead.extra.furnitureAssembly") },
+            { key: "cleaning_service_needed", label: t("lead.extra.cleaning") },
+            { key: "storage_needed", label: t("lead.extra.storage") },
+            { key: "piano_transport_needed", label: t("lead.extra.piano") },
           ].map((service) => (
             <div key={service.key} className="flex items-center space-x-2">
               <Checkbox
@@ -1046,25 +1079,25 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
-          Reinigungsadresse
+          {getAddressLabels("reinigung", locale).primary}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Strasse</Label>
+            <Label>{t("common.street")}</Label>
             <Input
               value={extractedData?.address_street || ""}
               onChange={(e) => updateExtractedData("address_street", e.target.value)}
             />
           </div>
           <div>
-            <Label>Hausnummer</Label>
+            <Label>{t("common.houseNumber")}</Label>
             <Input
               value={extractedData?.address_house_number || ""}
               onChange={(e) => updateExtractedData("address_house_number", e.target.value)}
             />
           </div>
           <div>
-            <Label>PLZ</Label>
+            <Label>{t("common.plz")}</Label>
             <Input
               value={extractedData?.address_plz || ""}
               onChange={(e) => updateExtractedData("address_plz", e.target.value)}
@@ -1072,7 +1105,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Ort</Label>
+            <Label>{t("common.city")}</Label>
             <Input
               value={extractedData?.address_city || ""}
               onChange={(e) => updateExtractedData("address_city", e.target.value)}
@@ -1087,28 +1120,28 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Home className="w-4 h-4" />
-          Objektdetails
+          {t("lead.section.propertyDetails")}
         </h3>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <Label>Objekttyp</Label>
+            <Label>{t("lead.field.propertyType")}</Label>
             <Select
               value={extractedData?.property_type || ""}
               onValueChange={(v) => updateExtractedData("property_type", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Wohnung">Wohnung</SelectItem>
-                <SelectItem value="Haus">Haus</SelectItem>
-                <SelectItem value="Studio">Studio</SelectItem>
-                <SelectItem value="Büro">Büro</SelectItem>
+                <SelectItem value="Wohnung">{t("lead.option.property.wohnung")}</SelectItem>
+                <SelectItem value="Haus">{t("lead.option.property.haus")}</SelectItem>
+                <SelectItem value="Studio">{t("lead.option.property.studio")}</SelectItem>
+                <SelectItem value="Büro">{t("lead.option.property.buero")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Zimmer</Label>
+            <Label>{t("lead.field.rooms")}</Label>
             <Input
               type="number"
               step="0.5"
@@ -1117,7 +1150,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Wohnfläche (m²)</Label>
+            <Label>{t("lead.field.livingSpace")}</Label>
             <Input
               type="number"
               value={extractedData?.living_space_m2 ?? ""}
@@ -1125,7 +1158,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Badezimmer</Label>
+            <Label>{t("lead.field.bathrooms")}</Label>
             <Input
               type="number"
               value={extractedData?.bathroom_count ?? ""}
@@ -1133,34 +1166,34 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Küchentyp</Label>
+            <Label>{t("lead.field.kitchenType")}</Label>
             <Select
               value={extractedData?.kitchen_type || ""}
               onValueChange={(v) => updateExtractedData("kitchen_type", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="offen">Offene Küche</SelectItem>
-                <SelectItem value="geschlossen">Geschlossene Küche</SelectItem>
-                <SelectItem value="kochnische">Kochnische</SelectItem>
+                <SelectItem value="offen">{t("lead.option.kitchen.offen")}</SelectItem>
+                <SelectItem value="geschlossen">{t("lead.option.kitchen.geschlossen")}</SelectItem>
+                <SelectItem value="kochnische">{t("lead.option.kitchen.kochnische")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Reinigungsart</Label>
+            <Label>{t("lead.field.cleaningType")}</Label>
             <Select
               value={extractedData?.cleaning_type || ""}
               onValueChange={(v) => updateExtractedData("cleaning_type", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Endreinigung">Endreinigung</SelectItem>
-                <SelectItem value="Grundreinigung">Grundreinigung</SelectItem>
-                <SelectItem value="Unterhaltsreinigung">Unterhaltsreinigung</SelectItem>
+                <SelectItem value="Endreinigung">{t("lead.option.cleaning.end")}</SelectItem>
+                <SelectItem value="Grundreinigung">{t("lead.option.cleaning.grund")}</SelectItem>
+                <SelectItem value="Unterhaltsreinigung">{t("lead.option.cleaning.unterhalt")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1173,14 +1206,14 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Package className="w-4 h-4" />
-          Zusätzliche Bereiche
+          {t("lead.section.additionalAreas")}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           {[
-            { key: "has_balcony", label: "Balkon/Terrasse" },
-            { key: "has_garage", label: "Garage" },
-            { key: "has_basement", label: "Keller" },
-            { key: "has_attic", label: "Estrich/Dachboden" },
+            { key: "has_balcony", label: t("lead.extra.balcony") },
+            { key: "has_garage", label: t("lead.extra.garage") },
+            { key: "has_basement", label: t("lead.extra.basement") },
+            { key: "has_attic", label: t("lead.extra.attic") },
           ].map((area) => (
             <div key={area.key} className="flex items-center space-x-2">
               <Checkbox
@@ -1206,25 +1239,25 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
-          Räumungsadresse
+          {getAddressLabels("raeumung", locale).primary}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Strasse</Label>
+            <Label>{t("common.street")}</Label>
             <Input
               value={extractedData?.address_street || ""}
               onChange={(e) => updateExtractedData("address_street", e.target.value)}
             />
           </div>
           <div>
-            <Label>Hausnummer</Label>
+            <Label>{t("common.houseNumber")}</Label>
             <Input
               value={extractedData?.address_house_number || ""}
               onChange={(e) => updateExtractedData("address_house_number", e.target.value)}
             />
           </div>
           <div>
-            <Label>PLZ</Label>
+            <Label>{t("common.plz")}</Label>
             <Input
               value={extractedData?.address_plz || ""}
               onChange={(e) => updateExtractedData("address_plz", e.target.value)}
@@ -1232,7 +1265,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Ort</Label>
+            <Label>{t("common.city")}</Label>
             <Input
               value={extractedData?.address_city || ""}
               onChange={(e) => updateExtractedData("address_city", e.target.value)}
@@ -1247,46 +1280,46 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Trash2 className="w-4 h-4" />
-          Räumungsdetails
+          {t("lead.section.clearingDetails")}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Räumungsart</Label>
+            <Label>{t("lead.field.clearingType")}</Label>
             <Select
               value={extractedData?.clearing_type || ""}
               onValueChange={(v) => updateExtractedData("clearing_type", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Wohnungsräumung">Wohnungsräumung</SelectItem>
-                <SelectItem value="Hausräumung">Hausräumung</SelectItem>
-                <SelectItem value="Kellerräumung">Kellerräumung</SelectItem>
-                <SelectItem value="Dachbodenräumung">Dachbodenräumung</SelectItem>
-                <SelectItem value="Büroräumung">Büroräumung</SelectItem>
+                <SelectItem value="Wohnungsräumung">{t("lead.option.clearing.wohnung")}</SelectItem>
+                <SelectItem value="Hausräumung">{t("lead.option.clearing.haus")}</SelectItem>
+                <SelectItem value="Kellerräumung">{t("lead.option.clearing.keller")}</SelectItem>
+                <SelectItem value="Dachbodenräumung">{t("lead.option.clearing.dachboden")}</SelectItem>
+                <SelectItem value="Büroräumung">{t("lead.option.clearing.buero")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Objekttyp</Label>
+            <Label>{t("lead.field.propertyType")}</Label>
             <Select
               value={extractedData?.property_type || ""}
               onValueChange={(v) => updateExtractedData("property_type", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Wohnung">Wohnung</SelectItem>
-                <SelectItem value="Haus">Haus</SelectItem>
-                <SelectItem value="Keller">Keller</SelectItem>
-                <SelectItem value="Estrich">Estrich</SelectItem>
+                <SelectItem value="Wohnung">{t("lead.option.property.wohnung")}</SelectItem>
+                <SelectItem value="Haus">{t("lead.option.property.haus")}</SelectItem>
+                <SelectItem value="Keller">{t("lead.option.property.keller")}</SelectItem>
+                <SelectItem value="Estrich">{t("lead.option.property.estrich")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Zimmer</Label>
+            <Label>{t("lead.field.rooms")}</Label>
             <Input
               type="number"
               step="0.5"
@@ -1295,19 +1328,19 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Geschätztes Volumen</Label>
+            <Label>{t("lead.field.estimatedVolume")}</Label>
             <Select
               value={extractedData?.estimated_volume || ""}
               onValueChange={(v) => updateExtractedData("estimated_volume", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="klein">Klein (wenige Gegenstände)</SelectItem>
-                <SelectItem value="mittel">Mittel (teilmöbliert)</SelectItem>
-                <SelectItem value="gross">Gross (vollmöbliert)</SelectItem>
-                <SelectItem value="sehr_gross">Sehr gross (überfüllt)</SelectItem>
+                <SelectItem value="klein">{t("lead.option.clearingVolume.klein")}</SelectItem>
+                <SelectItem value="mittel">{t("lead.option.clearingVolume.mittel")}</SelectItem>
+                <SelectItem value="gross">{t("lead.option.clearingVolume.gross")}</SelectItem>
+                <SelectItem value="sehr_gross">{t("lead.option.clearingVolume.sehrGross")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1319,12 +1352,12 @@ const FirmaManualImport = () => {
                 onCheckedChange={(checked) => updateExtractedData("has_heavy_items", !!checked)}
               />
               <label htmlFor="has_heavy_items" className="text-sm cursor-pointer">
-                Schwere Gegenstände vorhanden
+                {t("lead.field.heavyItems")}
               </label>
             </div>
             {extractedData?.has_heavy_items && (
               <Textarea
-                placeholder="Beschreibung der schweren Gegenstände..."
+                placeholder={t("lead.placeholder.heavyItems")}
                 value={extractedData?.heavy_items_description || ""}
                 onChange={(e) => updateExtractedData("heavy_items_description", e.target.value)}
                 rows={2}
@@ -1342,25 +1375,25 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
-          Entsorgungsadresse
+          {getAddressLabels("entsorgung", locale).primary}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Strasse</Label>
+            <Label>{t("common.street")}</Label>
             <Input
               value={extractedData?.address_street || ""}
               onChange={(e) => updateExtractedData("address_street", e.target.value)}
             />
           </div>
           <div>
-            <Label>Hausnummer</Label>
+            <Label>{t("common.houseNumber")}</Label>
             <Input
               value={extractedData?.address_house_number || ""}
               onChange={(e) => updateExtractedData("address_house_number", e.target.value)}
             />
           </div>
           <div>
-            <Label>PLZ</Label>
+            <Label>{t("common.plz")}</Label>
             <Input
               value={extractedData?.address_plz || ""}
               onChange={(e) => updateExtractedData("address_plz", e.target.value)}
@@ -1368,7 +1401,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Ort</Label>
+            <Label>{t("common.city")}</Label>
             <Input
               value={extractedData?.address_city || ""}
               onChange={(e) => updateExtractedData("address_city", e.target.value)}
@@ -1383,49 +1416,49 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Trash2 className="w-4 h-4" />
-          Entsorgungsdetails
+          {t("lead.section.disposalDetails")}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Entsorgungsart</Label>
+            <Label>{t("lead.field.disposalType")}</Label>
             <Select
               value={extractedData?.disposal_type || ""}
               onValueChange={(v) => updateExtractedData("disposal_type", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Sperrmüll">Sperrmüll</SelectItem>
-                <SelectItem value="Elektroschrott">Elektroschrott</SelectItem>
-                <SelectItem value="Bauschutt">Bauschutt</SelectItem>
-                <SelectItem value="Hausrat">Hausrat</SelectItem>
-                <SelectItem value="Möbel">Möbel</SelectItem>
-                <SelectItem value="Gemischt">Gemischt</SelectItem>
+                <SelectItem value="Sperrmüll">{t("lead.option.disposal.sperrmuell")}</SelectItem>
+                <SelectItem value="Elektroschrott">{t("lead.option.disposal.elektroschrott")}</SelectItem>
+                <SelectItem value="Bauschutt">{t("lead.option.disposal.bauschutt")}</SelectItem>
+                <SelectItem value="Hausrat">{t("lead.option.disposal.hausrat")}</SelectItem>
+                <SelectItem value="Möbel">{t("lead.option.disposal.moebel")}</SelectItem>
+                <SelectItem value="Gemischt">{t("lead.option.disposal.gemischt")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Geschätztes Volumen</Label>
+            <Label>{t("lead.field.estimatedVolume")}</Label>
             <Select
               value={extractedData?.estimated_volume || ""}
               onValueChange={(v) => updateExtractedData("estimated_volume", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="klein">Klein (1-2 m³)</SelectItem>
-                <SelectItem value="mittel">Mittel (3-5 m³)</SelectItem>
-                <SelectItem value="gross">Gross (6-10 m³)</SelectItem>
-                <SelectItem value="sehr_gross">Sehr gross (10+ m³)</SelectItem>
+                <SelectItem value="klein">{t("lead.option.disposalVolume.klein")}</SelectItem>
+                <SelectItem value="mittel">{t("lead.option.disposalVolume.mittel")}</SelectItem>
+                <SelectItem value="gross">{t("lead.option.disposalVolume.gross")}</SelectItem>
+                <SelectItem value="sehr_gross">{t("lead.option.disposalVolume.sehrGross")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="col-span-2">
-            <Label>Beschreibung der Gegenstände</Label>
+            <Label>{t("lead.field.itemsDescription")}</Label>
             <Textarea
-              placeholder="Was soll entsorgt werden..."
+              placeholder={t("lead.placeholder.disposalItems")}
               value={extractedData?.items_description || ""}
               onChange={(e) => updateExtractedData("items_description", e.target.value)}
               rows={3}
@@ -1442,25 +1475,25 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
-          Abholadresse
+          {getAddressLabels("lagerung", locale).primary}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Strasse</Label>
+            <Label>{t("common.street")}</Label>
             <Input
               value={extractedData?.pickup_street || ""}
               onChange={(e) => updateExtractedData("pickup_street", e.target.value)}
             />
           </div>
           <div>
-            <Label>Hausnummer</Label>
+            <Label>{t("common.houseNumber")}</Label>
             <Input
               value={extractedData?.pickup_house_number || ""}
               onChange={(e) => updateExtractedData("pickup_house_number", e.target.value)}
             />
           </div>
           <div>
-            <Label>PLZ</Label>
+            <Label>{t("common.plz")}</Label>
             <Input
               value={extractedData?.pickup_plz || ""}
               onChange={(e) => updateExtractedData("pickup_plz", e.target.value)}
@@ -1468,14 +1501,14 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Ort</Label>
+            <Label>{t("common.city")}</Label>
             <Input
               value={extractedData?.pickup_city || ""}
               onChange={(e) => updateExtractedData("pickup_city", e.target.value)}
             />
           </div>
           <div>
-            <Label>Etage</Label>
+            <Label>{t("lead.field.floor")}</Label>
             <Input
               type="number"
               value={extractedData?.pickup_floor ?? ""}
@@ -1483,7 +1516,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Lift vorhanden?</Label>
+            <Label>{t("lead.field.hasLift")}</Label>
             <Select
               value={extractedData?.pickup_has_elevator ? "yes" : "no"}
               onValueChange={(v) => updateExtractedData("pickup_has_elevator", v === "yes")}
@@ -1492,8 +1525,8 @@ const FirmaManualImport = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="yes">Ja</SelectItem>
-                <SelectItem value="no">Nein</SelectItem>
+                <SelectItem value="yes">{t("domain.yes")}</SelectItem>
+                <SelectItem value="no">{t("domain.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1506,58 +1539,58 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Warehouse className="w-4 h-4" />
-          Lagerungsdetails
+          {t("lead.section.storageDetails")}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Lagerdauer</Label>
+            <Label>{t("lead.field.storageDuration")}</Label>
             <Select
               value={extractedData?.storage_duration || ""}
               onValueChange={(v) => updateExtractedData("storage_duration", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="kurzfristig">Kurzfristig (wenige Tage)</SelectItem>
-                <SelectItem value="1-3_monate">1-3 Monate</SelectItem>
-                <SelectItem value="3-6_monate">3-6 Monate</SelectItem>
-                <SelectItem value="6-12_monate">6-12 Monate</SelectItem>
-                <SelectItem value="langfristig">Langfristig (1+ Jahr)</SelectItem>
+                <SelectItem value="kurzfristig">{t("lead.option.storageDuration.kurzfristig")}</SelectItem>
+                <SelectItem value="1-3_monate">{t("lead.option.storageDuration.m1_3")}</SelectItem>
+                <SelectItem value="3-6_monate">{t("lead.option.storageDuration.m3_6")}</SelectItem>
+                <SelectItem value="6-12_monate">{t("lead.option.storageDuration.m6_12")}</SelectItem>
+                <SelectItem value="langfristig">{t("lead.option.storageDuration.langfristig")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Volumen</Label>
+            <Label>{t("lead.field.storageVolume")}</Label>
             <Select
               value={extractedData?.storage_volume || ""}
               onValueChange={(v) => updateExtractedData("storage_volume", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="klein">Klein (1-5 m³)</SelectItem>
-                <SelectItem value="mittel">Mittel (5-15 m³)</SelectItem>
-                <SelectItem value="gross">Gross (15-30 m³)</SelectItem>
-                <SelectItem value="sehr_gross">Sehr gross (30+ m³)</SelectItem>
+                <SelectItem value="klein">{t("lead.option.storageVolume.klein")}</SelectItem>
+                <SelectItem value="mittel">{t("lead.option.storageVolume.mittel")}</SelectItem>
+                <SelectItem value="gross">{t("lead.option.storageVolume.gross")}</SelectItem>
+                <SelectItem value="sehr_gross">{t("lead.option.storageVolume.sehrGross")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Zugriffshäufigkeit</Label>
+            <Label>{t("lead.field.accessFrequency")}</Label>
             <Select
               value={extractedData?.access_frequency || ""}
               onValueChange={(v) => updateExtractedData("access_frequency", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="nie">Kein Zugriff nötig</SelectItem>
-                <SelectItem value="selten">Selten</SelectItem>
-                <SelectItem value="monatlich">Monatlich</SelectItem>
-                <SelectItem value="wöchentlich">Wöchentlich</SelectItem>
+                <SelectItem value="nie">{t("lead.option.access.nie")}</SelectItem>
+                <SelectItem value="selten">{t("lead.option.access.selten")}</SelectItem>
+                <SelectItem value="monatlich">{t("lead.option.access.monatlich")}</SelectItem>
+                <SelectItem value="wöchentlich">{t("lead.option.access.woechentlich")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1568,13 +1601,13 @@ const FirmaManualImport = () => {
               onCheckedChange={(checked) => updateExtractedData("needs_climate_control", !!checked)}
             />
             <label htmlFor="needs_climate_control" className="text-sm cursor-pointer">
-              Klimatisierter Lagerraum benötigt
+              {t("lead.field.climateControl")}
             </label>
           </div>
           <div className="col-span-2">
-            <Label>Was wird eingelagert?</Label>
+            <Label>{t("lead.field.storageItems")}</Label>
             <Textarea
-              placeholder="Beschreibung der Lagergüter..."
+              placeholder={t("lead.placeholder.storageItems")}
               value={extractedData?.storage_items_description || ""}
               onChange={(e) => updateExtractedData("storage_items_description", e.target.value)}
               rows={3}
@@ -1591,25 +1624,25 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
-          Abholadresse
+          {getAddressLabels("klaviertransport", locale).primary}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Strasse</Label>
+            <Label>{t("common.street")}</Label>
             <Input
               value={extractedData?.from_street || ""}
               onChange={(e) => updateExtractedData("from_street", e.target.value)}
             />
           </div>
           <div>
-            <Label>Hausnummer</Label>
+            <Label>{t("common.houseNumber")}</Label>
             <Input
               value={extractedData?.from_house_number || ""}
               onChange={(e) => updateExtractedData("from_house_number", e.target.value)}
             />
           </div>
           <div>
-            <Label>PLZ</Label>
+            <Label>{t("common.plz")}</Label>
             <Input
               value={extractedData?.from_plz || ""}
               onChange={(e) => updateExtractedData("from_plz", e.target.value)}
@@ -1617,14 +1650,14 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Ort</Label>
+            <Label>{t("common.city")}</Label>
             <Input
               value={extractedData?.from_city || ""}
               onChange={(e) => updateExtractedData("from_city", e.target.value)}
             />
           </div>
           <div>
-            <Label>Etage</Label>
+            <Label>{t("lead.field.floor")}</Label>
             <Input
               type="number"
               value={extractedData?.from_floor ?? ""}
@@ -1632,7 +1665,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Lift vorhanden?</Label>
+            <Label>{t("lead.field.hasLift")}</Label>
             <Select
               value={extractedData?.from_has_elevator ? "yes" : "no"}
               onValueChange={(v) => updateExtractedData("from_has_elevator", v === "yes")}
@@ -1641,8 +1674,8 @@ const FirmaManualImport = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="yes">Ja</SelectItem>
-                <SelectItem value="no">Nein</SelectItem>
+                <SelectItem value="yes">{t("domain.yes")}</SelectItem>
+                <SelectItem value="no">{t("domain.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1655,25 +1688,25 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
-          Lieferadresse
+          {getAddressLabels("klaviertransport", locale).secondary}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Strasse</Label>
+            <Label>{t("common.street")}</Label>
             <Input
               value={extractedData?.to_street || ""}
               onChange={(e) => updateExtractedData("to_street", e.target.value)}
             />
           </div>
           <div>
-            <Label>Hausnummer</Label>
+            <Label>{t("common.houseNumber")}</Label>
             <Input
               value={extractedData?.to_house_number || ""}
               onChange={(e) => updateExtractedData("to_house_number", e.target.value)}
             />
           </div>
           <div>
-            <Label>PLZ</Label>
+            <Label>{t("common.plz")}</Label>
             <Input
               value={extractedData?.to_plz || ""}
               onChange={(e) => updateExtractedData("to_plz", e.target.value)}
@@ -1681,14 +1714,14 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Ort</Label>
+            <Label>{t("common.city")}</Label>
             <Input
               value={extractedData?.to_city || ""}
               onChange={(e) => updateExtractedData("to_city", e.target.value)}
             />
           </div>
           <div>
-            <Label>Etage</Label>
+            <Label>{t("lead.field.floor")}</Label>
             <Input
               type="number"
               value={extractedData?.to_floor ?? ""}
@@ -1696,7 +1729,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Lift vorhanden?</Label>
+            <Label>{t("lead.field.hasLift")}</Label>
             <Select
               value={extractedData?.to_has_elevator ? "yes" : "no"}
               onValueChange={(v) => updateExtractedData("to_has_elevator", v === "yes")}
@@ -1705,8 +1738,8 @@ const FirmaManualImport = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="yes">Ja</SelectItem>
-                <SelectItem value="no">Nein</SelectItem>
+                <SelectItem value="yes">{t("domain.yes")}</SelectItem>
+                <SelectItem value="no">{t("domain.no")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1719,67 +1752,67 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Piano className="w-4 h-4" />
-          Klavierdetails
+          {t("lead.section.pianoDetails")}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Klaviertyp</Label>
+            <Label>{t("lead.field.pianoType")}</Label>
             <Select
               value={extractedData?.piano_type || ""}
               onValueChange={(v) => updateExtractedData("piano_type", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="klavier">Klavier (aufrecht)</SelectItem>
-                <SelectItem value="fluegel">Flügel</SelectItem>
-                <SelectItem value="e_piano">E-Piano</SelectItem>
-                <SelectItem value="keyboard">Keyboard</SelectItem>
+                <SelectItem value="klavier">{t("lead.option.piano.klavier")}</SelectItem>
+                <SelectItem value="fluegel">{t("lead.option.piano.fluegel")}</SelectItem>
+                <SelectItem value="e_piano">{t("lead.option.piano.ePiano")}</SelectItem>
+                <SelectItem value="keyboard">{t("lead.option.piano.keyboard")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Marke</Label>
+            <Label>{t("lead.field.pianoBrand")}</Label>
             <Input
               value={extractedData?.piano_brand || ""}
               onChange={(e) => updateExtractedData("piano_brand", e.target.value)}
-              placeholder="z.B. Steinway, Yamaha"
+              placeholder={t("lead.placeholder.pianoBrand")}
             />
           </div>
           <div>
-            <Label>Gewicht (kg)</Label>
+            <Label>{t("lead.field.pianoWeight")}</Label>
             <Input
               type="number"
               value={extractedData?.piano_weight_kg ?? ""}
               onChange={(e) => updateExtractedData("piano_weight_kg", e.target.value ? parseInt(e.target.value) : null)}
-              placeholder="ca. 200-500 kg"
+              placeholder={t("lead.placeholder.pianoWeight")}
             />
           </div>
           <div>
-            <Label>Treppentyp</Label>
+            <Label>{t("lead.field.staircaseType")}</Label>
             <Select
               value={extractedData?.staircase_type || ""}
               onValueChange={(v) => updateExtractedData("staircase_type", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="keine">Keine Treppe</SelectItem>
-                <SelectItem value="gerade">Gerade Treppe</SelectItem>
-                <SelectItem value="kurvig">Kurvige Treppe</SelectItem>
-                <SelectItem value="wendel">Wendeltreppe</SelectItem>
+                <SelectItem value="keine">{t("lead.option.staircase.keine")}</SelectItem>
+                <SelectItem value="gerade">{t("lead.option.staircase.gerade")}</SelectItem>
+                <SelectItem value="kurvig">{t("lead.option.staircase.kurvig")}</SelectItem>
+                <SelectItem value="wendel">{t("lead.option.staircase.wendel")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Treppenbreite (cm)</Label>
+            <Label>{t("lead.field.staircaseWidth")}</Label>
             <Input
               type="number"
               value={extractedData?.staircase_width_cm ?? ""}
               onChange={(e) => updateExtractedData("staircase_width_cm", e.target.value ? parseInt(e.target.value) : null)}
-              placeholder="z.B. 90, 100"
+              placeholder={t("lead.placeholder.staircaseWidth")}
             />
           </div>
           <div className="flex items-center space-x-2 pt-6">
@@ -1789,7 +1822,7 @@ const FirmaManualImport = () => {
               onCheckedChange={(checked) => updateExtractedData("window_access_possible", !!checked)}
             />
             <label htmlFor="window_access_possible" className="text-sm cursor-pointer">
-              Fensterzugang möglich (für Kran)
+              {t("lead.field.windowAccess")}
             </label>
           </div>
         </div>
@@ -1803,25 +1836,25 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <MapPin className="w-4 h-4" />
-          Einsatzadresse
+          {getAddressLabels("moebellift", locale).primary}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Strasse</Label>
+            <Label>{t("common.street")}</Label>
             <Input
               value={extractedData?.address_street || ""}
               onChange={(e) => updateExtractedData("address_street", e.target.value)}
             />
           </div>
           <div>
-            <Label>Hausnummer</Label>
+            <Label>{t("common.houseNumber")}</Label>
             <Input
               value={extractedData?.address_house_number || ""}
               onChange={(e) => updateExtractedData("address_house_number", e.target.value)}
             />
           </div>
           <div>
-            <Label>PLZ</Label>
+            <Label>{t("common.plz")}</Label>
             <Input
               value={extractedData?.address_plz || ""}
               onChange={(e) => updateExtractedData("address_plz", e.target.value)}
@@ -1829,7 +1862,7 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Ort</Label>
+            <Label>{t("common.city")}</Label>
             <Input
               value={extractedData?.address_city || ""}
               onChange={(e) => updateExtractedData("address_city", e.target.value)}
@@ -1844,11 +1877,11 @@ const FirmaManualImport = () => {
       <div>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Package className="w-4 h-4" />
-          Möbellift-Details
+          {t("lead.section.liftDetails")}
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Stockwerk</Label>
+            <Label>{t("lead.field.liftFloor")}</Label>
             <Input
               type="number"
               value={extractedData?.moebellift_floor ?? ""}
@@ -1856,33 +1889,33 @@ const FirmaManualImport = () => {
             />
           </div>
           <div>
-            <Label>Richtung</Label>
+            <Label>{t("lead.field.direction")}</Label>
             <Select
               value={extractedData?.direction || ""}
               onValueChange={(v) => updateExtractedData("direction", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Auswählen" />
+                <SelectValue placeholder={t("common.select")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="hoch">Hoch (Einzug)</SelectItem>
-                <SelectItem value="runter">Runter (Auszug)</SelectItem>
-                <SelectItem value="beides">Beides</SelectItem>
+                <SelectItem value="hoch">{t("lead.option.direction.hoch")}</SelectItem>
+                <SelectItem value="runter">{t("lead.option.direction.runter")}</SelectItem>
+                <SelectItem value="beides">{t("lead.option.direction.beides")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Masse (ca.)</Label>
+            <Label>{t("lead.field.dimensions")}</Label>
             <Input
               value={extractedData?.moebellift_item_dimensions || ""}
               onChange={(e) => updateExtractedData("moebellift_item_dimensions", e.target.value)}
-              placeholder="z.B. 200x100x50 cm"
+              placeholder={t("lead.placeholder.dimensions")}
             />
           </div>
           <div className="col-span-2">
-            <Label>Beschreibung der Gegenstände</Label>
+            <Label>{t("lead.field.liftItems")}</Label>
             <Textarea
-              placeholder="Was soll mit dem Möbellift transportiert werden..."
+              placeholder={t("lead.placeholder.liftItems")}
               value={extractedData?.moebellift_item_description || ""}
               onChange={(e) => updateExtractedData("moebellift_item_description", e.target.value)}
               rows={3}
@@ -1904,7 +1937,7 @@ const FirmaManualImport = () => {
   return (
     <>
       <Helmet>
-        <title>Manuelle Anfrage Import | {company.company_name}</title>
+        <title>{t("lead.import.pageTitle", { company: company.company_name })}</title>
       </Helmet>
 
       <div className="max-w-4xl mx-auto space-y-6">
@@ -1912,9 +1945,9 @@ const FirmaManualImport = () => {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
           <span className="text-4xl leading-none">📥</span>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Anfrage importieren</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("lead.import.title")}</h1>
             <p className="mt-1 text-[15px] text-folk-ink2">
-              Anfrage aus E-Mail oder Webformular einfügen — die KI erkennt Service-Typ und extrahiert alle Informationen.
+              {t("lead.import.subtitle")}
             </p>
           </div>
         </div>
@@ -1923,7 +1956,7 @@ const FirmaManualImport = () => {
         {!previewMode && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Schritt 1: Anfrage-Text einfügen</CardTitle>
+              <CardTitle className="text-lg">{t("lead.import.step1")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Voice Input */}
@@ -1935,45 +1968,27 @@ const FirmaManualImport = () => {
               <div className="space-y-2">
                 <Textarea
                   id="raw-text-input"
-                  placeholder={`Kopieren Sie hier die gesamte Anfrage aus Ihrer E-Mail oder Webformular...
-
-Beispiele für verschiedene Anfragen:
-
-📦 UMZUG:
-Von: max.mustermann@email.com
-Ich brauche einen Umzug von Zürich nach Bern.
-Auszug: Hauptstrasse 123, 8001 Zürich, 3. OG
-Einzug: Bahnhofplatz 5, 3011 Bern, EG
-3.5 Zimmer, 80m², Datum: 15.02.2025
-
-🧹 REINIGUNG:
-Guten Tag, ich brauche eine Endreinigung.
-Adresse: Seestrasse 45, 8800 Thalwil
-4 Zimmer Wohnung, 95m², 2 Bäder
-Mit Balkon und Keller
-
-🎹 KLAVIERTRANSPORT:
-Wir möchten einen Flügel transportieren.
-Von: Bahnhofstr. 10, 8001 Zürich (2. Stock)
-Nach: Seeweg 5, 6300 Zug (Erdgeschoss)
-Steinway Flügel, ca. 350kg`}
+                  placeholder={t("lead.import.textPlaceholder")}
                   value={rawText}
                   onChange={handleRawTextChange}
                   rows={20}
                   className="font-mono text-sm"
-                  aria-label="Anfrage-Text eingeben"
+                  aria-label={t("lead.import.textAria")}
                   aria-describedby="raw-text-helper"
                   maxLength={MAX_RAW_TEXT_LENGTH}
                 />
-                <div 
-                  id="raw-text-helper" 
+                <div
+                  id="raw-text-helper"
                   className="flex justify-between text-xs text-muted-foreground"
                 >
                   <span>
-                    Mindestens {MIN_RAW_TEXT_LENGTH} Zeichen erforderlich
+                    {t("lead.import.minChars", { count: MIN_RAW_TEXT_LENGTH })}
                   </span>
                   <span className={rawText.length > MAX_RAW_TEXT_LENGTH * 0.9 ? 'text-amber-600 font-medium' : ''}>
-                    {rawText.length.toLocaleString('de-CH')} / {MAX_RAW_TEXT_LENGTH.toLocaleString('de-CH')} Zeichen
+                    {t("lead.import.charCount", {
+                      current: formatNumber(rawText.length, locale),
+                      max: formatNumber(MAX_RAW_TEXT_LENGTH, locale),
+                    })}
                   </span>
                 </div>
               </div>
@@ -1983,7 +1998,9 @@ Steinway Flügel, ca. 350kg`}
                 <Alert className="bg-amber-50 border-amber-200">
                   <AlertCircle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800">
-                    Bitte geben Sie mehr Details ein ({MIN_RAW_TEXT_LENGTH - rawText.trim().length} Zeichen fehlen).
+                    {t("lead.import.moreDetails", {
+                      count: MIN_RAW_TEXT_LENGTH - rawText.trim().length,
+                    })}
                   </AlertDescription>
                 </Alert>
               )}
@@ -1999,12 +2016,12 @@ Steinway Flügel, ca. 350kg`}
                   {isProcessing ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {processingStep || 'Verarbeite...'}
+                      {processingStep || t("lead.import.processing")}
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 mr-2" />
-                      Mit AI extrahieren
+                      {t("lead.import.extract")}
                     </>
                   )}
                 </Button>
@@ -2012,10 +2029,10 @@ Steinway Flügel, ca. 350kg`}
                   variant="outline"
                   onClick={handleReset}
                   disabled={isProcessing || !rawText}
-                  aria-label="Text zurücksetzen"
+                  aria-label={t("lead.import.resetAria")}
                   className="min-w-0 shrink-0 max-sm:px-0 sm:px-4"
                 >
-                  Zurücksetzen
+                  {t("common.reset")}
                 </Button>
               </div>
             </CardContent>
@@ -2034,14 +2051,14 @@ Steinway Flügel, ca. 350kg`}
                       {SERVICE_TYPE_ICONS[extractedData.detected_service_type] || <Package className="w-5 h-5" />}
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Erkannter Service-Typ</p>
+                      <p className="text-sm text-muted-foreground">{t("lead.import.detectedService")}</p>
                       <p className="font-semibold text-lg">
-                        {SERVICE_TYPE_LABELS[extractedData.detected_service_type] || extractedData.detected_service_type}
+                        {getServiceLabel(extractedData.detected_service_type, locale)}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">AI Konfidenz</p>
+                    <p className="text-sm text-muted-foreground">{t("lead.import.confidence")}</p>
                     <p className="font-bold text-2xl">{extractedData.confidence_score}%</p>
                   </div>
                 </div>
@@ -2050,7 +2067,7 @@ Steinway Flügel, ca. 350kg`}
                   <Alert className="mt-4 bg-amber-50 border-amber-200">
                     <AlertCircle className="h-4 w-4 text-amber-600" />
                     <AlertDescription className="text-amber-800">
-                      Bitte überprüfen Sie die extrahierten Daten sorgfältig.
+                      {t("lead.import.lowConfidence")}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -2061,9 +2078,9 @@ Steinway Flügel, ca. 350kg`}
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">Schritt 2: Extrahierte Daten überprüfen</CardTitle>
+                    <CardTitle className="text-lg">{t("lead.import.step2")}</CardTitle>
                     <CardDescription>
-                      Überprüfen und korrigieren Sie die extrahierten Daten
+                      {t("lead.import.step2Hint")}
                     </CardDescription>
                   </div>
                   <Select
@@ -2074,8 +2091,10 @@ Steinway Flügel, ca. 350kg`}
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(SERVICE_TYPE_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      {SERVICE_TYPES.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {getServiceLabel(value, locale)}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -2086,25 +2105,25 @@ Steinway Flügel, ca. 350kg`}
                 <div>
                   <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
                     <User className="w-4 h-4" />
-                    Kontaktinformation
+                    {t("lead.import.contactInfo")}
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Vorname</Label>
+                      <Label>{t("common.firstName")}</Label>
                       <Input
                         value={extractedData.first_name || ""}
                         onChange={(e) => updateExtractedData("first_name", e.target.value)}
                       />
                     </div>
                     <div>
-                      <Label>Nachname</Label>
+                      <Label>{t("common.lastName")}</Label>
                       <Input
                         value={extractedData.last_name || ""}
                         onChange={(e) => updateExtractedData("last_name", e.target.value)}
                       />
                     </div>
                     <div>
-                      <Label>E-Mail</Label>
+                      <Label>{t("common.email")}</Label>
                       <Input
                         type="email"
                         value={extractedData.email || ""}
@@ -2112,7 +2131,7 @@ Steinway Flügel, ca. 350kg`}
                       />
                     </div>
                     <div>
-                      <Label>Telefon</Label>
+                      <Label>{t("common.phone")}</Label>
                       <Input
                         value={extractedData.phone || ""}
                         onChange={(e) => updateExtractedData("phone", e.target.value)}
@@ -2123,25 +2142,61 @@ Steinway Flügel, ca. 350kg`}
 
                 <Separator />
 
+                {/* Customer language (DOCUMENT locale) — explicitly NOT the operator's
+                    dashboard language. Everything the customer receives is written in it. */}
+                <div>
+                  <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+                    <Languages className="w-4 h-4" />
+                    {t("lead.import.languageSection")}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="customer-language">{t("lead.import.languageLabel")}</Label>
+                      <Select
+                        value={extractedData.language}
+                        onValueChange={(v) => updateExtractedData("language", v)}
+                      >
+                        <SelectTrigger id="customer-language">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* The option list is the CUSTOMER's language axis — the endonym
+                              (LOCALE_NAMES) is intentionally not routed through useT(). */}
+                          {LOCALES.map((customerLocale) => (
+                            <SelectItem key={customerLocale} value={customerLocale}>
+                              {LOCALE_NAMES[customerLocale]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="self-end pb-2 text-xs text-muted-foreground">
+                      {t("lead.import.languageHint")}
+                    </p>
+                  </div>
+                </div>
+
+                <Separator />
+
                 {/* Date & Time (Common for all) */}
                 <div>
                   <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    Termin
+                    {t("lead.import.appointment")}
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Wunschdatum</Label>
+                      <Label>{t("lead.import.preferredDate")}</Label>
                       <DatePicker
                         value={extractedData.preferred_date || ""}
                         onChange={(value) => updateExtractedData("preferred_date", value)}
                       />
                     </div>
                     <div>
-                      <Label>Uhrzeit / Zeitraum</Label>
+                      <Label>{t("lead.import.preferredTime")}</Label>
                       <Input
                         type="text"
-                        placeholder="z.B. 09:00, Morgen, Nachmittag"
+                        placeholder={t("lead.placeholder.preferredTime")}
                         value={extractedData.preferred_time || ""}
                         onChange={(e) => updateExtractedData("preferred_time", e.target.value)}
                       />
@@ -2158,7 +2213,7 @@ Steinway Flügel, ca. 350kg`}
 
                 {/* Special Notes (Common for all) */}
                 <div>
-                  <Label>Besondere Hinweise</Label>
+                  <Label>{t("lead.import.specialNotes")}</Label>
                   <Textarea
                     value={extractedData.special_notes || ""}
                     onChange={(e) => updateExtractedData("special_notes", e.target.value)}
@@ -2173,10 +2228,10 @@ Steinway Flügel, ca. 350kg`}
                     variant="outline"
                     onClick={handleBackClick}
                     disabled={isSaving}
-                    aria-label="Zurück zur Texteingabe"
+                    aria-label={t("lead.import.backAria")}
                   >
                     <ArrowLeft className="w-4 h-4 mr-2" />
-                    Zurück
+                    {t("common.back")}
                   </Button>
                   <Button
                     onClick={saveAndCreateOfferte}
@@ -2188,12 +2243,12 @@ Steinway Flügel, ca. 350kg`}
                     {isSaving ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Speichere...
+                        {t("lead.import.saving")}
                       </>
                     ) : (
                       <>
                         <Check className="w-4 h-4 mr-2" />
-                        Anfrage speichern
+                        {t("lead.import.save")}
                       </>
                     )}
                   </Button>
@@ -2208,16 +2263,15 @@ Steinway Flügel, ca. 350kg`}
       <AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Änderungen verwerfen?</AlertDialogTitle>
+            <AlertDialogTitle>{t("lead.import.discardTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sie haben ungespeicherte Änderungen. Wenn Sie zurückgehen, gehen alle 
-              Änderungen verloren. Möchten Sie wirklich fortfahren?
+              {t("lead.import.discardDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmGoBack} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Verwerfen & Zurück
+              {t("lead.import.discardConfirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

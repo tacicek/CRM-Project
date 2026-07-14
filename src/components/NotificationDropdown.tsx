@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { formatDistanceToNow, format } from "date-fns";
-import { de } from "date-fns/locale";
 import {
   Bell,
   Check,
@@ -26,6 +25,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { NotificationItem } from "@/hooks/useNotificationHistory";
 import { supabase } from "@/integrations/supabase/client";
+import { useI18n } from "@/i18n/useI18n";
 import { toast } from "sonner";
 
 interface NotificationDropdownProps {
@@ -115,6 +115,7 @@ export const NotificationDropdown = ({
   onClearAll,
   onNotificationClick,
 }: NotificationDropdownProps) => {
+  const { t, dateLocale } = useI18n();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -133,7 +134,7 @@ export const NotificationDropdown = ({
     e.stopPropagation();
 
     if (!notification.metadata) {
-      toast.error("Keine Metadaten für diese Benachrichtigung gefunden");
+      toast.error(t("nav.notifications.error.noMetadata"));
       return;
     }
 
@@ -146,7 +147,7 @@ export const NotificationDropdown = ({
     } = notification.metadata;
 
     if (!appointment_id || !customer_email || !proposed_date || !proposed_time) {
-      toast.error("Unvollständige Daten für diese Aktion");
+      toast.error(t("nav.notifications.error.incompleteData"));
       return;
     }
 
@@ -160,7 +161,7 @@ export const NotificationDropdown = ({
         .maybeSingle();
 
       if (fetchError || !appointment) {
-        throw new Error("Termin nicht gefunden");
+        throw new Error(t("nav.notifications.error.appointmentNotFound"));
       }
 
       const companyName = (appointment.companies as { company_name: string })?.company_name || "Firma";
@@ -188,18 +189,21 @@ export const NotificationDropdown = ({
         .eq("id", notification.id);
 
       if (action === "confirm") {
-        toast.success("Terminverschiebung bestätigt", {
-          description: `Neuer Termin: ${format(new Date(proposed_date), "dd.MM.yyyy", { locale: de })} um ${proposed_time} Uhr`,
+        toast.success(t("nav.notifications.reschedule.confirmed"), {
+          description: t("nav.notifications.reschedule.confirmedDescription", {
+            date: format(new Date(proposed_date), "dd.MM.yyyy", { locale: dateLocale }),
+            time: proposed_time,
+          }),
         });
       } else {
-        toast.info("Terminverschiebung abgelehnt", {
-          description: "Der Kunde wurde per E-Mail informiert.",
+        toast.info(t("nav.notifications.reschedule.rejected"), {
+          description: t("nav.notifications.reschedule.rejectedDescription"),
         });
       }
     } catch (error) {
       console.error("Error handling reschedule action:", error);
-      toast.error("Fehler bei der Verarbeitung", {
-        description: error instanceof Error ? error.message : "Bitte versuchen Sie es erneut",
+      toast.error(t("nav.notifications.error.processing"), {
+        description: error instanceof Error ? error.message : t("nav.notifications.error.retry"),
       });
     } finally {
       setProcessingId(null);
@@ -220,7 +224,10 @@ export const NotificationDropdown = ({
           <div className="flex items-center gap-2 text-xs bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
             <Calendar className="h-3.5 w-3.5 text-orange-600" />
             <span className="font-medium text-orange-700">
-              {format(new Date(proposed_date), "EEEE, dd. MMMM yyyy", { locale: de })} • {proposed_time} Uhr
+              {t("nav.notifications.reschedule.proposed", {
+                date: format(new Date(proposed_date), "EEEE, dd. MMMM yyyy", { locale: dateLocale }),
+                time: proposed_time,
+              })}
             </span>
           </div>
         )}
@@ -236,7 +243,7 @@ export const NotificationDropdown = ({
             ) : (
               <>
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                Annehmen
+                {t("nav.notifications.reschedule.accept")}
               </>
             )}
           </Button>
@@ -252,7 +259,7 @@ export const NotificationDropdown = ({
             ) : (
               <>
                 <XCircle className="h-3.5 w-3.5 mr-1.5" />
-                Ablehnen
+                {t("nav.notifications.reschedule.reject")}
               </>
             )}
           </Button>
@@ -276,7 +283,11 @@ export const NotificationDropdown = ({
             ${isOpen ? 'ring-2 ring-secondary/30 shadow-md' : ''}
             ${unreadCount > 0 ? 'ring-2 ring-amber-400/30' : ''}
           `}
-          aria-label={unreadCount > 0 ? `${unreadCount} neue Benachrichtigungen` : "Benachrichtigungen anzeigen"}
+          aria-label={
+            unreadCount > 0
+              ? t("nav.notifications.new", { count: unreadCount })
+              : t("nav.notifications.show")
+          }
         >
           {/* Bell icon with animation */}
           <Bell className={`
@@ -317,9 +328,11 @@ export const NotificationDropdown = ({
                 <Bell className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 text-sm">Benachrichtigungen</h3>
+                <h3 className="font-semibold text-slate-900 text-sm">{t("nav.notifications")}</h3>
                 {unreadCount > 0 && (
-                  <p className="text-xs text-slate-500">{unreadCount} ungelesen</p>
+                  <p className="text-xs text-slate-500">
+                    {t("nav.notifications.unread", { count: unreadCount })}
+                  </p>
                 )}
               </div>
             </div>
@@ -335,12 +348,13 @@ export const NotificationDropdown = ({
                   }}
                 >
                   <Check className="w-3.5 h-3.5 mr-1" />
-                  Alle gelesen
+                  {t("nav.notifications.markAllReadShort")}
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                  aria-label={t("nav.notifications.clearAll")}
                   onClick={(e) => {
                     e.preventDefault();
                     onClearAll();
@@ -359,8 +373,8 @@ export const NotificationDropdown = ({
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
               <Bell className="w-8 h-8 text-slate-400" />
             </div>
-            <p className="text-sm font-medium text-slate-600">Keine Benachrichtigungen</p>
-            <p className="text-xs text-slate-400 mt-1">Sie sind auf dem neuesten Stand!</p>
+            <p className="text-sm font-medium text-slate-600">{t("nav.notifications.empty")}</p>
+            <p className="text-xs text-slate-400 mt-1">{t("nav.notifications.emptyHint")}</p>
           </div>
         ) : (
           <ScrollArea className="h-[420px]">
@@ -433,7 +447,7 @@ export const NotificationDropdown = ({
                             <span className="text-[11px] text-slate-400 font-medium">
                               {formatDistanceToNow(notification.timestamp, {
                                 addSuffix: true,
-                                locale: de,
+                                locale: dateLocale,
                               })}
                             </span>
                           </div>
@@ -453,7 +467,7 @@ export const NotificationDropdown = ({
         {notifications.length > 0 && (
           <div className="border-t border-slate-200 bg-slate-50 px-4 py-2">
             <p className="text-[11px] text-slate-400 text-center">
-              {notifications.length} Benachrichtigung{notifications.length !== 1 ? 'en' : ''}
+              {t("nav.notifications.count", { count: notifications.length })}
             </p>
           </div>
         )}

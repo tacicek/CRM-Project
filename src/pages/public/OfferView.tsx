@@ -43,15 +43,32 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Fragment, useEffect, useState } from "react";
-import { groupItemsByService, serviceTerminLabel } from "@/lib/offerServiceType";
+import { groupItemsByService } from "@/lib/offerServiceType";
 import { supabase } from "@/integrations/supabase/client";
 import { useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeDisplayTotals, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type SubtotalItem, BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
+import {
+  computeDisplayTotals,
+  isFreeItem,
+  itemAmountDisplay,
+  offerHasRateItem,
+  toAmountBasis,
+  type SubtotalItem,
+} from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
+import { documentI18nFor, resolveDocumentLocale } from "@/i18n/documentLocale";
+import { toLocale } from "@/i18n/locale";
+import { getAppointmentLabel, getServiceLabel } from "@/i18n/domain";
+import {
+  formatAmount,
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatPercent,
+} from "@/i18n/format";
 
 interface OfferItem {
   id: string;
@@ -76,6 +93,10 @@ interface Offer {
   // P3b-2c-i: returned by get_offer_by_token since migration 20260704090000 — feeds
   // computeDisplayTotals so the public page discounts the max side of a blind range too.
   discount_percent?: number | null;
+  // The customer's language, frozen from the lead when the offer was created. This page
+  // is addressed at the customer, so EVERY string on it is resolved from this column —
+  // never from a dashboard context (there is no logged-in operator here).
+  language?: string | null;
   title: string;
   description: string | null;
   customer_first_name: string;
@@ -156,6 +177,9 @@ interface Company {
   signature_url?: string | null;
   slogan?: string | null;
   pdf_template?: string | null;
+  // Fallback for offers that predate offers.language; also the language of the notes
+  // this page writes BACK to the company (customer_response_note).
+  default_language?: string | null;
 }
 
 interface LeadAddress {
@@ -204,6 +228,10 @@ const PublicOfferView = () => {
   }>>([]);
   const [leadAddress, setLeadAddress] = useState<LeadAddress | null>(null);
 
+  // DOCUMENT locale: the offer's own `language`, with the company default as the
+  // fallback for rows written before the column existed.
+  const { t, locale } = documentI18nFor(resolveDocumentLocale(offer, company));
+
   useEffect(() => {
     const fetchOffer = async () => {
       if (!token) {
@@ -227,7 +255,7 @@ const PublicOfferView = () => {
           setIsLoading(false);
           return;
         }
-        
+
         const offerData = offerDataArray[0] as Offer;
         setOffer(offerData);
 
@@ -283,6 +311,10 @@ const PublicOfferView = () => {
           // Checkliste und AGB werden über SECURITY DEFINER RPCs geladen (anon-safe),
           // gefiltert nach dem Service-Typ der Offerte, damit der Kunde nur die
           // relevanten Bedingungen sieht (nicht alle Services zusammengeführt).
+          //
+          // Beide RPCs lösen Titel/Inhalt SERVERSEITIG in die Sprache der Offerte auf
+          // (i18n_text() über die `translations`-Spalte) — der Text kommt also bereits
+          // übersetzt an und wird hier nur noch gerendert.
           const normalizedServiceType = offerData.service_type
             ? normalizeServiceTypeForAgb(offerData.service_type)
             : null;
@@ -311,6 +343,7 @@ const PublicOfferView = () => {
         }
       } catch (error) {
         console.error("Error fetching offer:", error);
+        setLoadError("network");
       } finally {
         setIsLoading(false);
       }
@@ -319,29 +352,8 @@ const PublicOfferView = () => {
     fetchOffer();
   }, [token]);
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("de-CH", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("de-CH", {
-      style: "currency",
-      currency: "CHF",
-    }).format(amount);
-  };
-
-  const formatDateObj = (date: Date) => {
-    return date.toLocaleDateString("de-CH", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
+  const showDate = (value: string | Date | null | undefined) =>
+    value ? formatDate(value, locale) : "-";
 
   const parseDateOnly = (dateString: string) => {
     const date = new Date(`${dateString}T00:00:00`);
@@ -407,8 +419,8 @@ const PublicOfferView = () => {
     if (!offer || !token) return;
     if (isExpired()) {
       toast({
-        title: "Annahmefrist abgelaufen",
-        description: "Diese Offerte kann nicht mehr angenommen werden. Bitte kontaktieren Sie die Firma.",
+        title: t("public.offer.toast.expiredTitle"),
+        description: t("public.offer.toast.expiredBody"),
         variant: "destructive",
       });
       return;
@@ -417,7 +429,7 @@ const PublicOfferView = () => {
     setIsResponding(true);
     try {
       // Create AGB version hash from section IDs and titles
-      const agbVersion = agbSections.length > 0 
+      const agbVersion = agbSections.length > 0
         ? agbSections.map(s => `${s.id}:${s.title}`).join('|')
         : null;
 
@@ -432,7 +444,7 @@ const PublicOfferView = () => {
       });
 
       if (error || !success) {
-        throw error || new Error("ANNAHMEFRIST_ABGELAUFEN");
+        throw error || new Error("ACCEPTANCE_DEADLINE_PASSED");
       }
 
       await sendNotification("accepted");
@@ -445,19 +457,20 @@ const PublicOfferView = () => {
       });
       setShowAcceptDialog(false);
       toast({
-        title: "Offerte angenommen",
-        description: agbSections.length > 0 
-          ? "Vielen Dank! Sie haben die Offerte und die AGB akzeptiert. Die Firma wurde benachrichtigt."
-          : "Vielen Dank! Die Firma wurde benachrichtigt.",
+        title: t("public.offer.toast.acceptedTitle"),
+        description:
+          agbSections.length > 0
+            ? t("public.offer.toast.acceptedAgbBody")
+            : t("public.offer.toast.acceptedBody"),
       });
     } catch (error) {
       console.error("Error accepting offer:", error);
       toast({
-        title: "Fehler",
+        title: t("common.error"),
         description:
-          error instanceof Error && error.message.includes("ANNAHMEFRIST_ABGELAUFEN")
-            ? "Die Annahmefrist ist abgelaufen. Bitte kontaktieren Sie die Firma."
-            : "Die Antwort konnte nicht gespeichert werden.",
+          error instanceof Error && error.message.includes("ACCEPTANCE_DEADLINE_PASSED")
+            ? t("public.offer.toast.expiredBody")
+            : t("public.offer.toast.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -478,7 +491,7 @@ const PublicOfferView = () => {
         new_customer_response_note: responseNote || null,
       });
 
-      if (error || !success) throw error || new Error("Update failed");
+      if (error || !success) throw error || new Error("Offer update failed");
 
       await sendNotification("rejected");
 
@@ -490,14 +503,140 @@ const PublicOfferView = () => {
       });
       setShowRejectDialog(false);
       toast({
-        title: "Offerte abgelehnt",
-        description: "Die Firma wurde über Ihre Entscheidung informiert.",
+        title: t("public.offer.toast.rejectedTitle"),
+        description: t("public.offer.toast.rejectedBody"),
       });
     } catch (error) {
       console.error("Error rejecting offer:", error);
       toast({
-        title: "Fehler",
-        description: "Die Antwort konnte nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("public.offer.toast.saveFailed"),
+        variant: "destructive",
+      });
+    } finally {
+      setIsResponding(false);
+    }
+  };
+
+  const handleSendContactMessage = async () => {
+    if (!offer || !company) return;
+    if (!contactMessage.trim()) {
+      toast({
+        title: t("public.offer.toast.messageRequired"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsResponding(true);
+    try {
+      // Send email notification to company
+      await supabase.functions.invoke("notify-offer-response", {
+        body: {
+          offerId: offer.id,
+          accessToken: token,
+          offerTitle: offer.title,
+          customerName: `${offer.customer_first_name} ${offer.customer_last_name}`,
+          customerEmail: offer.customer_email,
+          customerPhone: offer.customer_phone,
+          responseType: "question",
+          responseNote: contactMessage,
+          companyEmail: company.email,
+          companyName: company.company_name,
+          companyId: company.id,
+          offerTotal: offer.total,
+        },
+      });
+
+      setShowContactDialog(false);
+      setContactMessage("");
+
+      toast({
+        title: t("public.offer.toast.messageSentTitle"),
+        description: t("public.offer.toast.messageSentBody"),
+      });
+    } catch (error) {
+      console.error("Error sending contact message:", error);
+      toast({
+        title: t("common.error"),
+        description: t("public.offer.toast.messageFailed"),
+        variant: "destructive",
+      });
+    } finally {
+      setIsResponding(false);
+    }
+  };
+
+  const handleRequestBesichtigung = async () => {
+    if (!offer || !company || !besichtigungDate) {
+      toast({
+        title: t("public.offer.toast.dateRequired"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsResponding(true);
+    try {
+      // The note is stored on the offer and read by the COMPANY in the dashboard, so it
+      // is written in the company's language — not the customer's.
+      const { t: companyT, locale: companyLocale } = documentI18nFor(
+        toLocale(company.default_language)
+      );
+      const requestLine = besichtigungTime
+        ? companyT("public.offer.viewingRequestNoteTime", {
+            date: formatDate(besichtigungDate, companyLocale),
+            time: besichtigungTime,
+          })
+        : companyT("public.offer.viewingRequestNote", {
+            date: formatDate(besichtigungDate, companyLocale),
+          });
+      const besichtigungInfo = responseNote ? `${requestLine} ${responseNote}` : requestLine;
+
+      // Use RPC (SECURITY DEFINER) — anon cannot write directly to offers
+      const { data: updated, error } = await supabase.rpc("update_offer_by_token", {
+        offer_access_token: token,
+        new_customer_response_note: besichtigungInfo,
+      });
+
+      if (error) throw error;
+      if (!updated) throw new Error("Offer update failed");
+
+      await supabase.functions.invoke("notify-besichtigung", {
+        body: {
+          offerTitle: offer.title,
+          customerName: `${offer.customer_first_name} ${offer.customer_last_name}`,
+          customerEmail: offer.customer_email,
+          customerPhone: offer.customer_phone,
+          besichtigungDate,
+          besichtigungTime: besichtigungTime || null,
+          customerNote: responseNote || null,
+          companyEmail: company.email,
+          companyName: company.company_name,
+          companyId: company.id,
+          offerTotal: offer.total,
+          offerId: offer.id,
+        },
+      });
+
+      setOffer({
+        ...offer,
+        customer_response_note: besichtigungInfo,
+      });
+      setShowBesichtigungDialog(false);
+      setBesichtigungDate("");
+      setBesichtigungTime("");
+      setResponseNote("");
+
+      toast({
+        title: t("public.offer.toast.viewingRequestedTitle"),
+        description: t("public.offer.toast.viewingRequestedBody"),
+      });
+    } catch (error) {
+      console.error("Error requesting besichtigung:", error);
+      toast({
+        title: t("common.error"),
+        description: t("public.offer.toast.requestFailed"),
         variant: "destructive",
       });
     } finally {
@@ -534,6 +673,8 @@ const PublicOfferView = () => {
         primary_color: company.primary_color || undefined,
         signature_url: company.signature_url || undefined,
         pdf_template: company.pdf_template ?? null,
+        // Fallback der Dokumentsprache; die Offerte selbst hat Vorrang (offer.language).
+        default_language: company.default_language ?? null,
       },
       customer_address: leadAddress ? {
         street: leadAddress.from_street || undefined,
@@ -570,8 +711,12 @@ const PublicOfferView = () => {
     const isNetworkError = loadError === "network";
     return (
       <>
-        <Helmet>
-          <title>{isNetworkError ? "Verbindungsproblem" : "Offerte nicht gefunden"}</title>
+        <Helmet htmlAttributes={{ lang: locale }}>
+          <title>
+            {isNetworkError
+              ? t("public.offer.connectionErrorTitle")
+              : t("public.offer.notFoundTitle")}
+          </title>
         </Helmet>
         <div className="min-h-screen flex items-center justify-center bg-muted/30">
           <Card className="max-w-md mx-4">
@@ -579,23 +724,23 @@ const PublicOfferView = () => {
               <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
               {isNetworkError ? (
                 <>
-                  <h1 className="text-xl font-bold mb-2">Verbindungsproblem</h1>
+                  <h1 className="text-xl font-bold mb-2">
+                    {t("public.offer.connectionErrorTitle")}
+                  </h1>
                   <p className="text-muted-foreground mb-4">
-                    Die Offerte konnte nicht geladen werden. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.
+                    {t("public.offer.connectionErrorBody")}
                   </p>
                   <button
                     onClick={() => window.location.reload()}
                     className="text-sm text-primary underline underline-offset-2"
                   >
-                    Seite neu laden
+                    {t("public.reload")}
                   </button>
                 </>
               ) : (
                 <>
-                  <h1 className="text-xl font-bold mb-2">Offerte nicht gefunden</h1>
-                  <p className="text-muted-foreground">
-                    Diese Offerte existiert nicht oder ist nicht mehr verfügbar.
-                  </p>
+                  <h1 className="text-xl font-bold mb-2">{t("public.offer.notFoundTitle")}</h1>
+                  <p className="text-muted-foreground">{t("public.offer.notFoundBody")}</p>
                 </>
               )}
             </CardContent>
@@ -611,14 +756,18 @@ const PublicOfferView = () => {
         return (
           <div className="flex items-center gap-2 text-green-600 bg-green-50 px-4 py-3 rounded-lg">
             <CheckCircle className="w-5 h-5" />
-            <span className="font-medium">Sie haben diese Offerte am {formatDate(offer.accepted_at)} angenommen</span>
+            <span className="font-medium">
+              {t("public.offer.acceptedOn", { date: showDate(offer.accepted_at) })}
+            </span>
           </div>
         );
       case "rejected":
         return (
           <div className="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-lg">
             <XCircle className="w-5 h-5" />
-            <span className="font-medium">Sie haben diese Offerte am {formatDate(offer.rejected_at)} abgelehnt</span>
+            <span className="font-medium">
+              {t("public.offer.rejectedOn", { date: showDate(offer.rejected_at) })}
+            </span>
           </div>
         );
       default:
@@ -628,7 +777,9 @@ const PublicOfferView = () => {
             <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-4 py-3 rounded-lg">
               <Clock className="w-5 h-5" />
               <span className="font-medium">
-                Diese Offerte ist abgelaufen{deadline ? ` (Annahme bis ${formatDateObj(deadline)})` : ""}
+                {deadline
+                  ? t("public.offer.expiredWithDeadline", { date: formatDate(deadline, locale) })
+                  : t("public.offer.expired")}
               </span>
             </div>
           );
@@ -639,8 +790,13 @@ const PublicOfferView = () => {
 
   return (
     <>
-      <Helmet>
-        <title>{offer.title} | Offerte von {company.company_name}</title>
+      <Helmet htmlAttributes={{ lang: locale }}>
+        <title>
+          {t("public.offer.pageTitle", {
+            title: offer.title,
+            company: company.company_name,
+          })}
+        </title>
         <meta name="robots" content="noindex, nofollow" />
       </Helmet>
 
@@ -693,7 +849,7 @@ const PublicOfferView = () => {
                       className="flex items-center gap-1 hover:text-secondary"
                     >
                       <Globe className="w-4 h-4" />
-                      Website
+                      {t("public.offer.website")}
                     </a>
                   )}
                 </div>
@@ -711,13 +867,13 @@ const PublicOfferView = () => {
                 <div>
                   <CardTitle className="text-2xl">{offer.title}</CardTitle>
                   <p className="text-muted-foreground mt-1">
-                    Offerte erstellt am {formatDate(offer.created_at)}
+                    {t("public.offer.createdOn", { date: showDate(offer.created_at) })}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" onClick={() => window.print()}>
                     <Printer className="w-4 h-4 mr-2" />
-                    Drucken
+                    {t("common.print")}
                   </Button>
                   <Button variant="outline" onClick={handleDownloadPdf}>
                     <Download className="w-4 h-4 mr-2" />
@@ -735,8 +891,10 @@ const PublicOfferView = () => {
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <p className="text-xs text-muted-foreground">Ausführungsdatum</p>
-                      <p className="font-medium">{formatDate(offer.service_date)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("public.offer.serviceDate")}
+                      </p>
+                      <p className="font-medium">{showDate(offer.service_date)}</p>
                     </div>
                   </div>
                 )}
@@ -744,9 +902,11 @@ const PublicOfferView = () => {
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <p className="text-xs text-muted-foreground">Gültig bis</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("doc.offer.validUntil")}
+                      </p>
                       <p className={`font-medium ${isExpired() ? "text-destructive" : ""}`}>
-                        {formatDate(offer.valid_until)}
+                        {showDate(offer.valid_until)}
                       </p>
                     </div>
                   </div>
@@ -758,19 +918,25 @@ const PublicOfferView = () => {
           {/* Items */}
           <Card>
             <CardHeader>
-              <CardTitle>Positionen</CardTitle>
+              <CardTitle>{t("public.offer.positions")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-16">Pos.</TableHead>
-                      <TableHead>Beschreibung</TableHead>
-                      <TableHead className="text-right w-20">Menge</TableHead>
-                      <TableHead className="w-20">Einheit</TableHead>
-                      <TableHead className="text-right w-28">Preis</TableHead>
-                      <TableHead className="text-right w-28">Total</TableHead>
+                      <TableHead className="w-16">{t("public.offer.col.pos")}</TableHead>
+                      <TableHead>{t("public.offer.col.description")}</TableHead>
+                      <TableHead className="text-right w-20">
+                        {t("public.offer.col.quantity")}
+                      </TableHead>
+                      <TableHead className="w-20">{t("public.offer.col.unit")}</TableHead>
+                      <TableHead className="text-right w-28">
+                        {t("public.offer.col.price")}
+                      </TableHead>
+                      <TableHead className="text-right w-28">
+                        {t("public.offer.col.total")}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -787,7 +953,9 @@ const PublicOfferView = () => {
                             <TableRow className="bg-muted/40 hover:bg-muted/40">
                               <TableCell colSpan={6} className="py-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</span>
+                                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {getServiceLabel(group.serviceType, locale)}
+                                  </span>
                                   {(() => {
                                     // Per-service date: own group value, fallback to the offer-level date;
                                     // shown only when at least one group carries its own date.
@@ -797,10 +965,17 @@ const PublicOfferView = () => {
                                     if (!date) return null;
                                     const st = sched?.scheduled_start_time?.slice(0, 5);
                                     const et = sched?.scheduled_end_time?.slice(0, 5);
-                                    const time = st && et ? ` · ${st}–${et} Uhr` : st ? ` · ab ${st} Uhr` : "";
+                                    const time =
+                                      st && et
+                                        ? ` · ${t("doc.time.fromUntil", { start: st, end: et })}`
+                                        : st
+                                          ? ` · ${t("doc.time.from", { start: st })}`
+                                          : "";
                                     return (
                                       <span className="text-xs font-medium text-foreground normal-case tracking-normal">
-                                        {serviceTerminLabel(group.serviceType)}: {new Date(date).toLocaleDateString("de-CH")}{time}
+                                        {getAppointmentLabel(group.serviceType, locale)}:{" "}
+                                        {formatDate(date, locale)}
+                                        {time}
                                       </span>
                                     );
                                   })()}
@@ -826,35 +1001,54 @@ const PublicOfferView = () => {
                               {display.kind === "range" ? (
                                 <>
                                   <TableCell className="text-right">
-                                    {item.time_estimate!.minHours}–{item.time_estimate!.maxHours} Std.
+                                    {t("public.offer.hoursRange", {
+                                      min: formatNumber(item.time_estimate!.minHours, locale),
+                                      max: formatNumber(item.time_estimate!.maxHours, locale),
+                                    })}
                                   </TableCell>
-                                  <TableCell>Std.</TableCell>
+                                  <TableCell>{t("domain.unit.hour")}</TableCell>
                                   <TableCell className="text-right">
-                                    {formatCurrency(Number(item.time_estimate!.hourlyRate))}/Std.
+                                    {t("public.offer.perHour", {
+                                      amount: formatCurrency(
+                                        Number(item.time_estimate!.hourlyRate),
+                                        locale
+                                      ),
+                                    })}
                                   </TableCell>
                                   <TableCell className="text-right font-medium text-amber-700">
-                                    {formatCurrency(display.min)} – {formatCurrency(display.max)}
+                                    {formatCurrency(display.min, locale)} –{" "}
+                                    {formatCurrency(display.max, locale)}
                                   </TableCell>
                                 </>
                               ) : display.kind === "rate" ? (
                                 <>
                                   {/* rate: Einheitspreis statt Betrag — Menge/Dauer unbestimmt, nicht in der Summe */}
-                                  <TableCell className="text-right text-muted-foreground">n. Aufwand</TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {t("domain.priceModel.byEffort")}
+                                  </TableCell>
                                   <TableCell>{display.unit}</TableCell>
                                   <TableCell className="text-right font-medium">
-                                    {formatCurrency(display.unitPrice)} / {display.unit}
+                                    {t("public.offer.perUnit", {
+                                      amount: formatCurrency(display.unitPrice, locale),
+                                      unit: display.unit,
+                                    })}
                                   </TableCell>
-                                  <TableCell className="text-right text-muted-foreground">n. Aufwand</TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {t("domain.priceModel.byEffort")}
+                                  </TableCell>
                                 </>
                               ) : (
                                 <>
                                   <TableCell className="text-right">{item.quantity}</TableCell>
                                   <TableCell>{item.unit}</TableCell>
                                   <TableCell className="text-right">
-                                    {formatCurrency(Number(item.unit_price))}
+                                    {formatCurrency(Number(item.unit_price), locale)}
                                   </TableCell>
                                   <TableCell className="text-right font-medium">
-                                    {formatCurrency(display.kind === "fixed" ? display.amount : Number(item.total))}
+                                    {formatCurrency(
+                                      display.kind === "fixed" ? display.amount : Number(item.total),
+                                      locale
+                                    )}
                                   </TableCell>
                                 </>
                               )}
@@ -867,11 +1061,24 @@ const PublicOfferView = () => {
                               <TableCell colSpan={5} className="py-2">
                                 <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-1">
                                   <div>
-                                    <span className="font-medium">Kostendach:</span>{" "}
-                                    {groupRate !== null ? `Stundenansatz CHF ${Number(groupRate).toLocaleString("de-CH")} / Std. — ` : ""}max. CHF {Number(groupCap).toLocaleString("de-CH")}{groupRate !== null && Number(groupRate) > 0 ? ` (${+(Number(groupCap) / Number(groupRate)).toFixed(1)} Std)` : ""}
+                                    <span className="font-medium">{t("doc.offer.costCap")}</span>{" "}
+                                    {groupRate !== null && Number(groupRate) > 0
+                                      ? t("doc.offer.costCapDetail", {
+                                          rate: formatCurrency(Number(groupRate), locale),
+                                          cap: formatAmount(Number(groupCap), locale),
+                                          hours: formatNumber(
+                                            Number((Number(groupCap) / Number(groupRate)).toFixed(1)),
+                                            locale
+                                          ),
+                                        })
+                                      : t("doc.offer.costCapMax", {
+                                          cap: formatAmount(Number(groupCap), locale),
+                                        })}
                                   </div>
                                   <p className="text-emerald-700 text-xs pt-0.5">
-                                    Sie zahlen maximal CHF {Number(groupCap).toLocaleString("de-CH")}, unabhängig vom tatsächlichen Zeitaufwand.
+                                    {t("doc.offer.costCapNote", {
+                                      cap: formatAmount(Number(groupCap), locale),
+                                    })}
                                   </p>
                                 </div>
                               </TableCell>
@@ -881,7 +1088,10 @@ const PublicOfferView = () => {
                             <TableRow className="hover:bg-transparent">
                               <TableCell />
                               <TableCell colSpan={5} className="py-3">
-                                <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
+                                <InklusiveList
+                                  items={group.items.filter((item) => isFreeItem(item.price_type))}
+                                  label={t("doc.offer.includedShort")}
+                                />
                               </TableCell>
                             </TableRow>
                           )}
@@ -899,31 +1109,39 @@ const PublicOfferView = () => {
               {offer.offerte_type === 'blind' && (
                 <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
                   <p className="font-semibold uppercase tracking-wide text-xs text-amber-700 mb-1">
-                    {BLIND_DISCLAIMER_LABEL}
+                    {t("doc.offer.blind.label")}
                   </p>
-                  <p>{BLIND_DISCLAIMER_TEXT}</p>
+                  <p>{t("doc.offer.blind.text")}</p>
                 </div>
               )}
 
               {/* Price model info block */}
               {offer.price_model === 'stundenansatz' && offer.hourly_rate !== null && offer.hourly_rate !== undefined && (
                 <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
-                  <span className="font-medium">Stundenansatz:</span>{" "}
-                  CHF {Number(offer.hourly_rate).toLocaleString('de-CH')} / Std.
+                  <span className="font-medium">{t("domain.priceModel.stundenansatz")}:</span>{" "}
+                  {t("public.offer.perHour", {
+                    amount: formatCurrency(Number(offer.hourly_rate), locale),
+                  })}
                 </div>
               )}
               {offer.price_model === 'kostendach' && offer.hourly_rate !== null && offer.hourly_rate !== undefined && offer.kostendach_max !== null && offer.kostendach_max !== undefined && !items.some((it) => (it.kostendach_max ?? null) !== null) && (
                 <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-1">
                   <div>
-                    <span className="font-medium">Stundenansatz:</span>{" "}
-                    CHF {Number(offer.hourly_rate).toLocaleString('de-CH')} / Std.
+                    <span className="font-medium">{t("domain.priceModel.stundenansatz")}:</span>{" "}
+                    {t("public.offer.perHour", {
+                      amount: formatCurrency(Number(offer.hourly_rate), locale),
+                    })}
                   </div>
                   <div>
-                    <span className="font-medium">Kostendach:</span>{" "}
-                    max. CHF {Number(offer.kostendach_max).toLocaleString('de-CH')}
+                    <span className="font-medium">{t("doc.offer.costCap")}</span>{" "}
+                    {t("doc.offer.costCapMax", {
+                      cap: formatAmount(Number(offer.kostendach_max), locale),
+                    })}
                   </div>
                   <p className="text-emerald-700 text-xs pt-0.5">
-                    Sie zahlen maximal CHF {Number(offer.kostendach_max).toLocaleString('de-CH')}, unabhängig vom tatsächlichen Zeitaufwand.
+                    {t("doc.offer.costCapNote", {
+                      cap: formatAmount(Number(offer.kostendach_max), locale),
+                    })}
                   </p>
                 </div>
               )}
@@ -933,7 +1151,7 @@ const PublicOfferView = () => {
                   {(() => {
                     const surchargeList = parseSurcharges(offer.surcharges);
                     const surchargesSum = sumSurchargeAmounts(surchargeList);
-                    // rate-Posten → gar keine Aggregatsumme; nur RATE_AGGREGATE_NOTE.
+                    // rate-Posten → gar keine Aggregatsumme; nur der Aufwand-Hinweis.
                     const subtotalItems = items.map((it): SubtotalItem => ({
                       priceType: it.price_type ?? "",
                       quantity: Number(it.quantity),
@@ -942,7 +1160,11 @@ const PublicOfferView = () => {
                       amountBasis: toAmountBasis(it.amount_basis),
                     }));
                     if (offerHasRateItem(subtotalItems)) {
-                      return <div className="text-sm text-muted-foreground leading-snug">{RATE_AGGREGATE_NOTE}</div>;
+                      return (
+                        <div className="text-sm text-muted-foreground leading-snug">
+                          {t("doc.offer.rateAggregateNote")}
+                        </div>
+                      );
                     }
                     // P3b-2a: Zwischensumme comes from the ITEMS (raw, undiscounted) — never
                     // derived back from offers.subtotal (which stores the discounted base).
@@ -959,46 +1181,63 @@ const PublicOfferView = () => {
                     return (
                       <>
                         <div className="flex items-start justify-between gap-4">
-                          <span className="text-muted-foreground shrink-0">Zwischensumme</span>
+                          <span className="text-muted-foreground shrink-0">
+                            {t("doc.offer.subtotal")}
+                          </span>
                           {isRange ? (
                             <div className="text-right text-amber-700 font-medium leading-snug">
-                              <div>{formatCurrency(minItemsSub)}</div>
-                              <div className="text-xs text-amber-600">bis {formatCurrency(maxItemsSub)}</div>
+                              <div>{formatCurrency(minItemsSub, locale)}</div>
+                              <div className="text-xs text-amber-600">
+                                {t("doc.offer.upTo")}
+                                {formatCurrency(maxItemsSub, locale)}
+                              </div>
                             </div>
                           ) : (
-                            <span>{formatCurrency(minItemsSub)}</span>
+                            <span>{formatCurrency(minItemsSub, locale)}</span>
                           )}
                         </div>
                         {surchargeList.map((s, i) => (
                           <div key={i} className="flex items-start justify-between gap-4">
-                            <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
-                            <span className="shrink-0">{formatCurrency(s.amount)}</span>
+                            <span className="text-muted-foreground truncate">
+                              {s.label || t("doc.offer.surcharge")}
+                            </span>
+                            <span className="shrink-0">{formatCurrency(s.amount, locale)}</span>
                           </div>
                         ))}
                         {offer.discount_percent && offer.discount_percent > 0 ? (
                           <>
                             <div className="flex items-start justify-between gap-4">
                               <span className="text-muted-foreground shrink-0">
-                                Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
+                                {t("doc.offer.discount", {
+                                  percent: formatPercent(Number(offer.discount_percent), locale),
+                                })}
                               </span>
                               {isRange ? (
                                 <div className="text-right text-amber-700 leading-snug">
-                                  <div>- {formatCurrency(minTotals.discountAmount)}</div>
-                                  <div className="text-xs text-amber-600">bis - {formatCurrency(maxTotals.discountAmount)}</div>
+                                  <div>- {formatCurrency(minTotals.discountAmount, locale)}</div>
+                                  <div className="text-xs text-amber-600">
+                                    {t("doc.offer.upTo")}-{" "}
+                                    {formatCurrency(maxTotals.discountAmount, locale)}
+                                  </div>
                                 </div>
                               ) : (
-                                <span>- {formatCurrency(minTotals.discountAmount)}</span>
+                                <span>- {formatCurrency(minTotals.discountAmount, locale)}</span>
                               )}
                             </div>
                             <div className="flex items-start justify-between gap-4">
-                              <span className="text-muted-foreground shrink-0">Total exkl. MwSt</span>
+                              <span className="text-muted-foreground shrink-0">
+                                {t("doc.offer.totalExclVat")}
+                              </span>
                               {isRange ? (
                                 <div className="text-right text-amber-700 leading-snug">
-                                  <div>{formatCurrency(minTotals.taxableBase)}</div>
-                                  <div className="text-xs text-amber-600">bis {formatCurrency(maxTotals.taxableBase)}</div>
+                                  <div>{formatCurrency(minTotals.taxableBase, locale)}</div>
+                                  <div className="text-xs text-amber-600">
+                                    {t("doc.offer.upTo")}
+                                    {formatCurrency(maxTotals.taxableBase, locale)}
+                                  </div>
                                 </div>
                               ) : (
-                                <span>{formatCurrency(minTotals.taxableBase)}</span>
+                                <span>{formatCurrency(minTotals.taxableBase, locale)}</span>
                               )}
                             </div>
                           </>
@@ -1007,27 +1246,39 @@ const PublicOfferView = () => {
                             (Zwischensumme = Total), mirroring the PDF/Rechnung rule. */}
                         {Number(offer.vat_rate) > 0 ? (
                           <div className="flex items-start justify-between gap-4">
-                            <span className="text-muted-foreground shrink-0">MwSt. ({offer.vat_rate}%)</span>
+                            <span className="text-muted-foreground shrink-0">
+                              {t("doc.offer.vat", {
+                                rate: formatPercent(Number(offer.vat_rate), locale),
+                              })}
+                            </span>
                             {isRange ? (
                               <div className="text-right text-amber-700 leading-snug">
-                                <div>{formatCurrency(Number(offer.vat_amount))}</div>
-                                <div className="text-xs text-amber-600">bis {formatCurrency(maxTotals.vatAmount)}</div>
+                                <div>{formatCurrency(Number(offer.vat_amount), locale)}</div>
+                                <div className="text-xs text-amber-600">
+                                  {t("doc.offer.upTo")}
+                                  {formatCurrency(maxTotals.vatAmount, locale)}
+                                </div>
                               </div>
                             ) : (
-                              <span>{formatCurrency(Number(offer.vat_amount))}</span>
+                              <span>{formatCurrency(Number(offer.vat_amount), locale)}</span>
                             )}
                           </div>
                         ) : null}
                         <Separator />
                         <div className="flex items-start justify-between gap-4 text-xl font-bold">
-                          <span className="shrink-0">Total</span>
+                          <span className="shrink-0">{t("common.total")}</span>
                           {isRange ? (
                             <div className="text-right text-amber-700 leading-snug">
-                              <div>{formatCurrency(Number(offer.total))}</div>
-                              <div className="text-sm font-semibold text-amber-600">bis {formatCurrency(maxTotals.total)}</div>
+                              <div>{formatCurrency(Number(offer.total), locale)}</div>
+                              <div className="text-sm font-semibold text-amber-600">
+                                {t("doc.offer.upTo")}
+                                {formatCurrency(maxTotals.total, locale)}
+                              </div>
                             </div>
                           ) : (
-                            <span className="text-secondary">{formatCurrency(Number(offer.total))}</span>
+                            <span className="text-secondary">
+                              {formatCurrency(Number(offer.total), locale)}
+                            </span>
                           )}
                         </div>
                       </>
@@ -1043,14 +1294,17 @@ const PublicOfferView = () => {
             <Card>
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-start gap-3">
-                  <span className="font-semibold text-sm whitespace-nowrap">Zahlungskondition:</span>
+                  <span className="font-semibold text-sm whitespace-nowrap">
+                    {t("doc.offer.paymentTerms")}
+                  </span>
                   <span className="text-sm text-muted-foreground">{offer.payment_terms}</span>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Checklist Section */}
+          {/* Checklist Section — title/subtitle/sections arrive already resolved to the
+              offer's language by get_checklist_by_offer_token (server-side i18n_text()). */}
           {checklist && checklist.sections.length > 0 && (
             <Card>
               <CardHeader className="cursor-pointer" onClick={() => setShowChecklist(!showChecklist)}>
@@ -1096,7 +1350,7 @@ const PublicOfferView = () => {
                   </div>
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t">
                     <p className="text-xs text-muted-foreground text-center sm:text-left">
-                      Diese Checkliste wurde von {company.company_name} für Sie zusammengestellt.
+                      {t("public.offer.checklistBy", { company: company.company_name })}
                     </p>
                     <Button
                       variant="outline"
@@ -1106,6 +1360,7 @@ const PublicOfferView = () => {
                           title: checklist.title,
                           subtitle: checklist.subtitle || "",
                           sections: checklist.sections,
+                          locale,
                           company: {
                             company_name: company.company_name,
                             street: company.street,
@@ -1120,7 +1375,7 @@ const PublicOfferView = () => {
                       }}
                     >
                       <ClipboardList className="w-4 h-4 mr-2" />
-                      Checkliste als PDF
+                      {t("public.offer.checklistPdf")}
                     </Button>
                   </div>
                 </CardContent>
@@ -1133,7 +1388,7 @@ const PublicOfferView = () => {
             <Card>
               <CardContent className="pt-6">
                 <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
-                  <p className="text-muted-foreground">Wie möchten Sie auf diese Offerte reagieren?</p>
+                  <p className="text-muted-foreground">{t("public.offer.howRespond")}</p>
                   <div className="flex flex-wrap gap-3">
                     <Button
                       variant="outline"
@@ -1142,7 +1397,7 @@ const PublicOfferView = () => {
                       onClick={() => setShowRejectDialog(true)}
                     >
                       <XCircle className="w-5 h-5 mr-2" />
-                      Ablehnen
+                      {t("public.offer.rejectShort")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1150,7 +1405,7 @@ const PublicOfferView = () => {
                       onClick={() => setShowContactDialog(true)}
                     >
                       <MessageCircle className="w-5 h-5 mr-2" />
-                      Frage stellen
+                      {t("public.offer.askQuestion")}
                     </Button>
                     <Button
                       variant="outline"
@@ -1158,7 +1413,7 @@ const PublicOfferView = () => {
                       onClick={() => setShowBesichtigungDialog(true)}
                     >
                       <Eye className="w-5 h-5 mr-2" />
-                      Besichtigung anfragen
+                      {t("public.offer.requestViewing")}
                     </Button>
                     <Button
                       size="lg"
@@ -1166,7 +1421,7 @@ const PublicOfferView = () => {
                       onClick={() => setShowAcceptDialog(true)}
                     >
                       <CheckCircle className="w-5 h-5 mr-2" />
-                      Offerte annehmen
+                      {t("public.offer.accept")}
                     </Button>
                   </div>
                 </div>
@@ -1176,7 +1431,7 @@ const PublicOfferView = () => {
 
           {/* Footer */}
           <p className="text-center text-sm text-muted-foreground">
-            Bei Fragen wenden Sie sich bitte an{" "}
+            {t("public.offer.contactFooter")}{" "}
             <a href={`mailto:${company.email}`} className="text-secondary hover:underline">
               {company.email}
             </a>
@@ -1190,17 +1445,17 @@ const PublicOfferView = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle className="w-5 h-5 text-green-600" />
-              Offerte annehmen
+              {t("public.offer.accept")}
             </DialogTitle>
             <DialogDescription>
-              Möchten Sie diese Offerte verbindlich annehmen? {company.company_name} wird über Ihre Entscheidung informiert.
+              {t("public.offer.acceptDialogBody", { company: company.company_name })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="p-4 rounded-lg bg-muted/50">
               {(() => {
                 // Kritischste Stelle (Kunde bestätigt hier): bei rate-Posten KEINE Summe/Zahl,
-                // die einen Endpreis suggeriert — nur RATE_AGGREGATE_NOTE. Sonst wie bisher offer.total.
+                // die einen Endpreis suggeriert — nur der Aufwand-Hinweis. Sonst wie bisher offer.total.
                 const subtotalItems = items.map((it): SubtotalItem => ({
                   priceType: it.price_type ?? "",
                   quantity: Number(it.quantity),
@@ -1209,21 +1464,27 @@ const PublicOfferView = () => {
                   amountBasis: toAmountBasis(it.amount_basis),
                 }));
                 if (offerHasRateItem(subtotalItems)) {
-                  return <p className="text-sm text-muted-foreground leading-snug">{RATE_AGGREGATE_NOTE}</p>;
+                  return (
+                    <p className="text-sm text-muted-foreground leading-snug">
+                      {t("doc.offer.rateAggregateNote")}
+                    </p>
+                  );
                 }
                 return (
                   <>
-                    <p className="text-sm text-muted-foreground">Gesamtbetrag</p>
-                    <p className="text-2xl font-bold text-secondary">{formatCurrency(Number(offer.total))}</p>
+                    <p className="text-sm text-muted-foreground">{t("doc.offer.glance.total")}</p>
+                    <p className="text-2xl font-bold text-secondary">
+                      {formatCurrency(Number(offer.total), locale)}
+                    </p>
                   </>
                 );
               })()}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="note">Nachricht (optional)</Label>
+              <Label htmlFor="note">{t("public.messageOptional")}</Label>
               <Textarea
                 id="note"
-                placeholder="Möchten Sie der Firma etwas mitteilen?"
+                placeholder={t("public.offer.acceptNotePlaceholder")}
                 value={responseNote}
                 onChange={(e) => setResponseNote(e.target.value)}
               />
@@ -1231,7 +1492,7 @@ const PublicOfferView = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAcceptDialog(false)}>
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
               className="bg-green-600 hover:bg-green-700"
@@ -1243,7 +1504,7 @@ const PublicOfferView = () => {
               ) : (
                 <CheckCircle className="w-4 h-4 mr-2" />
               )}
-              Verbindlich annehmen
+              {t("public.offer.acceptBinding")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1255,18 +1516,18 @@ const PublicOfferView = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <XCircle className="w-5 h-5 text-destructive" />
-              Offerte ablehnen
+              {t("public.offer.reject")}
             </DialogTitle>
             <DialogDescription>
-              Möchten Sie diese Offerte ablehnen? {company.company_name} wird über Ihre Entscheidung informiert.
+              {t("public.offer.rejectDialogBody", { company: company.company_name })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="rejectNote">Grund für die Ablehnung (optional)</Label>
+              <Label htmlFor="rejectNote">{t("public.offer.rejectReasonLabel")}</Label>
               <Textarea
                 id="rejectNote"
-                placeholder="Teilen Sie der Firma mit, warum Sie die Offerte ablehnen..."
+                placeholder={t("public.offer.rejectNotePlaceholder")}
                 value={responseNote}
                 onChange={(e) => setResponseNote(e.target.value)}
               />
@@ -1274,7 +1535,7 @@ const PublicOfferView = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRejectDialog(false)}>
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -1286,7 +1547,7 @@ const PublicOfferView = () => {
               ) : (
                 <XCircle className="w-4 h-4 mr-2" />
               )}
-              Offerte ablehnen
+              {t("public.offer.reject")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1298,25 +1559,25 @@ const PublicOfferView = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageCircle className="w-5 h-5 text-secondary" />
-              Frage stellen
+              {t("public.offer.askQuestion")}
             </DialogTitle>
             <DialogDescription>
-              Haben Sie eine Frage zu dieser Offerte? {company.company_name} wird sich bei Ihnen melden.
+              {t("public.offer.contactDialogBody", { company: company.company_name })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="contactMessage">Ihre Frage oder Nachricht *</Label>
+              <Label htmlFor="contactMessage">{t("public.offer.contactLabel")}</Label>
               <Textarea
                 id="contactMessage"
-                placeholder="Schreiben Sie hier Ihre Frage oder Nachricht..."
+                placeholder={t("public.offer.contactPlaceholder")}
                 value={contactMessage}
                 onChange={(e) => setContactMessage(e.target.value)}
                 rows={5}
               />
             </div>
             <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
-              <p>Ihre Kontaktdaten:</p>
+              <p>{t("public.offer.yourContactDetails")}</p>
               <p className="font-medium text-foreground mt-1">
                 {offer.customer_first_name} {offer.customer_last_name}
               </p>
@@ -1326,56 +1587,10 @@ const PublicOfferView = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowContactDialog(false)}>
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
-              onClick={async () => {
-                if (!contactMessage.trim()) {
-                  toast({
-                    title: "Bitte geben Sie eine Nachricht ein",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                
-                setIsResponding(true);
-                try {
-                  // Send email notification to company
-                  await supabase.functions.invoke("notify-offer-response", {
-                    body: {
-                      offerId: offer.id,
-                      accessToken: token,
-                      offerTitle: offer.title,
-                      customerName: `${offer.customer_first_name} ${offer.customer_last_name}`,
-                      customerEmail: offer.customer_email,
-                      customerPhone: offer.customer_phone,
-                      responseType: "question",
-                      responseNote: contactMessage,
-                      companyEmail: company.email,
-                      companyName: company.company_name,
-                      companyId: company.id,
-                      offerTotal: offer.total,
-                    },
-                  });
-
-                  setShowContactDialog(false);
-                  setContactMessage("");
-                  
-                  toast({
-                    title: "Nachricht gesendet",
-                    description: "Die Firma wurde über Ihre Frage informiert und wird sich bei Ihnen melden.",
-                  });
-                } catch (error) {
-                  console.error("Error sending contact message:", error);
-                  toast({
-                    title: "Fehler",
-                    description: "Die Nachricht konnte nicht gesendet werden.",
-                    variant: "destructive",
-                  });
-                } finally {
-                  setIsResponding(false);
-                }
-              }}
+              onClick={handleSendContactMessage}
               disabled={isResponding || !contactMessage.trim()}
             >
               {isResponding ? (
@@ -1383,7 +1598,7 @@ const PublicOfferView = () => {
               ) : (
                 <Mail className="w-4 h-4 mr-2" />
               )}
-              Nachricht senden
+              {t("public.offer.sendMessage")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1395,16 +1610,16 @@ const PublicOfferView = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="w-5 h-5 text-secondary" />
-              Besichtigung anfragen
+              {t("public.offer.requestViewing")}
             </DialogTitle>
             <DialogDescription>
-              Schlagen Sie einen Termin für eine Besichtigung vor. {company.company_name} wird sich bei Ihnen melden.
+              {t("public.offer.viewingDialogBody", { company: company.company_name })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="besichtigungDate">Wunschdatum</Label>
+                <Label htmlFor="besichtigungDate">{t("public.offer.viewingDate")}</Label>
                 <DatePicker
                   id="besichtigungDate"
                   value={besichtigungDate}
@@ -1413,7 +1628,7 @@ const PublicOfferView = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="besichtigungTime">Wunschzeit</Label>
+                <Label htmlFor="besichtigungTime">{t("public.offer.viewingTime")}</Label>
                 <Input
                   id="besichtigungTime"
                   type="time"
@@ -1423,10 +1638,10 @@ const PublicOfferView = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="besichtigungNote">Nachricht (optional)</Label>
+              <Label htmlFor="besichtigungNote">{t("public.messageOptional")}</Label>
               <Textarea
                 id="besichtigungNote"
-                placeholder="Gibt es etwas, das wir vor der Besichtigung wissen sollten?"
+                placeholder={t("public.offer.viewingNotePlaceholder")}
                 value={responseNote}
                 onChange={(e) => setResponseNote(e.target.value)}
               />
@@ -1434,78 +1649,10 @@ const PublicOfferView = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowBesichtigungDialog(false)}>
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
-              onClick={async () => {
-                if (!offer || !company || !besichtigungDate) {
-                  toast({
-                    title: "Bitte wählen Sie ein Datum",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                
-                setIsResponding(true);
-                try {
-                  const besichtigungInfo = `Besichtigung gewünscht am ${new Date(besichtigungDate).toLocaleDateString("de-CH")}${besichtigungTime ? " um " + besichtigungTime + " Uhr" : ""}. ${responseNote || ""}`;
-
-                  // Use RPC (SECURITY DEFINER) — anon cannot write directly to offers
-                  const { data: updated, error } = await supabase
-                    .rpc("update_offer_by_token", {
-                      offer_access_token: token,
-                      new_customer_response_note: besichtigungInfo,
-                    });
-
-                  if (error) throw error;
-                  if (!updated) throw new Error("Aktualisierung fehlgeschlagen");
-
-                  // Send email notification to company
-                  try {
-                    await supabase.functions.invoke("notify-besichtigung", {
-                      body: {
-                        offerTitle: offer.title,
-                        customerName: `${offer.customer_first_name} ${offer.customer_last_name}`,
-                        customerEmail: offer.customer_email,
-                        customerPhone: offer.customer_phone,
-                        besichtigungDate,
-                        besichtigungTime: besichtigungTime || null,
-                        customerNote: responseNote || null,
-                        companyEmail: company.email,
-                        companyName: company.company_name,
-                        companyId: company.id,
-                        offerTotal: offer.total,
-                        offerId: offer.id,
-                      },
-                    });
-                  } catch (emailError) {
-                    console.error("Error sending besichtigung notification:", emailError);
-                  }
-
-                  setOffer({
-                    ...offer,
-                    customer_response_note: besichtigungInfo,
-                  });
-                  setShowBesichtigungDialog(false);
-                  setBesichtigungDate("");
-                  setBesichtigungTime("");
-                  setResponseNote("");
-                  
-                  toast({
-                    title: "Besichtigung angefragt",
-                    description: "Die Firma wurde über Ihren Terminwunsch informiert.",
-                  });
-                } catch (error) {
-                  console.error("Error requesting besichtigung:", error);
-                  toast({
-                    title: "Fehler",
-                    description: "Die Anfrage konnte nicht gespeichert werden.",
-                    variant: "destructive",
-                  });
-                } finally {
-                  setIsResponding(false);
-                }
-              }}
+              onClick={handleRequestBesichtigung}
               disabled={isResponding || !besichtigungDate}
             >
               {isResponding ? (
@@ -1513,7 +1660,7 @@ const PublicOfferView = () => {
               ) : (
                 <Calendar className="w-4 h-4 mr-2" />
               )}
-              Termin vorschlagen
+              {t("public.offer.viewingSubmit")}
             </Button>
           </DialogFooter>
         </DialogContent>

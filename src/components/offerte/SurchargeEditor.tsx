@@ -6,6 +6,10 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/components/pdf/utils/formatters";
 import { computeSurchargeAmount, type OfferSurcharge, type SurchargeType } from "@/lib/offerSurcharges";
+import { useI18n, useT } from "@/i18n/useI18n";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Locale } from "@/i18n/locale";
+import type { MessageKey } from "@/i18n/translator";
 
 interface SurchargeEditorProps {
   surcharges: OfferSurcharge[];
@@ -14,41 +18,62 @@ interface SurchargeEditorProps {
   itemsSubtotal: number;
   /** Job distance (for per_km). */
   distanceKm: number | null | undefined;
+  /**
+   * DOCUMENT locale of the offer (offers.language). A surcharge `label` is stored on the
+   * offer and PRINTED ON THE CUSTOMER'S PDF, so the preset labels must be written in the
+   * customer's language — not in the operator's dashboard language.
+   */
+  documentLocale: Locale;
 }
 
-const TYPE_LABELS: Record<SurchargeType, string> = {
-  percent: "Prozent (%)",
-  fixed: "Fix (CHF)",
-  per_km: "Pro km (CHF)",
+const TYPE_LABEL_KEYS: Record<SurchargeType, MessageKey> = {
+  percent: "offer.form.surcharge.type.percent",
+  fixed: "offer.form.surcharge.type.fixed",
+  per_km: "offer.form.surcharge.type.per_km",
 };
 
-const PRESETS: ReadonlyArray<{ label: string; type: SurchargeType; value: number }> = [
-  { label: "Wochenende", type: "percent", value: 15 },
-  { label: "Feiertag", type: "percent", value: 25 },
-  { label: "Nachtzuschlag", type: "percent", value: 20 },
-  { label: "Anfahrt", type: "fixed", value: 120 },
+/** `labelKey` is resolved in the CUSTOMER's language (see documentLocale above). */
+const PRESETS: ReadonlyArray<{ labelKey: MessageKey; type: SurchargeType; value: number }> = [
+  { labelKey: "offer.form.surcharge.preset.weekend", type: "percent", value: 15 },
+  { labelKey: "offer.form.surcharge.preset.holiday", type: "percent", value: 25 },
+  { labelKey: "offer.form.surcharge.preset.night", type: "percent", value: 20 },
+  { labelKey: "offer.form.surcharge.preset.travel", type: "fixed", value: 120 },
 ];
 
-export function SurchargeEditor({ surcharges, onChange, itemsSubtotal, distanceKm }: SurchargeEditorProps) {
+export function SurchargeEditor({
+  surcharges,
+  onChange,
+  itemsSubtotal,
+  distanceKm,
+  documentLocale,
+}: SurchargeEditorProps) {
+  // Operator chrome.
+  const t = useT();
+  const { locale } = useI18n();
+  // Text that ends up INSIDE the offer → customer's language.
+  const documentT = documentI18nFor(documentLocale).t;
+
   const update = (index: number, patch: Partial<OfferSurcharge>) =>
     onChange(surcharges.map((s, i) => (i === index ? { ...s, ...patch } : s)));
 
   const remove = (index: number) => onChange(surcharges.filter((_, i) => i !== index));
 
-  const add = (preset?: { label: string; type: SurchargeType; value: number }) =>
+  const add = (preset?: { labelKey: MessageKey; type: SurchargeType; value: number }) =>
     onChange([
       ...surcharges,
       preset
-        ? { ...preset, amount: 0 }
+        ? { label: documentT(preset.labelKey), type: preset.type, value: preset.value, amount: 0 }
         : { label: "", type: "percent", value: 0, amount: 0 },
     ]);
 
   return (
     <div className="space-y-2">
-      <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Zuschläge</h4>
+      <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+        {t("offer.form.surcharge.title")}
+      </h4>
 
       {surcharges.length === 0 && (
-        <p className="text-xs text-slate-400">Keine Zuschläge.</p>
+        <p className="text-xs text-slate-400">{t("offer.form.surcharge.empty")}</p>
       )}
 
       {surcharges.map((s, index) => {
@@ -58,7 +83,7 @@ export function SurchargeEditor({ surcharges, onChange, itemsSubtotal, distanceK
             <Input
               value={s.label}
               onChange={(e) => update(index, { label: e.target.value })}
-              placeholder="Bezeichnung"
+              placeholder={t("offer.form.surcharge.labelPlaceholder")}
               className="h-8 flex-1 min-w-[120px] text-sm"
             />
             <Select value={s.type} onValueChange={(v) => update(index, { type: v as SurchargeType })}>
@@ -66,8 +91,8 @@ export function SurchargeEditor({ surcharges, onChange, itemsSubtotal, distanceK
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(TYPE_LABELS) as SurchargeType[]).map((t) => (
-                  <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
+                {(Object.keys(TYPE_LABEL_KEYS) as SurchargeType[]).map((type) => (
+                  <SelectItem key={type} value={type}>{t(TYPE_LABEL_KEYS[type])}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -77,17 +102,17 @@ export function SurchargeEditor({ surcharges, onChange, itemsSubtotal, distanceK
               step="0.01"
               value={s.value || ""}
               onChange={(e) => update(index, { value: parseFloat(e.target.value) || 0 })}
-              placeholder="Wert"
+              placeholder={t("offer.form.surcharge.valuePlaceholder")}
               className="h-8 w-20 text-sm text-right"
             />
             <span className="w-24 shrink-0 text-right text-sm font-medium tabular-nums">
-              {formatCurrency(amount)}
+              {formatCurrency(amount, locale)}
             </span>
             <button
               type="button"
               onClick={() => remove(index)}
               className="shrink-0 text-slate-400 transition-colors hover:text-red-500"
-              aria-label="Zuschlag entfernen"
+              aria-label={t("offer.form.surcharge.remove")}
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -98,14 +123,14 @@ export function SurchargeEditor({ surcharges, onChange, itemsSubtotal, distanceK
       <div className="flex flex-wrap gap-1.5 pt-1">
         {PRESETS.map((p) => (
           <Button
-            key={p.label}
+            key={p.labelKey}
             type="button"
             variant="outline"
             size="sm"
             className="h-7 text-xs"
             onClick={() => add(p)}
           >
-            + {p.label}
+            + {t(p.labelKey)}
           </Button>
         ))}
         <Button
@@ -115,7 +140,7 @@ export function SurchargeEditor({ surcharges, onChange, itemsSubtotal, distanceK
           className="h-7 gap-1 text-xs"
           onClick={() => add()}
         >
-          <Plus className="h-3.5 w-3.5" /> Eigener
+          <Plus className="h-3.5 w-3.5" /> {t("offer.form.surcharge.custom")}
         </Button>
       </div>
     </div>

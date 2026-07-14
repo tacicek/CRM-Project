@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { useT } from "@/i18n/useI18n";
 import type { GroupMetaDraft, ServiceMetaKind } from "@/lib/offerItemMeta";
 
 /**
@@ -23,11 +24,15 @@ const fieldCls = "h-7 text-xs";
 const labelCls = "text-[10px] font-medium uppercase tracking-wide text-muted-foreground";
 
 export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMetaFieldsProps) => {
+  // Operator chrome — labels/placeholders only. The values typed here are free text and are
+  // carried into the PDF unchanged.
+  const t = useT();
+
   if (kind === "effort") {
     return (
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-crew`} className={labelCls}>Mitarbeiter</Label>
+          <Label htmlFor={`${idPrefix}-crew`} className={labelCls}>{t("offer.form.meta.crew")}</Label>
           <Input
             id={`${idPrefix}-crew`}
             type="number"
@@ -36,11 +41,11 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
             value={draft.crew}
             onChange={(e) => onChange({ crew: e.target.value })}
             className={cn(fieldCls, "w-20")}
-            placeholder="z.B. 4"
+            placeholder={t("offer.form.meta.crewPlaceholder")}
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-vehicles`} className={labelCls}>Fahrzeuge</Label>
+          <Label htmlFor={`${idPrefix}-vehicles`} className={labelCls}>{t("offer.form.meta.vehicles")}</Label>
           <Input
             id={`${idPrefix}-vehicles`}
             type="number"
@@ -49,21 +54,21 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
             value={draft.vehicles}
             onChange={(e) => onChange({ vehicles: e.target.value })}
             className={cn(fieldCls, "w-20")}
-            placeholder="z.B. 2"
+            placeholder={t("offer.form.meta.vehiclesPlaceholder")}
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-vtype`} className={labelCls}>Fahrzeugtyp</Label>
+          <Label htmlFor={`${idPrefix}-vtype`} className={labelCls}>{t("offer.form.meta.vehicleType")}</Label>
           <Input
             id={`${idPrefix}-vtype`}
             value={draft.vehicleType}
             onChange={(e) => onChange({ vehicleType: e.target.value })}
             className={cn(fieldCls, "w-28")}
-            placeholder="z.B. LKW"
+            placeholder={t("offer.form.meta.vehicleTypePlaceholder")}
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-hrate`} className={labelCls}>Stundensatz CHF</Label>
+          <Label htmlFor={`${idPrefix}-hrate`} className={labelCls}>{t("offer.form.meta.hourlyRate")}</Label>
           <Input
             id={`${idPrefix}-hrate`}
             type="number"
@@ -72,7 +77,7 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
             value={draft.hourlyRate}
             onChange={(e) => onChange({ hourlyRate: e.target.value })}
             className={cn(fieldCls, "w-24")}
-            placeholder="z.B. 60"
+            placeholder={t("offer.form.meta.hourlyRatePlaceholder")}
           />
         </div>
       </div>
@@ -83,17 +88,17 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
     return (
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-obj`} className={labelCls}>Objekt</Label>
+          <Label htmlFor={`${idPrefix}-obj`} className={labelCls}>{t("offer.form.meta.objectType")}</Label>
           <Input
             id={`${idPrefix}-obj`}
             value={draft.objectType}
             onChange={(e) => onChange({ objectType: e.target.value })}
             className={cn(fieldCls, "w-32")}
-            placeholder="z.B. Wohnung"
+            placeholder={t("offer.form.meta.objectTypePlaceholder")}
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-area`} className={labelCls}>Fläche m²</Label>
+          <Label htmlFor={`${idPrefix}-area`} className={labelCls}>{t("offer.form.meta.areaM2")}</Label>
           <Input
             id={`${idPrefix}-area`}
             type="number"
@@ -102,7 +107,7 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
             value={draft.areaM2}
             onChange={(e) => onChange({ areaM2: e.target.value })}
             className={cn(fieldCls, "w-24")}
-            placeholder="z.B. 88"
+            placeholder={t("offer.form.meta.areaM2Placeholder")}
           />
         </div>
         <div className="flex items-center gap-1.5 pb-1">
@@ -111,7 +116,7 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
             checked={draft.abnahmegarantie}
             onCheckedChange={(v) => onChange({ abnahmegarantie: v })}
           />
-          <Label htmlFor={`${idPrefix}-abn`} className="text-xs font-normal">Abnahmegarantie</Label>
+          <Label htmlFor={`${idPrefix}-abn`} className="text-xs font-normal">{t("offer.form.meta.abnahmegarantie")}</Label>
         </div>
       </div>
     );
@@ -121,7 +126,7 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
   return (
     <div className="flex flex-wrap items-end gap-2">
       <div className="space-y-1">
-        <Label htmlFor={`${idPrefix}-vol`} className={labelCls}>Volumen m³</Label>
+        <Label htmlFor={`${idPrefix}-vol`} className={labelCls}>{t("offer.form.meta.volumeM3")}</Label>
         <Input
           id={`${idPrefix}-vol`}
           type="number"
@@ -130,11 +135,11 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
           value={draft.volumeM3}
           onChange={(e) => onChange({ volumeM3: e.target.value })}
           className={cn(fieldCls, "w-24")}
-          placeholder="z.B. 12"
+          placeholder={t("offer.form.meta.volumeM3Placeholder")}
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor={`${idPrefix}-rate`} className={labelCls}>Tarif CHF</Label>
+        <Label htmlFor={`${idPrefix}-rate`} className={labelCls}>{t("offer.form.meta.rate")}</Label>
         <Input
           id={`${idPrefix}-rate`}
           type="number"
@@ -143,11 +148,11 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
           value={draft.rate}
           onChange={(e) => onChange({ rate: e.target.value })}
           className={cn(fieldCls, "w-24")}
-          placeholder="z.B. 60"
+          placeholder={t("offer.form.meta.ratePlaceholder")}
         />
       </div>
       <div className="space-y-1">
-        <Label className={labelCls}>Einheit</Label>
+        <Label className={labelCls}>{t("common.unit")}</Label>
         <div className="flex h-7 items-center rounded-md border">
           <button
             type="button"
@@ -157,7 +162,7 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
               draft.rateUnit === "once" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
             )}
           >
-            pro m³
+            {t("domain.unit.perM3")}
           </button>
           <button
             type="button"
@@ -167,7 +172,7 @@ export const ServiceMetaFields = ({ kind, draft, onChange, idPrefix }: ServiceMe
               draft.rateUnit === "monthly" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
             )}
           >
-            pro Monat
+            {t("domain.unit.perMonth")}
           </button>
         </div>
       </div>

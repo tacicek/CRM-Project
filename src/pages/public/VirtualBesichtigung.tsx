@@ -27,14 +27,33 @@ import {
   PublicBesichtigungSession,
   ROOM_TYPES,
 } from "@/types/virtualBesichtigung";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import { toLocale } from "@/i18n/locale";
+import { formatNumber } from "@/i18n/format";
+import { type MessageKey } from "@/i18n/translator";
 
 type SessionStatus = "loading" | "valid" | "expired" | "completed" | "error";
 
+type LoadError = "no_token" | "session_not_found" | "load_failed";
+
+const ERROR_KEYS: Record<LoadError, MessageKey> = {
+  no_token: "public.virtualViewing.noToken",
+  session_not_found: "public.virtualViewing.sessionNotFound",
+  load_failed: "public.virtualViewing.loadFailed",
+};
+
+/**
+ * /besichtigung/:token — the customer uploads photos of their rooms.
+ *
+ * DOCUMENT locale: `validate-besichtigung-token` resolves the language server-side from
+ * the session's offer (frozen) → lead → company default, and returns it on the session.
+ * The page never guesses and never reads a dashboard context — there is no operator here.
+ */
 export default function VirtualBesichtigung() {
   const { token } = useParams<{ token: string }>();
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("loading");
   const [session, setSession] = useState<PublicBesichtigungSession | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LoadError | null>(null);
 
   // Upload state
   const [selectedRoom, setSelectedRoom] = useState<RoomType>("wohnzimmer");
@@ -46,12 +65,17 @@ export default function VirtualBesichtigung() {
   const [customerNotes, setCustomerNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // The customer's language, resolved server-side and carried on the session. Before the
+  // session loads there is nothing to render but a spinner, so the German default is only
+  // ever the fallback for a session that genuinely has no language.
+  const { t, locale } = documentI18nFor(toLocale(session?.language));
+
   // Fetch session data
   useEffect(() => {
     const fetchSession = async () => {
       if (!token) {
         setSessionStatus("error");
-        setError("Kein Token angegeben");
+        setError("no_token");
         return;
       }
 
@@ -75,7 +99,7 @@ export default function VirtualBesichtigung() {
 
         if (!data?.session) {
           setSessionStatus("error");
-          setError("Session nicht gefunden");
+          setError("session_not_found");
           return;
         }
 
@@ -111,7 +135,7 @@ export default function VirtualBesichtigung() {
       } catch (err) {
         console.error("Error fetching session:", err);
         setSessionStatus("error");
-        setError("Fehler beim Laden der Session");
+        setError("load_failed");
       }
     };
 
@@ -183,10 +207,10 @@ export default function VirtualBesichtigung() {
             ),
           }));
 
-          toast.success(`${file.name} hochgeladen`);
+          toast.success(t("public.virtualViewing.toast.uploaded", { file: file.name }));
         } catch (err) {
           console.error("Upload error:", err);
-          toast.error(`Fehler beim Hochladen von ${file.name}`);
+          toast.error(t("public.virtualViewing.toast.uploadFailed", { file: file.name }));
 
           // Remove failed photo
           setPhotos((prev) => ({
@@ -199,7 +223,7 @@ export default function VirtualBesichtigung() {
 
       setIsUploading(false);
     },
-    [token, session, selectedRoom]
+    [token, session, selectedRoom, t]
   );
 
   // Handle photo deletion
@@ -228,15 +252,15 @@ export default function VirtualBesichtigung() {
           return updated;
         });
 
-        toast.success("Foto gelöscht");
+        toast.success(t("public.virtualViewing.toast.deleted"));
       } catch (err) {
         console.error("Delete error:", err);
-        toast.error("Fehler beim Löschen");
+        toast.error(t("public.virtualViewing.toast.deleteFailed"));
       } finally {
         setDeletingPhotoId(null);
       }
     },
-    [token]
+    [token, t]
   );
 
   // Submit/complete session
@@ -259,14 +283,14 @@ export default function VirtualBesichtigung() {
       if (submitError) throw submitError;
 
       setSessionStatus("completed");
-      toast.success("Besichtigung abgeschlossen!");
+      toast.success(t("public.virtualViewing.toast.completed"));
     } catch (err) {
       console.error("Submit error:", err);
-      toast.error("Fehler beim Abschließen");
+      toast.error(t("public.virtualViewing.toast.completeFailed"));
     } finally {
       setIsSubmitting(false);
     }
-  }, [token, customerNotes]);
+  }, [token, customerNotes, t]);
 
   // Calculate totals
   const totalPhotos = Object.values(photos).flat().length;
@@ -274,8 +298,12 @@ export default function VirtualBesichtigung() {
     acc[room.id] = photos[room.id]?.length || 0;
     return acc;
   }, {} as Record<RoomType, number>);
+  const documentedRooms = Object.keys(photos).filter(
+    (k) => photos[k as RoomType]?.length > 0
+  ).length;
 
   const primaryColor = session?.company?.primary_color || "#0891B2";
+  const pageTitle = t("public.virtualViewing.title");
 
   // Loading state
   if (sessionStatus === "loading") {
@@ -283,7 +311,7 @@ export default function VirtualBesichtigung() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-gray-600">Wird geladen...</p>
+          <p className="text-gray-600">{t("public.loading")}</p>
         </div>
       </div>
     );
@@ -293,21 +321,23 @@ export default function VirtualBesichtigung() {
   if (sessionStatus === "error") {
     return (
       <>
-        <Helmet>
-          <title>Fehler | Virtuelle Besichtigung</title>
+        <Helmet htmlAttributes={{ lang: locale }}>
+          <title>{`${t("common.error")} | ${pageTitle}`}</title>
         </Helmet>
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
           <Card className="max-w-md w-full">
             <CardContent className="pt-6 text-center">
               <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
               <h1 className="text-xl font-bold text-gray-900 mb-2">
-                Ungültiger Link
+                {t("public.virtualViewing.invalidLinkTitle")}
               </h1>
               <p className="text-gray-600 mb-6">
-                {error || "Dieser Link ist ungültig oder existiert nicht mehr."}
+                {error
+                  ? t(ERROR_KEYS[error])
+                  : t("public.virtualViewing.invalidLinkBody")}
               </p>
               <p className="text-sm text-gray-500">
-                Bitte kontaktieren Sie die Umzugsfirma für einen neuen Link.
+                {t("public.virtualViewing.contactForNewLink")}
               </p>
             </CardContent>
           </Card>
@@ -320,23 +350,23 @@ export default function VirtualBesichtigung() {
   if (sessionStatus === "expired") {
     return (
       <>
-        <Helmet>
-          <title>Link abgelaufen | Virtuelle Besichtigung</title>
+        <Helmet htmlAttributes={{ lang: locale }}>
+          <title>{`${t("public.virtualViewing.expiredTitle")} | ${pageTitle}`}</title>
         </Helmet>
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
           <Card className="max-w-md w-full">
             <CardContent className="pt-6 text-center">
               <Clock className="w-16 h-16 text-amber-500 mx-auto mb-4" />
               <h1 className="text-xl font-bold text-gray-900 mb-2">
-                Link abgelaufen
+                {t("public.virtualViewing.expiredTitle")}
               </h1>
-              <p className="text-gray-600 mb-6">
-                Dieser Besichtigungs-Link ist leider abgelaufen.
-              </p>
+              <p className="text-gray-600 mb-6">{t("public.virtualViewing.expiredBody")}</p>
               <p className="text-sm text-gray-500">
-                Bitte kontaktieren Sie{" "}
-                <span className="font-medium">{session?.company?.name}</span> für
-                einen neuen Link.
+                {session?.company?.name
+                  ? t("public.virtualViewing.contactCompanyForNewLink", {
+                      company: session.company.name,
+                    })
+                  : t("public.virtualViewing.contactForNewLink")}
               </p>
             </CardContent>
           </Card>
@@ -349,8 +379,8 @@ export default function VirtualBesichtigung() {
   if (sessionStatus === "completed") {
     return (
       <>
-        <Helmet>
-          <title>Abgeschlossen | Virtuelle Besichtigung</title>
+        <Helmet htmlAttributes={{ lang: locale }}>
+          <title>{`${t("public.virtualViewing.completedTitle")} | ${pageTitle}`}</title>
         </Helmet>
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
           <Card className="max-w-md w-full">
@@ -364,17 +394,13 @@ export default function VirtualBesichtigung() {
                   style={{ color: primaryColor }}
                 />
               </div>
-              <h1 className="text-xl font-bold text-gray-900 mb-2">
-                Vielen Dank!
-              </h1>
-              <p className="text-gray-600 mb-6">
-                Ihre virtuelle Besichtigung wurde erfolgreich übermittelt.
-              </p>
+              <h1 className="text-xl font-bold text-gray-900 mb-2">{t("public.thanks")}</h1>
+              <p className="text-gray-600 mb-6">{t("public.virtualViewing.completedBody")}</p>
               <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
                 <p>
-                  <span className="font-medium">{session?.company?.name}</span>{" "}
-                  wird Ihre Fotos analysieren und sich mit einem Angebot bei
-                  Ihnen melden.
+                  {t("public.virtualViewing.completedNote", {
+                    company: session?.company?.name ?? "",
+                  })}
                 </p>
               </div>
             </CardContent>
@@ -387,8 +413,8 @@ export default function VirtualBesichtigung() {
   // Main upload portal
   return (
     <>
-      <Helmet>
-        <title>Virtuelle Besichtigung | {session?.company?.name || "Offerio"}</title>
+      <Helmet htmlAttributes={{ lang: locale }}>
+        <title>{`${pageTitle} | ${session?.company?.name ?? ""}`}</title>
       </Helmet>
 
       <div className="min-h-screen bg-gray-50">
@@ -415,9 +441,7 @@ export default function VirtualBesichtigung() {
                   </div>
                 )}
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-                    Virtuelle Besichtigung
-                  </h1>
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{pageTitle}</h1>
                   <p className="text-sm text-gray-600">
                     {session?.company?.name}
                   </p>
@@ -458,21 +482,13 @@ export default function VirtualBesichtigung() {
                 />
                 <div className="space-y-2">
                   <h2 className="font-semibold text-gray-900">
-                    So funktioniert's:
+                    {t("public.virtualViewing.howItWorks")}
                   </h2>
                   <ul className="text-sm text-gray-600 space-y-1">
-                    <li>
-                      📸 Fotografieren Sie alle Zimmer Ihrer Wohnung
-                    </li>
-                    <li>
-                      🪑 Zeigen Sie grosse und schwere Möbel deutlich
-                    </li>
-                    <li>
-                      📦 Vergessen Sie Keller, Estrich und Garage nicht
-                    </li>
-                    <li>
-                      💬 Fügen Sie am Ende zusätzliche Informationen hinzu
-                    </li>
+                    <li>📸 {t("public.virtualViewing.step.rooms")}</li>
+                    <li>🪑 {t("public.virtualViewing.step.furniture")}</li>
+                    <li>📦 {t("public.virtualViewing.step.storage")}</li>
+                    <li>💬 {t("public.virtualViewing.step.notes")}</li>
                   </ul>
                 </div>
               </div>
@@ -484,7 +500,7 @@ export default function VirtualBesichtigung() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Camera className="w-5 h-5" style={{ color: primaryColor }} />
-                Raum auswählen
+                {t("public.virtualViewing.selectRoom")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -501,8 +517,9 @@ export default function VirtualBesichtigung() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
-                Fotos hochladen -{" "}
-                {ROOM_TYPES.find((r) => r.id === selectedRoom)?.name}
+                {t("public.virtualViewing.uploadFor", {
+                  room: ROOM_TYPES.find((r) => r.id === selectedRoom)?.name ?? "",
+                })}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -529,12 +546,12 @@ export default function VirtualBesichtigung() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
-                Zusätzliche Informationen (optional)
+                {t("public.virtualViewing.notesTitle")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <Textarea
-                placeholder="z.B. Schweres Klavier im Wohnzimmer, enge Treppe, 3. Stock ohne Lift, Parkplatz weit entfernt..."
+                placeholder={t("public.virtualViewing.notesPlaceholder")}
                 value={customerNotes}
                 onChange={(e) => setCustomerNotes(e.target.value)}
                 rows={4}
@@ -552,11 +569,13 @@ export default function VirtualBesichtigung() {
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="text-center sm:text-left">
                   <p className="text-lg font-semibold text-gray-900">
-                    {totalPhotos} Foto{totalPhotos !== 1 ? "s" : ""} hochgeladen
+                    {t("public.virtualViewing.photosUploaded", { count: totalPhotos })}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {Object.keys(photos).filter((k) => photos[k as RoomType]?.length > 0).length} von{" "}
-                    {ROOM_TYPES.length} Räumen dokumentiert
+                    {t("public.virtualViewing.roomsDocumented", {
+                      done: formatNumber(documentedRooms, locale),
+                      total: formatNumber(ROOM_TYPES.length, locale),
+                    })}
                   </p>
                 </div>
 
@@ -570,12 +589,12 @@ export default function VirtualBesichtigung() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Wird gesendet...
+                      {t("common.sending")}
                     </>
                   ) : (
                     <>
                       <Send className="w-5 h-5" />
-                      Besichtigung abschliessen
+                      {t("public.virtualViewing.finish")}
                     </>
                   )}
                 </Button>
@@ -583,7 +602,7 @@ export default function VirtualBesichtigung() {
 
               {totalPhotos === 0 && (
                 <p className="text-center text-sm text-amber-600 mt-4">
-                  Bitte laden Sie mindestens ein Foto hoch, um fortzufahren.
+                  {t("public.virtualViewing.minPhotos")}
                 </p>
               )}
             </CardContent>

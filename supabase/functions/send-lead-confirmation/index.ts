@@ -9,6 +9,14 @@ import {
   wrapEmailDocument,
 } from "../_shared/emailLayout.ts";
 import { logEmail } from "../_shared/logEmail.ts";
+import {
+  createTranslator,
+  LOCALES,
+  toLocale,
+  translateServiceType,
+  type Translator,
+} from "../_shared/i18n/index.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,31 +24,24 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Zod Schema für Input-Validierung
-const LeadConfirmationSchema = z.object({
-  customerFirstName: z.string().min(1, "Vorname erforderlich").max(100),
-  customerLastName: z.string().min(1, "Nachname erforderlich").max(100),
-  customerEmail: z.string().email("Ungültige E-Mail-Adresse").max(255),
-  serviceType: z.string().min(1, "Service-Typ erforderlich").max(50),
-  fromCity: z.string().min(1, "Stadt erforderlich").max(100),
-  toCity: z.string().max(100).optional(),
-  maxCompanies: z.number().int().min(1).max(20),
-});
+/**
+ * This function has NO DB read — it is invoked straight from the public request wizard with a
+ * plain body. The customer's language therefore has to be threaded IN through that body; there
+ * is no leads row to read it back from at this point. Anything unrecognised falls back to 'de'.
+ */
+const LeadConfirmationSchema = (t: Translator) =>
+  z.object({
+    customerFirstName: z.string().min(1, t("validation.firstNameRequired")).max(100),
+    customerLastName: z.string().min(1, t("validation.lastNameRequired")).max(100),
+    customerEmail: z.string().email(t("validation.emailInvalid")).max(255),
+    serviceType: z.string().min(1, t("validation.serviceTypeRequired")).max(50),
+    fromCity: z.string().min(1, t("validation.cityRequired")).max(100),
+    toCity: z.string().max(100).optional(),
+    maxCompanies: z.number().int().min(1).max(20),
+    language: z.enum(LOCALES).optional(),
+  });
 
-type LeadConfirmationRequest = z.infer<typeof LeadConfirmationSchema>;
-
-const getServiceLabel = (serviceType: string): string => {
-  const labels: Record<string, string> = {
-    umzug: "Umzug",
-    reinigung: "Reinigung",
-    entsorgung: "Entsorgung",
-    raeumung: "Räumung",
-    lagerung: "Lagerung",
-    klaviertransport: "Klaviertransport",
-    moebellift: "Möbellift",
-  };
-  return labels[serviceType] || serviceType;
-};
+type LeadConfirmationRequest = z.infer<ReturnType<typeof LeadConfirmationSchema>>;
 
 // Rate limiting with memory cleanup and IP support
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -136,11 +137,16 @@ const handler = async (req: Request): Promise<Response> => {
 
     const resend = new Resend(resendApiKey);
     const rawBody = await req.json();
-    
+
+    // The customer's locale must be known BEFORE validation, because the 400/429 payloads are
+    // themselves customer-facing. toLocale() never throws — an absent/garbage value yields 'de'.
+    const customerLocale = toLocale((rawBody as { language?: unknown } | null)?.language);
+    const tCustomer = createTranslator(customerLocale);
+
     // CRITICAL FIX: Rate limit check BEFORE validation to prevent CPU abuse
     const clientIP = getClientIP(req);
     const email = rawBody?.customerEmail;
-    
+
     if (email) {
       const emailKey = `email:${email.toLowerCase()}`;
       const ipKey = `ip:${clientIP}`;
@@ -159,31 +165,31 @@ const handler = async (req: Request): Promise<Response> => {
         });
         
         return new Response(
-          JSON.stringify({ 
-            error: "Zu viele Anfragen. Bitte warten Sie einen Moment.",
-            retryAfter 
+          JSON.stringify({
+            error: tCustomer("error.rateLimited"),
+            retryAfter
           }),
-          { 
+          {
             status: 429,
-            headers: { 
+            headers: {
               "Content-Type": "application/json",
               "Retry-After": retryAfter.toString(),
-              ...corsHeaders 
+              ...corsHeaders
             }
           }
         );
       }
     }
-    
-    // Validiere Input mit Zod (after rate limit check)
-    const parseResult = LeadConfirmationSchema.safeParse(rawBody);
-    
+
+    // Validiere Input mit Zod (after rate limit check) — messages in the customer's language
+    const parseResult = LeadConfirmationSchema(tCustomer).safeParse(rawBody);
+
     if (!parseResult.success) {
       console.error("send-lead-confirmation: Validation error:", parseResult.error.flatten());
       return new Response(
-        JSON.stringify({ 
-          error: "Ungültige Eingabedaten",
-          details: parseResult.error.flatten().fieldErrors 
+        JSON.stringify({
+          error: tCustomer("error.invalidInput"),
+          details: parseResult.error.flatten().fieldErrors
         }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
@@ -197,47 +203,64 @@ const handler = async (req: Request): Promise<Response> => {
     
     console.log("send-lead-confirmation: Processing for", data.customerEmail);
 
-    const serviceLabel = getServiceLabel(data.serviceType);
-    const locationInfo = data.toCity 
-      ? `von ${data.fromCity} nach ${data.toCity}` 
-      : `in ${data.fromCity}`;
+    // This is a PUBLIC endpoint: every one of these values is attacker-controlled and lands in
+    // an HTML email, so each is escaped before interpolation. An unknown serviceType falls back
+    // to the raw request value, which makes escaping mandatory rather than merely prudent.
+    const serviceLabel = escapeHtml(translateServiceType(data.serviceType, tCustomer));
+    const locationInfo = data.toCity
+      ? tCustomer("email.leadConfirmation.locationFromTo", {
+          fromCity: escapeHtml(data.fromCity),
+          toCity: escapeHtml(data.toCity),
+        })
+      : tCustomer("email.leadConfirmation.locationIn", { fromCity: escapeHtml(data.fromCity) });
+    const customerName = `${data.customerFirstName} ${data.customerLastName}`;
+    // Subject lines are plain text — the un-escaped label belongs here, not the HTML-escaped one.
+    const subject = tCustomer("email.leadConfirmation.subject", {
+      service: translateServiceType(data.serviceType, tCustomer),
+    });
 
     let emailResponse;
     try {
+      // {service} and {location} stay separate tokens so each language can order them to suit
+      // its own grammar; the service name is emphasised inside the sentence.
+      const intro = tCustomer("email.leadConfirmation.intro", {
+        appName: getAppName(),
+        service: `<strong>${serviceLabel}</strong>`,
+        location: locationInfo,
+      });
+
       const inner = `
         <div style="${EMAIL_CARD_OUTER}">
           <div style="${EMAIL_HEADER_BAND};text-align:center;">
-            <h1 style="margin:0;font-size:20px;font-weight:600;color:#18181b;">Anfrage erfolgreich gesendet</h1>
+            <h1 style="margin:0;font-size:20px;font-weight:600;color:#18181b;">${tCustomer("email.leadConfirmation.headerTitle")}</h1>
           </div>
           <div style="${EMAIL_BODY_PADDING}">
-            <p style="font-size:16px;margin-top:0;">Guten Tag ${data.customerFirstName} ${data.customerLastName},</p>
-            <p>
-              Vielen Dank für Ihre Anfrage bei ${getAppName()}. Wir haben Ihre Anfrage für <strong>${serviceLabel}</strong> ${locationInfo} erhalten.
-            </p>
+            <p style="font-size:16px;margin-top:0;">${tCustomer("common.greeting", { name: escapeHtml(customerName) })}</p>
+            <p>${intro}</p>
             <div style="background:#ffffff;padding:16px;border-radius:6px;border:1px solid #d4d4d8;margin:16px 0;">
-              <h3 style="margin-top:0;color:#18181b;font-size:15px;">Was passiert als Nächstes?</h3>
+              <h3 style="margin-top:0;color:#18181b;font-size:15px;">${tCustomer("email.leadConfirmation.nextStepsTitle")}</h3>
               <ul style="padding-left:20px;margin-bottom:0;">
-                <li style="margin-bottom:8px;">Wir prüfen Ihre Anfrage und leiten sie an passende Unternehmen weiter (bis zu <strong>${data.maxCompanies}</strong>).</li>
-                <li style="margin-bottom:8px;">Die Firmen melden sich bei Ihnen</li>
-                <li style="margin-bottom:8px;">Sie erhalten unverbindliche Offerten</li>
-                <li>Sie entscheiden frei</li>
+                <li style="margin-bottom:8px;">${tCustomer("email.leadConfirmation.step1", { maxCompanies: `<strong>${data.maxCompanies}</strong>` })}</li>
+                <li style="margin-bottom:8px;">${tCustomer("email.leadConfirmation.step2")}</li>
+                <li style="margin-bottom:8px;">${tCustomer("email.leadConfirmation.step3")}</li>
+                <li>${tCustomer("email.leadConfirmation.step4")}</li>
               </ul>
             </div>
-            <p style="color:#52525b;font-size:14px;">Bei Fragen helfen wir gerne weiter.</p>
-            <p style="margin-bottom:0;">Freundliche Grüsse,<br><strong>Ihr ${getAppName()} Team</strong></p>
+            <p style="color:#52525b;font-size:14px;">${tCustomer("email.leadConfirmation.help")}</p>
+            <p style="margin-bottom:0;">${tCustomer("common.regardsFriendly")},<br><strong>${tCustomer("common.teamSignature", { appName: getAppName() })}</strong></p>
           </div>
         </div>
         <div style="text-align:center;padding:14px 0 0;font-size:12px;color:#71717a;">
-          <p style="margin:0;">© ${new Date().getFullYear()} ${getAppName()}</p>
+          <p style="margin:0;">${tCustomer("common.copyright", { year: new Date().getFullYear(), appName: getAppName() })}</p>
         </div>`;
 
       emailResponse = await resend.emails.send({
         from: getDefaultFrom(),
         to: [data.customerEmail],
-        subject: `Ihre Anfrage für ${serviceLabel} wurde erfolgreich gesendet`,
-        html: wrapEmailDocument(inner),
+        subject,
+        html: wrapEmailDocument(inner, customerLocale),
       });
-      
+
       // Verify email was actually sent
       if (!emailResponse.data?.id) {
         throw new Error("Email send failed: No email ID returned");
@@ -254,10 +277,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     await logEmail({
       recipientEmail: data.customerEmail,
-      recipientName: `${data.customerFirstName} ${data.customerLastName}`,
-      subject: `Ihre Anfrage für ${serviceLabel} wurde erfolgreich gesendet`,
+      recipientName: customerName,
+      subject,
       emailType: "lead_confirmation",
       status: "sent",
+      language: customerLocale,
       metadata: { serviceType: data.serviceType, fromCity: data.fromCity, toCity: data.toCity },
     });
 

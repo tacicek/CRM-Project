@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useT } from "@/i18n/useI18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,7 +72,13 @@ interface AgbSectionEditorProps {
   allServiceTypes?: { type: string; label: string }[];
 }
 
-// Default AGB templates for different services
+// Default AGB templates for different services.
+//
+// These are DB CONTENT, not UI chrome: the seeded title/content end up in `agb_sections`
+// and are read by the CUSTOMER on the offer PDF. They must NOT be routed through `useT()`
+// (that would render them in the OPERATOR's language). German stays the base column; the
+// customer-facing translation lives in the `translations` JSONB column and is edited with
+// the ContentTranslationDialog.
 
 // ASTAG Standard-Umzugsbedingungen (Fachgruppe Möbeltransporte des Schweizerischen
 // Nutzfahrzeugverbandes ASTAG, Stand 01.01.2006). Offizielle Branchenvorlage — wird
@@ -356,6 +363,7 @@ export const AgbSectionEditor = ({
   allServiceTypes = [],
 }: AgbSectionEditorProps) => {
   const { toast } = useToast();
+  const t = useT();
   const [sections, setSections] = useState<AgbSection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<string | null>(null);
@@ -392,14 +400,14 @@ export const AgbSectionEditor = ({
     } catch (error) {
       console.error("Error fetching AGB sections:", error);
       toast({
-        title: "Fehler",
-        description: "AGB-Abschnitte konnten nicht geladen werden.",
+        title: t("common.error"),
+        description: t("agb.toast.loadFailed"),
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  }, [companyId, serviceType, toast]);
+  }, [companyId, serviceType, toast, t]);
 
   useEffect(() => {
     fetchSections();
@@ -409,8 +417,8 @@ export const AgbSectionEditor = ({
   const handleAddSection = async () => {
     if (!newTitle.trim() || !newContent.trim()) {
       toast({
-        title: "Pflichtfelder",
-        description: "Bitte füllen Sie Titel und Inhalt aus.",
+        title: t("agb.toast.requiredTitle"),
+        description: t("agb.toast.requiredDescription"),
         variant: "destructive",
       });
       return;
@@ -443,14 +451,14 @@ export const AgbSectionEditor = ({
       setExpandedSections(new Set([...expandedSections, data.id]));
 
       toast({
-        title: "Hinzugefügt",
-        description: `Abschnitt "${newTitle}" wurde hinzugefügt.`,
+        title: t("agb.toast.added"),
+        description: t("agb.toast.addedDescription", { title: newTitle }),
       });
     } catch (error) {
       console.error("Error adding section:", error);
       toast({
-        title: "Fehler",
-        description: "Der Abschnitt konnte nicht hinzugefügt werden.",
+        title: t("common.error"),
+        description: t("agb.toast.addFailed"),
         variant: "destructive",
       });
     } finally {
@@ -475,14 +483,14 @@ export const AgbSectionEditor = ({
       if (error) throw error;
 
       toast({
-        title: "Gespeichert",
-        description: `Abschnitt "${section.title}" wurde aktualisiert.`,
+        title: t("agb.toast.saved"),
+        description: t("agb.toast.savedDescription", { title: section.title }),
       });
     } catch (error) {
       console.error("Error updating section:", error);
       toast({
-        title: "Fehler",
-        description: "Der Abschnitt konnte nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("agb.toast.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -501,14 +509,14 @@ export const AgbSectionEditor = ({
 
       setSections(sections.filter(s => s.id !== sectionId));
       toast({
-        title: "Gelöscht",
-        description: `Abschnitt "${title}" wurde gelöscht.`,
+        title: t("agb.toast.deleted"),
+        description: t("agb.toast.deletedDescription", { title }),
       });
     } catch (error) {
       console.error("Error deleting section:", error);
       toast({
-        title: "Fehler",
-        description: "Der Abschnitt konnte nicht gelöscht werden.",
+        title: t("common.error"),
+        description: t("agb.toast.deleteFailed"),
         variant: "destructive",
       });
     }
@@ -546,14 +554,14 @@ export const AgbSectionEditor = ({
       );
       
       toast({
-        title: "Reihenfolge aktualisiert",
-        description: "Die Abschnitte wurden neu sortiert.",
+        title: t("agb.toast.reordered"),
+        description: t("agb.toast.reorderedDescription"),
       });
     } catch (error) {
       console.error("Error reordering sections:", error);
       toast({
-        title: "Fehler",
-        description: "Die Reihenfolge konnte nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("agb.toast.reorderFailed"),
         variant: "destructive",
       });
       // Revert on error
@@ -564,8 +572,8 @@ export const AgbSectionEditor = ({
   const handleLoadDefaultTemplates = async () => {
     if (sections.length > 0) {
       toast({
-        title: "Hinweis",
-        description: "Es existieren bereits AGB-Abschnitte. Löschen Sie diese zuerst, um die Vorlagen zu laden.",
+        title: t("agb.toast.notice"),
+        description: t("agb.toast.templatesExist"),
         variant: "destructive",
       });
       return;
@@ -598,14 +606,14 @@ export const AgbSectionEditor = ({
       }
 
       toast({
-        title: "Vorlagen geladen",
-        description: `${data?.length || 0} Standard-AGB-Abschnitte wurden hinzugefügt.`,
+        title: t("agb.toast.templatesLoaded"),
+        description: t("agb.toast.templatesLoadedDescription", { count: data?.length ?? 0 }),
       });
     } catch (error) {
       console.error("Error loading default templates:", error);
       toast({
-        title: "Fehler",
-        description: "Die Vorlagen konnten nicht geladen werden.",
+        title: t("common.error"),
+        description: t("agb.toast.templatesFailed"),
         variant: "destructive",
       });
     } finally {
@@ -632,8 +640,8 @@ export const AgbSectionEditor = ({
   const handleCopyToServiceType = async () => {
     if (!selectedTargetService) {
       toast({
-        title: "Fehler",
-        description: "Bitte wählen Sie einen Ziel-Service aus.",
+        title: t("common.error"),
+        description: t("agb.toast.selectTarget"),
         variant: "destructive",
       });
       return;
@@ -642,8 +650,8 @@ export const AgbSectionEditor = ({
     const activeSections = sections.filter(s => s.is_active);
     if (activeSections.length === 0) {
       toast({
-        title: "Keine aktiven Abschnitte",
-        description: "Es gibt keine aktiven AGB-Abschnitte zum Kopieren.",
+        title: t("agb.toast.noActive"),
+        description: t("agb.toast.noActiveDescription"),
         variant: "destructive",
       });
       return;
@@ -690,10 +698,15 @@ export const AgbSectionEditor = ({
       if (insertError) throw insertError;
 
       const targetLabel = allServiceTypes.find(s => s.type === selectedTargetService)?.label || selectedTargetService;
-      
+      const appended = existingSections && existingSections.length > 0;
+
       toast({
-        title: "Kopiert",
-        description: `${activeSections.length} Abschnitt(e) wurden zu "${targetLabel}" kopiert.${existingSections && existingSections.length > 0 ? " (zu bestehenden hinzugefügt)" : ""}`,
+        title: t("agb.toast.copied"),
+        description:
+          t("agb.toast.copiedDescription", {
+            count: activeSections.length,
+            target: targetLabel,
+          }) + (appended ? t("agb.toast.copiedAppended") : ""),
       });
 
       setCopyDialogOpen(false);
@@ -701,8 +714,8 @@ export const AgbSectionEditor = ({
     } catch (error) {
       console.error("Error copying sections:", error);
       toast({
-        title: "Fehler",
-        description: "Die Abschnitte konnten nicht kopiert werden.",
+        title: t("common.error"),
+        description: t("agb.toast.copyFailed"),
         variant: "destructive",
       });
     } finally {
@@ -723,8 +736,10 @@ export const AgbSectionEditor = ({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <FileText className="w-5 h-5 text-muted-foreground" />
-          <h4 className="font-medium">AGB für {serviceLabel}</h4>
-          <Badge variant="secondary">{sections.filter(s => s.is_active).length} Abschnitte</Badge>
+          <h4 className="font-medium">{t("agb.headingFor", { service: serviceLabel })}</h4>
+          <Badge variant="secondary">
+            {t("agb.sectionCount", { count: sections.filter(s => s.is_active).length })}
+          </Badge>
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">
@@ -734,25 +749,27 @@ export const AgbSectionEditor = ({
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
                   <Copy className="w-4 h-4 mr-2" />
-                  Kopieren
+                  {t("common.copy")}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Copy className="w-5 h-5" />
-                    AGB kopieren
+                    {t("agb.copy.title")}
                   </DialogTitle>
                   <DialogDescription>
-                    Kopieren Sie {sections.filter(s => s.is_active).length} aktive AGB-Abschnitt(e) zu einem anderen Service
+                    {t("agb.copy.description", {
+                      count: sections.filter(s => s.is_active).length,
+                    })}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div>
-                    <Label className="text-sm mb-2 block">Ziel-Service auswählen</Label>
+                    <Label className="text-sm mb-2 block">{t("agb.copy.targetLabel")}</Label>
                     <Select value={selectedTargetService} onValueChange={setSelectedTargetService}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Service auswählen..." />
+                        <SelectValue placeholder={t("agb.copy.targetPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
                         {allServiceTypes
@@ -766,15 +783,15 @@ export const AgbSectionEditor = ({
                     </Select>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Die aktiven AGB-Abschnitte werden zum ausgewählten Service hinzugefügt. Bestehende Abschnitte bleiben erhalten.
+                    {t("agb.copy.hint")}
                   </p>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setCopyDialogOpen(false)}>
-                    Abbrechen
+                    {t("common.cancel")}
                   </Button>
-                  <Button 
-                    onClick={handleCopyToServiceType} 
+                  <Button
+                    onClick={handleCopyToServiceType}
                     disabled={isCopying || !selectedTargetService}
                   >
                     {isCopying ? (
@@ -782,7 +799,7 @@ export const AgbSectionEditor = ({
                     ) : (
                       <Copy className="w-4 h-4 mr-2" />
                     )}
-                    Kopieren
+                    {t("common.copy")}
                   </Button>
                 </div>
               </DialogContent>
@@ -794,30 +811,31 @@ export const AgbSectionEditor = ({
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
                   <Eye className="w-4 h-4 mr-2" />
-                  PDF-Vorschau
+                  {t("agb.pdfPreview")}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[85vh]">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <FileText className="w-5 h-5" />
-                    AGB PDF-Vorschau
+                    {t("agb.pdfPreview.title")}
                   </DialogTitle>
                   <DialogDescription>
-                    So werden die AGB im PDF-Anhang der Offerte dargestellt
+                    {t("agb.pdfPreview.description")}
                   </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="h-[60vh] pr-4">
                   <div className="bg-white border rounded-lg p-6 shadow-sm">
-                    {/* PDF Header Simulation */}
+                    {/* Preview chrome — operator-facing. The section title/content below stay
+                        as authored in the DB: they are the CUSTOMER's document text. */}
                     <div className="bg-primary text-primary-foreground rounded-md px-4 py-3 mb-6 text-center">
-                      <h2 className="font-bold text-lg">Allgemeine Geschäftsbedingungen</h2>
+                      <h2 className="font-bold text-lg">{t("agb.pdfPreview.heading")}</h2>
                     </div>
-                    
+
                     <p className="text-sm text-muted-foreground mb-6 italic">
-                      Die nachfolgenden AGB sind Bestandteil dieser Offerte und werden mit Annahme der Offerte akzeptiert.
+                      {t("agb.pdfPreview.intro")}
                     </p>
-                    
+
                     <div className="space-y-6">
                       {sections.filter(s => s.is_active).map((section, index) => (
                         <div key={section.id} className="animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
@@ -849,7 +867,7 @@ export const AgbSectionEditor = ({
               ) : (
                 <Wand2 className="w-4 h-4 mr-2" />
               )}
-              Vorlagen laden
+              {t("agb.loadTemplates")}
             </Button>
           )}
         </div>
@@ -898,7 +916,7 @@ export const AgbSectionEditor = ({
                                           {section.title}
                                         </span>
                                         {!section.is_active && (
-                                          <Badge variant="outline" className="text-xs">Inaktiv</Badge>
+                                          <Badge variant="outline" className="text-xs">{t("agb.inactive")}</Badge>
                                         )}
                                       </div>
                                       <ChevronDown 
@@ -917,22 +935,22 @@ export const AgbSectionEditor = ({
                                 <Separator />
                                 
                                 <div>
-                                  <Label className="text-sm">Titel</Label>
+                                  <Label className="text-sm">{t("agb.field.title")}</Label>
                                   <Input
                                     value={section.title}
                                     onChange={(e) => updateSectionField(section.id!, "title", e.target.value)}
-                                    placeholder="z.B. Versicherung"
+                                    placeholder={t("agb.field.titlePlaceholder")}
                                     className="mt-1"
                                   />
                                 </div>
 
                                 <div>
-                                  <Label className="text-sm">Inhalt</Label>
+                                  <Label className="text-sm">{t("agb.field.content")}</Label>
                                   <Textarea
                                     value={section.content}
                                     onChange={(e) => updateSectionField(section.id!, "content", e.target.value)}
                                     rows={6}
-                                    placeholder="Beschreibung..."
+                                    placeholder={t("agb.field.contentPlaceholder")}
                                     className="mt-1 font-mono text-sm"
                                   />
                                 </div>
@@ -945,7 +963,7 @@ export const AgbSectionEditor = ({
                                       onChange={(e) => updateSectionField(section.id!, "is_active", e.target.checked)}
                                       className="w-4 h-4 rounded border-border"
                                     />
-                                    <span className="text-sm">Aktiv</span>
+                                    <span className="text-sm">{t("agb.active")}</span>
                                   </label>
 
                                   <div className="flex gap-2">
@@ -953,24 +971,23 @@ export const AgbSectionEditor = ({
                                       <AlertDialogTrigger asChild>
                                         <Button variant="destructive" size="sm">
                                           <Trash2 className="w-4 h-4 sm:mr-2" />
-                                          <span className="hidden sm:inline">Löschen</span>
+                                          <span className="hidden sm:inline">{t("common.delete")}</span>
                                         </Button>
                                       </AlertDialogTrigger>
                                       <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
                                         <AlertDialogHeader>
-                                          <AlertDialogTitle>Abschnitt löschen?</AlertDialogTitle>
+                                          <AlertDialogTitle>{t("agb.delete.title")}</AlertDialogTitle>
                                           <AlertDialogDescription>
-                                            Möchten Sie den Abschnitt "{section.title}" wirklich löschen? 
-                                            Diese Aktion kann nicht rückgängig gemacht werden.
+                                            {t("agb.delete.description", { title: section.title })}
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
-                                          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                                           <AlertDialogAction
                                             onClick={() => handleDeleteSection(section.id!, section.title)}
                                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                           >
-                                            Löschen
+                                            {t("common.delete")}
                                           </AlertDialogAction>
                                         </AlertDialogFooter>
                                       </AlertDialogContent>
@@ -986,7 +1003,7 @@ export const AgbSectionEditor = ({
                                       ) : (
                                         <Save className="w-4 h-4 sm:mr-2" />
                                       )}
-                                      <span className="hidden sm:inline">Speichern</span>
+                                      <span className="hidden sm:inline">{t("common.save")}</span>
                                     </Button>
                                   </div>
                                 </div>
@@ -1006,10 +1023,10 @@ export const AgbSectionEditor = ({
       ) : (
         <div className="text-center py-8 text-muted-foreground border rounded-lg border-dashed">
           <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
-          <p>Keine AGB-Abschnitte für {serviceLabel}</p>
-          <p className="text-sm mb-4">Fügen Sie unten neue Abschnitte hinzu oder laden Sie Vorlagen</p>
-          <Button 
-            variant="secondary" 
+          <p>{t("agb.empty", { service: serviceLabel })}</p>
+          <p className="text-sm mb-4">{t("agb.emptyHint")}</p>
+          <Button
+            variant="secondary"
             onClick={handleLoadDefaultTemplates}
             disabled={isLoadingDefaults}
           >
@@ -1018,7 +1035,7 @@ export const AgbSectionEditor = ({
             ) : (
               <Wand2 className="w-4 h-4 mr-2" />
             )}
-            Standard-Vorlagen laden
+            {t("agb.loadDefaultTemplates")}
           </Button>
         </div>
       )}
@@ -1028,27 +1045,27 @@ export const AgbSectionEditor = ({
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Plus className="w-4 h-4" />
-            Neuen Abschnitt hinzufügen
+            {t("agb.add.title")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <Label className="text-sm">Titel *</Label>
+              <Label className="text-sm">{t("agb.field.title")} *</Label>
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="z.B. Versicherung, Transport, Pause, etc."
+                placeholder={t("agb.add.titlePlaceholder")}
                 className="mt-1"
               />
             </div>
             <div>
-              <Label className="text-sm">Inhalt *</Label>
+              <Label className="text-sm">{t("agb.field.content")} *</Label>
               <Textarea
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
                 rows={5}
-                placeholder="Der vollständige Text für diesen Abschnitt..."
+                placeholder={t("agb.add.contentPlaceholder")}
                 className="mt-1"
               />
             </div>
@@ -1064,7 +1081,7 @@ export const AgbSectionEditor = ({
               ) : (
                 <Plus className="w-4 h-4 mr-2" />
               )}
-              Abschnitt hinzufügen
+              {t("agb.add.button")}
             </Button>
           </div>
         </CardContent>

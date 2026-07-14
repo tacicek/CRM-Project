@@ -45,10 +45,15 @@ import {
   Tag,
   Check,
   X,
+  Languages,
 } from "lucide-react";
 
 // Import shared types and constants
 import type { ServiceItem, LeistungTemplate } from "@/types/leistungskatalog";
+import { ContentTranslationDialog } from "@/components/firma/ContentTranslationDialog";
+import { asTranslations } from "@/i18n/localizedField";
+import { useI18n } from "@/i18n/useI18n";
+import { formatCurrency } from "@/i18n/format";
 import {
   SERVICE_TYPES,
   CATEGORIES,
@@ -59,15 +64,19 @@ import {
   getCategoryLabel,
   getCategoryIcon,
   getServiceTypeLabel,
+  getUnitLabel,
+  getPackageName,
 } from "@/constants/service-catalog";
 
 export default function FirmaLeistungskatalog() {
   const { user } = useAuth();
+  const { t, locale } = useI18n();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [templates, setTemplates] = useState<LeistungTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [translationOpen, setTranslationOpen] = useState(false);
   const [selectedServiceType, setSelectedServiceType] = useState("umzug");
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
@@ -127,7 +136,7 @@ export default function FirmaLeistungskatalog() {
       } catch (error) {
         console.error("Error loading company:", error);
         if (isMounted) {
-          toast.error("Fehler beim Laden der Firmendaten");
+          toast.error(t("catalog.toast.loadCompanyFailed"));
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -135,11 +144,11 @@ export default function FirmaLeistungskatalog() {
     };
     
     loadData();
-    
+
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [user, t]);
   
   // FIX: Cancel inline edit when tab changes to prevent editing hidden items
   useEffect(() => {
@@ -176,7 +185,7 @@ export default function FirmaLeistungskatalog() {
 
     if (servicesRes.error) {
       console.error("Error loading services:", servicesRes.error);
-      toast.error("Fehler beim Laden der Leistungen");
+      toast.error(t("catalog.toast.loadServicesFailed"));
       return;
     }
 
@@ -253,13 +262,13 @@ export default function FirmaLeistungskatalog() {
     const name = inlineEditName.trim();
     
     if (!name) {
-      toast.error("Name darf nicht leer sein");
+      toast.error(t("catalog.toast.nameRequired"));
       return;
     }
-    
+
     // FIX: Warn user if negative price was corrected
     if (rawPrice < 0) {
-      toast.warning("Negativer Preis wurde auf 0 korrigiert");
+      toast.warning(t("catalog.toast.negativePrice"));
     }
 
     setInlineSaving(true);
@@ -281,11 +290,11 @@ export default function FirmaLeistungskatalog() {
           : s
       ));
       
-      toast.success("Änderungen gespeichert");
+      toast.success(t("catalog.toast.changesSaved"));
       cancelInlineEdit();
     } catch (error) {
       console.error("Error updating service:", error);
-      toast.error("Fehler beim Speichern");
+      toast.error(t("catalog.toast.saveFailed"));
     } finally {
       setInlineSaving(false);
     }
@@ -293,7 +302,7 @@ export default function FirmaLeistungskatalog() {
 
   const handleSave = async () => {
     if (!companyId || !formData.name.trim()) {
-      toast.error("Bitte geben Sie einen Namen ein");
+      toast.error(t("catalog.toast.enterName"));
       return;
     }
 
@@ -315,7 +324,7 @@ export default function FirmaLeistungskatalog() {
           .eq("id", editingService.id);
 
         if (error) throw error;
-        toast.success("Leistung aktualisiert");
+        toast.success(t("catalog.toast.serviceUpdated"));
       } else {
         const maxOrder = services
           .filter(s => s.service_type === formData.service_type && s.category === formData.category)
@@ -337,14 +346,14 @@ export default function FirmaLeistungskatalog() {
           });
 
         if (error) throw error;
-        toast.success("Leistung hinzugefügt");
+        toast.success(t("catalog.toast.serviceAdded"));
       }
 
       setIsModalOpen(false);
       await loadServices(companyId);
     } catch (error) {
       console.error("Error saving service:", error);
-      toast.error("Fehler beim Speichern");
+      toast.error(t("catalog.toast.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -353,7 +362,7 @@ export default function FirmaLeistungskatalog() {
   const handleDelete = async (serviceId: string) => {
     // FIX: Prevent concurrent operations on the same service
     if (saving || pendingOperations.has(serviceId)) return;
-    if (!confirm("Möchten Sie diese Leistung wirklich löschen?")) return;
+    if (!confirm(t("catalog.confirm.deleteService"))) return;
 
     setPendingOperations(prev => new Set(prev).add(serviceId));
     try {
@@ -363,11 +372,11 @@ export default function FirmaLeistungskatalog() {
         .eq("id", serviceId);
 
       if (error) throw error;
-      toast.success("Leistung gelöscht");
+      toast.success(t("catalog.toast.serviceDeleted"));
       if (companyId) await loadServices(companyId);
     } catch (error) {
       console.error("Error deleting service:", error);
-      toast.error("Fehler beim Löschen");
+      toast.error(t("catalog.toast.deleteFailed"));
     } finally {
       setPendingOperations(prev => {
         const next = new Set(prev);
@@ -379,24 +388,27 @@ export default function FirmaLeistungskatalog() {
 
   const loadTemplate = async (templateKey: string) => {
     if (!companyId) return;
-    
+
     const template = PREDEFINED_TEMPLATES[templateKey];
     if (!template) {
-      toast.error("Template nicht gefunden");
+      toast.error(t("catalog.toast.packageNotFound"));
       return;
     }
-    
+
     // FIX: Check for existing services to prevent duplicates
     const existingServices = services.filter(s => s.service_type === template.serviceType);
-    
-    let confirmMessage = `Möchten Sie das Template "${template.name}" laden? Dies fügt ${template.services.length} Leistungen hinzu.`;
-    
-    if (existingServices.length > 0) {
-      confirmMessage = `Sie haben bereits ${existingServices.length} Leistungen für "${template.serviceType}". ` +
-        `Möchten Sie trotzdem ${template.services.length} weitere hinzufügen?\n\n` +
-        `Tipp: Löschen Sie zuerst die bestehenden Leistungen, um Duplikate zu vermeiden.`;
-    }
-    
+
+    const confirmMessage = existingServices.length > 0
+      ? t("catalog.confirm.loadPackageExisting", {
+          existing: existingServices.length,
+          service: getServiceTypeLabel(template.serviceType, locale),
+          count: template.services.length,
+        })
+      : t("catalog.confirm.loadPackage", {
+          name: getPackageName(templateKey, locale),
+          count: template.services.length,
+        });
+
     if (!confirm(confirmMessage)) return;
 
     setSaving(true);
@@ -422,13 +434,13 @@ export default function FirmaLeistungskatalog() {
         .insert(servicesToInsert);
 
       if (error) throw error;
-      
-      toast.success(`${template.services.length} Leistungen hinzugefügt`);
+
+      toast.success(t("catalog.toast.servicesAdded", { count: template.services.length }));
       await loadServices(companyId);
       setSelectedServiceType(template.serviceType);
     } catch (error) {
       console.error("Error loading template:", error);
-      toast.error("Fehler beim Laden des Templates");
+      toast.error(t("catalog.toast.packageLoadFailed"));
     } finally {
       setSaving(false);
     }
@@ -469,7 +481,7 @@ export default function FirmaLeistungskatalog() {
 
   const handleSaveTemplate = async () => {
     if (!companyId || !templateFormData.name.trim()) {
-      toast.error("Bitte geben Sie einen Namen ein");
+      toast.error(t("catalog.toast.enterName"));
       return;
     }
 
@@ -488,7 +500,7 @@ export default function FirmaLeistungskatalog() {
           .eq("id", editingTemplate.id);
 
         if (error) throw error;
-        toast.success("Vorlage aktualisiert");
+        toast.success(t("catalog.toast.templateUpdated"));
       } else {
         const { error } = await supabase
           .from("leistungsuebersicht_templates")
@@ -503,14 +515,14 @@ export default function FirmaLeistungskatalog() {
           });
 
         if (error) throw error;
-        toast.success("Vorlage erstellt");
+        toast.success(t("catalog.toast.templateCreated"));
       }
 
       setIsTemplateModalOpen(false);
       await loadServices(companyId);
     } catch (error) {
       console.error("Error saving template:", error);
-      toast.error("Fehler beim Speichern");
+      toast.error(t("catalog.toast.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -519,7 +531,7 @@ export default function FirmaLeistungskatalog() {
   const handleDeleteTemplate = async (templateId: string) => {
     // FIX: Prevent concurrent operations on the same template
     if (saving || pendingOperations.has(templateId)) return;
-    if (!confirm("Möchten Sie diese Vorlage wirklich löschen?")) return;
+    if (!confirm(t("catalog.confirm.deleteTemplate"))) return;
 
     setPendingOperations(prev => new Set(prev).add(templateId));
     try {
@@ -529,11 +541,11 @@ export default function FirmaLeistungskatalog() {
         .eq("id", templateId);
 
       if (error) throw error;
-      toast.success("Vorlage gelöscht");
+      toast.success(t("catalog.toast.templateDeleted"));
       if (companyId) await loadServices(companyId);
     } catch (error) {
       console.error("Error deleting template:", error);
-      toast.error("Fehler beim Löschen");
+      toast.error(t("catalog.toast.deleteFailed"));
     } finally {
       setPendingOperations(prev => {
         const next = new Set(prev);
@@ -624,7 +636,7 @@ export default function FirmaLeistungskatalog() {
   return (
     <>
       <Helmet>
-        <title>Leistungskatalog | CRM</title>
+        <title>{t("catalog.pageTitle")}</title>
       </Helmet>
 
       <div className="space-y-6">
@@ -633,31 +645,67 @@ export default function FirmaLeistungskatalog() {
           <span className="text-4xl leading-none">🛠️</span>
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Leistungskatalog</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("catalog.title")}</h1>
               <span className="text-[15px] text-folk-ink3">
-                <span className="font-mono">{totalServices}</span> Leistungen · <span className="font-mono">{includedServices}</span> inklusive · <span className="font-mono">{filteredTemplatesCount}</span> Vorlagen
+                <span className="font-mono">{totalServices}</span> {t("catalog.stats.services")} · <span className="font-mono">{includedServices}</span> {t("catalog.stats.included")} · <span className="font-mono">{filteredTemplatesCount}</span> {t("catalog.stats.templates")}
               </span>
             </div>
             <p className="mt-1 text-[15px] text-folk-ink2">
-              Dienstleistungen erstellen und verwalten — Vorlagen für schnelle Offerten.
+              {t("catalog.subtitle")}
             </p>
           </div>
-          <Button
-            onClick={openAddModal}
-            disabled={saving}
-            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Leistung hinzufügen
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setTranslationOpen(true)}
+              disabled={saving || services.length === 0}
+              className="h-9 gap-1.5 rounded-lg px-3.5 text-[15px] font-semibold"
+            >
+              <Languages className="h-3.5 w-3.5" />
+              {t("catalog.translation.open")}
+            </Button>
+            <Button
+              onClick={openAddModal}
+              disabled={saving}
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t("catalog.addService")}
+            </Button>
+          </div>
         </div>
+
+        {/* Positionstexte in der Kundensprache. Sie werden beim Erstellen einer Offerte
+            als Snapshot übernommen — eine französische Offerte trägt dann französische
+            Positionen statt deutscher. */}
+        {companyId && (
+          <ContentTranslationDialog
+            open={translationOpen}
+            onOpenChange={setTranslationOpen}
+            companyId={companyId}
+            table="company_service_items"
+            context="Leistungskatalog einer Schweizer Umzugs- und Reinigungsfirma. Die Texte erscheinen als Positionen auf Offerten."
+            fields={[
+              { key: "name", label: "Bezeichnung" },
+              { key: "description", label: "Beschreibung", multiline: true },
+            ]}
+            records={services.map((s) => ({
+              id: s.id,
+              source: { name: s.name, description: s.description ?? "" },
+              translations: asTranslations(s.translations),
+            }))}
+            onSaved={() => {
+              if (companyId) loadServices(companyId);
+            }}
+          />
+        )}
 
         {/* KPI tiles */}
         <div className="grid grid-cols-3 gap-3 md:gap-4">
           {[
-            { emoji: '⚙️', label: 'Leistungen', value: totalServices },
-            { emoji: '✅', label: 'Inklusive',  value: includedServices },
-            { emoji: '📋', label: 'Vorlagen',   value: filteredTemplatesCount },
+            { emoji: '⚙️', label: t("catalog.kpi.services"),  value: totalServices },
+            { emoji: '✅', label: t("catalog.kpi.included"),  value: includedServices },
+            { emoji: '📋', label: t("catalog.kpi.templates"), value: filteredTemplatesCount },
           ].map((tile) => (
             <div key={tile.label} className="rounded-xl border border-folk-line bg-folk-card p-4 md:p-5">
               <div className="flex items-center justify-between">
@@ -675,7 +723,7 @@ export default function FirmaLeistungskatalog() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
-                placeholder="Leistungen durchsuchen..."
+                placeholder={t("catalog.searchPlaceholder")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 h-11 text-base"
@@ -691,15 +739,16 @@ export default function FirmaLeistungskatalog() {
               {SERVICE_TYPES.map((type) => {
                 const count = services.filter(s => s.service_type === type.value).length;
                 const Icon = type.icon;
+                const label = getServiceTypeLabel(type.value, locale);
                 return (
-                  <TabsTrigger 
-                    key={type.value} 
-                    value={type.value} 
+                  <TabsTrigger
+                    key={type.value}
+                    value={type.value}
                     className="gap-2 text-sm px-4 py-2.5 whitespace-nowrap data-[state=active]:shadow-md transition-all"
                   >
                     <Icon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{type.label}</span>
-                    <span className="sm:hidden">{type.label.slice(0, 3)}</span>
+                    <span className="hidden sm:inline">{label}</span>
+                    <span className="sm:hidden">{label.slice(0, 3)}</span>
                     {count > 0 && (
                       <Badge variant="secondary" className="text-xs h-5 min-w-5 ml-1">
                         {count}
@@ -710,7 +759,7 @@ export default function FirmaLeistungskatalog() {
               })}
               <TabsTrigger value="alle" className="gap-2 text-sm px-4 py-2.5">
                 <Layers className="w-4 h-4" />
-                Alle
+                {t("catalog.tab.all")}
                 <Badge variant="secondary" className="text-xs h-5 min-w-5 ml-1">
                   {services.length}
                 </Badge>
@@ -726,16 +775,16 @@ export default function FirmaLeistungskatalog() {
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
                       <Sparkles className="w-8 h-8 text-amber-600" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">Schnellstart mit Vorlagen</h3>
+                    <h3 className="text-xl font-semibold mb-2">{t("catalog.empty.title")}</h3>
                     <p className="text-muted-foreground max-w-md mx-auto">
-                      Wählen Sie ein vorgefertigtes Paket, um sofort loszulegen. Sie können es später anpassen.
+                      {t("catalog.empty.description")}
                     </p>
                   </div>
-                  
+
                   {/* Quick Template Selection */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-8">
                     {Object.entries(PREDEFINED_TEMPLATES).map(([key, template]) => {
-                      const typeConfig = SERVICE_TYPES.find(t => t.value === template.serviceType) || SERVICE_TYPES[0];
+                      const typeConfig = getServiceTypeConfig(template.serviceType);
                       const Icon = typeConfig.icon;
                       return (
                         <Button
@@ -749,9 +798,9 @@ export default function FirmaLeistungskatalog() {
                             <Icon className="w-4 h-4 text-white" />
                           </div>
                           <div>
-                            <p className="font-semibold text-sm mb-1">{template.name}</p>
+                            <p className="font-semibold text-sm mb-1">{getPackageName(key, locale)}</p>
                             <p className="text-xs text-muted-foreground">
-                              {template.services.length} Leistungen
+                              {t("catalog.serviceCount", { count: template.services.length })}
                             </p>
                           </div>
                         </Button>
@@ -761,14 +810,14 @@ export default function FirmaLeistungskatalog() {
 
                   <div className="flex items-center gap-4 justify-center">
                     <div className="h-px flex-1 bg-border" />
-                    <span className="text-xs text-muted-foreground">oder</span>
+                    <span className="text-xs text-muted-foreground">{t("catalog.or")}</span>
                     <div className="h-px flex-1 bg-border" />
                   </div>
 
                   <div className="flex justify-center mt-6">
                     <Button onClick={openAddModal} variant="outline" className="gap-2">
                       <Plus className="w-4 h-4" />
-                      Manuell Leistung erstellen
+                      {t("catalog.createManually")}
                     </Button>
                   </div>
                 </CardContent>
@@ -793,16 +842,19 @@ export default function FirmaLeistungskatalog() {
                                 </div>
                                 <div>
                                   <CardTitle className="text-lg">
-                                    {getCategoryLabel(category)}
+                                    {getCategoryLabel(category, locale)}
                                   </CardTitle>
                                   <CardDescription className="text-sm">
-                                    {items.filter(i => i.is_default_included).length} inkl. • {items.filter(i => !i.is_default_included).length} optional
+                                    {t("catalog.category.summary", {
+                                      included: items.filter(i => i.is_default_included).length,
+                                      optional: items.filter(i => !i.is_default_included).length,
+                                    })}
                                   </CardDescription>
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
                                 <Badge variant="outline" className="font-medium">
-                                  {items.length} Leistungen
+                                  {t("catalog.serviceCount", { count: items.length })}
                                 </Badge>
                                 <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${
                                   expandedCategories.includes(category) ? "" : "-rotate-90"
@@ -845,13 +897,13 @@ export default function FirmaLeistungskatalog() {
                                           {service.is_default_included && (
                                             <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 text-xs gap-1">
                                               <CheckCircle2 className="w-3 h-3" />
-                                              Inkl.
+                                              {t("catalog.badge.included")}
                                             </Badge>
                                           )}
                                           {service.is_optional && !service.is_default_included && (
                                             <Badge variant="outline" className="text-xs">
                                               <Tag className="w-3 h-3 mr-1" />
-                                              Optional
+                                              {t("catalog.badge.optional")}
                                             </Badge>
                                           )}
                                         </div>
@@ -905,28 +957,28 @@ export default function FirmaLeistungskatalog() {
                                         </div>
                                       ) : (
                                         <>
-                                          <div 
+                                          <div
                                             className="text-left sm:text-right shrink-0 cursor-pointer hover:bg-white/50 rounded px-2 py-1 transition-colors"
                                             onClick={() => startInlineEdit(service)}
-                                            title="Klicken zum Bearbeiten"
+                                            title={t("catalog.item.clickToEdit")}
                                           >
                                             {service.default_price > 0 ? (
                                               <>
                                                 <p className="font-bold text-base text-primary flex items-center gap-1">
-                                                  CHF {service.default_price.toFixed(2)}
+                                                  {formatCurrency(service.default_price, locale)}
                                                   <Pencil className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
-                                                  {service.unit}
+                                                  {getUnitLabel(service.unit, locale)}
                                                 </p>
                                               </>
                                             ) : (
                                               <Badge variant="secondary" className="text-xs">
-                                                {service.unit}
+                                                {getUnitLabel(service.unit, locale)}
                                               </Badge>
                                             )}
                                           </div>
-                                          
+
                                           <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <Button
                                               variant="ghost"
@@ -934,8 +986,8 @@ export default function FirmaLeistungskatalog() {
                                               className="h-9 w-9 hover:bg-primary/10 hover:text-primary"
                                               onClick={() => openEditModal(service)}
                                               disabled={saving || pendingOperations.has(service.id)}
-                                              aria-label={`${service.name} bearbeiten`}
-                                              title="Alle Details bearbeiten"
+                                              aria-label={t("catalog.item.editAria", { name: service.name })}
+                                              title={t("catalog.item.editAllDetails")}
                                             >
                                               <Pencil className="w-4 h-4" />
                                             </Button>
@@ -945,7 +997,7 @@ export default function FirmaLeistungskatalog() {
                                               className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
                                               onClick={() => handleDelete(service.id)}
                                               disabled={saving || pendingOperations.has(service.id)}
-                                              aria-label={`${service.name} löschen`}
+                                              aria-label={t("catalog.item.deleteAria", { name: service.name })}
                                             >
                                               {pendingOperations.has(service.id) ? (
                                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -981,15 +1033,15 @@ export default function FirmaLeistungskatalog() {
                   <Package className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg">Leistungsübersicht-Vorlagen</CardTitle>
+                  <CardTitle className="text-lg">{t("catalog.templates.title")}</CardTitle>
                   <CardDescription>
-                    Eigene Vorlagen für schnelle Offerten-Erstellung
+                    {t("catalog.templates.description")}
                   </CardDescription>
                 </div>
               </div>
               <Button onClick={openAddTemplateModal} className="gap-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700">
                 <Plus className="w-4 h-4" />
-                Neue Vorlage
+                {t("catalog.templates.new")}
               </Button>
             </div>
           </CardHeader>
@@ -999,10 +1051,10 @@ export default function FirmaLeistungskatalog() {
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
                   <Package className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground mb-4">Keine Vorlagen für diesen Service-Typ</p>
+                <p className="text-muted-foreground mb-4">{t("catalog.templates.empty")}</p>
                 <Button variant="outline" onClick={openAddTemplateModal} className="gap-2">
                   <Plus className="w-4 h-4" />
-                  Erste Vorlage erstellen
+                  {t("catalog.templates.createFirst")}
                 </Button>
               </div>
             ) : (
@@ -1028,28 +1080,28 @@ export default function FirmaLeistungskatalog() {
                         </div>
                         
                         <Badge variant="outline" className="mb-3 text-xs">
-                          {getServiceTypeLabel(template.service_type)}
+                          {getServiceTypeLabel(template.service_type, locale)}
                         </Badge>
-                        
+
                         {template.description && (
                           <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                             {template.description}
                           </p>
                         )}
-                        
+
                         <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
                           <span className="flex items-center gap-1.5">
                             <CheckCircle2 className="w-4 h-4 text-green-500" />
-                            <span className="font-medium">{includedCount}</span> inkl.
+                            <span className="font-medium">{includedCount}</span> {t("catalog.templates.inclShort")}
                           </span>
                           {excludedCount > 0 && (
                             <span className="flex items-center gap-1.5">
                               <span className="text-red-500 font-bold">✗</span>
-                              <span className="font-medium">{excludedCount}</span> exkl.
+                              <span className="font-medium">{excludedCount}</span> {t("catalog.templates.exclShort")}
                             </span>
                           )}
                         </div>
-                        
+
                         <div className="flex gap-2">
                           <Button
                             variant="outline"
@@ -1057,10 +1109,10 @@ export default function FirmaLeistungskatalog() {
                             className="flex-1"
                             onClick={() => openEditTemplateModal(template)}
                             disabled={saving || pendingOperations.has(template.id)}
-                            aria-label={`Vorlage ${template.name} bearbeiten`}
+                            aria-label={t("catalog.templates.editAria", { name: template.name })}
                           >
                             <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                            Bearbeiten
+                            {t("common.edit")}
                           </Button>
                           <Button
                             variant="ghost"
@@ -1068,7 +1120,7 @@ export default function FirmaLeistungskatalog() {
                             onClick={() => handleDeleteTemplate(template.id)}
                             disabled={saving || pendingOperations.has(template.id)}
                             className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0 h-9 w-9"
-                            aria-label={`Vorlage ${template.name} löschen`}
+                            aria-label={t("catalog.templates.deleteAria", { name: template.name })}
                           >
                             {pendingOperations.has(template.id) ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -1093,9 +1145,9 @@ export default function FirmaLeistungskatalog() {
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div>
-                <CardTitle className="text-lg">Vorgefertigte Pakete</CardTitle>
+                <CardTitle className="text-lg">{t("catalog.predefined.title")}</CardTitle>
                 <CardDescription>
-                  Laden Sie vorgefertigte Leistungspakete für einen schnelleren Start
+                  {t("catalog.predefined.description")}
                 </CardDescription>
               </div>
             </div>
@@ -1103,7 +1155,7 @@ export default function FirmaLeistungskatalog() {
           <CardContent className="p-6">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {Object.entries(PREDEFINED_TEMPLATES).map(([key, template]) => {
-                const typeConfig = SERVICE_TYPES.find(t => t.value === template.serviceType) || SERVICE_TYPES[0];
+                const typeConfig = getServiceTypeConfig(template.serviceType);
                 const Icon = typeConfig.icon;
                 return (
                   <Button
@@ -1117,9 +1169,9 @@ export default function FirmaLeistungskatalog() {
                       <Icon className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                      <p className="font-semibold text-sm mb-1">{template.name}</p>
+                      <p className="font-semibold text-sm mb-1">{getPackageName(key, locale)}</p>
                       <p className="text-xs text-muted-foreground">
-                        {template.services.length} Leistungen
+                        {t("catalog.serviceCount", { count: template.services.length })}
                       </p>
                     </div>
                   </Button>
@@ -1138,17 +1190,17 @@ export default function FirmaLeistungskatalog() {
               {editingService ? (
                 <>
                   <Pencil className="w-5 h-5 text-primary" />
-                  Leistung bearbeiten
+                  {t("catalog.dialog.editService")}
                 </>
               ) : (
                 <>
                   <Plus className="w-5 h-5 text-primary" />
-                  Neue Leistung hinzufügen
+                  {t("catalog.dialog.addService")}
                 </>
               )}
             </DialogTitle>
             <DialogDescription>
-              Füllen Sie die Details aus und speichern Sie die Leistung
+              {t("catalog.dialog.serviceDescription")}
             </DialogDescription>
           </DialogHeader>
 
@@ -1156,7 +1208,7 @@ export default function FirmaLeistungskatalog() {
             {/* Service-Typ: Visual pill buttons with icons */}
             <div className="space-y-2">
               <Label className="text-sm font-semibold">
-                Zu welchem Bereich gehört diese Leistung?
+                {t("catalog.form.serviceTypeQuestion")}
               </Label>
               <div className="flex flex-wrap gap-2">
                 {SERVICE_TYPES.map((type) => {
@@ -1177,7 +1229,7 @@ export default function FirmaLeistungskatalog() {
                       `}
                     >
                       <Icon className="w-3.5 h-3.5" />
-                      {type.label}
+                      {getServiceTypeLabel(type.value, locale)}
                     </button>
                   );
                 })}
@@ -1187,8 +1239,8 @@ export default function FirmaLeistungskatalog() {
             {/* Kategorie: Visual pill buttons with icons */}
             <div className="space-y-2">
               <Label className="text-sm font-semibold">
-                Kategorie{" "}
-                <span className="text-muted-foreground font-normal">(Wie wird diese Leistung gruppiert?)</span>
+                {t("common.category")}{" "}
+                <span className="text-muted-foreground font-normal">{t("catalog.form.categoryHint")}</span>
               </Label>
               <div className="flex flex-wrap gap-2">
                 {CATEGORIES.map((cat) => {

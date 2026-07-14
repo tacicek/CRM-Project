@@ -17,6 +17,10 @@ import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 import { AcceptBesichtigungDialog } from "@/components/firma/AcceptBesichtigungDialog";
+import { useI18n, useT } from "@/i18n/useI18n";
+import { LOCALE_TAGS, type Locale } from "@/i18n/locale";
+import { formatDate, formatDateTime, formatNumber } from "@/i18n/format";
+import { getAppointmentTypeLabel, getServiceLabel } from "@/i18n/domain";
 
 interface DashboardStats {
   tokenBalance: number;
@@ -64,8 +68,24 @@ interface BesichtigungRequest {
   created_at: string;
 }
 
+/** Weekday + day + month in the operator's language ("Montag, 14. Juli" · "lundi 14 juillet"). */
+const formatWeekdayLong = (date: Date, locale: Locale): string =>
+  new Intl.DateTimeFormat(LOCALE_TAGS[locale], {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  }).format(date);
+
+const formatClockTime = (date: Date, locale: Locale): string =>
+  new Intl.DateTimeFormat(LOCALE_TAGS[locale], {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+
 const FirmaDashboard = () => {
   const { user } = useAuth();
+  const t = useT();
+  const { locale } = useI18n();
   const [stats, setStats] = useState<DashboardStats>({
     tokenBalance: 0,
     pendingLeads: 0,
@@ -195,7 +215,8 @@ const FirmaDashboard = () => {
             const lead = d.leads;
             return {
               id: d.id,
-              service_type: lead?.service_type || "Unbekannt",
+              // Raw DB value — the label is resolved per render via getServiceLabel(…, locale).
+              service_type: lead?.service_type || "",
               from_city: lead?.from_city || "",
               to_city: lead?.to_city || null,
               distance_km: lead?.distance_km ? Number(lead.distance_km) : null,
@@ -223,7 +244,9 @@ const FirmaDashboard = () => {
               id: metadata?.offer_id as string || n.id,
               notification_id: n.id,
               offer_id: metadata?.offer_id as string || "",
-              title: metadata?.offer_title as string || "Besichtigung",
+              // Empty when the notification carries no offer title — the fallback label is
+              // resolved at render time so the effect stays independent of the locale.
+              title: metadata?.offer_title as string || "",
               customer_name: metadata?.customer_name as string || "",
               customer_email: metadata?.customer_email as string || "",
               customer_phone: metadata?.customer_phone as string || null,
@@ -261,15 +284,8 @@ const FirmaDashboard = () => {
     fetchDashboardData();
   }, [user]);
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "";
-    return new Date(dateString).toLocaleDateString("de-CH", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatTimestamp = (dateString: string) =>
+    dateString ? formatDateTime(dateString, locale) : "";
 
   // Folk-style status chip
   const getStatusChip = (status: string) => {
@@ -278,19 +294,19 @@ const FirmaDashboard = () => {
         return (
           <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-folk-coral" />
-            Neu
+            {t("dashboard.leadStatus.sent")}
           </span>
         );
       case "accepted":
         return (
           <span className="inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-2 py-0.5 text-[13px] font-semibold text-folk-mint">
-            ✓ Akzeptiert
+            ✓ {t("dashboard.leadStatus.accepted")}
           </span>
         );
       case "rejected":
         return (
           <span className="inline-flex items-center rounded-md bg-folk-bg-warm px-2 py-0.5 text-[13px] font-medium text-folk-ink3">
-            Abgelehnt
+            {t("dashboard.leadStatus.rejected")}
           </span>
         );
       default:
@@ -307,6 +323,17 @@ const FirmaDashboard = () => {
     setIsAcceptDialogOpen(true);
   };
 
+  /** The requested-visit sentence the operator reads in the accept dialog. */
+  const buildRequestNote = (request: BesichtigungRequest) => {
+    const date = request.besichtigung_date
+      ? formatDate(request.besichtigung_date, locale)
+      : "";
+    const sentence = request.besichtigung_time
+      ? t("dashboard.besichtigung.requestedOnAt", { date, time: request.besichtigung_time })
+      : t("dashboard.besichtigung.requestedOn", { date });
+    return request.customer_note ? `${sentence}. ${request.customer_note}` : sentence;
+  };
+
   const getDialogRequest = (request: BesichtigungRequest | null) => {
     if (!request) return null;
     return {
@@ -316,7 +343,11 @@ const FirmaDashboard = () => {
       customer_last_name: request.customer_name.split(" ").slice(1).join(" ") || "",
       customer_email: request.customer_email,
       customer_phone: request.customer_phone,
-      customer_response_note: `Besichtigung gewünscht am ${request.besichtigung_date ? new Date(request.besichtigung_date).toLocaleDateString("de-CH") : ""}${request.besichtigung_time ? ` um ${request.besichtigung_time} Uhr` : ""}${request.customer_note ? `. ${request.customer_note}` : ""}`,
+      customer_response_note: buildRequestNote(request),
+      // Structured slot — the dialog must not regex it back out of the sentence above,
+      // which is written in the company's language (see AcceptBesichtigungDialog).
+      besichtigung_requested_date: request.besichtigung_date,
+      besichtigung_requested_time: request.besichtigung_time,
     };
   };
 
@@ -326,45 +357,45 @@ const FirmaDashboard = () => {
     }
   };
 
-  const today = new Date().toLocaleDateString("de-CH", { weekday: "long", day: "2-digit", month: "long" });
+  const today = formatWeekdayLong(new Date(), locale);
   const totalOpen = stats.pendingLeads + stats.openOffers + stats.besichtigungCount;
 
   // Folk-style KPI tiles — emoji-led, flat color, single coral accent on the highlight
   const statsConfig = [
     {
       emoji: "📥",
-      title: "Neue Anfragen",
+      title: t("dashboard.kpi.newLeads"),
       value: stats.pendingLeads,
       link: "/firma/anfragen",
       highlight: stats.pendingLeads > 0,
-      hint: "Heute eingegangen",
+      hint: t("dashboard.kpi.newLeadsHint"),
     },
     {
       emoji: "📄",
-      title: "Offene Offerten",
+      title: t("dashboard.kpi.openOffers"),
       value: stats.openOffers,
       link: "/firma/offerten",
-      hint: "Warten auf Antwort",
+      hint: t("dashboard.kpi.openOffersHint"),
     },
     {
       emoji: "🚚",
-      title: "Aufträge diesen Monat",
+      title: t("dashboard.kpi.jobsThisMonth"),
       value: stats.jobsThisMonth,
       link: "/firma/kalender",
-      hint: "Geplante Einsätze",
+      hint: t("dashboard.kpi.jobsThisMonthHint"),
     },
     {
       emoji: "🔎",
-      title: "Besichtigungen",
+      title: t("dashboard.kpi.besichtigungen"),
       value: stats.besichtigungCount,
-      hint: "Vor Auftragserteilung",
+      hint: t("dashboard.kpi.besichtigungenHint"),
     },
   ];
 
   return (
     <>
       <Helmet>
-        <title>Übersicht · CRM</title>
+        <title>{t("dashboard.pageTitle")}</title>
       </Helmet>
 
       <div className="space-y-6 md:space-y-8">
@@ -373,24 +404,24 @@ const FirmaDashboard = () => {
           <span className="text-4xl leading-none">🏠</span>
           <div className="flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Übersicht</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("dashboard.title")}</h1>
               <span className="text-[15px] text-folk-ink3">
-                {today} · <span className="font-mono">{totalOpen}</span> offen
+                {today} · <span className="font-mono">{totalOpen}</span> {t("dashboard.open")}
               </span>
             </div>
             <p className="mt-1 text-[15px] text-folk-ink2">
-              Alle aktiven Anfragen, Offerten und heutigen Termine auf einen Blick.
+              {t("dashboard.subtitle")}
             </p>
           </div>
           <div className="flex gap-2">
             <Link to="/firma/anfragen">
               <Button className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2">
-                <span className="text-[14px] leading-none">+</span> Anfrage erfassen
+                <span className="text-[14px] leading-none">+</span> {t("dashboard.action.newLead")}
               </Button>
             </Link>
             <Link to="/firma/offerten">
               <Button variant="outline" className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm">
-                Offerten
+                {t("nav.offerten")}
               </Button>
             </Link>
           </div>
@@ -413,7 +444,7 @@ const FirmaDashboard = () => {
                   {isLoading ? (
                     <div className="h-8 w-12 animate-pulse rounded bg-folk-bg-warm" />
                   ) : (
-                    stat.value.toLocaleString("de-CH")
+                    formatNumber(stat.value, locale)
                   )}
                 </div>
                 {stat.hint && (
@@ -421,7 +452,7 @@ const FirmaDashboard = () => {
                 )}
                 {stat.link && (
                   <div className="mt-2 flex items-center gap-1 text-[13px] text-folk-ink4 transition-colors group-hover:text-folk-coral">
-                    <span>Details</span>
+                    <span>{t("common.details")}</span>
                     <ArrowRight className="h-3 w-3" />
                   </div>
                 )}
@@ -444,26 +475,22 @@ const FirmaDashboard = () => {
             <div className="mb-4 flex items-center gap-3">
               <span className="text-2xl leading-none">📅</span>
               <div>
-                <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">Heute</h2>
+                <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">{t("dashboard.today.title")}</h2>
                 <p className="text-[11.5px] text-folk-ink3">
-                  <span className="font-mono">{todayAppointments.length}</span> {todayAppointments.length === 1 ? "Termin" : "Termine"} eingeplant
+                  <span className="font-mono">{todayAppointments.length}</span>{" "}
+                  {t("dashboard.today.scheduled", { count: todayAppointments.length })}
                 </p>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {todayAppointments.map((appt) => {
                 const apptTime = appt.appointment_date
-                  ? new Date(appt.appointment_date).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })
+                  ? formatClockTime(new Date(appt.appointment_date), locale)
                   : "";
                 const typeEmoji: Record<string, string> = {
                   service: "🚚",
                   besichtigung: "🔎",
                   follow_up: "📞",
-                };
-                const typeLabel: Record<string, string> = {
-                  service: "Umzug/Service",
-                  besichtigung: "Besichtigung",
-                  follow_up: "Follow-up",
                 };
                 return (
                   <Link
@@ -479,7 +506,7 @@ const FirmaDashboard = () => {
                       <p className="mt-0.5 text-[13px] text-folk-ink3">
                         <span className="font-mono">{apptTime}</span>
                         {apptTime && " · "}
-                        {typeLabel[appt.appointment_type] ?? "Termin"}
+                        {getAppointmentTypeLabel(appt.appointment_type, locale)}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-folk-ink4 transition-transform group-hover:translate-x-0.5" />
@@ -496,17 +523,13 @@ const FirmaDashboard = () => {
             <div className="mb-4 flex items-center gap-3">
               <span className="text-2xl leading-none">🔎</span>
               <div>
-                <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">Besichtigungsanfragen</h2>
-                <p className="text-[11.5px] text-folk-ink3">Kunden wünschen vor der Auftragserteilung eine Besichtigung</p>
+                <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">{t("dashboard.besichtigung.title")}</h2>
+                <p className="text-[11.5px] text-folk-ink3">{t("dashboard.besichtigung.subtitle")}</p>
               </div>
             </div>
 
             <div className="space-y-3">
-              {besichtigungRequests.map((request) => {
-                const formattedDate = request.besichtigung_date
-                  ? new Date(request.besichtigung_date).toLocaleDateString("de-CH")
-                  : "";
-                return (
+              {besichtigungRequests.map((request) => (
                   <div
                     key={request.notification_id}
                     className="flex flex-col gap-4 rounded-lg border border-folk-line bg-folk-bg-warm p-4 lg:flex-row lg:items-center"
@@ -514,25 +537,17 @@ const FirmaDashboard = () => {
                     <div className="flex-1">
                       <div className="mb-1.5 flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center gap-1 rounded-md bg-folk-sky-bg px-2 py-0.5 text-[13px] font-semibold text-folk-sky">
-                          🔎 Besichtigung
+                          🔎 {t("domain.appointmentType.besichtigung")}
                         </span>
-                        <span className="font-mono text-[10.5px] text-folk-ink4">{formatDate(request.created_at)}</span>
+                        <span className="font-mono text-[10.5px] text-folk-ink4">{formatTimestamp(request.created_at)}</span>
                       </div>
-                      <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">{request.title}</h3>
+                      <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">
+                        {request.title || t("domain.appointmentType.besichtigung")}
+                      </h3>
                       <p className="mt-0.5 text-[14px] text-folk-ink3">{request.customer_name}</p>
                       <div className="mt-2 flex items-start gap-2 rounded-md border border-folk-line bg-folk-card px-2.5 py-2 text-[14px] text-folk-ink2">
                         <Calendar className="mt-0.5 h-3.5 w-3.5 shrink-0 text-folk-sky" />
-                        <span>
-                          Gewünscht am <span className="font-mono">{formattedDate}</span>
-                          {request.besichtigung_time && (
-                            <>
-                              {" um "}
-                              <span className="font-mono">{request.besichtigung_time}</span>
-                              {" Uhr"}
-                            </>
-                          )}
-                          {request.customer_note && `. ${request.customer_note}`}
-                        </span>
+                        <span>{buildRequestNote(request)}</span>
                       </div>
                     </div>
 
@@ -543,28 +558,27 @@ const FirmaDashboard = () => {
                         onClick={() => handleOpenAcceptDialog(request)}
                       >
                         <CalendarCheck className="h-3.5 w-3.5" />
-                        Bestätigen
+                        {t("common.confirm")}
                       </Button>
                       {request.customer_phone && (
                         <a href={`tel:${request.customer_phone}`}>
                           <Button variant="outline" size="sm" className="h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm">
                             <Phone className="mr-1.5 h-3.5 w-3.5" />
-                            Anrufen
+                            {t("misc.contact.call")}
                           </Button>
                         </a>
                       )}
                       {request.offer_id && (
                         <Link to={`/firma/offerten/${request.offer_id}`}>
                           <Button variant="ghost" size="sm" className="h-8 rounded-lg px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm">
-                            Offerte
+                            {t("dashboard.besichtigung.openOffer")}
                             <ChevronRight className="ml-1 h-3.5 w-3.5" />
                           </Button>
                         </Link>
                       )}
                     </div>
                   </div>
-                );
-              })}
+              ))}
             </div>
           </section>
         )}
@@ -577,13 +591,13 @@ const FirmaDashboard = () => {
               <div className="flex items-center gap-3">
                 <span className="text-2xl leading-none">⚡</span>
                 <div>
-                  <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">Letzte Anfragen</h2>
-                  <p className="text-[11.5px] text-folk-ink3">Ihre neuesten Leads</p>
+                  <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">{t("dashboard.recentLeads.title")}</h2>
+                  <p className="text-[11.5px] text-folk-ink3">{t("dashboard.recentLeads.subtitle")}</p>
                 </div>
               </div>
               <Link to="/firma/anfragen">
                 <Button variant="outline" size="sm" className="group h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm">
-                  Alle anzeigen
+                  {t("dashboard.recentLeads.showAll")}
                   <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                 </Button>
               </Link>
@@ -601,7 +615,9 @@ const FirmaDashboard = () => {
                         📄
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-[15px] font-semibold tracking-tight text-folk-ink">{lead.service_type}</p>
+                        <p className="truncate text-[15px] font-semibold tracking-tight text-folk-ink">
+                          {getServiceLabel(lead.service_type, locale)}
+                        </p>
                         <div className="mt-0.5 flex items-center gap-1.5 text-[14px] text-folk-ink3">
                           <MapPin className="h-3 w-3" />
                           <span className="truncate">{lead.from_city}</span>
@@ -616,7 +632,10 @@ const FirmaDashboard = () => {
                           <div className="mt-0.5 text-[10.5px] text-folk-ink4">
                             <span className="font-mono font-medium text-folk-coral">{lead.distance_km.toFixed(1)} km</span>
                             {lead.estimated_duration_minutes && (
-                              <span className="ml-1.5">(~<span className="font-mono">{Math.round(lead.estimated_duration_minutes)}</span> Min.)</span>
+                              <span className="ml-1.5">
+                                (~<span className="font-mono">{Math.round(lead.estimated_duration_minutes)}</span>{" "}
+                                {t("dashboard.minutesShort")})
+                              </span>
                             )}
                           </div>
                         )}
@@ -625,7 +644,7 @@ const FirmaDashboard = () => {
                     <div className="flex items-center gap-3 pl-12 sm:pl-0">
                       {getStatusChip(lead.status)}
                       <span className="whitespace-nowrap font-mono text-[10.5px] text-folk-ink4">
-                        {formatDate(lead.created_at)}
+                        {formatTimestamp(lead.created_at)}
                       </span>
                     </div>
                   </div>
@@ -634,8 +653,8 @@ const FirmaDashboard = () => {
             ) : (
               <div className="py-12 text-center">
                 <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">📭</div>
-                <p className="text-[15px] text-folk-ink3">Noch keine Anfragen erhalten</p>
-                <p className="mt-1 text-[13px] text-folk-ink4">Neue Leads erscheinen hier automatisch</p>
+                <p className="text-[15px] text-folk-ink3">{t("dashboard.recentLeads.empty")}</p>
+                <p className="mt-1 text-[13px] text-folk-ink4">{t("dashboard.recentLeads.emptyHint")}</p>
               </div>
             )}
           </section>
@@ -648,25 +667,25 @@ const FirmaDashboard = () => {
                   <div className="flex items-center gap-2">
                     <span className="text-xl leading-none">📦</span>
                     <div>
-                      <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">Umzugsboxen</h3>
-                      <p className="text-[10.5px] text-folk-ink4">Offene Vermietungen</p>
+                      <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">{t("nav.umzugsboxen")}</h3>
+                      <p className="text-[10.5px] text-folk-ink4">{t("dashboard.boxes.subtitle")}</p>
                     </div>
                   </div>
                   {boxStats.overdue > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[10.5px] font-semibold text-folk-coral">
                       <AlertTriangle className="h-3 w-3" />
-                      <span className="font-mono">{boxStats.overdue}</span> überfällig
+                      <span className="font-mono">{boxStats.overdue}</span> {t("boxes.stats.overdue")}
                     </span>
                   )}
                 </div>
 
                 <div className="mb-3 grid grid-cols-2 gap-2">
                   <div className="rounded-lg border border-folk-line bg-folk-bg-warm p-3">
-                    <p className="text-[10.5px] uppercase tracking-wider text-folk-ink3">Aktiv</p>
+                    <p className="text-[10.5px] uppercase tracking-wider text-folk-ink3">{t("boxes.kpi.active")}</p>
                     <p className="mt-1 font-sans text-xl font-bold tracking-tight text-folk-ink">{boxStats.total_active}</p>
                   </div>
                   <div className="rounded-lg border border-folk-line bg-folk-bg-warm p-3">
-                    <p className="text-[10.5px] uppercase tracking-wider text-folk-ink3">Heute abholen</p>
+                    <p className="text-[10.5px] uppercase tracking-wider text-folk-ink3">{t("boxes.kpi.pickupToday")}</p>
                     <p className="mt-1 font-sans text-xl font-bold tracking-tight text-folk-coral">{boxStats.pickup_today}</p>
                   </div>
                 </div>
@@ -674,7 +693,7 @@ const FirmaDashboard = () => {
                 <Link to="/firma/umzugsboxen" className="block">
                   <Button variant="outline" className="group h-9 w-full rounded-lg border-folk-line bg-folk-card text-[14px] font-medium text-folk-ink2 hover:bg-folk-bg-warm">
                     <Package className="mr-2 h-3.5 w-3.5 text-folk-ink3" />
-                    Boxen verwalten
+                    {t("dashboard.boxes.manage")}
                     <ChevronRight className="ml-auto h-3.5 w-3.5 text-folk-ink4 transition-transform group-hover:translate-x-0.5" />
                   </Button>
                 </Link>
@@ -690,9 +709,10 @@ const FirmaDashboard = () => {
                     </div>
                     <div className="flex-1">
                       <p className="text-[15px] font-bold tracking-tight text-folk-ink">
-                        <span className="font-mono">{stats.pendingLeads}</span> neue {stats.pendingLeads === 1 ? "Anfrage" : "Anfragen"}
+                        <span className="font-mono">{stats.pendingLeads}</span>{" "}
+                        {t("dashboard.pendingLeads", { count: stats.pendingLeads })}
                       </p>
-                      <p className="mt-0.5 text-[13px] text-folk-ink2">Jetzt prüfen und reagieren</p>
+                      <p className="mt-0.5 text-[13px] text-folk-ink2">{t("dashboard.pendingLeads.hint")}</p>
                     </div>
                     <ArrowRight className="h-4 w-4 text-folk-coral transition-transform group-hover:translate-x-1" />
                   </div>
@@ -706,30 +726,30 @@ const FirmaDashboard = () => {
                 <div className="flex items-center gap-3">
                   <span className="text-2xl leading-none">✨</span>
                   <div>
-                    <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">Alles im grünen Bereich</h3>
-                    <p className="text-[13px] text-folk-ink3">Keine offenen Vorgänge im Moment.</p>
+                    <h3 className="text-[15px] font-semibold tracking-tight text-folk-ink">{t("dashboard.allClear.title")}</h3>
+                    <p className="text-[13px] text-folk-ink3">{t("dashboard.allClear.description")}</p>
                   </div>
                 </div>
               </section>
             )}
 
             <section className="rounded-xl border border-folk-line bg-folk-card p-5">
-              <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">Schnellzugriff</h3>
+              <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("dashboard.quickAccess")}</h3>
               <div className="space-y-1">
                 <Link to="/firma/offerten" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[15px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
-                  <span>📄</span><span className="flex-1">Offerten</span>
+                  <span>📄</span><span className="flex-1">{t("nav.offerten")}</span>
                   <ChevronRight className="h-3.5 w-3.5 text-folk-ink4" />
                 </Link>
                 <Link to="/firma/kalender" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[15px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
-                  <span>📅</span><span className="flex-1">Kalender</span>
+                  <span>📅</span><span className="flex-1">{t("nav.kalender")}</span>
                   <ChevronRight className="h-3.5 w-3.5 text-folk-ink4" />
                 </Link>
                 <Link to="/firma/team" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[15px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
-                  <span>👥</span><span className="flex-1">Team</span>
+                  <span>👥</span><span className="flex-1">{t("nav.team")}</span>
                   <ChevronRight className="h-3.5 w-3.5 text-folk-ink4" />
                 </Link>
                 <Link to="/firma/einstellungen" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[15px] text-folk-ink2 transition-colors hover:bg-folk-bg-warm">
-                  <span>⚙️</span><span className="flex-1">Einstellungen</span>
+                  <span>⚙️</span><span className="flex-1">{t("nav.einstellungen")}</span>
                   <ChevronRight className="h-3.5 w-3.5 text-folk-ink4" />
                 </Link>
               </div>

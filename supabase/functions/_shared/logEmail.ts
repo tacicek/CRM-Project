@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import type { Locale } from "./i18n/index.ts";
 
 interface LogEmailParams {
   recipientEmail: string;
@@ -10,6 +11,13 @@ interface LogEmailParams {
   metadata?: Record<string, unknown>;
   companyId?: string;
   leadId?: string;
+  /**
+   * Locale this email was actually rendered in. Persisted to email_logs.language so
+   * resend-email can repeat the message in the SAME language it originally went out in.
+   * Nullable in the DB on purpose: a historical row with an unknown language must not
+   * be silently claimed to have been German.
+   */
+  language?: Locale;
 }
 
 export async function logEmail(params: LogEmailParams): Promise<void> {
@@ -28,6 +36,7 @@ export async function logEmail(params: LogEmailParams): Promise<void> {
       metadata: params.metadata || {},
       company_id: params.companyId || null,
       lead_id: params.leadId || null,
+      language: params.language ?? null,
     });
 
     if (error) {

@@ -2,6 +2,14 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
+import {
+  createTranslator,
+  formatDateLong,
+  toLocale,
+  translateAppointmentType,
+  type Locale,
+  type Translator,
+} from "../_shared/i18n/index.ts";
 import { isCronRequest, unauthorizedResponse } from "../_shared/cronAuth.ts";
 
 const corsHeaders = {
@@ -48,6 +56,11 @@ interface Appointment {
   reminder_sent_firma: boolean;
   reminder_sent_customer: boolean;
   company_id: string;
+  /**
+   * Document language. This cron has NO caller that could pass a locale — the row is the
+   * only source, which is precisely why appointments.language exists.
+   */
+  language: string | null;
 }
 
 interface Company {
@@ -55,6 +68,8 @@ interface Company {
   company_name: string;
   email: string;
   notification_email: string | null;
+  /** Dashboard language of the firm — governs every firma-bound reminder. */
+  default_language: string | null;
   twilio_enabled: boolean | null;
   twilio_account_sid: string | null;
   twilio_auth_token: string | null;
@@ -280,6 +295,7 @@ const handler = async (req: Request): Promise<Response> => {
         reminder_sent_firma,
         reminder_sent_customer,
         company_id
+        language
       `)
       .eq("appointment_date", todayStr)
       .in("status", ["pending", "confirmed"]);
@@ -310,6 +326,7 @@ const handler = async (req: Request): Promise<Response> => {
         reminder_sent_firma,
         reminder_sent_customer,
         company_id
+        language
       `)
       .eq("appointment_date", tomorrowStr)
       .eq("appointment_type", "besichtigung")
@@ -340,7 +357,7 @@ const handler = async (req: Request): Promise<Response> => {
       // Get company info
       const { data: company } = await supabase
         .from("companies")
-        .select("id, company_name, email, notification_email, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+        .select("id, company_name, email, notification_email, default_language, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
         .eq("id", appointment.company_id)
         .maybeSingle();
 
@@ -356,9 +373,24 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       const recipientEmail = (company as Company).notification_email || (company as Company).email;
-      const appointmentTypeLabel = getAppointmentTypeLabel(appointment.appointment_type);
-      const cancelUrl = `${siteUrl}/termin/${appointment.id}/absagen?email=${encodeURIComponent(appointment.customer_email || "")}`;
-      const rescheduleUrl = `${siteUrl}/termin/${appointment.id}/verschieben?email=${encodeURIComponent(appointment.customer_email || "")}`;
+
+      // ── Locales ──────────────────────────────────────────────────────────────
+      // This is a cron: no caller could pass a language, so both locales come from rows.
+      // The customer copy follows appointments.language, the firma copy companies.default_language.
+      const customerLocale: Locale = toLocale(appointment.language);
+      const companyLocale: Locale = toLocale((company as Company).default_language);
+      const tCustomer: Translator = createTranslator(customerLocale);
+      const tCompany: Translator = createTranslator(companyLocale);
+
+      const typeLabelCustomer = translateAppointmentType(
+        appointment.appointment_type, tCustomer, appointment.appointment_type);
+      const typeLabelCompany = translateAppointmentType(
+        appointment.appointment_type, tCompany, appointment.appointment_type);
+
+      // The public cancel/reschedule pages read everything from the URL — carry the locale so a
+      // French e-mail does not land the customer on a German page.
+      const cancelUrl = `${siteUrl}/termin/${appointment.id}/absagen?email=${encodeURIComponent(appointment.customer_email || "")}&lang=${customerLocale}`;
+      const rescheduleUrl = `${siteUrl}/termin/${appointment.id}/verschieben?email=${encodeURIComponent(appointment.customer_email || "")}&lang=${customerLocale}`;
 
       // 1-hour reminder with cancel option (between 0.5 and 1.5 hours before)
       if (hoursUntil > 0.5 && hoursUntil <= 1.5) {
@@ -371,7 +403,10 @@ const handler = async (req: Request): Promise<Response> => {
           .maybeSingle();
 
         if (!existingOneHourReminder && appointment.customer_email) {
-          const timeUntilText = `${Math.round(hoursUntil * 60)} Minuten`;
+          // Customer-facing "in X minutes" — rendered in the customer's language.
+          const timeUntilText = tCustomer("email.reminder.minutes", {
+            count: Math.round(hoursUntil * 60),
+          });
           const icsContent = generateIcsContent(appointment, company as Company);
           const icsBase64 = stringToBase64(icsContent);
 
@@ -379,8 +414,12 @@ const handler = async (req: Request): Promise<Response> => {
             await activeResend.client.emails.send({
               from: activeResend.from,
               to: [appointment.customer_email],
-              subject: `⏰ Letzte Erinnerung: ${appointment.title} in ${timeUntilText}`,
-              html: generateOneHourReminderEmail(appointment, company as Company, timeUntilText, appointmentTypeLabel, cancelUrl, rescheduleUrl),
+              // Emoji prefix preserved (the catalog values are emoji-free by design).
+              subject: `⏰ ${tCustomer("email.reminder.oneHour.subject", {
+                title: appointment.title,
+                timeUntil: timeUntilText,
+              })}`,
+              html: generateOneHourReminderEmail(appointment, company as Company, timeUntilText, typeLabelCustomer, cancelUrl, rescheduleUrl, customerLocale),
               attachments: [
                 {
                   filename: `termin-${appointment.appointment_date}.ics`,
@@ -401,10 +440,17 @@ const handler = async (req: Request): Promise<Response> => {
 
             remindersSent++;
 
-            // Send SMS reminder if enabled and phone available
+            // Send SMS reminder if enabled and phone available — SMS goes to the CUSTOMER,
+            // so it is written in the customer's language (emoji is part of the catalog value).
             if (appointment.customer_phone && (company as Company).sms_reminders_enabled) {
-              const smsMessage = `⏰ Erinnerung: ${appointment.title} in ${timeUntilText}. Ort: ${[appointment.location_address, appointment.location_plz, appointment.location_city].filter(Boolean).join(", ")}. ${(company as Company).company_name}`;
-              
+              const smsMessage = tCustomer("sms.reminder.oneHour", {
+                title: appointment.title,
+                timeUntil: timeUntilText,
+                location: [appointment.location_address, appointment.location_plz, appointment.location_city]
+                  .filter(Boolean).join(", "),
+                companyName: (company as Company).company_name,
+              });
+
               const smsResult = await sendTwilioSms(company as Company, appointment.customer_phone, smsMessage);
               
               await supabase.from("appointment_reminders").insert({
@@ -437,20 +483,24 @@ const handler = async (req: Request): Promise<Response> => {
 
       // 2-hour reminder (between 1.5 and 2.5 hours before, and not already sent)
       if (hoursUntil > 1.5 && hoursUntil <= 2.5 && !appointment.reminder_sent_firma) {
-        const timeUntilText = `${Math.round(hoursUntil)} Stunden`;
+        // "in X hours" has to exist per recipient — the firm reads its own language, the
+        // customer theirs. One shared string here is exactly how the firm would end up
+        // with French text.
+        const timeUntilTextCompany = tCompany("email.reminder.hours", { count: Math.round(hoursUntil) });
+        const timeUntilTextCustomer = tCustomer("email.reminder.hours", { count: Math.round(hoursUntil) });
         const icsContent = generateIcsContent(appointment, company as Company);
         const icsBase64 = stringToBase64(icsContent);
         // Track per-recipient success so the appointment flags aren't set on a failed send.
         let firmaSent = false;
         let customerSent = false;
 
-        // Send reminder to firma
+        // Send reminder to firma — COMPANY locale
         try {
           const { error: firmaSendErr } = await activeResend.client.emails.send({
             from: activeResend.from,
             to: [recipientEmail],
-            subject: `⏰ Erinnerung: ${appointment.title} in ${timeUntilText}`,
-            html: generateFirmaReminderEmail(appointment, company as Company, timeUntilText, appointmentTypeLabel),
+            subject: `⏰ Erinnerung: ${appointment.title} in ${timeUntilTextCompany}`,
+            html: generateFirmaReminderEmail(appointment, company as Company, timeUntilTextCompany, typeLabelCompany, companyLocale),
             attachments: [
               {
                 filename: `termin-${appointment.appointment_date}.ics`,
@@ -489,8 +539,12 @@ const handler = async (req: Request): Promise<Response> => {
             const { error: custSendErr } = await activeResend.client.emails.send({
               from: activeResend.from,
               to: [appointment.customer_email],
-              subject: `⏰ Termin-Erinnerung: ${appointment.title} in ${timeUntilText}`,
-              html: generateCustomerReminderEmail(appointment, company as Company, timeUntilText, appointmentTypeLabel),
+              // Emoji prefix preserved (the catalog values are emoji-free by design).
+              subject: `⏰ ${tCustomer("email.reminder.customer.subject", {
+                title: appointment.title,
+                timeUntil: timeUntilTextCustomer,
+              })}`,
+              html: generateCustomerReminderEmail(appointment, company as Company, timeUntilTextCustomer, typeLabelCustomer, customerLocale),
               attachments: [
                 {
                   filename: `termin-${appointment.appointment_date}.ics`,
@@ -528,7 +582,14 @@ const handler = async (req: Request): Promise<Response> => {
             .maybeSingle();
 
           if (!existingTwoHourSms) {
-            const smsMessage = `Erinnerung: ${appointment.title} in ${timeUntilText}. ${formatDate(appointment.appointment_date)} um ${appointment.start_time.substring(0, 5)} Uhr. ${(company as Company).company_name}`;
+            // SMS goes to the CUSTOMER → customer language.
+            const smsMessage = tCustomer("sms.reminder.twoHour", {
+              title: appointment.title,
+              timeUntil: timeUntilTextCustomer,
+              date: formatDateLong(appointment.appointment_date, customerLocale),
+              time: appointment.start_time.substring(0, 5),
+              companyName: (company as Company).company_name,
+            });
             const smsResult = await sendTwilioSms(company as Company, appointment.customer_phone, smsMessage);
 
             await supabase.from("appointment_reminders").insert({
@@ -591,7 +652,7 @@ const handler = async (req: Request): Promise<Response> => {
       // Get company info
       const { data: company } = await supabase
         .from("companies")
-        .select("id, company_name, email, notification_email, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+        .select("id, company_name, email, notification_email, default_language, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
         .eq("id", appointment.company_id)
         .single();
 
@@ -610,14 +671,19 @@ const handler = async (req: Request): Promise<Response> => {
       const icsContent = generateIcsContent(appointment, company as Company);
       const icsBase64 = stringToBase64(icsContent);
 
-      // Send day-before reminder to firma (only if not already sent)
+      // Same two-locale split as above: the firma path must NEVER inherit the customer's locale.
+      const customerLocale: Locale = toLocale(appointment.language);
+      const companyLocale: Locale = toLocale((company as Company).default_language);
+      const tCustomer: Translator = createTranslator(customerLocale);
+
+      // Send day-before reminder to firma (only if not already sent) — COMPANY locale
       if (!existingFirmaReminder) {
         try {
           await activeResend2.client.emails.send({
             from: activeResend2.from,
             to: [recipientEmail],
             subject: `📅 Morgen: Besichtigung "${appointment.title}"`,
-            html: generateDayBeforeReminderEmail(appointment, company as Company, "firma"),
+            html: generateDayBeforeReminderEmail(appointment, company as Company, "firma", companyLocale),
             attachments: [
               {
                 filename: `termin-${appointment.appointment_date}.ics`,
@@ -651,14 +717,15 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
-      // Send day-before reminder to customer if email available and not already sent
+      // Send day-before reminder to customer if email available and not already sent — CUSTOMER locale
       if (appointment.customer_email && !existingCustomerReminder) {
         try {
           await activeResend2.client.emails.send({
             from: activeResend2.from,
             to: [appointment.customer_email],
-            subject: `📅 Erinnerung: Ihre Besichtigung ist morgen`,
-            html: generateDayBeforeReminderEmail(appointment, company as Company, "customer"),
+            // Emoji prefix preserved (the catalog values are emoji-free by design).
+            subject: `📅 ${tCustomer("email.reminder.dayBefore.subject")}`,
+            html: generateDayBeforeReminderEmail(appointment, company as Company, "customer", customerLocale),
             attachments: [
               {
                 filename: `termin-${appointment.appointment_date}.ics`,
@@ -679,10 +746,16 @@ const handler = async (req: Request): Promise<Response> => {
           
           remindersSent++;
 
-          // Send SMS reminder if enabled and phone available
+          // Send SMS reminder if enabled and phone available — CUSTOMER language
           if (appointment.customer_phone && (company as Company).sms_reminders_enabled) {
-            const smsMessage = `📅 Erinnerung: ${appointment.title} ist morgen um ${appointment.start_time.substring(0, 5)} Uhr. ${[appointment.location_address, appointment.location_plz, appointment.location_city].filter(Boolean).join(", ")}. ${(company as Company).company_name}`;
-            
+            const smsMessage = tCustomer("sms.reminder.dayBefore", {
+              title: appointment.title,
+              time: appointment.start_time.substring(0, 5),
+              location: [appointment.location_address, appointment.location_plz, appointment.location_city]
+                .filter(Boolean).join(", "),
+              companyName: (company as Company).company_name,
+            });
+
             const smsResult = await sendTwilioSms(company as Company, appointment.customer_phone, smsMessage);
             
             await supabase.from("appointment_reminders").insert({
@@ -725,41 +798,44 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-function getAppointmentTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    besichtigung: "Besichtigung",
-    service: "Auftrag",
-    follow_up: "Nachkontrolle",
-    meeting: "Besprechung",
-    blocked: "Blockiert",
-  };
-  return labels[type] || type;
-}
-
 function formatTime(time: string): string {
   return time.substring(0, 5);
 }
 
+/**
+ * Day-before reminder — serves BOTH recipients.
+ *
+ * The locale is an explicit parameter rather than something derived inside: the firma copy MUST
+ * be rendered with the COMPANY locale and the customer copy with the DOCUMENT locale. Deriving
+ * one locale here would have made the firm start receiving French headers whenever a French
+ * customer had a viewing the next day.
+ */
 function generateDayBeforeReminderEmail(
   appointment: Appointment,
   company: Company,
-  recipientType: "firma" | "customer"
+  recipientType: "firma" | "customer",
+  locale: Locale,
 ): string {
+  const t = createTranslator(locale);
   const isFirma = recipientType === "firma";
   const headerColor = isFirma ? "#3B82F6, #1D4ED8" : "#8B5CF6, #6D28D9";
   const accentColor = isFirma ? "#3B82F6" : "#8B5CF6";
-  
-  const greeting = isFirma 
-    ? `Guten Tag,` 
-    : `Guten Tag ${appointment.customer_first_name} ${appointment.customer_last_name},`;
-  
+
+  // Firma-side prose is company-internal CRM copy and stays German by catalog policy; every
+  // catalog-backed label below is still rendered through `t`, i.e. in the company's locale.
+  const greeting = isFirma
+    ? `Guten Tag,`
+    : t("common.greeting", {
+        name: `${appointment.customer_first_name ?? ""} ${appointment.customer_last_name ?? ""}`.trim(),
+      });
+
   const intro = isFirma
     ? `Morgen findet eine Besichtigung statt. Hier sind die Details:`
-    : `dies ist eine freundliche Erinnerung an Ihre Besichtigung morgen:`;
-  
+    : t("email.reminder.dayBefore.intro");
+
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="${locale}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -779,62 +855,62 @@ function generateDayBeforeReminderEmail(
     <body>
       <div class="container">
         <div class="header">
-          <h1 style="margin: 0; font-size: 24px;">📅 Besichtigung morgen</h1>
-          <p style="margin: 10px 0 0; opacity: 0.9;">Erinnerung für den morgigen Termin</p>
+          <h1 style="margin: 0; font-size: 24px;">📅 ${t("email.reminder.dayBefore.headerTitle")}</h1>
+          <p style="margin: 10px 0 0; opacity: 0.9;">${t("email.reminder.dayBefore.headerSubtitle")}</p>
         </div>
         <div class="content">
           <p>${greeting}</p>
           <p>${intro}</p>
-          
+
           <div class="info-box">
             <h2 style="margin: 0 0 15px; color: #1f2937;">${appointment.title}</h2>
             <div style="display: grid; gap: 15px;">
               <div class="highlight-box">
-                <div class="label">📅 Datum & Uhrzeit</div>
-                <div class="value" style="font-size: 18px;">${formatDate(appointment.appointment_date)}</div>
-                <div class="value" style="color: ${accentColor};">${formatTime(appointment.start_time)} - ${formatTime(appointment.end_time)} Uhr</div>
+                <div class="label">📅 ${t("common.dateAndTime")}</div>
+                <div class="value" style="font-size: 18px;">${formatDateLong(appointment.appointment_date, locale)}</div>
+                <div class="value" style="color: ${accentColor};">${t("common.timeRange", { start: formatTime(appointment.start_time), end: formatTime(appointment.end_time) })}</div>
               </div>
               ${appointment.location_address ? `
               <div>
-                <div class="label">📍 Adresse</div>
+                <div class="label">📍 ${t("common.address")}</div>
                 <div class="value">${appointment.location_address}<br>${appointment.location_plz} ${appointment.location_city}</div>
               </div>
               ` : ""}
               ${appointment.location_notes ? `
               <div>
-                <div class="label">ℹ️ Hinweis</div>
+                <div class="label">ℹ️ ${t("common.note")}</div>
                 <div class="value" style="color: ${accentColor};">${appointment.location_notes}</div>
               </div>
               ` : ""}
             </div>
-            
+
             ${isFirma && appointment.customer_first_name ? `
             <div class="customer-box">
-              <div class="label">👤 Kunde</div>
+              <div class="label">👤 ${t("common.customer")}</div>
               <div class="value">${appointment.customer_first_name} ${appointment.customer_last_name}</div>
               ${appointment.customer_phone ? `<div style="margin-top: 5px;">📞 <a href="tel:${appointment.customer_phone}" style="color: ${accentColor};">${appointment.customer_phone}</a></div>` : ""}
               ${appointment.customer_email ? `<div>✉️ <a href="mailto:${appointment.customer_email}" style="color: ${accentColor};">${appointment.customer_email}</a></div>` : ""}
             </div>
             ` : ""}
-            
+
             ${!isFirma ? `
             <div class="customer-box">
-              <div class="label">🏢 Firma</div>
+              <div class="label">🏢 ${t("common.company")}</div>
               <div class="value">${company.company_name}</div>
             </div>
             ` : ""}
           </div>
-          
+
           <div style="background: #DBEAFE; padding: 15px; border-radius: 8px; margin-top: 20px;">
             <p style="margin: 0; color: #1E40AF;">
-              ${isFirma 
+              ${isFirma
                 ? "💡 <strong>Tipp:</strong> Stellen Sie sicher, dass Sie alle notwendigen Unterlagen und Materialien für die Besichtigung vorbereitet haben."
-                : "💡 <strong>Tipp:</strong> Halten Sie bitte relevante Unterlagen bereit und stellen Sie sicher, dass der Zugang zum Objekt gewährleistet ist."}
+                : `💡 <strong>${t("email.reminder.dayBefore.tipLabel")}</strong> ${t("email.reminder.dayBefore.tip")}`}
             </p>
           </div>
-          
+
           <div class="footer">
-            <p>Diese Erinnerung wurde automatisch versendet.</p>
+            <p>${t("common.autoReminderSent")}</p>
           </div>
         </div>
       </div>
@@ -843,17 +919,20 @@ function generateDayBeforeReminderEmail(
   `;
 }
 
+/** Customer-only — DOCUMENT locale. */
 function generateOneHourReminderEmail(
   appointment: Appointment,
   company: Company,
   timeUntil: string,
   appointmentType: string,
   cancelUrl: string,
-  rescheduleUrl: string
+  rescheduleUrl: string,
+  locale: Locale,
 ): string {
+  const t = createTranslator(locale);
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="${locale}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -876,49 +955,49 @@ function generateOneHourReminderEmail(
     <body>
       <div class="container">
         <div class="header">
-          <h1 style="margin: 0; font-size: 24px;">⏰ Letzte Erinnerung</h1>
-          <p style="margin: 10px 0 0; opacity: 0.9;">Ihr Termin beginnt in ${timeUntil}</p>
+          <h1 style="margin: 0; font-size: 24px;">⏰ ${t("email.reminder.oneHour.headerTitle")}</h1>
+          <p style="margin: 10px 0 0; opacity: 0.9;">${t("email.reminder.oneHour.headerSubtitle", { timeUntil })}</p>
         </div>
         <div class="content">
-          <p>Guten Tag ${appointment.customer_first_name} ${appointment.customer_last_name},</p>
-          <p>Ihr Termin beginnt in Kürze. Bitte stellen Sie sicher, dass Sie bereit sind.</p>
-          
+          <p>${t("common.greeting", { name: `${appointment.customer_first_name ?? ""} ${appointment.customer_last_name ?? ""}`.trim() })}</p>
+          <p>${t("email.reminder.oneHour.intro")}</p>
+
           <div class="info-box">
             <h2 style="margin: 0 0 15px; color: #1f2937;">${appointment.title}</h2>
             <div style="display: grid; gap: 15px;">
               <div>
-                <div class="label">Typ</div>
+                <div class="label">${t("common.type")}</div>
                 <div class="value">${appointmentType}</div>
               </div>
               <div>
-                <div class="label">Datum & Uhrzeit</div>
-                <div class="value">${formatDate(appointment.appointment_date)} • ${formatTime(appointment.start_time)} - ${formatTime(appointment.end_time)}</div>
+                <div class="label">${t("common.dateAndTime")}</div>
+                <div class="value">${formatDateLong(appointment.appointment_date, locale)} • ${formatTime(appointment.start_time)} - ${formatTime(appointment.end_time)}</div>
               </div>
               ${appointment.location_address ? `
               <div>
-                <div class="label">Adresse</div>
+                <div class="label">${t("common.address")}</div>
                 <div class="value">${appointment.location_address}<br>${appointment.location_plz} ${appointment.location_city}</div>
               </div>
               ` : ""}
             </div>
-            
+
             <div class="company-box">
-              <div class="label">Firma</div>
+              <div class="label">${t("common.company")}</div>
               <div class="value">${company.company_name}</div>
             </div>
           </div>
-          
+
           <div class="action-section">
-            <p style="margin: 0 0 15px; color: #374151; font-weight: 600;">Können Sie den Termin nicht wahrnehmen?</p>
+            <p style="margin: 0 0 15px; color: #374151; font-weight: 600;">${t("email.reminder.oneHour.actionsTitle")}</p>
             <div class="action-btns">
-              <a href="${rescheduleUrl}" class="reschedule-btn">📅 Termin verschieben</a>
-              <a href="${cancelUrl}" class="cancel-btn">❌ Termin absagen</a>
+              <a href="${rescheduleUrl}" class="reschedule-btn">📅 ${t("email.reminder.oneHour.rescheduleCta")}</a>
+              <a href="${cancelUrl}" class="cancel-btn">❌ ${t("email.reminder.oneHour.cancelCta")}</a>
             </div>
-            <p style="margin: 15px 0 0; font-size: 12px; color: #6B7280;">Die Firma wird automatisch benachrichtigt.</p>
+            <p style="margin: 15px 0 0; font-size: 12px; color: #6B7280;">${t("email.reminder.oneHour.actionsNote")}</p>
           </div>
-          
+
           <div class="footer">
-            <p>Diese Erinnerung wurde automatisch versendet.</p>
+            <p>${t("common.autoReminderSent")}</p>
           </div>
         </div>
       </div>
@@ -927,15 +1006,21 @@ function generateOneHourReminderEmail(
   `;
 }
 
+/**
+ * Firma-only — COMPANY locale. Firma-internal prose stays German by catalog policy; the
+ * catalog-backed labels follow the company's own language.
+ */
 function generateFirmaReminderEmail(
   appointment: Appointment,
   company: Company,
   timeUntil: string,
-  appointmentType: string
+  appointmentType: string,
+  locale: Locale,
 ): string {
+  const t = createTranslator(locale);
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="${locale}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -954,47 +1039,47 @@ function generateFirmaReminderEmail(
     <body>
       <div class="container">
         <div class="header">
-          <h1 style="margin: 0; font-size: 24px;">⏰ Termin-Erinnerung</h1>
-          <p style="margin: 10px 0 0; opacity: 0.9;">In ${timeUntil} beginnt Ihr Termin</p>
+          <h1 style="margin: 0; font-size: 24px;">⏰ ${t("email.reminder.customer.headerTitle")}</h1>
+          <p style="margin: 10px 0 0; opacity: 0.9;">${t("email.reminder.customer.headerSubtitle", { timeUntil })}</p>
         </div>
         <div class="content">
           <div class="info-box">
             <h2 style="margin: 0 0 15px; color: #1f2937;">${appointment.title}</h2>
             <div style="display: grid; gap: 15px;">
               <div>
-                <div class="label">Typ</div>
+                <div class="label">${t("common.type")}</div>
                 <div class="value">${appointmentType}</div>
               </div>
               <div>
-                <div class="label">Datum & Uhrzeit</div>
-                <div class="value">${formatDate(appointment.appointment_date)} • ${formatTime(appointment.start_time)} - ${formatTime(appointment.end_time)}</div>
+                <div class="label">${t("common.dateAndTime")}</div>
+                <div class="value">${formatDateLong(appointment.appointment_date, locale)} • ${formatTime(appointment.start_time)} - ${formatTime(appointment.end_time)}</div>
               </div>
               ${appointment.location_address ? `
               <div>
-                <div class="label">Adresse</div>
+                <div class="label">${t("common.address")}</div>
                 <div class="value">${appointment.location_address}<br>${appointment.location_plz} ${appointment.location_city}</div>
               </div>
               ` : ""}
               ${appointment.location_notes ? `
               <div>
-                <div class="label">Hinweis</div>
+                <div class="label">${t("common.note")}</div>
                 <div class="value" style="color: #3B82F6;">ℹ️ ${appointment.location_notes}</div>
               </div>
               ` : ""}
             </div>
-            
+
             ${appointment.customer_first_name ? `
             <div class="customer-box">
-              <div class="label">Kunde</div>
+              <div class="label">${t("common.customer")}</div>
               <div class="value">${appointment.customer_first_name} ${appointment.customer_last_name}</div>
               ${appointment.customer_phone ? `<div style="margin-top: 5px;">📞 ${appointment.customer_phone}</div>` : ""}
               ${appointment.customer_email ? `<div>✉️ ${appointment.customer_email}</div>` : ""}
             </div>
             ` : ""}
           </div>
-          
+
           <div class="footer">
-            <p>Diese Erinnerung wurde automatisch versendet.</p>
+            <p>${t("common.autoReminderSent")}</p>
           </div>
         </div>
       </div>
@@ -1003,15 +1088,18 @@ function generateFirmaReminderEmail(
   `;
 }
 
+/** Customer-only — DOCUMENT locale. */
 function generateCustomerReminderEmail(
   appointment: Appointment,
   company: Company,
   timeUntil: string,
-  appointmentType: string
+  appointmentType: string,
+  locale: Locale,
 ): string {
+  const t = createTranslator(locale);
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="${locale}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1030,57 +1118,47 @@ function generateCustomerReminderEmail(
     <body>
       <div class="container">
         <div class="header">
-          <h1 style="margin: 0; font-size: 24px;">⏰ Termin-Erinnerung</h1>
-          <p style="margin: 10px 0 0; opacity: 0.9;">Ihr Termin beginnt in ${timeUntil}</p>
+          <h1 style="margin: 0; font-size: 24px;">⏰ ${t("email.reminder.customer.headerTitle")}</h1>
+          <p style="margin: 10px 0 0; opacity: 0.9;">${t("email.reminder.customer.headerSubtitle", { timeUntil })}</p>
         </div>
         <div class="content">
-          <p>Guten Tag ${appointment.customer_first_name} ${appointment.customer_last_name},</p>
-          <p>dies ist eine freundliche Erinnerung an Ihren bevorstehenden Termin:</p>
-          
+          <p>${t("common.greeting", { name: `${appointment.customer_first_name ?? ""} ${appointment.customer_last_name ?? ""}`.trim() })}</p>
+          <p>${t("email.reminder.customer.intro")}</p>
+
           <div class="info-box">
             <h2 style="margin: 0 0 15px; color: #1f2937;">${appointment.title}</h2>
             <div style="display: grid; gap: 15px;">
               <div>
-                <div class="label">Typ</div>
+                <div class="label">${t("common.type")}</div>
                 <div class="value">${appointmentType}</div>
               </div>
               <div>
-                <div class="label">Datum & Uhrzeit</div>
-                <div class="value">${formatDate(appointment.appointment_date)} • ${formatTime(appointment.start_time)} - ${formatTime(appointment.end_time)}</div>
+                <div class="label">${t("common.dateAndTime")}</div>
+                <div class="value">${formatDateLong(appointment.appointment_date, locale)} • ${formatTime(appointment.start_time)} - ${formatTime(appointment.end_time)}</div>
               </div>
               ${appointment.location_address ? `
               <div>
-                <div class="label">Adresse</div>
+                <div class="label">${t("common.address")}</div>
                 <div class="value">${appointment.location_address}<br>${appointment.location_plz} ${appointment.location_city}</div>
               </div>
               ` : ""}
             </div>
-            
+
             <div class="company-box">
-              <div class="label">Firma</div>
+              <div class="label">${t("common.company")}</div>
               <div class="value">${company.company_name}</div>
             </div>
           </div>
-          
+
           <div class="footer">
-            <p>Bei Fragen wenden Sie sich bitte direkt an die Firma.</p>
-            <p style="margin-top: 20px; font-size: 12px;">Diese Erinnerung wurde automatisch versendet.</p>
+            <p>${t("email.reminder.customer.footerHelp")}</p>
+            <p style="margin-top: 20px; font-size: 12px;">${t("common.autoReminderSent")}</p>
           </div>
         </div>
       </div>
     </body>
     </html>
   `;
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("de-CH", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
 }
 
 serve(handler);

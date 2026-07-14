@@ -1,6 +1,7 @@
 import { BlobProvider, PDFDownloadLink } from "@react-pdf/renderer";
 import { QuittungPDF } from "./QuittungPDF";
 import { Quittung } from "@/types/quittung.types";
+import type { Locale } from "@/i18n/locale";
 import { Button } from "@/components/ui/button";
 import { Download, ExternalLink, Loader2 } from "lucide-react";
 
@@ -22,12 +23,14 @@ interface CompanyInfo {
 interface Props {
   quittung: Quittung;
   company: CompanyInfo;
+  /** Document locale — the CUSTOMER's language, resolved from the receipt row. */
+  locale: Locale;
   onClose?: () => void;
 }
 
-export function QuittungPDFPreview({ quittung, company }: Props) {
+export function QuittungPDFPreview({ quittung, company, locale }: Props) {
   const filename = `Quittung-${quittung.quittung_nr || "entwurf"}.pdf`;
-  const doc = <QuittungPDF quittung={quittung} company={company} />;
+  const doc = <QuittungPDF quittung={quittung} company={company} locale={locale} />;
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white">

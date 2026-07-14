@@ -55,6 +55,7 @@ import {
   VALIDATION,
   getCategoryLabel,
 } from "@/constants/service-catalog";
+import { useI18n, useT } from "@/i18n/useI18n";
 
 interface LeistungsuebersichtSectionProps {
   companyId: string;
@@ -86,6 +87,8 @@ export function LeistungsuebersichtSection({
   onExcludedServicesChange,
   onSpecialNotesChange,
 }: LeistungsuebersichtSectionProps) {
+  const t = useT();
+  const { locale } = useI18n();
   const [availableServices, setAvailableServices] = useState<ServiceItem[]>([]);
   const [templates, setTemplates] = useState<LeistungTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,16 +113,13 @@ export function LeistungsuebersichtSection({
       s => existingNames.has(`${s.category}:${s.name}`)
     );
     if (wouldBeDuplicates.length > 0) {
-      toast.warning(
-        `${wouldBeDuplicates.length} Leistung(en) existieren bereits. ` +
-        `Nur neue werden hinzugefügt.`
-      );
+      toast.warning(t("offer.leistung.toast.duplicatesWarning", { count: wouldBeDuplicates.length }));
     }
     const toInsert = template.services.filter(
       s => !existingNames.has(`${s.category}:${s.name}`)
     );
     if (toInsert.length === 0) {
-      toast.info("Alle Leistungen aus diesem Paket sind bereits vorhanden.");
+      toast.info(t("offer.leistung.toast.allExist"));
       return;
     }
     
@@ -154,11 +154,11 @@ export function LeistungsuebersichtSection({
         if (!merged.find(m => m.id === s.id)) merged.push(s);
       }
       onSelectedServicesChange(merged);
-      
-      toast.success(`${insertedServices?.length ?? 0} Leistungen hinzugefügt und übernommen`);
+
+      toast.success(t("offer.leistung.toast.servicesAdded", { count: insertedServices?.length ?? 0 }));
     } catch (error) {
       console.error("Error creating services:", error);
-      toast.error("Fehler beim Erstellen der Leistungen");
+      toast.error(t("offer.leistung.toast.createFailed"));
     } finally {
       setIsCreatingTemplate(false);
     }
@@ -221,20 +221,20 @@ export function LeistungsuebersichtSection({
     // FIX: Warn if some services from template are no longer available
     const missingCount = templateServiceIds.length - templateServices.length;
     if (missingCount > 0) {
-      toast.warning(`${missingCount} Leistung(en) aus der Vorlage sind nicht mehr verfügbar`);
+      toast.warning(t("offer.leistung.toast.templateMissing", { count: missingCount }));
     }
-    
+
     onSelectedServicesChange(templateServices);
     onExcludedServicesChange(template.excluded_services || []);
     onSpecialNotesChange(template.notes || "");
-    
-    toast.success(`Vorlage "${template.name}" angewendet`);
+
+    toast.success(t("offer.leistung.toast.templateApplied", { name: template.name }));
   };
 
   const loadDefaultServices = () => {
     const defaultServices = availableServices.filter(s => s.is_default_included);
     onSelectedServicesChange(defaultServices);
-    toast.success("Standard-Leistungen geladen");
+    toast.success(t("offer.leistung.toast.defaultsLoaded"));
   };
 
   const openCategoryPicker = () => {
@@ -250,7 +250,10 @@ export function LeistungsuebersichtSection({
     );
     onSelectedServicesChange(selectedFromCategories);
     setIsCategoryPickerOpen(false);
-    toast.success(`${selectedFromCategories.length} Leistungen aus ${selectedCategoriesForLoad.length} Kategorien geladen`);
+    toast.success(t("offer.leistung.toast.categoriesLoaded", {
+      count: selectedFromCategories.length,
+      categories: selectedCategoriesForLoad.length,
+    }));
   };
 
   const toggleCategoryForLoad = (category: string) => {
@@ -280,7 +283,7 @@ export function LeistungsuebersichtSection({
       )
     );
     setEditingServiceId(null);
-    toast.success("Änderungen gespeichert");
+    toast.success(t("offer.leistung.toast.editSaved"));
   };
 
   const cancelEdit = () => {
@@ -359,7 +362,7 @@ export function LeistungsuebersichtSection({
         <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
           <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
             <ListChecks className="w-4 h-4 sm:w-5 sm:h-5 text-secondary" />
-            Leistungsübersicht
+            {t("offer.leistung.title")}
           </CardTitle>
         </CardHeader>
         <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
@@ -368,9 +371,9 @@ export function LeistungsuebersichtSection({
               <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-2 sm:mb-3 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
                 <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-amber-600" />
               </div>
-              <h3 className="font-semibold text-sm sm:text-base mb-1">Schnellstart</h3>
+              <h3 className="font-semibold text-sm sm:text-base mb-1">{t("offer.leistung.quickstart.title")}</h3>
               <p className="text-muted-foreground text-xs sm:text-sm max-w-xs mx-auto">
-                Wählen Sie ein Paket für Ihre Offerte. Es wird automatisch gespeichert.
+                {t("offer.leistung.quickstart.description")}
               </p>
             </div>
             
@@ -392,12 +395,12 @@ export function LeistungsuebersichtSection({
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm">{matchingTemplate[1].name}</p>
                       <p className="text-xs opacity-80">
-                        {matchingTemplate[1].services.length} Leistungen • Empfohlen
+                        {t("offer.leistung.quickstart.countRecommended", { count: matchingTemplate[1].services.length })}
                       </p>
                     </div>
                     <Badge className="bg-white/20 text-white border-0">
                       <Sparkles className="w-3 h-3 mr-1" />
-                      Empfohlen
+                      {t("offer.leistung.quickstart.recommended")}
                     </Badge>
                   </Button>
                 </div>
@@ -425,18 +428,18 @@ export function LeistungsuebersichtSection({
                       <div>
                         <p className="font-medium text-[10px] sm:text-xs">{template.name}</p>
                         <p className="text-[10px] text-muted-foreground">
-                          {template.services.length} Leistungen
+                          {t("offer.leistung.quickstart.count", { count: template.services.length })}
                         </p>
                       </div>
                     </Button>
                   );
                 })}
             </div>
-            
+
             <div className="flex items-center gap-3 mt-4 pt-4 border-t">
               <div className="flex-1 h-px bg-border" />
               <Link to="/firma/leistungskatalog" className="text-xs text-muted-foreground hover:text-foreground">
-                Erweiterte Einstellungen →
+                {t("offer.leistung.quickstart.advancedSettings")}
               </Link>
             </div>
           </div>
@@ -453,10 +456,10 @@ export function LeistungsuebersichtSection({
             <div>
               <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                 <ListChecks className="w-4 h-4 sm:w-5 sm:h-5 text-secondary" />
-                Leistungsübersicht
+                {t("offer.leistung.title")}
               </CardTitle>
               <p className="text-[10px] sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
-                Inkludierte Leistungen für diese Offerte
+                {t("offer.leistung.subtitle")}
               </p>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -465,31 +468,31 @@ export function LeistungsuebersichtSection({
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1 sm:gap-2 text-xs h-8 sm:h-9">
                     <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="hidden xs:inline">Vorlage</span>
+                    <span className="hidden xs:inline">{t("offer.leistung.template.button")}</span>
                     <ChevronDown className="w-3 h-3" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 sm:w-64">
                   <DropdownMenuLabel className="flex items-center gap-2 text-xs sm:text-sm">
                     <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    Schnellauswahl
+                    {t("offer.leistung.template.quickSelect")}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  
+
                   <DropdownMenuItem onClick={loadDefaultServices} className="text-xs sm:text-sm">
                     <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 text-green-600" />
-                    Standard-Leistungen laden
+                    {t("offer.leistung.template.loadDefaults")}
                   </DropdownMenuItem>
-                  
+
                   <DropdownMenuItem onClick={openCategoryPicker} className="text-xs sm:text-sm">
                     <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 text-blue-600" />
-                    Kategorien auswählen...
+                    {t("offer.leistung.template.pickCategories")}
                   </DropdownMenuItem>
-                  
+
                   {templates.length > 0 && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="text-xs sm:text-sm">Gespeicherte Vorlagen</DropdownMenuLabel>
+                      <DropdownMenuLabel className="text-xs sm:text-sm">{t("offer.leistung.template.saved")}</DropdownMenuLabel>
                       {templates.map((template) => (
                         <DropdownMenuItem
                           key={template.id}
@@ -514,12 +517,12 @@ export function LeistungsuebersichtSection({
                   <DropdownMenuItem asChild className="text-xs sm:text-sm">
                     <Link to="/firma/leistungskatalog" className="cursor-pointer">
                       <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2" />
-                      Vorlagen verwalten
+                      {t("offer.leistung.template.manage")}
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              
+
               <Button
                 variant="outline"
                 size="sm"
@@ -527,7 +530,7 @@ export function LeistungsuebersichtSection({
                 className="text-xs h-8 sm:h-9"
               >
                 <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
-                <span className="hidden xs:inline">Leistung</span>
+                <span className="hidden xs:inline">{t("offer.leistung.addService")}</span>
               </Button>
             </div>
           </div>
@@ -537,13 +540,13 @@ export function LeistungsuebersichtSection({
           <div>
             <h4 className="font-semibold text-green-700 mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
-              Inklusivleistungen ({selectedServices.length})
+              {t("offer.leistung.included.title", { count: selectedServices.length })}
             </h4>
-            
+
             {selectedServices.length === 0 ? (
               <div className="text-center py-4 sm:py-6 border border-dashed rounded-lg">
                 <p className="text-muted-foreground text-xs sm:text-sm">
-                  Keine Leistungen ausgewählt
+                  {t("offer.leistung.included.empty")}
                 </p>
                 <Button
                   variant="ghost"
@@ -552,7 +555,7 @@ export function LeistungsuebersichtSection({
                   onClick={() => setIsSelectorOpen(true)}
                 >
                   <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  Leistung hinzufügen
+                  {t("offer.leistung.included.add")}
                 </Button>
               </div>
             ) : (
@@ -638,7 +641,7 @@ export function LeistungsuebersichtSection({
                           <div 
                             className="text-right shrink-0 cursor-pointer hover:bg-white/50 rounded px-2 py-1 transition-colors"
                             onClick={() => startEditingService(service)}
-                            title="Klicken zum Bearbeiten"
+                            title={t("offer.leistung.editHint")}
                           >
                             {displayPrice > 0 ? (
                               <>
@@ -661,7 +664,7 @@ export function LeistungsuebersichtSection({
                               size="icon"
                               onClick={() => startEditingService(service)}
                               className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-blue-600"
-                              title="Bearbeiten"
+                              title={t("common.edit")}
                             >
                               <Pencil className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                             </Button>
@@ -687,9 +690,9 @@ export function LeistungsuebersichtSection({
           <div>
             <h4 className="font-semibold text-red-700 mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-              Nicht inbegriffen ({excludedServices.filter(Boolean).length})
+              {t("offer.leistung.excluded.title", { count: excludedServices.filter(Boolean).length })}
             </h4>
-            
+
             <div className="space-y-1.5 sm:space-y-2">
               {excludedServices.map((item, index) => (
                 <div
@@ -700,7 +703,7 @@ export function LeistungsuebersichtSection({
                   <Input
                     value={item}
                     onChange={(e) => updateExcludedService(index, e.target.value)}
-                    placeholder="z.B. Reinigung der alten Wohnung"
+                    placeholder={t("offer.leistung.excluded.placeholder")}
                     className="flex-1 bg-background h-8 sm:h-10 text-xs sm:text-sm"
                   />
                   <Button
@@ -713,7 +716,7 @@ export function LeistungsuebersichtSection({
                   </Button>
                 </div>
               ))}
-              
+
               <Button
                 variant="outline"
                 size="sm"
@@ -721,16 +724,16 @@ export function LeistungsuebersichtSection({
                 className="w-full text-xs h-8 sm:h-9"
               >
                 <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
-                Ausschluss hinzufügen
+                {t("offer.leistung.excluded.add")}
               </Button>
             </div>
           </div>
 
           {/* Special Notes */}
           <div>
-            <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm">Besondere Hinweise</h4>
+            <h4 className="font-semibold mb-1.5 sm:mb-2 text-xs sm:text-sm">{t("offer.leistung.notes.title")}</h4>
             <Textarea
-              placeholder="Zusätzliche Informationen zur Leistungsübersicht..."
+              placeholder={t("offer.leistung.notes.placeholder")}
               rows={2}
               value={specialNotes}
               onChange={(e) => onSpecialNotesChange(e.target.value)}
@@ -744,9 +747,9 @@ export function LeistungsuebersichtSection({
       <Dialog open={isSelectorOpen} onOpenChange={setIsSelectorOpen}>
         <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] flex flex-col p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">Leistung auswählen</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">{t("offer.catalogSelector.title")}</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              Wählen Sie Leistungen aus Ihrem Katalog
+              {t("offer.leistung.selector.description")}
             </DialogDescription>
           </DialogHeader>
 
@@ -755,22 +758,22 @@ export function LeistungsuebersichtSection({
             <div className="relative flex-1">
               <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
               <Input
-                placeholder="Suchen..."
+                placeholder={t("offer.leistung.selector.searchPlaceholder")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8 sm:pl-9 h-9 sm:h-10 text-xs sm:text-sm"
               />
             </div>
-            
+
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
               <SelectTrigger className="w-full sm:w-40 h-9 sm:h-10 text-xs sm:text-sm">
-                <SelectValue placeholder="Kategorie" />
+                <SelectValue placeholder={t("offer.leistung.selector.categoryPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs sm:text-sm">Alle Kategorien</SelectItem>
+                <SelectItem value="all" className="text-xs sm:text-sm">{t("offer.leistung.selector.allCategories")}</SelectItem>
                 {CATEGORIES.map((cat) => (
                   <SelectItem key={cat.value} value={cat.value} className="text-xs sm:text-sm">
-                    {cat.label}
+                    {getCategoryLabel(cat.value, locale)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -782,13 +785,13 @@ export function LeistungsuebersichtSection({
             {Object.keys(groupedServices).length === 0 ? (
               <div className="text-center py-8 sm:py-12 text-muted-foreground">
                 <Search className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 opacity-50" />
-                <p className="text-xs sm:text-sm">Keine passenden Leistungen gefunden</p>
+                <p className="text-xs sm:text-sm">{t("offer.leistung.selector.noResults")}</p>
               </div>
             ) : (
               Object.entries(groupedServices).map(([category, services]) => (
                 <div key={category}>
                   <h4 className="font-semibold text-[10px] sm:text-sm text-muted-foreground mb-1.5 sm:mb-2">
-                    {getCategoryLabel(category)}
+                    {getCategoryLabel(category, locale)}
                   </h4>
                   
                   <div className="space-y-1.5 sm:space-y-2">
@@ -803,7 +806,7 @@ export function LeistungsuebersichtSection({
                             <p className="font-medium text-xs sm:text-sm">{service.name}</p>
                             {service.is_default_included && (
                               <Badge variant="secondary" className="text-[10px] sm:text-xs">
-                                Standard
+                                {t("offer.leistung.selector.standardBadge")}
                               </Badge>
                             )}
                           </div>
@@ -836,7 +839,7 @@ export function LeistungsuebersichtSection({
 
           <DialogFooter className="border-t pt-3 sm:pt-4">
             <Button variant="outline" onClick={() => setIsSelectorOpen(false)} size="sm" className="text-xs sm:text-sm">
-              Fertig
+              {t("offer.leistung.selector.done")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -848,10 +851,10 @@ export function LeistungsuebersichtSection({
           <DialogHeader>
             <DialogTitle className="text-base sm:text-lg flex items-center gap-2">
               <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-              Kategorien auswählen
+              {t("offer.leistung.categoryPicker.title")}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              Wählen Sie die Kategorien, aus denen Standard-Leistungen geladen werden sollen
+              {t("offer.leistung.categoryPicker.description")}
             </DialogDescription>
           </DialogHeader>
 
@@ -877,9 +880,9 @@ export function LeistungsuebersichtSection({
                     onCheckedChange={() => toggleCategoryForLoad(cat.value)}
                   />
                   <div className="flex-1">
-                    <p className="font-medium text-sm">{cat.label}</p>
+                    <p className="font-medium text-sm">{getCategoryLabel(cat.value, locale)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {defaultCount} Standard-Leistungen • {categoryServices.length} gesamt
+                      {t("offer.leistung.categoryPicker.counts", { defaultCount, total: categoryServices.length })}
                     </p>
                   </div>
                 </div>
@@ -890,7 +893,7 @@ export function LeistungsuebersichtSection({
           <DialogFooter className="border-t pt-4">
             <div className="flex items-center justify-between w-full gap-2">
               <Badge variant="secondary" className="text-xs">
-                {selectedCategoriesForLoad.length} Kategorien
+                {t("offer.leistung.categoryPicker.categoriesBadge", { count: selectedCategoriesForLoad.length })}
               </Badge>
               <div className="flex gap-2">
                 <Button
@@ -899,7 +902,7 @@ export function LeistungsuebersichtSection({
                   onClick={() => setIsCategoryPickerOpen(false)}
                   className="text-xs sm:text-sm"
                 >
-                  Abbrechen
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   size="sm"
@@ -907,7 +910,7 @@ export function LeistungsuebersichtSection({
                   disabled={selectedCategoriesForLoad.length === 0}
                   className="text-xs sm:text-sm"
                 >
-                  Laden
+                  {t("offer.leistung.categoryPicker.loadAction")}
                 </Button>
               </div>
             </div>

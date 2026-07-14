@@ -46,6 +46,7 @@ Gib ein JSON-Objekt mit den Basis-Feldern und den service-spezifischen Feldern z
 
 {
   "detected_service_type": "string (PFLICHTFELD!)",
+  "language": "string (PFLICHTFELD!) — NUR: \\"de\\" | \\"fr\\" | \\"en\\"",
   "first_name": "string | null",
   "last_name": "string | null",
   "email": "string | null",
@@ -177,6 +178,27 @@ Gib ein JSON-Objekt mit den Basis-Feldern und den service-spezifischen Feldern z
   "moebellift_item_dimensions": "string | null",
   "direction": "string | null — NUR: \\"hoch\\" (Einzug) | \\"runter\\" (Auszug) | \\"beides\\""
 }
+
+### Spracherkennung (\`language\`) — PFLICHT
+
+Erkenne die Sprache, in der **der Kunde** geschrieben hat. In dieser Sprache wird der Kunde
+später angeschrieben (Offerte, PDF, E-Mail).
+
+| Wert | Wann |
+|---|---|
+| \`de\` | Deutsch, inkl. Schweizerdeutsch/Dialekt ("Grüezi", "zügeln", "Wohnig") |
+| \`fr\` | Französisch ("Bonjour", "déménagement", "nettoyage") |
+| \`en\` | Englisch ("Hello", "moving", "cleaning") |
+
+Regeln:
+- Eine andere Sprache (z. B. Italienisch), gemischter Text ohne klare Mehrheit, oder
+  zu wenig Text für eine sichere Einschätzung → \`"de"\` (Schweizer Standard).
+- Massgeblich ist der **Fliesstext des Kunden**, nicht Orts- oder Strassennamen: eine
+  deutsche Anfrage nach "Lausanne, Rue de Bourg" bleibt \`"de"\`.
+- Formular-Labels und E-Mail-Boilerplate (\`From:\`, "Mit freundlichen Grüssen") zählen
+  NICHT — nur der vom Kunden formulierte Text.
+- \`language\` beeinflusst die Extraktion NICHT: Enum-Werte und Feldwerte bleiben immer
+  in der oben definierten (deutschen) Schreibweise, auch bei einem französischen Text.
 
 ### Wichtige Regeln
 

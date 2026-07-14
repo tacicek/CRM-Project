@@ -61,7 +61,9 @@ export const CompanyProvider = ({ children }: { children: React.ReactNode }) => 
     try {
       const { data, error } = await supabase
         .from("company_members")
-        .select(`company_id, role, companies!inner(id, company_name, logo_url, is_verified)`)
+        .select(
+          `company_id, role, companies!inner(id, company_name, logo_url, is_verified, default_language)`
+        )
         .eq("user_id", userId);
 
       if (error) throw error;

@@ -9,6 +9,8 @@ export interface CompanyData {
   company_name: string;
   logo_url: string | null;
   is_verified: boolean | null;
+  /** Dashboard-Sprache der Firma (de | fr | en). Speist den I18nProvider. */
+  default_language: string | null;
 }
 
 interface CompanyContextType {

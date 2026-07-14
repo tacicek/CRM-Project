@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
 import { buildInvoiceEmailHtml, buildInvoiceEmailSubject, fmtChf, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
+import { createTranslator, toLocale, type Locale } from "../_shared/i18n/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +34,8 @@ interface QuittungRow {
   zwischensumme: number;
   status: string;
   betrag_noch_offen: boolean;
+  /** Document language — frozen from the offer chain (quittungen.language). */
+  language: string | null;
   positionen: Array<{
     beschreibung: string;
     satz: string;
@@ -53,6 +56,8 @@ interface QuittungRow {
     mwst_number: string | null;
     iban: string | null;
     bank_name: string | null;
+    /** Dashboard language of the firm — drives the firma copy only. */
+    default_language: string | null;
     resend_enabled: boolean | null;
     resend_api_key: string | null;
     resend_from_email: string | null;
@@ -60,7 +65,9 @@ interface QuittungRow {
   };
 }
 
-function buildCustomerEmail(q: QuittungRow, brand: string): string {
+/** Customer copy — rendered in the DOCUMENT language (quittungen.language). */
+function buildCustomerEmail(q: QuittungRow, brand: string, locale: Locale): string {
+  const t = createTranslator(locale);
   const lines = q.positionen
     .filter((p) => p.checked && p.betrag > 0)
     .map((p) => ({ beschreibung: p.beschreibung, detail: p.satz || "", betrag: p.betrag }));
@@ -69,7 +76,7 @@ function buildCustomerEmail(q: QuittungRow, brand: string): string {
     ? `
       <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
         <p style="margin:0;font-size:13px;font-weight:600;color:#92400E;font-family:${EMAIL_FONT_STACK}">
-          ⚠️ Betrag noch offen – Bitte begleichen Sie den ausstehenden Betrag.
+          ⚠️ ${t("email.quittung.outstandingNotice")}
         </p>
       </div>`
     : undefined;
@@ -77,30 +84,36 @@ function buildCustomerEmail(q: QuittungRow, brand: string): string {
   return buildInvoiceEmailHtml({
     companyName: q.companies.company_name,
     brand,
-    documentLabel: "Quittung",
+    locale,
+    kind: "quittung",
     documentNumber: q.quittung_nr,
     datum: q.datum,
     customerName: q.customer_name,
-    intro: "Vielen Dank für Ihren Auftrag. Anbei finden Sie Ihre Quittung im Anhang.",
-    detailLabel: "Satz",
     lines,
     zwischensumme: q.zwischensumme,
     rabatt: q.rabatt,
     mwstSatz: q.mwst_satz,
     mwstBetrag: q.mwst_betrag,
-    totalLabel: "Gesamttotal",
     total: q.gesamttotal,
     extraSection,
     footerParts: [
-      q.companies.iban ? "IBAN: " + q.companies.iban : "",
+      q.companies.iban ? `${t("email.invoice.ibanLabel")}: ${q.companies.iban}` : "",
       q.companies.bank_name || "",
-      q.companies.mwst_number ? "MwSt-Nr.: " + q.companies.mwst_number : "",
+      q.companies.mwst_number
+        ? `${t("email.invoice.vatNumberLabel")}: ${q.companies.mwst_number}`
+        : "",
       q.companies.phone || "",
     ],
   });
 }
 
-function buildFirmaEmail(q: QuittungRow, brand: string): string {
+/**
+ * Internal copy for the firm — rendered in the COMPANY language (companies.default_language),
+ * never in the customer's. The headline sentence is firm-internal CRM prose and stays German
+ * by catalog policy; the labels come from the catalog so a fr/en firm sees its own language.
+ */
+function buildFirmaEmail(q: QuittungRow, brand: string, locale: Locale): string {
+  const t = createTranslator(locale);
   const inner = `
     <div style="background:${brand};padding:20px;">
       <h2 style="margin:0;color:#fff;font-family:${EMAIL_FONT_STACK}">Quittung unterschrieben</h2>
@@ -110,14 +123,14 @@ function buildFirmaEmail(q: QuittungRow, brand: string): string {
         Die Quittung <strong>${q.quittung_nr}</strong> wurde unterzeichnet.
       </p>
       <table cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background:#fff;border:1px solid #e4e4e7;border-radius:6px;overflow:hidden;width:100%;">
-        <tr><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK};width:140px;">Kunde:</td><td style="padding:8px 12px;font-size:13px;font-family:${EMAIL_FONT_STACK}">${q.customer_name}</td></tr>
-        <tr style="background:#f9f9f9;"><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">Datum:</td><td style="padding:8px 12px;font-size:13px;font-family:${EMAIL_FONT_STACK}">${fmtDate(q.datum)}</td></tr>
-        <tr><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">Gesamttotal:</td><td style="padding:8px 12px;font-size:14px;font-weight:700;color:${brand};font-family:${EMAIL_FONT_STACK}">${fmtChf(q.gesamttotal)}</td></tr>
+        <tr><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK};width:140px;">${t("common.customer")}:</td><td style="padding:8px 12px;font-size:13px;font-family:${EMAIL_FONT_STACK}">${q.customer_name}</td></tr>
+        <tr style="background:#f9f9f9;"><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">${t("common.date")}:</td><td style="padding:8px 12px;font-size:13px;font-family:${EMAIL_FONT_STACK}">${fmtDate(q.datum, locale)}</td></tr>
+        <tr><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">${t("email.quittung.totalLabel")}:</td><td style="padding:8px 12px;font-size:14px;font-weight:700;color:${brand};font-family:${EMAIL_FONT_STACK}">${fmtChf(q.gesamttotal, locale)}</td></tr>
       </table>
       <p style="margin:16px 0 0;font-size:12px;color:#71717a;font-family:${EMAIL_FONT_STACK}">PDF im Anhang.</p>
     </div>
   `;
-  return wrapEmailDocument(inner);
+  return wrapEmailDocument(inner, locale);
 }
 
 serve(async (req) => {
@@ -163,10 +176,10 @@ serve(async (req) => {
         id, quittung_nr, datum, customer_name, customer_email,
         customer_phone, customer_address, customer_destination,
         gesamttotal, mwst_satz, mwst_betrag, rabatt, zwischensumme,
-        status, betrag_noch_offen, positionen,
+        status, betrag_noch_offen, positionen, language,
         companies (
           id, company_name, email, notification_email, logo_url, primary_color,
-          phone, street, plz, city, mwst_number, iban, bank_name,
+          phone, street, plz, city, mwst_number, iban, bank_name, default_language,
           resend_enabled, resend_api_key, resend_from_email, resend_from_name
         )
       `)
@@ -216,6 +229,12 @@ serve(async (req) => {
 
     const brand = company.primary_color || "#10B981";
 
+    // Two recipients, two languages: the customer gets the document language, the firm gets
+    // its own dashboard language. Never one translator for both.
+    const customerLocale = toLocale(q.language);
+    const companyLocale = toLocale(company.default_language);
+    const tCompany = createTranslator(companyLocale);
+
     // Determine Resend API key (company-level or global)
     const resendApiKey = company.resend_enabled && company.resend_api_key
       ? company.resend_api_key
@@ -237,47 +256,58 @@ serve(async (req) => {
 
     const results: string[] = [];
 
-    // 1. Customer email
+    // 1. Customer email — DOCUMENT language
     if (q.customer_email) {
+      const customerSubject = buildInvoiceEmailSubject({
+        kind: "quittung",
+        locale: customerLocale,
+        documentNumber: q.quittung_nr,
+        companyName: company.company_name,
+      });
+
       const { data: emailData, error: emailErr } = await resend.emails.send({
         from: `${fromName} <${fromEmail}>`,
         to: [q.customer_email],
-        subject: buildInvoiceEmailSubject({ documentTitle: "Quittung", documentNumber: q.quittung_nr, companyName: company.company_name }),
-        html: buildCustomerEmail(q, brand),
+        subject: customerSubject,
+        html: buildCustomerEmail(q, brand, customerLocale),
         attachments: attachments.length > 0 ? attachments : undefined,
       });
 
       await logEmail({
         emailType: "quittung_customer",
         recipientEmail: q.customer_email,
-        subject: `Quittung ${q.quittung_nr}`,
+        subject: customerSubject,
         status: emailErr ? "failed" : "sent",
         errorMessage: emailErr?.message,
         companyId: company.id,
+        language: customerLocale,
         metadata: { quittung_id: quittungId, resend_id: emailData?.id },
       });
 
       if (!emailErr) results.push("customer");
     }
 
-    // 2. Firma internal copy
+    // 2. Firma internal copy — COMPANY language
     const firmaEmail = company.notification_email || company.email;
     if (firmaEmail) {
+      const firmaSubject = `${tCompany("email.quittung.documentLabel")} ${q.quittung_nr} – unterschrieben`;
+
       const { data: firmaData, error: firmaErr } = await resend.emails.send({
         from: `${fromName} <${fromEmail}>`,
         to: [firmaEmail],
-        subject: `Quittung ${q.quittung_nr} – unterschrieben`,
-        html: buildFirmaEmail(q, brand),
+        subject: firmaSubject,
+        html: buildFirmaEmail(q, brand, companyLocale),
         attachments: attachments.length > 0 ? attachments : undefined,
       });
 
       await logEmail({
         emailType: "quittung_firma",
         recipientEmail: firmaEmail,
-        subject: `Quittung ${q.quittung_nr} – unterschrieben`,
+        subject: firmaSubject,
         status: firmaErr ? "failed" : "sent",
         errorMessage: firmaErr?.message,
         companyId: company.id,
+        language: companyLocale,
         metadata: { quittung_id: quittungId, resend_id: firmaData?.id },
       });
 

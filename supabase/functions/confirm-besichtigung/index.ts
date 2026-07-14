@@ -4,6 +4,13 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { logEmail } from "../_shared/logEmail.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
+import {
+  createTranslator,
+  formatDateLong,
+  toLocale,
+  type Locale,
+} from "../_shared/i18n/index.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -58,7 +65,8 @@ const logStep = (step: string, details?: Record<string, unknown>) => {
   console.log(`[confirm-besichtigung] ${step}`, details ? JSON.stringify(details) : "");
 };
 
-const formatDateDisplay = (dateString: string) => {
+/** German long date — used ONLY for the internal CRM note on the offer row, never in customer mail. */
+const formatDateDeCH = (dateString: string) => {
   return new Date(dateString).toLocaleDateString("de-CH", {
     weekday: "long",
     day: "2-digit",
@@ -159,6 +167,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     const resend = new Resend(resendApiKey);
 
+    // Both mails this function sends go to the CUSTOMER, so the offer's own language governs
+    // throughout. `isCompanyEmail` only picks the sending identity, never the language.
+    const customerLocale = toLocale(offer.language);
+    const tCustomer = createTranslator(customerLocale);
+
     // Determine if this is a confirm or propose request
     // If no type specified and has besichtigungDate, treat as confirm
     const isConfirm = request.type === "confirm" || 
@@ -247,11 +260,12 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
-      // Update offer to mark besichtigung as confirmed
+      // Update offer to mark besichtigung as confirmed.
+      // customer_response_note is an INTERNAL CRM field rendered in the dashboard — it stays German.
       const { error: offerUpdateError } = await supabase
         .from("offers")
         .update({
-          customer_response_note: `✅ Besichtigung bestätigt: ${formatDateDisplay(appointmentDate)} um ${startTime} Uhr`,
+          customer_response_note: `✅ Besichtigung bestätigt: ${formatDateDeCH(appointmentDate)} um ${startTime} Uhr`,
           updated_at: new Date().toISOString(),
         })
         .eq("id", offer.id);
@@ -273,9 +287,13 @@ const handler = async (req: Request): Promise<Response> => {
         endTime: endTime,
         offerTitle: offer.title,
         isCompanyEmail,
+        locale: customerLocale,
       });
 
-      const emailSubject = `✅ Ihr Besichtigungstermin am ${formatDateDisplay(appointmentDate)} wurde bestätigt`;
+      // Emoji prefix preserved (the catalog values are emoji-free by design).
+      const emailSubject = `✅ ${tCustomer("email.besichtigungConfirmed.subject", {
+        date: formatDateLong(appointmentDate, customerLocale),
+      })}`;
 
       const { data: emailData, error: emailError } = await resend.emails.send({
         from: fromAddress,
@@ -294,6 +312,7 @@ const handler = async (req: Request): Promise<Response> => {
           status: "failed",
           errorMessage: JSON.stringify(emailError),
           companyId: company.id,
+          language: customerLocale,
           metadata: { offerId: offer.id, isCompanyEmail },
         });
         throw new Error("Failed to send email");
@@ -306,6 +325,7 @@ const handler = async (req: Request): Promise<Response> => {
           emailType: "besichtigung_confirmed",
           status: "sent",
           companyId: company.id,
+          language: customerLocale,
           metadata: { offerId: offer.id, isCompanyEmail },
         });
       }
@@ -335,7 +355,12 @@ const handler = async (req: Request): Promise<Response> => {
         time: p.startTime
       }));
       
-      // URLSearchParams encodes automatically - do not pre-encode to avoid double-encoding
+      // URLSearchParams encodes automatically - do not pre-encode to avoid double-encoding.
+      //
+      // `lang` is carried in the query string on purpose: /besichtigung/:leadId/antwort is a
+      // PUBLIC page that reads everything from the URL and has no DB row to resolve a language
+      // from. Without this parameter the customer would click a French e-mail and land on a
+      // German page.
       const responseParams = new URLSearchParams({
         token: offer.access_token,
         companyId: company.id,
@@ -344,11 +369,12 @@ const handler = async (req: Request): Promise<Response> => {
         customerEmail: offer.customer_email,
         address,
         proposals: JSON.stringify(proposalsForLink),
+        lang: customerLocale,
       });
-      
+
       const baseUrl = Deno.env.get("SITE_URL") || getDashAppUrl();
       const responseLink = `${baseUrl}/besichtigung/${offer.lead_id}/antwort?${responseParams.toString()}`;
-      
+
       const emailHtml = generateProposalEmail({
         customerName: `${offer.customer_first_name} ${offer.customer_last_name}`,
         companyName: company.company_name,
@@ -362,9 +388,13 @@ const handler = async (req: Request): Promise<Response> => {
         baseUrl,
         responseLink,
         isCompanyEmail,
+        locale: customerLocale,
       });
 
-      const emailSubject = `📅 ${company.company_name} hat Ihnen Terminvorschläge gesendet`;
+      // Emoji prefix preserved (the catalog values are emoji-free by design).
+      const emailSubject = `📅 ${tCustomer("email.besichtigungProposal.subject", {
+        companyName: company.company_name,
+      })}`;
 
       const { data: emailData, error: emailError } = await resend.emails.send({
         from: fromAddress,
@@ -383,6 +413,7 @@ const handler = async (req: Request): Promise<Response> => {
           status: "failed",
           errorMessage: JSON.stringify(emailError),
           companyId: company.id,
+          language: customerLocale,
           metadata: { offerId: offer.id, proposals: proposeRequest.proposals, isCompanyEmail },
         });
         throw new Error("Failed to send email");
@@ -395,6 +426,7 @@ const handler = async (req: Request): Promise<Response> => {
           emailType: "besichtigung_proposal",
           status: "sent",
           companyId: company.id,
+          language: customerLocale,
           metadata: { offerId: offer.id, proposals: proposeRequest.proposals, isCompanyEmail },
         });
       }
@@ -427,12 +459,19 @@ interface ConfirmationEmailParams {
   endTime: string;
   offerTitle: string;
   isCompanyEmail: boolean;
+  /** Customer locale (offers.language). */
+  locale: Locale;
 }
 
 function generateConfirmationEmail(params: ConfirmationEmailParams): string {
+  const t = createTranslator(params.locale);
+  const signature = params.isCompanyEmail
+    ? params.companyName
+    : t("common.teamSignature", { appName: getAppName() });
+
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="${params.locale}">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -440,67 +479,67 @@ function generateConfirmationEmail(params: ConfirmationEmailParams): string {
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; width:100%;max-width:100%;box-sizing:border-box;margin:0;padding:16px 14px;background-color:#e4e4e8;">
         <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 30px; border-radius: 12px 12px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 24px;">
-            ✅ Besichtigungstermin bestätigt
+            ✅ ${t("email.besichtigungConfirmed.headerTitle")}
           </h1>
         </div>
-        
+
         <div style="background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
-          <p style="margin-top: 0;">Guten Tag ${params.customerName},</p>
-          
-          <p>Ihr Besichtigungstermin wurde von <strong>${params.companyName}</strong> bestätigt.</p>
-          
+          <p style="margin-top: 0;">${t("common.greeting", { name: escapeHtml(params.customerName) })}</p>
+
+          <p>${t("email.besichtigungConfirmed.intro", { companyName: `<strong>${escapeHtml(params.companyName)}</strong>` })}</p>
+
           <div style="background: #dcfce7; border: 1px solid #22c55e; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="margin: 0 0 15px 0; color: #166534; font-size: 16px;">📅 Bestätigter Termin</h3>
+            <h3 style="margin: 0 0 15px 0; color: #166534; font-size: 16px;">📅 ${t("email.besichtigungConfirmed.slotTitle")}</h3>
             <p style="margin: 0; font-size: 20px; font-weight: 600; color: #14532d;">
-              ${formatDateDisplay(params.date)}
+              ${formatDateLong(params.date, params.locale)}
             </p>
             <p style="margin: 8px 0 0 0; font-size: 18px; color: #166534;">
-              🕐 ${params.startTime} - ${params.endTime} Uhr
+              🕐 ${t("common.timeRange", { start: params.startTime, end: params.endTime })}
             </p>
           </div>
-          
+
           <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
-                <td style="padding: 8px 0; color: #64748b;">Offerte:</td>
-                <td style="padding: 8px 0; font-weight: 600; text-align: right;">${params.offerTitle}</td>
+                <td style="padding: 8px 0; color: #64748b;">${t("common.offer")}:</td>
+                <td style="padding: 8px 0; font-weight: 600; text-align: right;">${escapeHtml(params.offerTitle)}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 0; color: #64748b;">Firma:</td>
-                <td style="padding: 8px 0; font-weight: 600; text-align: right;">${params.companyName}</td>
+                <td style="padding: 8px 0; color: #64748b;">${t("common.company")}:</td>
+                <td style="padding: 8px 0; font-weight: 600; text-align: right;">${escapeHtml(params.companyName)}</td>
               </tr>
               ${params.companyPhone ? `
               <tr>
-                <td style="padding: 8px 0; color: #64748b;">Telefon:</td>
+                <td style="padding: 8px 0; color: #64748b;">${t("common.phone")}:</td>
                 <td style="padding: 8px 0; text-align: right;">
-                  <a href="tel:${params.companyPhone}" style="color: #3b82f6;">${params.companyPhone}</a>
+                  <a href="tel:${encodeURIComponent(params.companyPhone)}" style="color: #3b82f6;">${escapeHtml(params.companyPhone)}</a>
                 </td>
               </tr>
               ` : ""}
               <tr>
-                <td style="padding: 8px 0; color: #64748b;">E-Mail:</td>
+                <td style="padding: 8px 0; color: #64748b;">${t("common.email")}:</td>
                 <td style="padding: 8px 0; text-align: right;">
-                  <a href="mailto:${params.companyEmail}" style="color: #3b82f6;">${params.companyEmail}</a>
+                  <a href="mailto:${encodeURIComponent(params.companyEmail)}" style="color: #3b82f6;">${escapeHtml(params.companyEmail)}</a>
                 </td>
               </tr>
             </table>
           </div>
-          
+
           <div style="background: #dbeafe; border: 1px solid #3b82f6; border-radius: 8px; padding: 16px; margin: 20px 0;">
             <p style="margin: 0; color: #1e40af;">
-              <strong>📍 Bitte beachten Sie:</strong><br>
-              Falls Sie den Termin nicht wahrnehmen können, kontaktieren Sie bitte rechtzeitig <strong>${params.companyName}</strong>.
+              <strong>📍 ${t("email.besichtigungConfirmed.noticeTitle")}</strong><br>
+              ${t("email.besichtigungConfirmed.noticeBody", { companyName: `<strong>${escapeHtml(params.companyName)}</strong>` })}
             </p>
           </div>
-          
+
           <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
-            Mit freundlichen Grüssen<br>
-            <strong>${params.isCompanyEmail ? params.companyName : `Ihr ${getAppName()} Team`}</strong>
+            ${t("common.regards")}<br>
+            <strong>${escapeHtml(signature)}</strong>
           </p>
         </div>
 
         <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-          <p>Diese E-Mail wurde automatisch${params.isCompanyEmail ? ` von ${params.companyName}` : ` von ${getAppName()}`} gesendet.</p>
+          <p>${t("common.autoSentBy", { sender: escapeHtml(params.isCompanyEmail ? params.companyName : getAppName()) })}</p>
         </div>
       </body>
     </html>
@@ -520,9 +559,16 @@ interface ProposalEmailParams {
   baseUrl: string;
   responseLink: string;
   isCompanyEmail: boolean;
+  /** Customer locale (offers.language). */
+  locale: Locale;
 }
 
 function generateProposalEmail(params: ProposalEmailParams): string {
+  const t = createTranslator(params.locale);
+  const signature = params.isCompanyEmail
+    ? params.companyName
+    : t("common.teamSignature", { appName: getAppName() });
+
   const proposalListHtml = params.proposals.map((p, index) => `
     <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 10px 0;">
       <div style="display: flex; align-items: center; gap: 12px;">
@@ -531,10 +577,10 @@ function generateProposalEmail(params: ProposalEmailParams): string {
         </div>
         <div>
           <p style="margin: 0; font-weight: 600; color: #1e293b;">
-            ${formatDateDisplay(p.date)}
+            ${formatDateLong(p.date, params.locale)}
           </p>
           <p style="margin: 4px 0 0 0; color: #64748b;">
-            🕐 ${p.startTime} - ${p.endTime} Uhr
+            🕐 ${t("common.timeRange", { start: p.startTime, end: p.endTime })}
           </p>
         </div>
       </div>
@@ -543,7 +589,7 @@ function generateProposalEmail(params: ProposalEmailParams): string {
 
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="${params.locale}">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -551,60 +597,60 @@ function generateProposalEmail(params: ProposalEmailParams): string {
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; width:100%;max-width:100%;box-sizing:border-box;margin:0;padding:16px 14px;background-color:#e4e4e8;">
         <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 30px; border-radius: 12px 12px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 24px;">
-            📅 Terminvorschläge für Ihre Besichtigung
+            📅 ${t("email.besichtigungProposal.headerTitle")}
           </h1>
         </div>
-        
+
         <div style="background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
-          <p style="margin-top: 0;">Guten Tag ${params.customerName},</p>
-          
-          <p><strong>${params.companyName}</strong> hat Ihnen folgende Terminvorschläge für eine Besichtigung gesendet:</p>
-          
+          <p style="margin-top: 0;">${t("common.greeting", { name: escapeHtml(params.customerName) })}</p>
+
+          <p>${t("email.besichtigungProposal.intro", { companyName: `<strong>${escapeHtml(params.companyName)}</strong>` })}</p>
+
           ${params.message ? `
           <div style="background: #f1f5f9; border-left: 4px solid #3b82f6; padding: 12px 16px; margin: 20px 0; font-style: italic;">
-            "${params.message}"
+            "${escapeHtml(params.message)}"
           </div>
           ` : ""}
-          
+
           <div style="margin: 20px 0;">
             ${proposalListHtml}
           </div>
-          
+
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${params.responseLink}" 
+            <a href="${params.responseLink}"
                style="display: inline-block; background: #22c55e; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-              ✅ Termin auswählen
+              ✅ ${t("email.besichtigungProposal.cta")}
             </a>
           </div>
-          
+
           <p style="text-align: center; color: #64748b; font-size: 14px;">
-            Klicken Sie auf den Button, um Ihren Wunschtermin auszuwählen.
+            ${t("email.besichtigungProposal.ctaHint")}
           </p>
-          
+
           ${params.companyPhone ? `
           <div style="text-align: center; margin: 20px 0;">
-            <a href="tel:${params.companyPhone}" 
+            <a href="tel:${encodeURIComponent(params.companyPhone)}"
                style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-              📞 ${params.companyPhone}
+              📞 ${escapeHtml(params.companyPhone)}
             </a>
           </div>
           ` : ""}
-          
+
           <div style="background: #fff7ed; border: 1px solid #f97316; border-radius: 8px; padding: 16px; margin: 20px 0;">
             <p style="margin: 0; color: #9a3412;">
-              <strong>⏰ Bitte antworten Sie zeitnah</strong><br>
-              Damit wir den Termin für Sie reservieren können, bitten wir Sie, uns Ihre Auswahl so bald wie möglich mitzuteilen.
+              <strong>⏰ ${t("email.besichtigungProposal.urgencyTitle")}</strong><br>
+              ${t("email.besichtigungProposal.urgencyBody")}
             </p>
           </div>
-          
+
           <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
-            Mit freundlichen Grüssen<br>
-            <strong>${params.isCompanyEmail ? params.companyName : `Ihr ${getAppName()} Team`}</strong>
+            ${t("common.regards")}<br>
+            <strong>${escapeHtml(signature)}</strong>
           </p>
         </div>
 
         <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-          <p>Diese E-Mail wurde automatisch${params.isCompanyEmail ? ` von ${params.companyName}` : ` von ${getAppName()}`} gesendet.</p>
+          <p>${t("common.autoSentBy", { sender: escapeHtml(params.isCompanyEmail ? params.companyName : getAppName()) })}</p>
         </div>
       </body>
     </html>

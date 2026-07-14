@@ -3,7 +3,8 @@ import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
 import { formatCurrency, formatDate } from "../utils/formatters";
 import { lightenHex } from "../utils/colors";
-import { RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import { getServiceLabel } from "@/i18n/domain";
 
 const styles = StyleSheet.create({
   titleText: {
@@ -123,17 +124,30 @@ interface SignaturePageProps {
 }
 
 export const SignaturePage = ({ data }: SignaturePageProps) => {
+  const { t, locale } = documentI18nFor(data.locale);
   const route =
     data.service.fromCity && data.service.toCity
-      ? `${data.service.fromCity} nach ${data.service.toCity}`
+      ? `${data.service.fromCity} ${t("doc.address.routeTo")}${data.service.toCity}`
       : undefined;
+  const serviceLabel = getServiceLabel(data.service.type, locale);
+  const offerteTypeValue = t("doc.offer.typeValue", {
+    value:
+      data.offerteType === "blind"
+        ? t("doc.offer.type.blindShort")
+        : t("doc.offer.type.normal"),
+  });
   const primary = data.company.primaryColor || COLORS.primary;
   const primaryLight = data.company.primaryColor ? lightenHex(data.company.primaryColor, 0.9) : "#F0F9FF";
-  const shortUrl = data.acceptanceUrl ? data.acceptanceUrl.replace(/^https?:\/\//, "") : "";
+  // The acceptance URL ends in a long random token with no spaces or hyphens, and react-pdf can
+  // only break a line at a word boundary — printed in full it runs off the QR card. Show host and
+  // path only; the token is carried by the QR code and the button below it.
+  const shortUrl = data.acceptanceUrl
+    ? `${data.acceptanceUrl.replace(/^https?:\/\//, "").split("/").slice(0, 2).join("/")}/…`
+    : "";
 
   return (
     <View>
-      <Text style={styles.titleText}>Auftragsbestätigung</Text>
+      <Text style={styles.titleText}>{t("doc.offer.confirm.title")}</Text>
 
       <View style={styles.mainRow}>
         {/* Left: confirmation text + signature grid */}
@@ -141,21 +155,28 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
           {/* Ein zusammenhängender String — JSX-Interpolation erzeugt separate Text-Runs,
               deren Grenzen react-pdf als Umbruchstellen mit Trennstrich behandelt ("10035-)"). */}
           <Text style={styles.legalText}>
-            {`Hiermit erteile ich der Firma ${data.company.name} den in dieser Offerte (Nr. ${data.offerNumber}) beschriebenen Auftrag.\n\nIch bestätige, dass ich die Offerte sowie die allgemeinen Geschäftsbedingungen gelesen und verstanden habe und mit allen Punkten einverstanden bin.`}
+            {t("doc.offer.confirm.text", {
+              company: data.company.name,
+              number: data.offerNumber,
+            })}
           </Text>
 
           <View style={styles.signatureRow}>
             <View style={styles.signatureCol}>
               <View style={styles.signatureLine} />
-              <Text style={styles.signatureLabel}>Ort, Datum</Text>
+              <Text style={styles.signatureLabel}>{t("doc.offer.confirm.placeDate")}</Text>
               <View style={styles.signatureLine} />
-              <Text style={styles.signatureLabel}>{`Unterschrift Auftraggeber · ${data.customer.name}`}</Text>
+              <Text style={styles.signatureLabel}>
+                {t("doc.offer.confirm.signatureCustomer", { name: data.customer.name })}
+              </Text>
             </View>
             <View style={styles.signatureCol}>
               <View style={styles.signatureLine} />
-              <Text style={styles.signatureLabel}>Ort, Datum</Text>
+              <Text style={styles.signatureLabel}>{t("doc.offer.confirm.placeDate")}</Text>
               <View style={styles.signatureLine} />
-              <Text style={styles.signatureLabel}>{`Unterschrift Auftragnehmer · ${data.company.name}`}</Text>
+              <Text style={styles.signatureLabel}>
+                {t("doc.offer.confirm.signatureContractor", { company: data.company.name })}
+              </Text>
             </View>
           </View>
         </View>
@@ -163,13 +184,13 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
         {/* Right: QR acceptance card */}
         {data.qrCodeUrl ? (
           <View style={styles.qrCard}>
-            <Text style={[styles.qrCardTitle, { color: primary }]}>ONLINE OFFERTE ANNEHMEN</Text>
+            <Text style={[styles.qrCardTitle, { color: primary }]}>{t("doc.offer.qr.headline")}</Text>
             <Image style={styles.qr} src={data.qrCodeUrl} />
-            <Text style={styles.qrScan}>Mit dem Handy scannen</Text>
+            <Text style={styles.qrScan}>{t("doc.offer.qr.scan")}</Text>
             {shortUrl ? <Text style={styles.qrCaption}>{shortUrl}</Text> : null}
             {data.acceptanceUrl ? (
               <Link src={data.acceptanceUrl} style={[styles.button, { backgroundColor: primary }]}>
-                Online Offerte annehmen
+                {t("doc.offer.qr.button")}
               </Link>
             ) : null}
           </View>
@@ -178,22 +199,31 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
 
       {/* Summary */}
       <View style={[styles.summaryBox, { borderColor: primary, backgroundColor: primaryLight }]}>
-        <Text style={styles.summaryTitle}>Zusammenfassung</Text>
-        <Text style={styles.summaryLine}>{`${data.service.type}${route ? ` ${route}` : ""}`}</Text>
+        <Text style={styles.summaryTitle}>{t("doc.offer.summary")}</Text>
+        <Text style={styles.summaryLine}>{`${serviceLabel}${route ? ` ${route}` : ""}`}</Text>
+        <Text style={styles.summaryLine}>{offerteTypeValue}</Text>
         <Text style={styles.summaryLine}>
-          {`Offerte-Art: ${data.offerteType === 'blind' ? 'Blind Offerte (ohne Besichtigung)' : 'Normal Offerte (nach Besichtigung)'}`}
+          {t("doc.offer.summary.customer")}
+          {data.customer.name}
         </Text>
-        <Text style={styles.summaryLine}>Kunde: {data.customer.name}</Text>
         {data.executionDate ? (
-          <Text style={styles.summaryLine}>Ausführungsdatum: {formatDate(data.executionDate)}</Text>
+          <Text style={styles.summaryLine}>
+            {t("doc.offer.summary.date")}
+            {formatDate(data.executionDate, locale)}
+          </Text>
         ) : null}
         {data.pricing.hasRateItem ? (
-          <Text style={styles.summaryLine}>{RATE_AGGREGATE_NOTE}</Text>
+          <Text style={styles.summaryLine}>{t("doc.offer.rateAggregateNote")}</Text>
         ) : (
           <Text style={styles.summaryTotal}>
             {data.pricing.maxTotal !== null && data.pricing.maxTotal !== undefined
-              ? `Gesamtbetrag: ${formatCurrency(data.pricing.total)} – ${formatCurrency(data.pricing.maxTotal)}`
-              : `Gesamtbetrag: ${formatCurrency(data.pricing.total)}`}
+              ? t("doc.offer.summary.totalRange", {
+                  min: formatCurrency(data.pricing.total, locale),
+                  max: formatCurrency(data.pricing.maxTotal, locale),
+                })
+              : t("doc.offer.summary.total", {
+                  amount: formatCurrency(data.pricing.total, locale),
+                })}
           </Text>
         )}
       </View>

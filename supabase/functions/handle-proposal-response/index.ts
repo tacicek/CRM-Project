@@ -4,6 +4,12 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { getDefaultFrom, getAppName } from "../_shared/envConfig.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
+import {
+  createTranslator,
+  formatDateLong,
+  toLocale,
+  type Locale,
+} from "../_shared/i18n/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,7 +89,7 @@ serve(async (req: Request) => {
     // First, find the offer associated with this lead and company
     const { data: offer, error: offerError } = await supabase
       .from("offers")
-      .select("id, access_token")
+      .select("id, access_token, language")
       .eq("lead_id", leadId)
       .eq("company_id", companyId)
       .single();
@@ -134,7 +140,7 @@ serve(async (req: Request) => {
     // Get company info for notification
     const { data: company, error: companyError } = await supabase
       .from("companies")
-      .select("email, notification_email, company_name")
+      .select("email, notification_email, company_name, default_language")
       .eq("id", companyId)
       .single();
 
@@ -147,6 +153,13 @@ serve(async (req: Request) => {
     }
 
     const companyEmail = company.notification_email || company.email;
+
+    // Two recipients, two languages. The customer half follows the OFFER's language (read from
+    // the DB, not from the request body — the body is attacker-supplied on this public endpoint);
+    // the firma half follows the company's own dashboard language.
+    const customerLocale: Locale = toLocale(offer.language);
+    const companyLocale: Locale = toLocale(company.default_language);
+    const tCustomer = createTranslator(customerLocale);
 
     if (action === "accept" && selectedDate && selectedTime) {
       // Create appointment in calendar
@@ -251,40 +264,42 @@ serve(async (req: Request) => {
         `,
       });
 
-      // Send confirmation email to customer
+      // Send confirmation email to customer — in the OFFER's language
+      const customerSubject = tCustomer("email.proposalAccepted.subject", { companyName });
+
       const { error: customerEmailError } = await resend.emails.send({
         from: getDefaultFrom(),
         to: [customerEmail],
-        subject: `Ihr Besichtigungstermin bei ${companyName}`,
+        subject: customerSubject,
         html: `
           <!DOCTYPE html>
-          <html>
+          <html lang="${customerLocale}">
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Ihr Besichtigungstermin</title>
+            <title>${tCustomer("email.proposalAccepted.headerTitle")}</title>
           </head>
           <body style="margin: 0; padding: 0; background: #f3f4f6;">
           <div style="font-family: Arial, sans-serif; width:100%;max-width:100%;box-sizing:border-box;margin:0;padding:16px 14px;">
             <div style="background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 30px; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">Termin bestätigt</h1>
+              <h1 style="color: white; margin: 0; font-size: 24px;">${tCustomer("email.proposalAccepted.headerTitle")}</h1>
             </div>
             <div style="padding: 30px; background: #ffffff;">
-              <p style="font-size: 16px; color: #333;">Guten Tag ${escapeHtml(customerName)},</p>
-              <p style="font-size: 16px; color: #333;">Ihr Besichtigungstermin wurde erfolgreich bestätigt.</p>
-              
+              <p style="font-size: 16px; color: #333;">${tCustomer("common.greeting", { name: escapeHtml(customerName) })}</p>
+              <p style="font-size: 16px; color: #333;">${tCustomer("email.proposalAccepted.intro")}</p>
+
               <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                <h3 style="margin: 0 0 15px 0; color: #1e40af;">Termindetails</h3>
-                <p style="margin: 5px 0; color: #333;"><strong>🏢 Firma:</strong> ${companyName}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>📅 Datum:</strong> ${formatDateDE(selectedDate)}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>🕐 Uhrzeit:</strong> ${selectedTime} Uhr</p>
-                ${address ? `<p style="margin: 5px 0; color: #333;"><strong>📍 Adresse:</strong> ${address}</p>` : ""}
+                <h3 style="margin: 0 0 15px 0; color: #1e40af;">${tCustomer("common.appointmentDetails")}</h3>
+                <p style="margin: 5px 0; color: #333;"><strong>🏢 ${tCustomer("common.company")}:</strong> ${escapeHtml(companyName)}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>📅 ${tCustomer("common.date")}:</strong> ${formatDateLong(selectedDate, customerLocale)}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>🕐 ${tCustomer("common.time")}:</strong> ${tCustomer("common.timeValue", { time: selectedTime })}</p>
+                ${address ? `<p style="margin: 5px 0; color: #333;"><strong>📍 ${tCustomer("common.address")}:</strong> ${escapeHtml(address)}</p>` : ""}
               </div>
 
-              <p style="font-size: 14px; color: #666;">Wir freuen uns auf Ihren Besuch!</p>
+              <p style="font-size: 14px; color: #666;">${tCustomer("email.proposalAccepted.closing")}</p>
             </div>
             <div style="padding: 20px; background: #f8fafc; text-align: center;">
-              <p style="font-size: 12px; color: #666; margin: 0;">Diese E-Mail wurde automatisch versendet.</p>
+              <p style="font-size: 12px; color: #666; margin: 0;">${tCustomer("common.autoSent")}</p>
             </div>
           </div>
           </body>
@@ -298,7 +313,7 @@ serve(async (req: Request) => {
       if (companyEmailError) console.error("[handle-proposal-response] company email failed:", companyEmailError);
       if (customerEmailError) console.error("[handle-proposal-response] customer email failed:", customerEmailError);
 
-      // Log emails
+      // Log emails — each row records the language it was actually rendered in.
       await supabase.from("email_logs").insert([
         {
           company_id: companyId,
@@ -308,6 +323,7 @@ serve(async (req: Request) => {
           recipient_name: company.company_name,
           subject: `Besichtigungstermin bestätigt - ${customerName}`,
           status: companyEmailError ? "failed" : "sent",
+          language: companyLocale,
           metadata: { selectedDate, selectedTime },
         },
         {
@@ -316,8 +332,9 @@ serve(async (req: Request) => {
           email_type: "besichtigung_confirmed_customer",
           recipient_email: customerEmail,
           recipient_name: customerName,
-          subject: `Ihr Besichtigungstermin bei ${companyName}`,
+          subject: customerSubject,
           status: customerEmailError ? "failed" : "sent",
+          language: customerLocale,
           metadata: { selectedDate, selectedTime },
         },
       ]);
@@ -379,7 +396,7 @@ serve(async (req: Request) => {
 
       if (rejectEmailError) console.error("[handle-proposal-response] reject email failed:", rejectEmailError);
 
-      // Log email
+      // Log email — firma-only branch, so the company language is what went out.
       await supabase.from("email_logs").insert({
         company_id: companyId,
         lead_id: leadId,
@@ -388,6 +405,7 @@ serve(async (req: Request) => {
         recipient_name: company.company_name,
         subject: `Terminvorschläge abgelehnt - ${customerName}`,
         status: rejectEmailError ? "failed" : "sent",
+        language: companyLocale,
         metadata: { customerMessage },
       });
     }

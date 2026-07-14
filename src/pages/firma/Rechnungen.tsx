@@ -22,7 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   RECHNUNG_STATUS_LABELS, RECHNUNG_STATUS_COLORS, isRechnungStatus, type RechnungStatus,
 } from "@/lib/rechnungStatus";
-import { formatChf } from "@/types/quittung.types";
+import { useI18n } from "@/i18n/useI18n";
+import { formatCurrency } from "@/i18n/format";
 
 const STATUS_TABS: { value: "all" | RechnungStatus; label: string }[] = [
   { value: "all", label: "Alle" },
@@ -51,6 +52,9 @@ export default function FirmaRechnungen() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  // Dashboard locale — list amounts follow the operator. The PDF follows the invoice row
+  // (rechnungToPdfData resolves rechnungen.language), not this.
+  const { locale: uiLocale } = useI18n();
   const { companyId } = useCachedCompany();
   // Full company record (incl. plz/iban) — useCachedCompany ignores the select and only
   // returns activeCompany (id/name/logo); QR-Bill creditor address fields are required → fresh fetch.
@@ -145,7 +149,7 @@ export default function FirmaRechnungen() {
     { emoji: "📄", label: "Gesamt", value: String(stats.total), isValue: false },
     { emoji: "📬", label: "Offen", value: String(stats.offen), isValue: false },
     { emoji: "⚠️", label: "Überfällig", value: String(stats.ueberfaellig), isValue: false },
-    { emoji: "💰", label: "Umsatz", value: formatChf(stats.revenue), isValue: true },
+    { emoji: "💰", label: "Umsatz", value: formatCurrency(stats.revenue, uiLocale), isValue: true },
   ];
 
   return (
@@ -160,7 +164,7 @@ export default function FirmaRechnungen() {
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Rechnungen</h1>
               <span className="text-[15px] text-folk-ink3">
-                <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.bezahlt}</span> bezahlt · Umsatz <span className="font-mono">{formatChf(stats.revenue)}</span>
+                <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.bezahlt}</span> bezahlt · Umsatz <span className="font-mono">{formatCurrency(stats.revenue, uiLocale)}</span>
               </span>
             </div>
             <p className="mt-1 text-[15px] text-folk-ink2">
@@ -310,7 +314,7 @@ export default function FirmaRechnungen() {
                             {RECHNUNG_STATUS_LABELS[status]}
                           </span>
                           <span className="font-sans text-[14px] font-bold tracking-tight text-folk-ink">
-                            {formatChf(r.gesamttotal || 0)}
+                            {formatCurrency(r.gesamttotal || 0, uiLocale)}
                           </span>
                         </div>
                       </div>

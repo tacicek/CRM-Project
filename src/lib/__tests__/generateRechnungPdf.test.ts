@@ -15,6 +15,7 @@ const data: RechnungData = {
   mwst_satz: 8.1,
   mwst_betrag: 59.94,
   total: 799.94,
+  locale: "de",
   company: {
     company_name: "Robert Schneider AG",
     street: "Rue du Lac",

@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { INVENTORY_CATEGORIES } from './inventory-data';
+import { inventoryCategoryName, inventoryItemName } from "./inventory-i18n";
+import { useI18n } from "@/i18n/useI18n";
 import { InventoryItem } from './types';
 
 interface InventorySelectorProps {
@@ -24,6 +26,8 @@ export function InventorySelector({
   getItemQuantity,
   defaultExpanded = true,
 }: InventorySelectorProps) {
+  // Inventory names are operator chrome → dashboard locale.
+  const { locale } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState(INVENTORY_CATEGORIES[0].id);
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -35,11 +39,16 @@ export function InventorySelector({
     const query = searchQuery.toLowerCase();
     return INVENTORY_CATEGORIES.map((category) => ({
       ...category,
-      items: category.items.filter((item) =>
-        item.name_de.toLowerCase().includes(query)
+      // Search the DISPLAYED name as well as the German base: a French operator types
+      // "canapé", not "Sofa". The German base stays searchable because the lead's own
+      // free text (and the operator's habits) are still German.
+      items: category.items.filter(
+        (item) =>
+          inventoryItemName(item, locale).toLowerCase().includes(query) ||
+          item.name_de.toLowerCase().includes(query)
       ),
     })).filter((category) => category.items.length > 0);
-  }, [searchQuery]);
+  }, [searchQuery, locale]);
 
   // Calculate total selected items count
   const totalSelectedItems = useMemo(() => {
@@ -118,7 +127,7 @@ export function InventorySelector({
                       value={category.id}
                       className="text-xs whitespace-nowrap relative px-2 sm:px-3 h-8"
                     >
-                      {category.name_de}
+                      {inventoryCategoryName(category, locale)}
                       {count > 0 && (
                         <Badge
                           variant="secondary"
@@ -152,7 +161,7 @@ export function InventorySelector({
                           {/* Item Info */}
                           <div className="flex-1 min-w-0">
                             <p className={`font-medium text-sm leading-tight ${isSelected ? 'text-primary' : ''}`}>
-                              {item.name_de}
+                              {inventoryItemName(item, locale)}
                             </p>
                             <div className="flex items-center gap-3 mt-1 text-muted-foreground">
                               <span className="text-xs flex items-center gap-1">

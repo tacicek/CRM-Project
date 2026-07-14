@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
+import { documentI18nFor } from "@/i18n/documentLocale";
 
 const AMBER = {
   50:  "#FFFBEB",
@@ -84,14 +85,12 @@ export const TimeEstimateBlock = ({ data }: Props) => {
   const hasItemTimeEstimate = data.items.some(item => item.timeEstimate && item.timeEstimate.minHours > 0);
   if (data.offerteType !== "blind" || !hasItemTimeEstimate) return null;
 
+  const { t } = documentI18nFor(data.locale);
+
   return (
     <View style={styles.container} wrap={false}>
       <View style={styles.disclaimerBox}>
-        <Text style={styles.disclaimerText}>
-          Diese Offerte basiert auf Kundenangaben ohne persönliche Besichtigung.
-          {" "}Preise sind Schätzungen und können nach Besichtigung angepasst werden.
-          {" "}Die Zeitschätzungen pro Position sind als Rahmen zu verstehen.
-        </Text>
+        <Text style={styles.disclaimerText}>{t("doc.offer.blind.timeNote")}</Text>
       </View>
     </View>
   );

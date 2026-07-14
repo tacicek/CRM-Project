@@ -1,0 +1,98 @@
+import { common as de } from "@/i18n/catalog/de/common";
+
+/**
+ * Vocabulaire d'interface partagé : actions, états, libellés de champs, navigation.
+ * Utilisé dans tout le tableau de bord — les textes propres à une page sont dans `ui.ts`.
+ */
+export const common: Record<keyof typeof de, string> = {
+  // --- Actions ---------------------------------------------------------------
+  "common.save": "Enregistrer",
+  "common.saving": "Enregistrement…",
+  "common.cancel": "Annuler",
+  "common.delete": "Supprimer",
+  "common.edit": "Modifier",
+  "common.create": "Créer",
+  "common.add": "Ajouter",
+  "common.remove": "Retirer",
+  "common.close": "Fermer",
+  "common.back": "Retour",
+  "common.next": "Suivant",
+  "common.confirm": "Confirmer",
+  "common.search": "Rechercher",
+  "common.filter": "Filtre",
+  "common.reset": "Réinitialiser",
+  "common.send": "Envoyer",
+  "common.sending": "Envoi en cours…",
+  "common.download": "Télécharger",
+  "common.upload": "Téléverser",
+  "common.preview": "Aperçu",
+  "common.print": "Imprimer",
+  "common.copy": "Copier",
+  "common.copied": "Copié",
+  "common.duplicate": "Dupliquer",
+  "common.archive": "Archiver",
+  "common.restore": "Restaurer",
+  "common.select": "Sélectionner",
+  "common.selectAll": "Tout sélectionner",
+  "common.apply": "Appliquer",
+  "common.retry": "Réessayer",
+  "common.details": "Détails",
+  "common.actions": "Actions",
+  "common.more": "Plus",
+  "common.optional": "Facultatif",
+  "common.required": "Champ obligatoire",
+
+  // --- États -----------------------------------------------------------------
+  "common.loading": "Chargement…",
+  "common.empty": "Aucune entrée",
+  "common.error": "Erreur",
+  "common.errorGeneric": "Une erreur est survenue. Veuillez réessayer.",
+  "common.success": "Opération réussie",
+  "common.noResults": "Aucun résultat trouvé",
+  "common.notSpecified": "Non renseigné",
+  "common.unknown": "Inconnu",
+
+  // --- Champs génériques -----------------------------------------------------------
+  "common.name": "Nom",
+  "common.firstName": "Prénom",
+  "common.lastName": "Nom de famille",
+  "common.email": "E-mail",
+  "common.phone": "Téléphone",
+  "common.address": "Adresse",
+  "common.street": "Rue",
+  "common.houseNumber": "Numéro",
+  "common.plz": "NPA",
+  "common.city": "Localité",
+  "common.canton": "Canton",
+  "common.country": "Pays",
+  "common.date": "Date",
+  "common.selectDate": "Choisir une date",
+  "common.time": "Heure",
+  "common.from": "De",
+  "common.to": "À",
+  "common.status": "Statut",
+  "common.type": "Type",
+  "common.category": "Catégorie",
+  "common.description": "Description",
+  "common.notes": "Remarques",
+  "common.price": "Prix",
+  "common.quantity": "Quantité",
+  "common.unit": "Unité",
+  "common.total": "Total",
+  "common.subtotal": "Sous-total",
+  "common.vat": "TVA",
+  "common.discount": "Remise",
+  "common.language": "Langue",
+  "common.createdAt": "Créé le",
+  "common.updatedAt": "Mis à jour le",
+
+  // --- Confirmations ---------------------------------------------------------------
+  "common.confirmDelete.title": "Confirmer la suppression ?",
+  "common.confirmDelete.description": "Cette action est irréversible.",
+
+  // --- Sélecteur de langue --------------------------------------------------------------
+  "common.language.dashboard": "Langue du tableau de bord",
+  "common.language.followCompany": "Utiliser la langue de l'entreprise ({language})",
+  "common.language.hint":
+    "Ne modifie que votre propre affichage. Les documents et les e-mails destinés aux clients restent dans la langue du client.",
+};

@@ -51,9 +51,37 @@ serve(async (req) => {
     // Get company info
     const { data: company } = await supabase
       .from("companies")
-      .select("id, company_name, logo_url, primary_color")
+      .select("id, company_name, logo_url, primary_color, default_language")
       .eq("id", session.company_id)
       .single();
+
+    // DOKUMENT-Sprache der Besichtigungsseite.
+    //
+    // Der Kunde lädt hier Fotos hoch — die Seite muss in SEINER Sprache erscheinen,
+    // nicht in der der Firma. Die Session kennt weder eine eigene Sprache noch gibt
+    // die RPC lead_id/offer_id an den Client weiter, also wird sie hier serverseitig
+    // aufgelöst: Offerte (eingefroren) vor Lead vor Firmen-Default.
+    const resolveSessionLanguage = async (): Promise<string> => {
+      if (session.offer_id) {
+        const { data: offer } = await supabase
+          .from("offers")
+          .select("language")
+          .eq("id", session.offer_id)
+          .maybeSingle();
+        if (offer?.language) return offer.language;
+      }
+      if (session.lead_id) {
+        const { data: lead } = await supabase
+          .from("leads")
+          .select("language")
+          .eq("id", session.lead_id)
+          .maybeSingle();
+        if (lead?.language) return lead.language;
+      }
+      return company?.default_language ?? "de";
+    };
+
+    const language = await resolveSessionLanguage();
 
     // Get photos via RPC
     const { data: photos } = await supabase.rpc(
@@ -75,6 +103,9 @@ serve(async (req) => {
       from_plz: session.from_plz,
       from_city: session.from_city,
       expires_at: session.expires_at,
+      // lead_id / offer_id bleiben bewusst draussen (der Client braucht sie nicht und
+      // sie sind interne IDs) — nur die daraus abgeleitete Sprache wird durchgereicht.
+      language,
       company: company
         ? {
             name: company.company_name,

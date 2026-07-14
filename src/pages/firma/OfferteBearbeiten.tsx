@@ -24,15 +24,22 @@ import {
   ArrowLeft,
   Trash2,
   GripVertical,
+  Languages,
 } from "lucide-react";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { LOCALES, LOCALE_NAMES, DEFAULT_LOCALE, toLocale, type Locale } from "@/i18n/locale";
+import { useI18n, useT } from "@/i18n/useI18n";
+import { getServiceLabel } from "@/i18n/domain";
+import { formatCurrency as formatCurrencyI18n, formatPercent } from "@/i18n/format";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { MessageKey } from "@/i18n/translator";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import {
   computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type SubtotalItem, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
 import { cn } from "@/lib/utils";
-import { SERVICE_OPTIONS, groupItemsByService } from "@/lib/offerServiceType";
+import { getServiceOptions, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
 import { metaKindForService, buildMetaPayload, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
@@ -73,18 +80,20 @@ interface OfferItem {
   kostendach_max?: number | null;
 }
 
-// Common unit options for offer items
-const unitOptions = [
-  { value: "Pauschal", label: "Pauschal" },
-  { value: "Stunden", label: "Stunden" },
-  { value: "Stk.", label: "Stück (Stk.)" },
-  { value: "m²", label: "Quadratmeter (m²)" },
-  { value: "m³", label: "Kubikmeter (m³)" },
-  { value: "lfm", label: "Laufmeter (lfm)" },
-  { value: "kg", label: "Kilogramm (kg)" },
-  { value: "Tag", label: "Tag" },
-  { value: "Fahrt", label: "Fahrt" },
-  { value: "Person", label: "Person" },
+// Common unit options for offer items.
+// The `value` is a CUSTOMER-facing snapshot: it is stored in offer_items.unit and printed
+// on the PDF, so it stays unchanged. Only the operator's dropdown `labelKey` is localised.
+const unitOptions: { value: string; labelKey: MessageKey }[] = [
+  { value: "Pauschal", labelKey: "offer.form.unit.pauschal" },
+  { value: "Stunden", labelKey: "offer.form.unit.stunden" },
+  { value: "Stk.", labelKey: "offer.form.unit.stk" },
+  { value: "m²", labelKey: "offer.form.unit.m2" },
+  { value: "m³", labelKey: "offer.form.unit.m3" },
+  { value: "lfm", labelKey: "offer.form.unit.lfm" },
+  { value: "kg", labelKey: "offer.form.unit.kg" },
+  { value: "Tag", labelKey: "offer.form.unit.tag" },
+  { value: "Fahrt", labelKey: "offer.form.unit.fahrt" },
+  { value: "Person", labelKey: "offer.form.unit.person" },
 ];
 
 // Helper to infer price_type from unit and price for backward compatibility
@@ -118,6 +127,8 @@ interface Offer {
   hourly_rate?: number | null;
   kostendach_max?: number | null;
   discount_percent?: number | null;
+  /** DOCUMENT locale — frozen from the lead at creation, correctable here. */
+  language?: string | null;
 }
 
 const generateItemId = () => `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -127,6 +138,11 @@ const FirmaOfferteBearbeiten = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { offerId } = useParams<{ offerId: string }>();
+  // Dashboard locale — the OPERATOR's chrome only. Everything the customer reads (payment
+  // terms, item descriptions, PDF, e-mail) resolves `offerLanguage` instead, see below.
+  const t = useT();
+  const { locale } = useI18n();
+  const serviceOptions = useMemo(() => getServiceOptions(locale), [locale]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -218,8 +234,10 @@ const FirmaOfferteBearbeiten = () => {
     });
   };
 
-  // Payment terms
-  const [paymentTerms, setPaymentTerms] = useState("Barzahlung nach der Ausführung");
+  // Payment terms — DOCUMENT content: this text is stored on the offer and printed on the
+  // customer's PDF. It is therefore written in the CUSTOMER's language (offerLanguage), never
+  // in the operator's dashboard language. Seeded in fetchData below.
+  const [paymentTerms, setPaymentTerms] = useState("");
 
   // Spell check state
   const [isSpellChecking, setIsSpellChecking] = useState(false);
@@ -229,6 +247,13 @@ const FirmaOfferteBearbeiten = () => {
   const pendingSpellSaveRef = useRef<boolean>(false);
   // Ref to handleSave — lets spell-check callbacks call it without causing a TDZ error
   const handleSaveRef = useRef<(sendAfterSave?: boolean) => void>(() => {});
+
+  // DOCUMENT locale of this offer — the language the CUSTOMER is addressed in (PDF, e-mail,
+  // public token page). Independent of the operator's dashboard language.
+  const [offerLanguage, setOfferLanguage] = useState<Locale>(DEFAULT_LOCALE);
+  // Translator for text that is WRITTEN INTO the offer (payment terms) — resolves the
+  // customer's language, never the operator's. Deliberately NOT useT().
+  const documentT = documentI18nFor(offerLanguage).t;
 
   // Customer info
   const [customerFirstName, setCustomerFirstName] = useState("");
@@ -267,8 +292,8 @@ const FirmaOfferteBearbeiten = () => {
 
         if (offerError || !offerData) {
           toast({
-            title: "Fehler",
-            description: "Offerte nicht gefunden",
+            title: t("common.error"),
+            description: t("offer.detail.toast.notFound"),
             variant: "destructive",
           });
           navigate("/firma/offerten");
@@ -278,8 +303,10 @@ const FirmaOfferteBearbeiten = () => {
         // Accepted or rejected offers cannot be edited
         if (["accepted", "rejected"].includes(offerData.status)) {
           toast({
-            title: "Bearbeitung nicht möglich",
-            description: `Diese Offerte wurde bereits ${offerData.status === "accepted" ? "angenommen" : "abgelehnt"} und kann nicht mehr bearbeitet werden.`,
+            title: t("offer.edit.toast.locked.title"),
+            description: offerData.status === "accepted"
+              ? t("offer.edit.toast.locked.accepted")
+              : t("offer.edit.toast.locked.rejected"),
             variant: "destructive",
           });
           navigate(`/firma/offerten/${offerId}`);
@@ -297,9 +324,15 @@ const FirmaOfferteBearbeiten = () => {
         setCustomerLastName(offerData.customer_last_name || "");
         setCustomerEmail(offerData.customer_email || "");
         setCustomerPhone(offerData.customer_phone || "");
-        if (offerData.payment_terms) {
-          setPaymentTerms(String(offerData.payment_terms));
-        }
+        const offerLocale = toLocale(offerData.language);
+        setOfferLanguage(offerLocale);
+        // Document locale, not dashboard locale: an offer without stored terms falls back to
+        // the default payment condition IN THE CUSTOMER'S LANGUAGE.
+        setPaymentTerms(
+          offerData.payment_terms
+            ? String(offerData.payment_terms)
+            : documentI18nFor(offerLocale).t("offer.doc.payment.cash"),
+        );
         // Price model
         const pm = (offerData.price_model as PriceModel | null | undefined) ?? 'pauschal';
         setPriceModel(pm);
@@ -394,8 +427,8 @@ const FirmaOfferteBearbeiten = () => {
       } catch (error) {
         console.error("Error fetching data:", error);
         toast({
-          title: "Fehler",
-          description: "Daten konnten nicht geladen werden",
+          title: t("common.error"),
+          description: t("offer.edit.toast.loadFailed"),
           variant: "destructive",
         });
       } finally {
@@ -404,7 +437,7 @@ const FirmaOfferteBearbeiten = () => {
     };
 
     fetchData();
-  }, [user, offerId, navigate, toast]);
+  }, [user, offerId, navigate, toast, t]);
 
   const addItem = () => {
     setItems([
@@ -531,12 +564,8 @@ const FirmaOfferteBearbeiten = () => {
     return maxBase + (calculateMaxVat() ?? 0);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("de-CH", {
-      style: "currency",
-      currency: "CHF",
-    }).format(amount);
-  };
+  // Dashboard locale — these amounts are shown to the operator in the form's live summary.
+  const formatCurrency = (amount: number) => formatCurrencyI18n(amount, locale);
 
 
   const applySpellCorrections = useCallback(
@@ -576,8 +605,8 @@ const FirmaOfferteBearbeiten = () => {
 
     if (!title.trim()) {
       toast({
-        title: "Fehler",
-        description: "Bitte geben Sie einen Titel ein",
+        title: t("common.error"),
+        description: t("offer.form.toast.titleRequired"),
         variant: "destructive",
       });
       return;
@@ -585,8 +614,8 @@ const FirmaOfferteBearbeiten = () => {
 
     if (items.some((item) => !item.description.trim())) {
       toast({
-        title: "Fehler",
-        description: "Bitte füllen Sie alle Positionen aus",
+        title: t("common.error"),
+        description: t("offer.form.toast.itemsIncomplete"),
         variant: "destructive",
       });
       return;
@@ -595,8 +624,8 @@ const FirmaOfferteBearbeiten = () => {
     if (priceModel === 'stundenansatz' || priceModel === 'kostendach') {
       if (!hourlyRate || Number(hourlyRate) <= 0) {
         toast({
-          title: "Fehler",
-          description: "Bitte geben Sie einen gültigen Stundenansatz ein",
+          title: t("common.error"),
+          description: t("offer.form.toast.hourlyRateRequired"),
           variant: "destructive",
         });
         return;
@@ -606,16 +635,16 @@ const FirmaOfferteBearbeiten = () => {
     if (priceModel === 'kostendach') {
       if (!kostendachMax || Number(kostendachMax) <= 0) {
         toast({
-          title: "Fehler",
-          description: "Bitte geben Sie ein gültiges Kostendach ein",
+          title: t("common.error"),
+          description: t("offer.form.toast.kostendachRequired"),
           variant: "destructive",
         });
         return;
       }
       if (Number(kostendachMax) < Number(hourlyRate)) {
         toast({
-          title: "Fehler",
-          description: "Das Kostendach muss mindestens so hoch sein wie der Stundenansatz",
+          title: t("common.error"),
+          description: t("offer.form.toast.kostendachTooLow"),
           variant: "destructive",
         });
         return;
@@ -626,12 +655,21 @@ const FirmaOfferteBearbeiten = () => {
     for (const item of items) {
       const te = item.timeEstimate;
       if (!te) continue;
+      const itemLabel = item.description || t("offer.form.toast.itemFallback");
       if (!te.minHours || !te.maxHours || !te.hourlyRate) {
-        toast({ title: "Fehler", description: `Zeitschätzung für "${item.description || 'Position'}" unvollständig`, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: t("offer.form.toast.timeEstimateIncomplete", { item: itemLabel }),
+          variant: "destructive",
+        });
         return;
       }
       if (parseFloat(te.maxHours) < parseFloat(te.minHours)) {
-        toast({ title: "Fehler", description: `Max. Stunden müssen ≥ Min. Stunden sein (${item.description || 'Position'})`, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: t("offer.form.toast.timeEstimateInvalid", { item: itemLabel }),
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -687,6 +725,9 @@ const FirmaOfferteBearbeiten = () => {
           customer_last_name: customerLastName,
           customer_email: customerEmail,
           customer_phone: customerPhone || null,
+          // DOCUMENT locale — drives PDF + e-mail rendering for this offer and is inherited
+          // by every document created from it (Auftrag, Rechnung, Quittung, Termin).
+          language: offerLanguage,
           title,
           description: description || null,
           service_date: serviceDate || null,
@@ -713,9 +754,7 @@ const FirmaOfferteBearbeiten = () => {
 
       if (offerError) throw offerError;
       if (!updatedRows || updatedRows.length === 0) {
-        throw new Error(
-          "Diese Offerte wurde inzwischen angenommen oder abgelehnt und kann nicht mehr bearbeitet werden."
-        );
+        throw new Error(t("offer.edit.toast.wentTerminal"));
       }
 
       // Atomic replace via RPC — delete + insert in a single transaction
@@ -774,20 +813,22 @@ const FirmaOfferteBearbeiten = () => {
         const result = await sendOffer({ offerId, companyId: company.id, forceResend: true });
         if (result.success) {
           toast({
-            title: "Offerte gesendet",
-            description: "Die Offerte wurde erfolgreich aktualisiert und gesendet.",
+            title: t("offer.list.toast.sent.title"),
+            description: t("offer.edit.toast.sent.description"),
           });
         } else {
           toast({
-            title: "Offerte gespeichert",
-            description: `Die Offerte wurde gespeichert, aber: ${result.error ?? "die E-Mail konnte nicht gesendet werden."} Sie können sie unter Offerten erneut versenden.`,
+            title: t("offer.create.toast.saved.title"),
+            description: t("offer.create.toast.sendFailed.description", {
+              error: result.error ?? t("offer.create.toast.sendFailed.genericError"),
+            }),
             variant: "destructive",
           });
         }
       } else {
         toast({
-          title: "Offerte gespeichert",
-          description: "Ihre Änderungen wurden erfolgreich gespeichert.",
+          title: t("offer.create.toast.saved.title"),
+          description: t("offer.edit.toast.saved.description"),
         });
       }
 
@@ -795,8 +836,8 @@ const FirmaOfferteBearbeiten = () => {
     } catch (error: unknown) {
       console.error("Save error:", error);
       toast({
-        title: "Fehler beim Speichern",
-        description: error instanceof Error ? error.message : "Die Offerte konnte nicht gespeichert werden.",
+        title: t("offer.edit.toast.saveFailed.title"),
+        description: error instanceof Error ? error.message : t("offer.form.toast.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -817,9 +858,9 @@ const FirmaOfferteBearbeiten = () => {
   if (!offer) {
     return (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Offerte nicht gefunden</p>
+          <p className="text-muted-foreground">{t("offer.detail.notFound.title")}</p>
           <Button className="mt-4" onClick={() => navigate("/firma/offerten")}>
-            Zurück zu Offerten
+            {t("offer.detail.back")}
           </Button>
         </div>
     );
@@ -828,7 +869,7 @@ const FirmaOfferteBearbeiten = () => {
   return (
     <>
       <Helmet>
-        <title>Offerte bearbeiten | Firma</title>
+        <title>{t("offer.edit.pageTitle")}</title>
       </Helmet>
         <div className="space-y-4 sm:space-y-6">
           {/* Folk-style header */}
@@ -838,17 +879,17 @@ const FirmaOfferteBearbeiten = () => {
               size="icon"
               onClick={() => navigate("/firma/offerten")}
               className="h-9 w-9 shrink-0 rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink2"
-              aria-label="Zurück"
+              aria-label={t("common.back")}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <span className="text-2xl leading-none">📄</span>
-                <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">Offerte bearbeiten</h1>
+                <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">{t("offer.edit.title")}</h1>
               </div>
               <p className="mt-1 text-[15px] text-folk-ink2">
-                Für <span className="font-semibold text-folk-ink">{customerFirstName} {customerLastName}</span>
+                {t("offer.edit.for")} <span className="font-semibold text-folk-ink">{customerFirstName} {customerLastName}</span>
               </p>
             </div>
             <div className="flex flex-wrap gap-2 self-end sm:self-auto">
@@ -859,8 +900,8 @@ const FirmaOfferteBearbeiten = () => {
                 className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
                 {isSaving || isSpellChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">{isSpellChecking ? "Wird geprüft …" : "Speichern"}</span>
-                <span className="sm:hidden">{isSpellChecking ? "…" : "Speich."}</span>
+                <span className="hidden sm:inline">{isSpellChecking ? t("offer.form.spellChecking") : t("common.save")}</span>
+                <span className="sm:hidden">{isSpellChecking ? "…" : t("common.save")}</span>
               </Button>
               <Button
                 onClick={() => handleSave(true)}
@@ -868,8 +909,8 @@ const FirmaOfferteBearbeiten = () => {
                 className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
               >
                 {isSaving || isSpellChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">{isSpellChecking ? "Text wird geprüft …" : "Speichern & Senden"}</span>
-                <span className="sm:hidden">{isSpellChecking ? "…" : "Senden"}</span>
+                <span className="hidden sm:inline">{isSpellChecking ? t("offer.form.spellChecking") : t("offer.edit.saveAndSend")}</span>
+                <span className="sm:hidden">{isSpellChecking ? "…" : t("common.send")}</span>
               </Button>
             </div>
           </div>
@@ -882,13 +923,13 @@ const FirmaOfferteBearbeiten = () => {
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
                   <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                     <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-                    Kundendaten
+                    {t("offer.form.customer.title")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1">
-                      <Label className="text-xs sm:text-sm">Vorname</Label>
+                      <Label className="text-xs sm:text-sm">{t("common.firstName")}</Label>
                       <Input
                         value={customerFirstName}
                         onChange={(e) => setCustomerFirstName(e.target.value)}
@@ -896,7 +937,7 @@ const FirmaOfferteBearbeiten = () => {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs sm:text-sm">Nachname</Label>
+                      <Label className="text-xs sm:text-sm">{t("common.lastName")}</Label>
                       <Input
                         value={customerLastName}
                         onChange={(e) => setCustomerLastName(e.target.value)}
@@ -906,7 +947,7 @@ const FirmaOfferteBearbeiten = () => {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1">
-                      <Label className="text-xs sm:text-sm">E-Mail</Label>
+                      <Label className="text-xs sm:text-sm">{t("common.email")}</Label>
                       <Input
                         type="email"
                         value={customerEmail}
@@ -915,7 +956,7 @@ const FirmaOfferteBearbeiten = () => {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs sm:text-sm">Telefon</Label>
+                      <Label className="text-xs sm:text-sm">{t("common.phone")}</Label>
                       <Input
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
@@ -923,37 +964,64 @@ const FirmaOfferteBearbeiten = () => {
                       />
                     </div>
                   </div>
+
+                  {/* DOCUMENT locale — the VALUE stays the customer's language (offerLanguage);
+                      only the surrounding chrome (label, hint) is operator-facing. */}
+                  <div className="space-y-1">
+                    <Label htmlFor="offer-language" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                      <Languages className="h-3.5 w-3.5" />
+                      {t("offer.form.customerLanguage.label")}
+                    </Label>
+                    <Select
+                      value={offerLanguage}
+                      onValueChange={(v) => setOfferLanguage(toLocale(v))}
+                    >
+                      <SelectTrigger id="offer-language" className="h-9 sm:h-10 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LOCALES.map((locale) => (
+                          <SelectItem key={locale} value={locale}>
+                            {LOCALE_NAMES[locale]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {t("offer.form.customerLanguage.hint")}
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
 
               {/* Offer Details */}
               <Card>
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                  <CardTitle className="text-sm sm:text-base">Offerte-Details</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.form.details.title")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                   <div className="space-y-1">
-                    <Label className="text-xs sm:text-sm">Titel</Label>
+                    <Label className="text-xs sm:text-sm">{t("offer.form.field.title")}</Label>
                     <Input
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="z.B. Umzugsofferte"
+                      placeholder={t("offer.form.placeholder.title")}
                       className="h-9 sm:h-10 text-sm"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs sm:text-sm">Beschreibung</Label>
+                    <Label className="text-xs sm:text-sm">{t("common.description")}</Label>
                     <Textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Optionale Beschreibung..."
+                      placeholder={t("offer.form.placeholder.description")}
                       rows={3}
                       className="text-sm"
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1">
-                      <Label className="text-xs sm:text-sm">Ausführungsdatum</Label>
+                      <Label className="text-xs sm:text-sm">{t("offer.form.field.serviceDate")}</Label>
                       <DateInputCH
                         value={serviceDate}
                         onChange={setServiceDate}
@@ -961,14 +1029,14 @@ const FirmaOfferteBearbeiten = () => {
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <Label className="text-xs sm:text-sm">Gültig bis</Label>
+                        <Label className="text-xs sm:text-sm">{t("offer.form.field.validUntil")}</Label>
                         {validUntil && (
                           <button
                             type="button"
                             onClick={() => setValidUntil("")}
                             className="text-[10px] text-muted-foreground hover:text-destructive"
                           >
-                            Entfernen
+                            {t("common.remove")}
                           </button>
                         )}
                       </div>
@@ -987,7 +1055,7 @@ const FirmaOfferteBearbeiten = () => {
                           }}
                           className="w-full h-9 sm:h-10 border border-dashed border-input rounded-md text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1"
                         >
-                          + Gültig bis hinzufügen
+                          {t("offer.form.validUntil.add")}
                         </button>
                       )}
                     </div>
@@ -998,16 +1066,16 @@ const FirmaOfferteBearbeiten = () => {
               {/* Preismodell */}
               <Card>
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                  <CardTitle className="text-sm sm:text-base">Preismodell</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.form.priceModel.title")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {(
                       [
-                        { value: 'pauschal', label: 'Pauschalpreis' },
-                        { value: 'stundenansatz', label: 'Stundenansatz' },
-                        { value: 'kostendach', label: 'Stundenansatz mit Kostendach' },
-                      ] as const
+                        { value: 'pauschal', labelKey: 'offer.form.priceModel.pauschal' },
+                        { value: 'stundenansatz', labelKey: 'domain.priceModel.stundenansatz' },
+                        { value: 'kostendach', labelKey: 'offer.form.priceModel.kostendach' },
+                      ] as const satisfies readonly { value: PriceModel; labelKey: MessageKey }[]
                     ).map((opt) => (
                       <button
                         key={opt.value}
@@ -1019,14 +1087,14 @@ const FirmaOfferteBearbeiten = () => {
                             : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/50 hover:text-foreground'
                         }`}
                       >
-                        {opt.label}
+                        {t(opt.labelKey)}
                       </button>
                     ))}
                   </div>
 
                   {/* Offer-level Rabatt (%) — editable (#7: was missing in edit) */}
                   <div className="space-y-1 pt-1 sm:max-w-[50%]">
-                    <Label className="text-xs sm:text-sm">Rabatt gesamt (%)</Label>
+                    <Label className="text-xs sm:text-sm">{t("offer.form.field.discount")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -1034,7 +1102,7 @@ const FirmaOfferteBearbeiten = () => {
                       step={0.5}
                       value={discountPercent}
                       onChange={(e) => setDiscountPercent(e.target.value)}
-                      placeholder="z.B. 10 (optional)"
+                      placeholder={t("offer.form.placeholder.discount")}
                       className="h-9 sm:h-10 text-sm"
                     />
                   </div>
@@ -1042,31 +1110,31 @@ const FirmaOfferteBearbeiten = () => {
                   {(priceModel === 'stundenansatz' || priceModel === 'kostendach') && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
                       <div className="space-y-1">
-                        <Label className="text-xs sm:text-sm">Stundenansatz (CHF / Std.)</Label>
+                        <Label className="text-xs sm:text-sm">{t("offer.form.field.hourlyRate")}</Label>
                         <Input
                           type="number"
                           min={1}
                           step={1}
                           value={hourlyRate}
                           onChange={(e) => applyGlobalHourlyRate(e.target.value)}
-                          placeholder="z.B. 120"
+                          placeholder={t("offer.form.placeholder.hourlyRate")}
                           className="h-9 sm:h-10 text-sm"
                         />
                       </div>
                       {priceModel === 'kostendach' && (
                         <div className="space-y-1">
-                          <Label className="text-xs sm:text-sm">Kostendach (max. CHF)</Label>
+                          <Label className="text-xs sm:text-sm">{t("offer.form.field.kostendach")}</Label>
                           <Input
                             type="number"
                             min={1}
                             step={1}
                             value={kostendachMax}
                             onChange={(e) => setKostendachMax(e.target.value)}
-                            placeholder="z.B. 1800"
+                            placeholder={t("offer.form.placeholder.kostendach")}
                             className="h-9 sm:h-10 text-sm"
                           />
                           <p className="text-xs text-muted-foreground">
-                            Der Kunde zahlt maximal diesen Betrag, unabhängig vom Zeitaufwand.
+                            {t("offer.form.kostendach.hint")}
                           </p>
                         </div>
                       )}
@@ -1083,6 +1151,7 @@ const FirmaOfferteBearbeiten = () => {
                     onChange={setSurcharges}
                     itemsSubtotal={calculateSubtotal()}
                     distanceKm={distanceKm}
+                    documentLocale={offerLanguage}
                   />
                 </CardContent>
               </Card>
@@ -1091,15 +1160,15 @@ const FirmaOfferteBearbeiten = () => {
               <Card>
                 <CardContent className="px-3 sm:px-6 py-3 sm:py-4 space-y-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <Label className="text-sm font-medium">Offerte-Art</Label>
+                    <Label className="text-sm font-medium">{t("offer.form.offerType.title")}</Label>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {(
                       [
-                        { value: 'normal' as const, label: 'Normal Offerte', sub: 'Nach Besichtigung' },
-                        { value: 'blind'  as const, label: 'Blind Offerte',  sub: 'Ohne Besichtigung' },
-                      ]
-                    ).map(({ value, label, sub }) => (
+                        { value: 'normal', labelKey: 'offer.form.offerType.normal', subKey: 'offer.form.offerType.normalHint' },
+                        { value: 'blind', labelKey: 'offer.form.offerType.blind', subKey: 'offer.form.offerType.blindHint' },
+                      ] as const satisfies readonly { value: 'normal' | 'blind'; labelKey: MessageKey; subKey: MessageKey }[]
+                    ).map(({ value, labelKey, subKey }) => (
                       <button
                         key={value}
                         type="button"
@@ -1112,15 +1181,14 @@ const FirmaOfferteBearbeiten = () => {
                             : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
                         }`}
                       >
-                        <p className="text-xs font-semibold">{label}</p>
-                        <p className="text-[10px] mt-0.5">{sub}</p>
+                        <p className="text-xs font-semibold">{t(labelKey)}</p>
+                        <p className="text-[10px] mt-0.5">{t(subKey)}</p>
                       </button>
                     ))}
                   </div>
                   {offerteType === 'blind' && (
                     <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                      Diese Offerte basiert auf Kundenangaben ohne persönliche Besichtigung.
-                      Preise sind Schätzungen und können nach Besichtigung angepasst werden.
+                      {t("offer.form.offerType.blindNote")}
                     </p>
                   )}
                 </CardContent>
@@ -1132,10 +1200,10 @@ const FirmaOfferteBearbeiten = () => {
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-0.5">
                       <Label htmlFor="brief-layout-toggle-edit" className="text-sm font-medium cursor-pointer">
-                        Als Brief versenden
+                        {t("offer.form.brief.label")}
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        PDF im Schweizer Briefstandard SN 010 130 (mit Absenderblock, Empfängeradresse und korrekter Anrede)
+                        {t("offer.form.brief.hint")}
                       </p>
                     </div>
                     <Switch
@@ -1150,7 +1218,7 @@ const FirmaOfferteBearbeiten = () => {
               {/* Items */}
               <Card>
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                  <CardTitle className="text-sm sm:text-base">Positionen</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.detail.positions")}</CardTitle>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                   {(() => {
@@ -1158,12 +1226,12 @@ const FirmaOfferteBearbeiten = () => {
                     if (groups.length < 2) return null;
                     return (
                       <div className="mb-4 rounded-lg border border-dashed p-3 space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Termine pro Service</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("offer.form.groupDates.title")}</p>
                         {groups.map((g) => {
                           const k = g.serviceType ?? "null";
                           return (
                             <div key={k} className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-xs font-medium w-24 shrink-0">{g.label}</span>
+                              <span className="text-xs font-medium w-24 shrink-0">{getServiceLabel(g.serviceType, locale)}</span>
                               <DatePicker value={groupDates[k]?.date ?? ""} onChange={(value) => updateGroupDate(k, "date", value)} className="h-7 w-[8.5rem] text-xs" />
                               <Input type="time" value={groupDates[k]?.startTime ?? ""} onChange={(e) => updateGroupDate(k, "startTime", e.target.value)} className="h-7 w-[5.5rem] text-xs" />
                               <span className="text-[10px] text-muted-foreground">–</span>
@@ -1171,7 +1239,7 @@ const FirmaOfferteBearbeiten = () => {
                             </div>
                           );
                         })}
-                        <p className="text-[10px] text-muted-foreground">Leer = globales Ausführungsdatum gilt.</p>
+                        <p className="text-[10px] text-muted-foreground">{t("offer.form.groupDates.hint")}</p>
                       </div>
                     );
                   })()}
@@ -1181,13 +1249,13 @@ const FirmaOfferteBearbeiten = () => {
                     if (groups.length === 0) return null;
                     return (
                       <div className="mb-4 rounded-lg border border-dashed p-3 space-y-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Service-Details</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("offer.form.serviceMeta.title")}</p>
                         {groups.map((g) => {
                           const k = g.serviceType ?? "null";
                           const metaKind = metaKindForService(g.serviceType)!;
                           return (
                             <div key={k} className="space-y-1.5">
-                              <span className="text-xs font-medium">{g.label}</span>
+                              <span className="text-xs font-medium">{getServiceLabel(g.serviceType, locale)}</span>
                               <ServiceMetaFields
                                 kind={metaKind}
                                 draft={groupMeta[k] ?? EMPTY_META_DRAFT}
@@ -1197,7 +1265,7 @@ const FirmaOfferteBearbeiten = () => {
                             </div>
                           );
                         })}
-                        <p className="text-[10px] text-muted-foreground">Erscheint im PDF unter der ersten Position des Services.</p>
+                        <p className="text-[10px] text-muted-foreground">{t("offer.form.serviceMeta.hint")}</p>
                       </div>
                     );
                   })()}
@@ -1229,20 +1297,20 @@ const FirmaOfferteBearbeiten = () => {
                                   </div>
                                   <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
                                     <div className="space-y-1">
-                                      <Label className="text-xs sm:text-sm">Beschreibung</Label>
+                                      <Label className="text-xs sm:text-sm">{t("common.description")}</Label>
                                       <Textarea
                                         value={item.description}
                                         onChange={(e) =>
                                           updateItem(index, "description", e.target.value)
                                         }
-                                        placeholder="Leistungsbeschreibung..."
+                                        placeholder={t("offer.form.item.descriptionPlaceholder")}
                                         rows={2}
                                         className="text-sm"
                                       />
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                                       <div className="space-y-1">
-                                        <Label className="text-xs sm:text-sm">Menge</Label>
+                                        <Label className="text-xs sm:text-sm">{t("common.quantity")}</Label>
                                         <Input
                                           type="number"
                                           min={0}
@@ -1255,7 +1323,7 @@ const FirmaOfferteBearbeiten = () => {
                                         />
                                       </div>
                                       <div className="space-y-1">
-                                        <Label className="text-xs sm:text-sm">Einheit</Label>
+                                        <Label className="text-xs sm:text-sm">{t("common.unit")}</Label>
                                         <Select
                                           value={item.unit}
                                           onValueChange={(value) =>
@@ -1263,19 +1331,19 @@ const FirmaOfferteBearbeiten = () => {
                                           }
                                         >
                                           <SelectTrigger className="h-8 sm:h-10 text-sm">
-                                            <SelectValue placeholder="Einheit" />
+                                            <SelectValue placeholder={t("common.unit")} />
                                           </SelectTrigger>
                                           <SelectContent>
                                             {unitOptions.map((option) => (
                                               <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
+                                                {t(option.labelKey)}
                                               </SelectItem>
                                             ))}
                                           </SelectContent>
                                         </Select>
                                       </div>
                                       <div className="space-y-1">
-                                        <Label className="text-xs sm:text-sm">Preis/Einheit</Label>
+                                        <Label className="text-xs sm:text-sm">{t("offer.form.item.unitPrice")}</Label>
                                         <Input
                                           type="number"
                                           min={0}
@@ -1290,7 +1358,7 @@ const FirmaOfferteBearbeiten = () => {
                                       </div>
                                       <div className="flex items-end">
                                         <div className="text-right w-full">
-                                          <Label className="text-xs sm:text-sm text-muted-foreground">Total</Label>
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">{t("common.total")}</Label>
                                           {(() => {
                                             const te = item.timeEstimate;
                                             const disp = itemAmountDisplay({
@@ -1309,7 +1377,9 @@ const FirmaOfferteBearbeiten = () => {
                                               </p>
                                             );
                                             if (disp.kind === "rate") return (
-                                              <p className="font-semibold text-sm sm:text-base">{formatCurrency(disp.unitPrice)} / {disp.unit}</p>
+                                              <p className="font-semibold text-sm sm:text-base">
+                                                {t("offer.detail.perUnit", { amount: formatCurrency(disp.unitPrice), unit: disp.unit })}
+                                              </p>
                                             );
                                             return (
                                               <p className="font-semibold text-sm sm:text-base">
@@ -1324,16 +1394,16 @@ const FirmaOfferteBearbeiten = () => {
                                     {item.price_type !== "inkl" && item.price_type !== "optional" && (
                                       <div className="grid grid-cols-2 gap-2 sm:gap-3">
                                         <div className="space-y-1">
-                                          <Label className="text-xs sm:text-sm">Preisbasis</Label>
+                                          <Label className="text-xs sm:text-sm">{t("offer.form.item.amountBasis")}</Label>
                                           <Select
                                             value={item.amount_basis ?? "fixed"}
                                             onValueChange={(v) => updateItem(index, "amount_basis", v)}
                                           >
                                             <SelectTrigger className="h-8 sm:h-10 text-sm"><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                              <SelectItem value="fixed">Fester Betrag</SelectItem>
-                                              <SelectItem value="rate">Ansatz (nach Aufwand)</SelectItem>
-                                              <SelectItem value="range">Spanne (min–max)</SelectItem>
+                                              <SelectItem value="fixed">{t("offer.form.amountBasis.fixed")}</SelectItem>
+                                              <SelectItem value="rate">{t("offer.form.amountBasis.rate")}</SelectItem>
+                                              <SelectItem value="range">{t("offer.form.amountBasis.range")}</SelectItem>
                                             </SelectContent>
                                           </Select>
                                         </div>
@@ -1345,7 +1415,7 @@ const FirmaOfferteBearbeiten = () => {
                                             : (kdUnit === "std" && item.unit_price > 0 ? String(+(c / item.unit_price).toFixed(2)) : String(c));
                                           return (
                                           <div className="space-y-1">
-                                            <Label className="text-xs sm:text-sm">Kostendach (optional)</Label>
+                                            <Label className="text-xs sm:text-sm">{t("offer.form.item.kostendach")}</Label>
                                             <div className="flex gap-2 items-center">
                                               <Input
                                                 type="text"
@@ -1359,7 +1429,9 @@ const FirmaOfferteBearbeiten = () => {
                                                   updateItem(index, "kostendach_max", Math.round(chf * 100) / 100);
                                                 }}
                                                 onFocus={(e) => e.target.select()}
-                                                placeholder={kdUnit === "std" ? "z.B. 9" : "z.B. 3105"}
+                                                placeholder={kdUnit === "std"
+                                                  ? t("offer.form.item.kostendachPlaceholderHours")
+                                                  : t("offer.form.item.kostendachPlaceholderChf")}
                                                 className="h-8 sm:h-10 text-sm flex-1"
                                               />
                                               <div className="flex rounded-md border overflow-hidden text-xs shrink-0">
@@ -1367,13 +1439,21 @@ const FirmaOfferteBearbeiten = () => {
                                                   <button key={u} type="button"
                                                     onClick={() => setKdUnitById((p) => ({ ...p, [item.id]: u }))}
                                                     className={cn("px-2.5 py-1.5", kdUnit === u ? "bg-secondary text-secondary-foreground" : "bg-background text-muted-foreground")}
-                                                  >{u === "std" ? "Std" : "CHF"}</button>
+                                                  >{u === "std" ? t("offer.form.item.kdUnitHours") : "CHF"}</button>
                                                 ))}
                                               </div>
                                             </div>
                                             {(c ?? null) !== null && (
                                               <p className="text-[10px] text-muted-foreground">
-                                                {`= ${formatCurrency(Number(c))}`}{item.unit_price > 0 ? ` (${+(Number(c) / item.unit_price).toFixed(2)} Std × ${formatCurrency(item.unit_price)})` : ""}
+                                                {item.unit_price > 0
+                                                  ? t("offer.form.item.kostendachHint", {
+                                                      amount: formatCurrency(Number(c)),
+                                                      hours: +(Number(c) / item.unit_price).toFixed(2),
+                                                      rate: formatCurrency(item.unit_price),
+                                                    })
+                                                  : t("offer.form.item.kostendachHintPlain", {
+                                                      amount: formatCurrency(Number(c)),
+                                                    })}
                                               </p>
                                             )}
                                           </div>
@@ -1383,7 +1463,7 @@ const FirmaOfferteBearbeiten = () => {
                                     )}
 
                                     <div className="space-y-1">
-                                      <Label className="text-xs sm:text-sm">Service (Gruppierung)</Label>
+                                      <Label className="text-xs sm:text-sm">{t("offer.form.item.serviceGroup")}</Label>
                                       <Select
                                         value={item.serviceType ?? "allgemein"}
                                         onValueChange={(v) =>
@@ -1394,9 +1474,9 @@ const FirmaOfferteBearbeiten = () => {
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {SERVICE_OPTIONS.map((option) => (
+                                          {serviceOptions.map((option) => (
                                             <SelectItem key={option.value} value={option.value}>
-                                              {option.label}
+                                              {getServiceLabel(option.value, locale)}
                                             </SelectItem>
                                           ))}
                                         </SelectContent>
@@ -1409,18 +1489,18 @@ const FirmaOfferteBearbeiten = () => {
                                         {item.timeEstimate ? (
                                           <div className="space-y-2">
                                             <div className="flex items-center justify-between">
-                                              <span className="text-xs font-medium text-amber-700">⏱ Zeitschätzung</span>
+                                              <span className="text-xs font-medium text-amber-700">⏱ {t("offer.form.timeEstimate.title")}</span>
                                               <button
                                                 type="button"
                                                 onClick={() => updateItem(index, 'timeEstimate', null)}
                                                 className="text-xs text-muted-foreground hover:text-destructive"
                                               >
-                                                Entfernen
+                                                {t("common.remove")}
                                               </button>
                                             </div>
                                             <div className="grid grid-cols-3 gap-2">
                                               <div>
-                                                <Label className="text-[10px] text-muted-foreground">Min. Std.</Label>
+                                                <Label className="text-[10px] text-muted-foreground">{t("offer.form.timeEstimate.minHours")}</Label>
                                                 <Input
                                                   type="number" min={1} step={1} placeholder="7"
                                                   value={item.timeEstimate.minHours}
@@ -1429,7 +1509,7 @@ const FirmaOfferteBearbeiten = () => {
                                                 />
                                               </div>
                                               <div>
-                                                <Label className="text-[10px] text-muted-foreground">Max. Std.</Label>
+                                                <Label className="text-[10px] text-muted-foreground">{t("offer.form.timeEstimate.maxHours")}</Label>
                                                 <Input
                                                   type="number" min={1} step={1} placeholder="9"
                                                   value={item.timeEstimate.maxHours}
@@ -1438,7 +1518,7 @@ const FirmaOfferteBearbeiten = () => {
                                                 />
                                               </div>
                                               <div>
-                                                <Label className="text-[10px] text-muted-foreground">CHF / Std.</Label>
+                                                <Label className="text-[10px] text-muted-foreground">{t("offer.form.timeEstimate.hourlyRate")}</Label>
                                                 <Input
                                                   type="number" min={0} step={0.05} placeholder="95"
                                                   value={item.timeEstimate.hourlyRate}
@@ -1454,7 +1534,7 @@ const FirmaOfferteBearbeiten = () => {
                                             onClick={() => updateItem(index, 'timeEstimate', { minHours: '', maxHours: '', hourlyRate: '' })}
                                             className="text-xs text-amber-600 hover:text-amber-800 flex items-center gap-1"
                                           >
-                                            <span>+</span> Zeitschätzung hinzufügen
+                                            <span>+</span> {t("offer.form.timeEstimate.add")}
                                           </button>
                                         )}
                                       </div>
@@ -1483,7 +1563,7 @@ const FirmaOfferteBearbeiten = () => {
                   <div className="mt-4 pt-4 border-t border-dashed">
                     <Button size="sm" onClick={addItem} className="text-xs sm:text-sm h-8 sm:h-9">
                       <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
-                      Position hinzufügen
+                      {t("offer.form.items.add")}
                     </Button>
                   </div>
                 </CardContent>
@@ -1492,32 +1572,34 @@ const FirmaOfferteBearbeiten = () => {
               {/* Zahlungskondition */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm sm:text-base">Zahlungskondition</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.form.payment.title")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Textarea
                     value={paymentTerms}
                     onChange={(e) => setPaymentTerms(e.target.value)}
                     rows={3}
-                    placeholder="z.B. Barzahlung nach der Ausführung"
+                    placeholder={t("offer.form.payment.placeholder")}
                   />
+                  {/* Chip LABEL = operator (t); chip VALUE = the text written into the offer and
+                      printed on the customer's PDF → customer's language (documentT). */}
                   <div className="flex flex-wrap gap-2">
-                    {[
-                      { value: "Barzahlung nach der Ausführung", label: "Barzahlung" },
-                      { value: "Zahlung innerhalb 10 Tagen netto", label: "10 Tage netto" },
-                      { value: "50% Anzahlung, Rest bei Fertigstellung", label: "50% Anzahlung" },
-                      { value: "Zahlung innerhalb 30 Tagen", label: "30 Tage" },
-                      { value: "Zahlung per Rechnung innerhalb 30 Tagen", label: "Rechnung" },
-                      { value: "Zahlung per TWINT nach der Ausführung", label: "TWINT" },
-                      { value: "Zahlung per Kreditkarte nach der Ausführung", label: "Kreditkarte" },
-                    ].map((preset) => (
+                    {([
+                      { valueKey: "offer.doc.payment.cash", labelKey: "offer.form.payment.quick.cash" },
+                      { valueKey: "offer.doc.payment.net10", labelKey: "offer.form.payment.quick.net10" },
+                      { valueKey: "offer.doc.payment.deposit50", labelKey: "offer.form.payment.quick.deposit50" },
+                      { valueKey: "offer.doc.payment.net30", labelKey: "offer.form.payment.quick.net30" },
+                      { valueKey: "offer.doc.payment.invoice", labelKey: "offer.form.payment.quick.invoice" },
+                      { valueKey: "offer.doc.payment.twint", labelKey: "offer.form.payment.quick.twint" },
+                      { valueKey: "offer.doc.payment.card", labelKey: "offer.form.payment.quick.card" },
+                    ] as const satisfies readonly { valueKey: MessageKey; labelKey: MessageKey }[]).map((preset) => (
                       <button
-                        key={preset.value}
+                        key={preset.valueKey}
                         type="button"
-                        onClick={() => setPaymentTerms(preset.value)}
+                        onClick={() => setPaymentTerms(documentT(preset.valueKey))}
                         className="px-3 py-1 text-xs rounded-full border border-slate-200 hover:bg-slate-100 transition-colors"
                       >
-                        {preset.label}
+                        {t(preset.labelKey)}
                       </button>
                     ))}
                   </div>
@@ -1533,9 +1615,8 @@ const FirmaOfferteBearbeiten = () => {
                 {items.some(item => item.unit === "Stunden") && (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-xs text-amber-800">
-                      <span className="font-medium">⏱️ Stundenarbeiten:</span>{" "}
-                      Die angegebenen Stunden sind eine Schätzung. Die tatsächliche Arbeitszeit 
-                      kann je nach Gegebenheiten vor Ort variieren.
+                      <span className="font-medium">⏱️ {t("offer.form.hourlyNotice.label")}</span>{" "}
+                      {t("offer.form.hourlyNotice.text")}
                     </p>
                   </div>
                 )}
@@ -1543,17 +1624,17 @@ const FirmaOfferteBearbeiten = () => {
                 {/* Totals */}
                 <Card>
                   <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                    <CardTitle className="text-sm sm:text-base">Zusammenfassung</CardTitle>
+                    <CardTitle className="text-sm sm:text-base">{t("offer.form.summary.title")}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                     {hasRateItem() ? (
                       <div className="text-sm text-muted-foreground leading-snug">
-                        {RATE_AGGREGATE_NOTE}
+                        {t("doc.offer.rateAggregateNote")}
                       </div>
                     ) : (
                     <>
                     <div className="flex justify-between items-start text-xs sm:text-sm">
-                      <span className="text-muted-foreground shrink-0">Zwischensumme</span>
+                      <span className="text-muted-foreground shrink-0">{t("common.subtotal")}</span>
                       {calculateMaxSubtotal() !== null ? (
                         <div className="text-right text-amber-700 font-medium leading-snug">
                           <div>{formatCurrency(calculateSubtotal())}</div>
@@ -1567,7 +1648,7 @@ const FirmaOfferteBearbeiten = () => {
                     {/* Zuschläge (zwischen Zwischensumme und MwSt) */}
                     {surcharges.map((s, i) => (
                       <div key={i} className="flex justify-between items-center text-xs sm:text-sm text-muted-foreground">
-                        <span className="shrink-0 truncate">{s.label || "Zuschlag"}</span>
+                        <span className="shrink-0 truncate">{s.label || t("offer.form.totals.surcharge")}</span>
                         <span>{formatCurrency(computeSurchargeAmount(s, calculateSubtotal(), distanceKm))}</span>
                       </div>
                     ))}
@@ -1576,7 +1657,9 @@ const FirmaOfferteBearbeiten = () => {
                     {effectiveDiscountPercent !== null && effectiveDiscountPercent > 0 && (
                       <>
                         <div className="flex justify-between items-start text-xs sm:text-sm text-muted-foreground">
-                          <span className="shrink-0">Rabatt {effectiveDiscountPercent.toLocaleString("de-CH")} %</span>
+                          <span className="shrink-0">
+                            {t("offer.form.totals.discount", { percent: formatPercent(effectiveDiscountPercent, locale) })}
+                          </span>
                           {calculateMaxTaxableBase() !== null ? (
                             <div className="text-right text-amber-700 leading-snug">
                               <div>- {formatCurrency(computeDiscountAmount(calculateTaxableBase(), effectiveDiscountPercent))}</div>
@@ -1587,7 +1670,7 @@ const FirmaOfferteBearbeiten = () => {
                           )}
                         </div>
                         <div className="flex justify-between items-start text-xs sm:text-sm">
-                          <span className="shrink-0">Total exkl. MwSt</span>
+                          <span className="shrink-0">{t("offer.form.totals.totalExclVat")}</span>
                           {calculateMaxDiscountedBase() !== null ? (
                             <div className="text-right text-amber-700 font-medium leading-snug">
                               <div>{formatCurrency(calculateDiscountedBase())}</div>
@@ -1607,7 +1690,7 @@ const FirmaOfferteBearbeiten = () => {
                           onCheckedChange={setMwstEnabled}
                           className="scale-90 sm:scale-100"
                         />
-                        <span className="text-xs sm:text-sm text-muted-foreground">MwSt.</span>
+                        <span className="text-xs sm:text-sm text-muted-foreground">{t("common.vat")}</span>
                       </div>
                       {mwstEnabled && (
                         <div className="flex items-center gap-1 sm:gap-2">
@@ -1627,7 +1710,7 @@ const FirmaOfferteBearbeiten = () => {
 
                     {mwstEnabled && (
                       <div className="flex justify-between items-start text-xs sm:text-sm">
-                        <span className="text-muted-foreground shrink-0">MwSt. ({vatRate}%)</span>
+                        <span className="text-muted-foreground shrink-0">{t("offer.detail.vatRow", { rate: formatPercent(vatRate, locale) })}</span>
                         {calculateMaxVat() !== null ? (
                           <div className="text-right text-amber-700 leading-snug">
                             <div>{formatCurrency(calculateVat())}</div>
@@ -1642,7 +1725,7 @@ const FirmaOfferteBearbeiten = () => {
                     <Separator />
 
                     <div className="flex justify-between items-start text-base sm:text-lg font-bold">
-                      <span className="shrink-0">Total</span>
+                      <span className="shrink-0">{t("common.total")}</span>
                       {calculateMaxTotal() !== null ? (
                         <div className="text-right text-amber-700 leading-snug">
                           <div>{formatCurrency(calculateTotal())}</div>
@@ -1671,7 +1754,7 @@ const FirmaOfferteBearbeiten = () => {
                       ) : (
                         <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                       )}
-                      {isSpellChecking ? "Text wird geprüft..." : "Änderungen speichern"}
+                      {isSpellChecking ? t("offer.form.spellChecking") : t("offer.edit.saveChanges")}
                     </Button>
                     <Button
                       className="w-full h-9 sm:h-10 text-xs sm:text-sm"
@@ -1683,7 +1766,7 @@ const FirmaOfferteBearbeiten = () => {
                       ) : (
                         <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                       )}
-                      {isSpellChecking ? "..." : "Speichern & erneut senden"}
+                      {isSpellChecking ? "…" : t("offer.edit.saveAndResend")}
                     </Button>
                   </CardContent>
                 </Card>

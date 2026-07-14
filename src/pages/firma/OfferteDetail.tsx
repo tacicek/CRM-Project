@@ -61,21 +61,28 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { Fragment, Suspense, lazy, useEffect, useState } from "react";
-import { groupItemsByService, serviceTerminLabel } from "@/lib/offerServiceType";
+import { groupItemsByService } from "@/lib/offerServiceType";
 import { format } from "date-fns";
-import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
-import { computeDisplayTotals, hourlyRange, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
+import { computeDisplayTotals, hourlyRange, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n, useT } from "@/i18n/useI18n";
+import { getAppointmentLabel, getOfferStatusLabel, getServiceLabel } from "@/i18n/domain";
+import {
+  formatCurrency as formatCurrencyI18n,
+  formatDate as formatDateI18n,
+  formatDateTime as formatDateTimeI18n,
+  formatPercent,
+} from "@/i18n/format";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,6 +120,8 @@ const PdfPreviewDialog = lazy(async () => {
 
 interface Offer {
   id: string;
+  /** Sprache des KUNDEN, beim Erstellen aus dem Lead eingefroren. Steuert PDF + E-Mail. */
+  language: string | null;
   title: string;
   description: string | null;
   customer_first_name: string;
@@ -181,6 +190,8 @@ interface Company {
   primary_color: string | null;
   signature_url: string | null;
   pdf_template: string | null;
+  /** Fallback-Dokumentsprache für Offerten ohne eigene `language`. */
+  default_language: string | null;
 }
 
 interface EmailLog {
@@ -226,11 +237,29 @@ interface LeadData {
 // Legacy alias for compatibility
 type LeadAddress = LeadData;
 
+// Visual meta only — the label comes from getOfferStatusLabel(status, locale), so the
+// operator's dashboard language decides it (the old map hardcoded German labels).
+const STATUS_META: Record<string, { emoji: string; color: string; bg: string }> = {
+  draft:    { emoji: "📝", color: "text-folk-ink3",  bg: "bg-folk-bg-warm" },
+  sent:     { emoji: "📤", color: "text-folk-sky",   bg: "bg-folk-sky-bg" },
+  viewed:   { emoji: "👀", color: "text-folk-lemon", bg: "bg-folk-lemon-bg" },
+  accepted: { emoji: "✅", color: "text-folk-mint",  bg: "bg-folk-mint-bg" },
+  rejected: { emoji: "❌", color: "text-folk-coral", bg: "bg-folk-coral-bg" },
+};
+
+const getStatusMeta = (status: string) =>
+  STATUS_META[status] ?? { emoji: "📄", color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
+
 const FirmaOfferteDetail = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { id } = useParams<{ id: string }>();
+  // Dashboard locale — this page is the OPERATOR's view of the offer. The customer's
+  // language (offer.language / company.default_language) is threaded separately into the
+  // PDF payload below and must never be replaced by these hooks.
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -297,8 +326,8 @@ const FirmaOfferteDetail = () => {
 
         if (offerError || !offerData) {
           toast({
-            title: "Fehler",
-            description: "Offerte nicht gefunden",
+            title: t("common.error"),
+            description: t("offer.detail.toast.notFound"),
             variant: "destructive",
           });
           navigate("/firma/offerten");
@@ -381,23 +410,14 @@ const FirmaOfferteDetail = () => {
     };
 
     fetchData();
-  }, [user, id, navigate, toast]);
+  }, [user, id, navigate, toast, t]);
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("de-CH", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
+  // Dashboard locale — the operator reads this page. The customer's copy of the same
+  // values is rendered by the PDF from the offer's own `language`.
+  const formatDate = (dateString: string | null) =>
+    dateString ? formatDateI18n(dateString, locale) : "-";
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("de-CH", {
-      style: "currency",
-      currency: "CHF",
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) => formatCurrencyI18n(amount, locale);
 
   /**
    * Returns { maxSubtotal, maxVat, maxTotal } for blind offers, computed from the loaded
@@ -414,8 +434,15 @@ const FirmaOfferteDetail = () => {
     if (!date) return null;
     const st = sched?.scheduled_start_time?.slice(0, 5);
     const et = sched?.scheduled_end_time?.slice(0, 5);
-    const time = st && et ? ` · ${st}–${et} Uhr` : st ? ` · ab ${st} Uhr` : "";
-    return `${serviceTerminLabel(group.serviceType)}: ${new Date(date).toLocaleDateString("de-CH")}${time}`;
+    // Operator-facing heading → dashboard locale (the customer's copy of the same line
+    // is rendered by the PDF from the offer's own language).
+    const time =
+      st && et
+        ? ` · ${t("doc.time.fromUntil", { start: st, end: et })}`
+        : st
+          ? ` · ${t("doc.time.from", { start: st })}`
+          : "";
+    return `${getAppointmentLabel(group.serviceType, locale)}: ${formatDateI18n(date, locale)}${time}`;
   };
 
   // Shared item mapper for the totals chain (getBlindRange + Zwischensumme rows).
@@ -452,41 +479,25 @@ const FirmaOfferteDetail = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const meta: Record<string, { label: string; emoji: string; color: string; bg: string }> = {
-      draft:    { label: "Entwurf",    emoji: "📝", color: "text-folk-ink3",  bg: "bg-folk-bg-warm" },
-      sent:     { label: "Gesendet",   emoji: "📤", color: "text-folk-sky",   bg: "bg-folk-sky-bg" },
-      viewed:   { label: "Angesehen",  emoji: "👀", color: "text-folk-lemon", bg: "bg-folk-lemon-bg" },
-      accepted: { label: "Angenommen", emoji: "✅", color: "text-folk-mint",  bg: "bg-folk-mint-bg" },
-      rejected: { label: "Abgelehnt",  emoji: "❌", color: "text-folk-coral", bg: "bg-folk-coral-bg" },
-    };
-    const m = meta[status] ?? { label: status, emoji: "📄", color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
+    const m = getStatusMeta(status);
     return (
       <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${m.bg} ${m.color}`}>
         <span>{m.emoji}</span>
-        {m.label}
+        {getOfferStatusLabel(status, locale)}
       </span>
     );
   };
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString("de-CH", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDateTime = (dateString: string) => formatDateTimeI18n(dateString, locale);
 
   const formatPreferredTimeSlot = (slot: string | null | undefined) => {
-    if (!slot) return "-";
-    const map: Record<string, string> = {
-      morning: "Vormittag (08:00-12:00)",
-      afternoon: "Nachmittag (13:00-17:00)",
-      evening: "Abend",
-      flexible: "Flexibel",
-    };
-    return map[slot] || slot;
+    switch (slot) {
+      case "morning": return t("offer.detail.timeSlot.morning");
+      case "afternoon": return t("offer.detail.timeSlot.afternoon");
+      case "evening": return t("offer.detail.timeSlot.evening");
+      case "flexible": return t("offer.detail.timeSlot.flexible");
+      default: return slot ?? "-";
+    }
   };
 
   const handleDownloadPdf = async () => {
@@ -497,8 +508,8 @@ const FirmaOfferteDetail = () => {
     await generateOfferPdf(payload);
 
     toast({
-      title: "PDF erstellt",
-      description: "Die Offerte wurde als PDF heruntergeladen.",
+      title: t("offer.detail.toast.pdfCreated.title"),
+      description: t("offer.detail.toast.pdfCreated.description"),
     });
   };
 
@@ -510,8 +521,8 @@ const FirmaOfferteDetail = () => {
   const handleCopyLink = () => {
     navigator.clipboard.writeText(getPublicOfferUrl());
     toast({
-      title: "Link kopiert",
-      description: "Der Offerten-Link wurde in die Zwischenablage kopiert.",
+      title: t("offer.detail.toast.linkCopied.title"),
+      description: t("offer.detail.toast.linkCopied.description"),
     });
   };
 
@@ -546,6 +557,7 @@ const FirmaOfferteDetail = () => {
                 primary_color: company.primary_color || undefined,
                 iban: company.iban || undefined,
                 pdf_template: company.pdf_template,
+                default_language: company.default_language,
               },
       // Address priority: frozen (offer.frozen_*) > lead (fallback). This preserves the offer
       // address even if the lead is deleted; no visible difference since 16/16 already have frozen filled.
@@ -587,8 +599,8 @@ const FirmaOfferteDetail = () => {
 
       if (!result.success) {
         toast({
-          title: "E-Mail nicht gesendet",
-          description: result.error ?? "Die Offerte konnte nicht per E-Mail gesendet werden. Bitte versuchen Sie es erneut.",
+          title: t("offer.list.toast.sendFailed.title"),
+          description: result.error ?? t("offer.list.toast.sendFailed.description"),
           variant: "destructive",
         });
         return;
@@ -596,8 +608,8 @@ const FirmaOfferteDetail = () => {
 
       setOffer({ ...offer, status: "sent", sent_at: new Date().toISOString() });
       toast({
-        title: "Offerte gesendet",
-        description: "Die Offerte wurde erfolgreich per E-Mail an den Kunden gesendet.",
+        title: t("offer.list.toast.sent.title"),
+        description: t("offer.list.toast.sent.description"),
         variant: "success",
       });
     } finally {
@@ -617,8 +629,8 @@ const FirmaOfferteDetail = () => {
     // the origin document of an active job and must not be removed.
     if (offer.status === "accepted") {
       toast({
-        title: "Löschen nicht möglich",
-        description: "Angenommene Offerten sind mit einem Auftrag verknüpft und können nicht gelöscht werden.",
+        title: t("offer.detail.toast.deleteBlocked.title"),
+        description: t("offer.detail.toast.deleteBlocked.description"),
         variant: "destructive",
       });
       return;
@@ -631,15 +643,15 @@ const FirmaOfferteDetail = () => {
       if (error) throw error;
 
       toast({
-        title: "Offerte gelöscht",
-        description: "Die Offerte wurde erfolgreich gelöscht.",
+        title: t("offer.detail.toast.deleted.title"),
+        description: t("offer.detail.toast.deleted.description"),
       });
       navigate("/firma/offerten");
     } catch (error) {
       console.error("Error deleting offer:", error);
       toast({
-        title: "Fehler",
-        description: "Die Offerte konnte nicht gelöscht werden.",
+        title: t("common.error"),
+        description: t("offer.detail.toast.deleteFailed"),
         variant: "destructive",
       });
     } finally {
@@ -736,14 +748,14 @@ const FirmaOfferteDetail = () => {
 
       setShowBesichtigungDialog(false);
       toast({
-        title: "Besichtigung bestätigt",
-        description: "Der Termin wurde im Kalender eingetragen und der Kunde wurde per E-Mail benachrichtigt.",
+        title: t("offer.detail.toast.besichtigungConfirmed.title"),
+        description: t("offer.detail.toast.besichtigungConfirmed.description"),
       });
     } catch (error) {
       console.error("Error confirming besichtigung:", error);
       toast({
-        title: "Fehler",
-        description: "Die Besichtigung konnte nicht bestätigt werden.",
+        title: t("common.error"),
+        description: t("offer.detail.toast.besichtigungFailed"),
         variant: "destructive",
       });
     } finally {
@@ -755,7 +767,7 @@ const FirmaOfferteDetail = () => {
     return (
       <>
         <Helmet>
-          <title>Offerte | Firma</title>
+          <title>{t("offer.detail.pageTitle")}</title>
         </Helmet>
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-secondary" />
@@ -768,12 +780,12 @@ const FirmaOfferteDetail = () => {
     return (
       <>
         <Helmet>
-          <title>Offerte nicht gefunden | Firma</title>
+          <title>{t("offer.detail.notFound.pageTitle")}</title>
         </Helmet>
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">Offerte nicht gefunden</h3>
-            <Button onClick={() => navigate("/firma/offerten")}>Zurück zu Offerten</Button>
+            <h3 className="text-lg font-medium mb-2">{t("offer.detail.notFound.title")}</h3>
+            <Button onClick={() => navigate("/firma/offerten")}>{t("offer.detail.back")}</Button>
           </div>
       </>
     );
@@ -782,7 +794,7 @@ const FirmaOfferteDetail = () => {
   return (
     <>
       <Helmet>
-        <title>{offer.title} | Firma</title>
+        <title>{offer.title}</title>
       </Helmet>
         <div className="space-y-4 sm:space-y-6">
           {/* Folk-style header */}
@@ -792,7 +804,7 @@ const FirmaOfferteDetail = () => {
               size="icon"
               onClick={() => navigate("/firma/offerten")}
               className="h-9 w-9 shrink-0 rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink2"
-              aria-label="Zurück zu Offerten"
+              aria-label={t("offer.detail.back")}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -804,7 +816,7 @@ const FirmaOfferteDetail = () => {
               </div>
               <p className="mt-1 font-mono text-[14px] text-folk-ink3">
                 {formatDate(offer.created_at)}
-                {offer.sent_at && ` · gesendet ${formatDate(offer.sent_at)}`}
+                {offer.sent_at && ` · ${t("offer.detail.sentOn", { date: formatDate(offer.sent_at) })}`}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -814,8 +826,8 @@ const FirmaOfferteDetail = () => {
                 className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">PDF herunterladen</span>
-                <span className="sm:hidden">PDF</span>
+                <span className="hidden sm:inline">{t("offer.detail.downloadPdf")}</span>
+                <span className="sm:hidden">{t("offer.detail.downloadPdfShort")}</span>
               </Button>
               {offer.status === "accepted" && (
                 existingAuftragId ? (
@@ -825,8 +837,8 @@ const FirmaOfferteDetail = () => {
                     className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm hover:text-folk-ink2"
                   >
                     <ClipboardList className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Auftrag anzeigen</span>
-                    <span className="sm:hidden">Auftrag</span>
+                    <span className="hidden sm:inline">{t("offer.detail.viewAuftrag")}</span>
+                    <span className="sm:hidden">{t("offer.detail.auftragShort")}</span>
                   </Button>
                 ) : (
                   <Button
@@ -834,8 +846,8 @@ const FirmaOfferteDetail = () => {
                     className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
                   >
                     <ClipboardList className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Auftrag erstellen</span>
-                    <span className="sm:hidden">Auftrag</span>
+                    <span className="hidden sm:inline">{t("offer.detail.createAuftrag")}</span>
+                    <span className="sm:hidden">{t("offer.detail.auftragShort")}</span>
                   </Button>
                 )
               )}
@@ -850,8 +862,8 @@ const FirmaOfferteDetail = () => {
                   ) : (
                     <Eye className="h-3.5 w-3.5" />
                   )}
-                  <span className="hidden sm:inline">Vorschau & Senden</span>
-                  <span className="sm:hidden">Vorschau</span>
+                  <span className="hidden sm:inline">{t("offer.detail.previewAndSend")}</span>
+                  <span className="sm:hidden">{t("offer.detail.previewShort")}</span>
                 </Button>
               )}
             </div>
@@ -862,12 +874,12 @@ const FirmaOfferteDetail = () => {
               {/* Offer Details */}
               <Card>
                 <CardHeader className="pb-3 sm:pb-6">
-                  <CardTitle className="text-base sm:text-lg">Offerten-Details</CardTitle>
+                  <CardTitle className="text-base sm:text-lg">{t("offer.form.details.title")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 sm:space-y-4">
                   {offer.description && (
                     <div>
-                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">Beschreibung</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">{t("common.description")}</p>
                       <p className="text-sm sm:text-base">{offer.description}</p>
                     </div>
                   )}
@@ -875,14 +887,14 @@ const FirmaOfferteDetail = () => {
                     <div className="flex items-start gap-2">
                       <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs sm:text-sm text-muted-foreground">Ausführung</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground">{t("offer.detail.execution")}</p>
                         <p className="font-medium text-sm sm:text-base">{formatDate(offer.service_date)}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-2">
                       <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs sm:text-sm text-muted-foreground">Gültig bis</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground">{t("offer.form.field.validUntil")}</p>
                         <p className="font-medium text-sm sm:text-base">{formatDate(offer.valid_until)}</p>
                       </div>
                     </div>
@@ -890,7 +902,7 @@ const FirmaOfferteDetail = () => {
 
                   {leadAddress?.preferred_date && (
                     <div className="rounded-lg border bg-muted/30 p-3 sm:p-4">
-                      <p className="text-xs sm:text-sm text-muted-foreground mb-2">Kundenwunsch (aus Anfrage)</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-2">{t("offer.detail.customerWish")}</p>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                         <div className="flex items-center gap-1.5 text-sm">
                           <CalendarIcon className="w-4 h-4 text-muted-foreground" />
@@ -909,7 +921,7 @@ const FirmaOfferteDetail = () => {
               {/* Items - Mobile Card View */}
               <Card className="sm:hidden">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Positionen</CardTitle>
+                  <CardTitle className="text-base">{t("offer.detail.positions")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {(() => {
@@ -919,7 +931,7 @@ const FirmaOfferteDetail = () => {
                       <Fragment key={group.serviceType ?? "allgemein"}>
                         {multi && (
                           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{getServiceLabel(group.serviceType, locale)}</span>
                             {groupDateLabel(group) && (
                               <span className="text-xs font-medium">{groupDateLabel(group)}</span>
                             )}
@@ -944,13 +956,24 @@ const FirmaOfferteDetail = () => {
                             <div className="flex justify-between text-sm text-muted-foreground">
                               {display.kind === "range" ? (
                                 <>
-                                  <span>{item.time_estimate!.minHours}–{item.time_estimate!.maxHours} Std. × {formatCurrency(Number(item.time_estimate!.hourlyRate))}/Std.</span>
+                                  <span>
+                                    {t("offer.detail.hoursRangeRate", {
+                                      min: item.time_estimate!.minHours,
+                                      max: item.time_estimate!.maxHours,
+                                      rate: formatCurrency(Number(item.time_estimate!.hourlyRate)),
+                                    })}
+                                  </span>
                                   <span className="font-semibold text-amber-700">{formatCurrency(display.min)} – {formatCurrency(display.max)}</span>
                                 </>
                               ) : display.kind === "rate" ? (
                                 <>
-                                  <span>nach Aufwand</span>
-                                  <span className="font-semibold text-foreground">{formatCurrency(display.unitPrice)} / {display.unit}</span>
+                                  <span>{t("domain.priceModel.byEffort")}</span>
+                                  <span className="font-semibold text-foreground">
+                                    {t("offer.detail.perUnit", {
+                                      amount: formatCurrency(display.unitPrice),
+                                      unit: display.unit,
+                                    })}
+                                  </span>
                                 </>
                               ) : (
                                 <>
@@ -964,7 +987,10 @@ const FirmaOfferteDetail = () => {
                         })}
                         {group.items.some((item) => isFreeItem(item.price_type)) && (
                           <div className="rounded-lg bg-muted/30 p-3">
-                            <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
+                            <InklusiveList
+                              items={group.items.filter((item) => isFreeItem(item.price_type))}
+                              label={t("doc.offer.includedShort")}
+                            />
                           </div>
                         )}
                       </Fragment>
@@ -974,14 +1000,14 @@ const FirmaOfferteDetail = () => {
                   <Separator className="my-3" />
 
                   <div className="space-y-2 text-sm">
-                    {(() => { if (hasRateItem()) return (<div className="text-muted-foreground leading-snug">{RATE_AGGREGATE_NOTE}</div>); const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
+                    {(() => { if (hasRateItem()) return (<div className="text-muted-foreground leading-snug">{t("doc.offer.rateAggregateNote")}</div>); const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
                       <>
                         <div className="flex items-start justify-between gap-4">
-                          <span className="text-muted-foreground shrink-0">Zwischensumme</span>
+                          <span className="text-muted-foreground shrink-0">{t("common.subtotal")}</span>
                           {range ? (
                             <div className="text-right text-amber-700 font-medium leading-snug">
                               <div>{formatCurrency(itemsSub)}</div>
-                              <div className="text-xs text-amber-600">bis {formatCurrency(range.maxSubtotal)}</div>
+                              <div className="text-xs text-amber-600">{t("offer.detail.upTo", { amount: formatCurrency(range.maxSubtotal) })}</div>
                             </div>
                           ) : (
                             <span>{formatCurrency(itemsSub)}</span>
@@ -989,7 +1015,7 @@ const FirmaOfferteDetail = () => {
                         </div>
                         {surchargeList.map((s, i) => (
                           <div key={i} className="flex items-start justify-between gap-4">
-                            <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
+                            <span className="text-muted-foreground truncate">{s.label || t("offer.form.totals.surcharge")}</span>
                             <span className="shrink-0">{formatCurrency(s.amount)}</span>
                           </div>
                         ))}
@@ -997,23 +1023,23 @@ const FirmaOfferteDetail = () => {
                           <>
                             <div className="flex items-start justify-between gap-4">
                               <span className="text-muted-foreground shrink-0">
-                                Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
+                                {t("offer.form.totals.discount", { percent: formatPercent(Number(offer.discount_percent), locale) })}
                               </span>
                               {range ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>- {formatCurrency(dtMin.discountAmount)}</div>
-                                  <div className="text-xs text-amber-600">bis - {formatCurrency(range.maxDiscountAmount)}</div>
+                                  <div className="text-xs text-amber-600">{t("offer.detail.upToMinus", { amount: formatCurrency(range.maxDiscountAmount) })}</div>
                                 </div>
                               ) : (
                                 <span>- {formatCurrency(dtMin.discountAmount)}</span>
                               )}
                             </div>
                             <div className="flex items-start justify-between gap-4">
-                              <span className="text-muted-foreground shrink-0">Total exkl. MwSt</span>
+                              <span className="text-muted-foreground shrink-0">{t("offer.form.totals.totalExclVat")}</span>
                               {range ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>{formatCurrency(dtMin.taxableBase)}</div>
-                                  <div className="text-xs text-amber-600">bis {formatCurrency(range.maxTaxableBase)}</div>
+                                  <div className="text-xs text-amber-600">{t("offer.detail.upTo", { amount: formatCurrency(range.maxTaxableBase) })}</div>
                                 </div>
                               ) : (
                                 <span>{formatCurrency(dtMin.taxableBase)}</span>
@@ -1025,11 +1051,11 @@ const FirmaOfferteDetail = () => {
                             (Zwischensumme = Total), mirroring the PDF/Rechnung rule. */}
                         {Number(offer.vat_rate) > 0 ? (
                           <div className="flex items-start justify-between gap-4">
-                            <span className="text-muted-foreground shrink-0">MwSt. ({offer.vat_rate}%)</span>
+                            <span className="text-muted-foreground shrink-0">{t("offer.detail.vatRow", { rate: formatPercent(Number(offer.vat_rate), locale) })}</span>
                             {range ? (
                               <div className="text-right text-amber-700 leading-snug">
                                 <div>{formatCurrency(Number(offer.vat_amount))}</div>
-                                <div className="text-xs text-amber-600">bis {formatCurrency(range.maxVat)}</div>
+                                <div className="text-xs text-amber-600">{t("offer.detail.upTo", { amount: formatCurrency(range.maxVat) })}</div>
                               </div>
                             ) : (
                               <span>{formatCurrency(Number(offer.vat_amount))}</span>
@@ -1038,11 +1064,11 @@ const FirmaOfferteDetail = () => {
                         ) : null}
                         <Separator />
                         <div className="flex items-start justify-between gap-4 font-bold text-base pt-1">
-                          <span className="shrink-0">Total</span>
+                          <span className="shrink-0">{t("common.total")}</span>
                           {range ? (
                             <div className="text-right text-amber-700 leading-snug">
                               <div>{formatCurrency(Number(offer.total))}</div>
-                              <div className="text-sm font-semibold text-amber-600">bis {formatCurrency(Number(range.maxTotal))}</div>
+                              <div className="text-sm font-semibold text-amber-600">{t("offer.detail.upTo", { amount: formatCurrency(Number(range.maxTotal)) })}</div>
                             </div>
                           ) : (
                             <span className="text-primary">{formatCurrency(Number(offer.total))}</span>
@@ -1057,18 +1083,18 @@ const FirmaOfferteDetail = () => {
               {/* Items - Desktop Table View */}
               <Card className="hidden sm:block">
                 <CardHeader>
-                  <CardTitle>Positionen</CardTitle>
+                  <CardTitle>{t("offer.detail.positions")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-16">Pos.</TableHead>
-                        <TableHead>Beschreibung</TableHead>
-                        <TableHead className="text-right w-20">Menge</TableHead>
-                        <TableHead className="w-20">Einheit</TableHead>
-                        <TableHead className="text-right w-28">Preis</TableHead>
-                        <TableHead className="text-right w-28">Total</TableHead>
+                        <TableHead className="w-16">{t("offer.detail.column.position")}</TableHead>
+                        <TableHead>{t("common.description")}</TableHead>
+                        <TableHead className="text-right w-20">{t("offer.detail.column.quantity")}</TableHead>
+                        <TableHead className="w-20">{t("offer.detail.column.unit")}</TableHead>
+                        <TableHead className="text-right w-28">{t("offer.detail.column.price")}</TableHead>
+                        <TableHead className="text-right w-28">{t("common.total")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1081,7 +1107,7 @@ const FirmaOfferteDetail = () => {
                               <TableRow className="bg-muted/40 hover:bg-muted/40">
                                 <TableCell colSpan={6} className="py-2">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</span>
+                                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{getServiceLabel(group.serviceType, locale)}</span>
                                     {groupDateLabel(group) && (
                                       <span className="text-xs font-medium">{groupDateLabel(group)}</span>
                                     )}
@@ -1105,17 +1131,26 @@ const FirmaOfferteDetail = () => {
                                 <TableCell><PositionDescription text={item.description} /></TableCell>
                                 {display.kind === "range" ? (
                                   <>
-                                    <TableCell className="text-right">{item.time_estimate!.minHours}–{item.time_estimate!.maxHours} Std.</TableCell>
-                                    <TableCell>Std.</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(Number(item.time_estimate!.hourlyRate))}/Std.</TableCell>
+                                    <TableCell className="text-right">
+                                      {t("offer.detail.hoursRange", {
+                                        min: item.time_estimate!.minHours,
+                                        max: item.time_estimate!.maxHours,
+                                      })}
+                                    </TableCell>
+                                    <TableCell>{t("domain.unit.hour")}</TableCell>
+                                    <TableCell className="text-right">
+                                      {t("offer.detail.perHour", { amount: formatCurrency(Number(item.time_estimate!.hourlyRate)) })}
+                                    </TableCell>
                                     <TableCell className="text-right font-medium text-amber-700">{formatCurrency(display.min)} – {formatCurrency(display.max)}</TableCell>
                                   </>
                                 ) : display.kind === "rate" ? (
                                   <>
-                                    <TableCell className="text-right text-muted-foreground">n. Aufwand</TableCell>
+                                    <TableCell className="text-right text-muted-foreground">{t("offer.detail.byEffortShort")}</TableCell>
                                     <TableCell>{display.unit}</TableCell>
-                                    <TableCell className="text-right font-medium">{formatCurrency(display.unitPrice)} / {display.unit}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">n. Aufwand</TableCell>
+                                    <TableCell className="text-right font-medium">
+                                      {t("offer.detail.perUnit", { amount: formatCurrency(display.unitPrice), unit: display.unit })}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">{t("offer.detail.byEffortShort")}</TableCell>
                                   </>
                                 ) : (
                                   <>
@@ -1132,7 +1167,10 @@ const FirmaOfferteDetail = () => {
                               <TableRow className="hover:bg-transparent">
                                 <TableCell />
                                 <TableCell colSpan={5} className="py-3">
-                                  <InklusiveList items={group.items.filter((item) => isFreeItem(item.price_type))} />
+                                  <InklusiveList
+                                    items={group.items.filter((item) => isFreeItem(item.price_type))}
+                                    label={t("doc.offer.includedShort")}
+                                  />
                                 </TableCell>
                               </TableRow>
                             )}
@@ -1146,14 +1184,14 @@ const FirmaOfferteDetail = () => {
 
                   <div className="flex justify-end">
                     <div className="w-72 space-y-2">
-                      {(() => { if (hasRateItem()) return (<div className="text-sm text-muted-foreground leading-snug">{RATE_AGGREGATE_NOTE}</div>); const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
+                      {(() => { if (hasRateItem()) return (<div className="text-sm text-muted-foreground leading-snug">{t("doc.offer.rateAggregateNote")}</div>); const range = getBlindRange(); const surchargeList = parseSurcharges(offer.surcharges); const dtMin = computeDisplayTotals(toSubtotalItems(), sumSurchargeAmounts(surchargeList), Number(offer.vat_rate), offer.discount_percent, "min"); const itemsSub = dtMin.subtotal; return (
                       <>
                         <div className="flex items-start justify-between gap-4 text-sm">
-                          <span className="text-muted-foreground shrink-0">Zwischensumme</span>
+                          <span className="text-muted-foreground shrink-0">{t("common.subtotal")}</span>
                           {range ? (
                             <div className="text-right text-amber-700 font-medium leading-snug">
                               <div>{formatCurrency(itemsSub)}</div>
-                              <div className="text-xs text-amber-600">bis {formatCurrency(range.maxSubtotal)}</div>
+                              <div className="text-xs text-amber-600">{t("offer.detail.upTo", { amount: formatCurrency(range.maxSubtotal) })}</div>
                             </div>
                           ) : (
                             <span>{formatCurrency(itemsSub)}</span>
@@ -1161,7 +1199,7 @@ const FirmaOfferteDetail = () => {
                         </div>
                         {surchargeList.map((s, i) => (
                           <div key={i} className="flex items-start justify-between gap-4 text-sm">
-                            <span className="text-muted-foreground truncate">{s.label || "Zuschlag"}</span>
+                            <span className="text-muted-foreground truncate">{s.label || t("offer.form.totals.surcharge")}</span>
                             <span className="shrink-0">{formatCurrency(s.amount)}</span>
                           </div>
                         ))}
@@ -1169,23 +1207,23 @@ const FirmaOfferteDetail = () => {
                           <>
                             <div className="flex items-start justify-between gap-4 text-sm">
                               <span className="text-muted-foreground shrink-0">
-                                Rabatt {Number(offer.discount_percent).toLocaleString("de-CH")} %
+                                {t("offer.form.totals.discount", { percent: formatPercent(Number(offer.discount_percent), locale) })}
                               </span>
                               {range ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>- {formatCurrency(dtMin.discountAmount)}</div>
-                                  <div className="text-xs text-amber-600">bis - {formatCurrency(range.maxDiscountAmount)}</div>
+                                  <div className="text-xs text-amber-600">{t("offer.detail.upToMinus", { amount: formatCurrency(range.maxDiscountAmount) })}</div>
                                 </div>
                               ) : (
                                 <span>- {formatCurrency(dtMin.discountAmount)}</span>
                               )}
                             </div>
                             <div className="flex items-start justify-between gap-4 text-sm">
-                              <span className="text-muted-foreground shrink-0">Total exkl. MwSt</span>
+                              <span className="text-muted-foreground shrink-0">{t("offer.form.totals.totalExclVat")}</span>
                               {range ? (
                                 <div className="text-right text-amber-700 leading-snug">
                                   <div>{formatCurrency(dtMin.taxableBase)}</div>
-                                  <div className="text-xs text-amber-600">bis {formatCurrency(range.maxTaxableBase)}</div>
+                                  <div className="text-xs text-amber-600">{t("offer.detail.upTo", { amount: formatCurrency(range.maxTaxableBase) })}</div>
                                 </div>
                               ) : (
                                 <span>{formatCurrency(dtMin.taxableBase)}</span>
@@ -1197,11 +1235,11 @@ const FirmaOfferteDetail = () => {
                             (Zwischensumme = Total), mirroring the PDF/Rechnung rule. */}
                         {Number(offer.vat_rate) > 0 ? (
                           <div className="flex items-start justify-between gap-4 text-sm">
-                            <span className="text-muted-foreground shrink-0">MwSt. ({offer.vat_rate}%)</span>
+                            <span className="text-muted-foreground shrink-0">{t("offer.detail.vatRow", { rate: formatPercent(Number(offer.vat_rate), locale) })}</span>
                             {range ? (
                               <div className="text-right text-amber-700 leading-snug">
                                 <div>{formatCurrency(Number(offer.vat_amount))}</div>
-                                <div className="text-xs text-amber-600">bis {formatCurrency(range.maxVat)}</div>
+                                <div className="text-xs text-amber-600">{t("offer.detail.upTo", { amount: formatCurrency(range.maxVat) })}</div>
                               </div>
                             ) : (
                               <span>{formatCurrency(Number(offer.vat_amount))}</span>
@@ -1210,11 +1248,11 @@ const FirmaOfferteDetail = () => {
                         ) : null}
                         <Separator />
                         <div className="flex items-start justify-between gap-4 font-bold text-lg">
-                          <span className="shrink-0">Total</span>
+                          <span className="shrink-0">{t("common.total")}</span>
                           {range ? (
                             <div className="text-right text-amber-700 leading-snug">
                               <div>{formatCurrency(Number(offer.total))}</div>
-                              <div className="text-sm font-semibold text-amber-600">bis {formatCurrency(Number(range.maxTotal))}</div>
+                              <div className="text-sm font-semibold text-amber-600">{t("offer.detail.upTo", { amount: formatCurrency(Number(range.maxTotal)) })}</div>
                             </div>
                           ) : (
                             <span className="">{formatCurrency(Number(offer.total))}</span>
@@ -1234,7 +1272,7 @@ const FirmaOfferteDetail = () => {
                 <CardHeader className="pb-3 sm:pb-6">
                   <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                     <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                    Kunde
+                    {t("offer.detail.customer")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 sm:space-y-3">
@@ -1263,14 +1301,14 @@ const FirmaOfferteDetail = () => {
                     <a href={`mailto:${offer.customer_email}`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full">
                         <Mail className="w-4 h-4 mr-1.5" />
-                        E-Mail
+                        {t("common.email")}
                       </Button>
                     </a>
                     {offer.customer_phone && (
                       <a href={`tel:${offer.customer_phone}`} className="flex-1">
                         <Button size="sm" className="w-full">
                           <Phone className="w-4 h-4 mr-1.5" />
-                          Anrufen
+                          {t("offer.detail.call")}
                         </Button>
                       </a>
                     )}
@@ -1284,7 +1322,7 @@ const FirmaOfferteDetail = () => {
                   <CardHeader className="pb-2 sm:pb-3">
                     <CardTitle className="flex items-center gap-2 text-sm">
                       <Mail className="w-4 h-4" />
-                      E-Mail-Status
+                      {t("offer.detail.emailStatus")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2 sm:space-y-3">
@@ -1301,7 +1339,7 @@ const FirmaOfferteDetail = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className="text-xs sm:text-sm font-medium">
-                            {log.email_type === "offer_sent" ? "Gesendet" : log.email_type}
+                            {log.email_type === "offer_sent" ? t("offer.detail.emailSent") : log.email_type}
                           </span>
                           <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                             {log.recipient_email}
@@ -1321,7 +1359,7 @@ const FirmaOfferteDetail = () => {
                 <CardHeader className="pb-2 sm:pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm">
                     <History className="w-4 h-4" />
-                    Aktivitäten
+                    {t("offer.detail.activity.title")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -1334,7 +1372,7 @@ const FirmaOfferteDetail = () => {
                         <div className="w-0.5 flex-1 bg-border mt-1" />
                       </div>
                       <div className="flex-1 pb-3">
-                        <p className="text-xs sm:text-sm font-medium">Offerte erstellt</p>
+                        <p className="text-xs sm:text-sm font-medium">{t("offer.detail.activity.created")}</p>
                         <p className="text-[10px] sm:text-xs text-muted-foreground">
                           {formatDateTime(offer.created_at)}
                         </p>
@@ -1349,9 +1387,9 @@ const FirmaOfferteDetail = () => {
                           <div className="w-0.5 flex-1 bg-border mt-1" />
                         </div>
                         <div className="flex-1 pb-3">
-                          <p className="text-xs sm:text-sm font-medium">Per E-Mail gesendet</p>
+                          <p className="text-xs sm:text-sm font-medium">{t("offer.detail.activity.sent")}</p>
                           <p className="text-[10px] sm:text-xs text-muted-foreground">
-                            an {offer.customer_email}
+                            {t("offer.detail.activity.sentTo", { email: offer.customer_email })}
                           </p>
                           <p className="text-[10px] sm:text-xs text-muted-foreground">
                             {formatDateTime(offer.sent_at)}
@@ -1368,7 +1406,7 @@ const FirmaOfferteDetail = () => {
                           <div className="w-0.5 flex-1 bg-border mt-1" />
                         </div>
                         <div className="flex-1 pb-3">
-                          <p className="text-xs sm:text-sm font-medium">Vom Kunden angesehen</p>
+                          <p className="text-xs sm:text-sm font-medium">{t("offer.detail.activity.viewed")}</p>
                           <p className="text-[10px] sm:text-xs text-muted-foreground">
                             {formatDateTime(offer.viewed_at)}
                           </p>
@@ -1383,7 +1421,7 @@ const FirmaOfferteDetail = () => {
                           <div className="w-2.5 h-2.5 rounded-full bg-green-600 mt-1" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-xs sm:text-sm font-medium text-green-700">Offerte angenommen</p>
+                          <p className="text-xs sm:text-sm font-medium text-green-700">{t("offer.detail.activity.accepted")}</p>
                           <p className="text-[10px] sm:text-xs text-muted-foreground">
                             {formatDateTime(offer.accepted_at)}
                           </p>
@@ -1398,7 +1436,7 @@ const FirmaOfferteDetail = () => {
                           <div className="w-2.5 h-2.5 rounded-full bg-red-500 mt-1" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-xs sm:text-sm font-medium text-red-700">Offerte abgelehnt</p>
+                          <p className="text-xs sm:text-sm font-medium text-red-700">{t("offer.detail.activity.rejected")}</p>
                           <p className="text-[10px] sm:text-xs text-muted-foreground">
                             {formatDateTime(offer.rejected_at)}
                           </p>
@@ -1414,7 +1452,7 @@ const FirmaOfferteDetail = () => {
                         </div>
                         <div className="flex-1">
                           <p className="text-xs sm:text-sm text-muted-foreground italic">
-                            Noch keine weiteren Aktivitäten
+                            {t("offer.detail.activity.none")}
                           </p>
                         </div>
                       </div>
@@ -1430,7 +1468,7 @@ const FirmaOfferteDetail = () => {
                     <CardHeader className="pb-2 sm:pb-3">
                       <CardTitle className="flex items-center gap-2 text-green-700 text-sm">
                         <Check className="w-4 h-4 shrink-0" />
-                        <span className="truncate">Besichtigung bestätigt</span>
+                        <span className="truncate">{t("offer.detail.besichtigung.confirmed")}</span>
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -1450,7 +1488,7 @@ const FirmaOfferteDetail = () => {
                     <CardHeader className="pb-2 sm:pb-3">
                       <CardTitle className="flex items-center gap-2 text-blue-700 text-sm">
                         <Eye className="w-4 h-4 shrink-0" />
-                        <span className="truncate">Besichtigungsanfrage</span>
+                        <span className="truncate">{t("offer.detail.besichtigung.request")}</span>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 sm:space-y-3">
@@ -1467,7 +1505,7 @@ const FirmaOfferteDetail = () => {
                         className="w-full bg-green-600 hover:bg-green-700 text-xs sm:text-sm"
                       >
                         <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
-                        Bestätigen & Kalender
+                        {t("offer.detail.besichtigung.confirmAction")}
                       </Button>
                     </CardContent>
                   </Card>
@@ -1480,7 +1518,7 @@ const FirmaOfferteDetail = () => {
                   <CardHeader className="pb-2 sm:pb-3">
                     <CardTitle className="flex items-center gap-2 text-sm">
                       <MessageSquare className="w-4 h-4" />
-                      Kundennotiz
+                      {t("offer.detail.customerNote")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -1495,7 +1533,7 @@ const FirmaOfferteDetail = () => {
                   <CardHeader className="pb-2 sm:pb-3">
                     <CardTitle className={`flex items-center gap-2 text-sm ${offer.agb_accepted_at ? "text-green-700" : "text-amber-700"}`}>
                       <ShieldCheck className="w-4 h-4 shrink-0" />
-                      <span className="truncate">AGB-Status</span>
+                      <span className="truncate">{t("offer.detail.agb.title")}</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
@@ -1503,34 +1541,34 @@ const FirmaOfferteDetail = () => {
                       <>
                         <div className="flex items-center gap-2 text-xs sm:text-sm text-green-700">
                           <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span className="font-medium">AGB akzeptiert</span>
+                          <span className="font-medium">{t("offer.detail.agb.accepted")}</span>
                         </div>
                         <div className="bg-white rounded-lg p-2 sm:p-3 border border-green-200 space-y-1.5">
                           <div className="flex items-center gap-2 text-xs">
                             <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span className="text-muted-foreground">Akzeptiert am:</span>
+                            <span className="text-muted-foreground">{t("offer.detail.agb.acceptedAt")}</span>
                             <span className="font-medium">{formatDateTime(offer.agb_accepted_at)}</span>
                           </div>
                           {offer.agb_version && (
                             <div className="flex items-start gap-2 text-xs">
                               <FileText className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
-                              <span className="text-muted-foreground">Version:</span>
+                              <span className="text-muted-foreground">{t("offer.detail.agb.version")}</span>
                               <span className="font-mono text-[10px] break-all">{offer.agb_version.substring(0, 50)}...</span>
                             </div>
                           )}
                         </div>
                         <p className="text-[10px] sm:text-xs text-muted-foreground">
-                          Der Kunde hat die AGB bei Annahme der Offerte rechtsgültig akzeptiert.
+                          {t("offer.detail.agb.acceptedNote")}
                         </p>
                       </>
                     ) : (
                       <>
                         <div className="flex items-center gap-2 text-xs sm:text-sm text-amber-700">
                           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span className="font-medium">Keine AGB vorhanden</span>
+                          <span className="font-medium">{t("offer.detail.agb.missing")}</span>
                         </div>
                         <p className="text-[10px] sm:text-xs text-muted-foreground">
-                          Diese Offerte wurde ohne AGB-Sektion angenommen. Erstellen Sie AGB-Sektionen für zukünftige Offerten.
+                          {t("offer.detail.agb.missingNote")}
                         </p>
                       </>
                     )}
@@ -1541,11 +1579,11 @@ const FirmaOfferteDetail = () => {
               <Card>
                 <CardContent className="pt-4 sm:pt-6 space-y-2 sm:space-y-3">
                   <div className="space-y-2">
-                    <p className="text-xs sm:text-sm font-medium">Kunden-Link</p>
+                    <p className="text-xs sm:text-sm font-medium">{t("offer.detail.customerLink")}</p>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" className="flex-1 text-xs sm:text-sm" onClick={handleCopyLink}>
                         <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
-                        Kopieren
+                        {t("common.copy")}
                       </Button>
                       <Button variant="outline" size="sm" onClick={handleOpenPublicView}>
                         <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1559,18 +1597,18 @@ const FirmaOfferteDetail = () => {
                     <AlertDialogTrigger asChild>
                       <Button variant="outline" size="sm" className="w-full text-destructive hover:text-destructive text-xs sm:text-sm">
                         <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
-                        Offerte löschen
+                        {t("offer.detail.delete")}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Offerte löschen?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("offer.detail.delete.confirmTitle")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Diese Aktion kann nicht rückgängig gemacht werden.
+                          {t("common.confirmDelete.description")}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={handleDeleteOffer}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -1578,7 +1616,7 @@ const FirmaOfferteDetail = () => {
                           {isDeleting ? (
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           ) : (
-                            "Löschen"
+                            t("common.delete")
                           )}
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -1634,6 +1672,7 @@ const FirmaOfferteDetail = () => {
                   logo_url: company.logo_url || undefined,
                   primary_color: company.primary_color || undefined,
                   pdf_template: company.pdf_template,
+                  default_language: company.default_language,
                 },
                 access_token: offer.access_token,
                 baseUrl: window.location.origin,
@@ -1661,16 +1700,16 @@ const FirmaOfferteDetail = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-green-600" />
-                Besichtigungstermin bestätigen
+                {t("offer.detail.besichtigung.dialog.title")}
               </DialogTitle>
               <DialogDescription>
-                Passen Sie bei Bedarf Datum und Uhrzeit an, bevor Sie den Termin bestätigen.
+                {t("offer.detail.besichtigung.dialog.description")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="besichtigung-date">Datum</Label>
+                <Label htmlFor="besichtigung-date">{t("common.date")}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -1682,9 +1721,9 @@ const FirmaOfferteDetail = () => {
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {besichtigungDate ? (
-                        format(besichtigungDate, "PPP", { locale: de })
+                        format(besichtigungDate, "PPP", { locale: dateLocale })
                       ) : (
-                        <span>Datum wählen</span>
+                        <span>{t("common.selectDate")}</span>
                       )}
                     </Button>
                   </PopoverTrigger>
@@ -1702,7 +1741,7 @@ const FirmaOfferteDetail = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="besichtigung-time">Uhrzeit</Label>
+                <Label htmlFor="besichtigung-time">{t("offer.detail.besichtigung.dialog.time")}</Label>
                 <Input
                   id="besichtigung-time"
                   type="time"
@@ -1713,15 +1752,15 @@ const FirmaOfferteDetail = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Dauer</Label>
+                <Label>{t("offer.detail.besichtigung.dialog.duration")}</Label>
                 <Select value={besichtigungDuration} onValueChange={setBesichtigungDuration}>
                   <SelectTrigger className="w-full bg-background">
-                    <SelectValue placeholder="Dauer wählen" />
+                    <SelectValue placeholder={t("offer.detail.besichtigung.dialog.durationPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-50">
-                    <SelectItem value="30">30 Minuten</SelectItem>
-                    <SelectItem value="60">1 Stunde</SelectItem>
-                    <SelectItem value="120">2 Stunden</SelectItem>
+                    <SelectItem value="30">{t("offer.detail.besichtigung.dialog.duration30")}</SelectItem>
+                    <SelectItem value="60">{t("offer.detail.besichtigung.dialog.duration60")}</SelectItem>
+                    <SelectItem value="120">{t("offer.detail.besichtigung.dialog.duration120")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1731,25 +1770,25 @@ const FirmaOfferteDetail = () => {
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <Building2 className="w-4 h-4" />
-                  Besichtigungsadresse
+                  {t("offer.detail.besichtigung.dialog.address")}
                 </Label>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2 space-y-1">
-                  <Label htmlFor="bes-street" className="text-xs text-muted-foreground">Strasse</Label>
+                  <Label htmlFor="bes-street" className="text-xs text-muted-foreground">{t("common.street")}</Label>
                   <Input
                     id="bes-street"
-                    placeholder="Strasse"
+                    placeholder={t("common.street")}
                     value={besichtigungAddress.street}
                     onChange={(e) => setBesichtigungAddress(prev => ({ ...prev, street: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="bes-nr" className="text-xs text-muted-foreground">Nr.</Label>
+                  <Label htmlFor="bes-nr" className="text-xs text-muted-foreground">{t("offer.detail.besichtigung.dialog.houseNumber")}</Label>
                   <Input
                     id="bes-nr"
-                    placeholder="Nr."
+                    placeholder={t("offer.detail.besichtigung.dialog.houseNumber")}
                     value={besichtigungAddress.houseNumber}
                     onChange={(e) => setBesichtigungAddress(prev => ({ ...prev, houseNumber: e.target.value }))}
                   />
@@ -1758,19 +1797,19 @@ const FirmaOfferteDetail = () => {
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
-                  <Label htmlFor="bes-plz" className="text-xs text-muted-foreground">PLZ</Label>
+                  <Label htmlFor="bes-plz" className="text-xs text-muted-foreground">{t("common.plz")}</Label>
                   <Input
                     id="bes-plz"
-                    placeholder="PLZ"
+                    placeholder={t("common.plz")}
                     value={besichtigungAddress.plz}
                     onChange={(e) => setBesichtigungAddress(prev => ({ ...prev, plz: e.target.value }))}
                   />
                 </div>
                 <div className="col-span-2 space-y-1">
-                  <Label htmlFor="bes-city" className="text-xs text-muted-foreground">Ort</Label>
+                  <Label htmlFor="bes-city" className="text-xs text-muted-foreground">{t("common.city")}</Label>
                   <Input
                     id="bes-city"
-                    placeholder="Ort"
+                    placeholder={t("common.city")}
                     value={besichtigungAddress.city}
                     onChange={(e) => setBesichtigungAddress(prev => ({ ...prev, city: e.target.value }))}
                   />
@@ -1780,10 +1819,10 @@ const FirmaOfferteDetail = () => {
               {offer && (
                 <div className="bg-muted/50 rounded-lg p-3 text-sm">
                   <p className="text-muted-foreground">
-                    <strong>Kunde:</strong> {offer.customer_first_name} {offer.customer_last_name}
+                    <strong>{t("offer.detail.besichtigung.dialog.customer")}</strong> {offer.customer_first_name} {offer.customer_last_name}
                   </p>
                   <p className="text-muted-foreground">
-                    <strong>E-Mail:</strong> {offer.customer_email}
+                    <strong>{t("offer.detail.besichtigung.dialog.email")}</strong> {offer.customer_email}
                   </p>
                 </div>
               )}
@@ -1795,7 +1834,7 @@ const FirmaOfferteDetail = () => {
                 onClick={() => setShowBesichtigungDialog(false)}
                 disabled={isConfirmingBesichtigung}
               >
-                Abbrechen
+                {t("common.cancel")}
               </Button>
               <Button
                 onClick={handleConfirmBesichtigung}
@@ -1807,7 +1846,7 @@ const FirmaOfferteDetail = () => {
                 ) : (
                   <Check className="w-4 h-4 mr-2" />
                 )}
-                Bestätigen & E-Mail senden
+                {t("offer.detail.besichtigung.dialog.submit")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1823,8 +1862,8 @@ const FirmaOfferteDetail = () => {
             setShowAuftragModal(false);
             setExistingAuftragId("created");
             toast({
-              title: "Auftrag erstellt",
-              description: "Der Auftrag wurde erfolgreich erstellt. Sie finden ihn unter 'Aufträge'.",
+              title: t("offer.list.toast.auftragCreated.title"),
+              description: t("offer.list.toast.auftragCreated.description"),
             });
             navigate("/firma/auftraege");
           }}

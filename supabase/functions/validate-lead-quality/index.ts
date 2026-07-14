@@ -26,6 +26,13 @@ import {
   EMAIL_HEADER_BAND,
   wrapEmailDocument,
 } from "../_shared/emailLayout.ts";
+import {
+  createTranslator,
+  toLocale,
+  translateServiceType,
+  type Locale,
+} from "../_shared/i18n/index.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 
 // -----------------------------------------------------------------------------
 // CORS + schema
@@ -139,43 +146,50 @@ async function sendDoubleOptInEmail(
   firstName: string | null,
   token: string,
   serviceType: string | null,
+  locale: Locale,
 ): Promise<boolean> {
   const resend = new Resend(resendApiKey);
-  const confirmUrl = `${getConfirmationBaseUrl()}/lead-bestaetigen/${token}`;
-  const greeting = firstName ? `Guten Tag ${firstName}` : "Guten Tag";
+  const t = createTranslator(locale);
+  // The confirmation page is public and reads the token from the URL — carry the locale too,
+  // otherwise a French e-mail leads to a German confirmation page.
+  const confirmUrl = `${getConfirmationBaseUrl()}/lead-bestaetigen/${token}?lang=${locale}`;
+  const greeting = firstName
+    ? t("common.greeting", { name: escapeHtml(firstName) })
+    : t("common.greetingPlain");
+
+  const serviceLabel = serviceType ? translateServiceType(serviceType, t) : "";
+  const intro = serviceLabel
+    ? t("email.doubleOptIn.introWithService", { service: `<strong>${escapeHtml(serviceLabel)}</strong>` })
+    : t("email.doubleOptIn.intro");
 
   const inner = `
     <div style="${EMAIL_CARD_OUTER}">
       <div style="${EMAIL_HEADER_BAND};text-align:center;">
         <h1 style="margin:0;font-size:20px;font-weight:600;color:#18181b;">
-          Bitte bestätigen Sie Ihre Anfrage
+          ${t("email.doubleOptIn.headerTitle")}
         </h1>
       </div>
       <div style="${EMAIL_BODY_PADDING}">
-        <p style="font-size:16px;margin-top:0;">${greeting},</p>
-        <p>
-          wir haben Ihre Anfrage erhalten${serviceType ? ` (<strong>${serviceType}</strong>)` : ""}.
-          Zum Schutz vor Missbrauch benötigen wir eine kurze Bestätigung,
-          dass diese Anfrage wirklich von Ihnen stammt.
-        </p>
-        <p>Bitte klicken Sie auf den folgenden Button, um Ihre Anfrage zu aktivieren:</p>
+        <p style="font-size:16px;margin-top:0;">${greeting}</p>
+        <p>${intro}</p>
+        <p>${t("email.doubleOptIn.prompt")}</p>
         <div style="text-align:center;margin:24px 0;">
           <a href="${confirmUrl}"
              style="display:inline-block;background:#2d2d2d;color:#ffffff;text-decoration:none;padding:14px 28px;font-weight:600;border-radius:8px;">
-            Anfrage bestätigen
+            ${t("email.doubleOptIn.cta")}
           </a>
         </div>
         <p style="font-size:13px;color:#52525b;">
-          Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link in Ihren Browser:<br>
+          ${t("email.doubleOptIn.linkFallback")}<br>
           <a href="${confirmUrl}" style="color:#2563eb;word-break:break-all;">${confirmUrl}</a>
         </p>
         <p style="font-size:13px;color:#52525b;">
-          Der Link ist 48 Stunden gültig. Haben Sie keine Anfrage gestellt, ignorieren Sie diese E-Mail.
+          ${t("email.doubleOptIn.expiry")}
         </p>
       </div>
     </div>
     <div style="text-align:center;padding:14px 0 0;font-size:12px;color:#71717a;">
-      <p style="margin:0;">© ${new Date().getFullYear()} ${getAppName()}</p>
+      <p style="margin:0;">${t("common.copyright", { year: new Date().getFullYear(), appName: getAppName() })}</p>
     </div>`;
 
   try {
@@ -184,8 +198,8 @@ async function sendDoubleOptInEmail(
     const { error } = await resend.emails.send({
       from: getDefaultFrom(),
       to: [to],
-      subject: "Bitte bestätigen Sie Ihre Anfrage",
-      html: wrapEmailDocument(inner),
+      subject: t("email.doubleOptIn.subject"),
+      html: wrapEmailDocument(inner, locale),
     });
     if (error) {
       logStep("Resend send error", { error });
@@ -250,7 +264,7 @@ serve(async (req) => {
     const lookupCol = UUID_RE.test(lead_id) ? "id" : "slug";
     const { data: lead, error: leadErr } = await supabase
       .from("leads")
-      .select("id, status, created_at, ai_validated_at, " +
+      .select("id, status, created_at, ai_validated_at, language, " +
         "customer_first_name, customer_last_name, customer_email, customer_phone, " +
         "preferred_date, service_type, " +
         "from_plz, from_city, from_street, to_plz, to_city, to_street")
@@ -390,12 +404,14 @@ serve(async (req) => {
       } else {
         const resendKey = Deno.env.get("RESEND_API_KEY");
         if (resendKey) {
+          // Cron/trigger context — no caller to pass a locale, so it comes from the lead row.
           doubleOptInSent = await sendDoubleOptInEmail(
             resendKey,
             lead.customer_email,
             lead.customer_first_name,
             conf.token,
             lead.service_type,
+            toLocale(lead.language),
           );
         } else {
           logStep("RESEND_API_KEY missing — cannot send opt-in email");

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
+import { isLocale, toLocale } from "../_shared/i18n/locale.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,7 +73,7 @@ serve(async (req) => {
     // Check company has manual import enabled AND user is a member
     const { data: company, error: companyError } = await supabase
       .from("companies")
-      .select("id, crm_enabled")
+      .select("id, crm_enabled, default_language")
       .eq("id", company_id)
       .single();
 
@@ -108,8 +109,17 @@ serve(async (req) => {
     // Build lead insert object with all possible fields
     // Base fields for all service types
     const resolvedPlz = lead_data.from_plz || lead_data.plz || lead_data.zip || lead_data.pickup_plz || "";
+
+    // DOCUMENT locale — start of the language propagation chain. The operator picked (or
+    // confirmed the AI-detected) customer language in the import UI. An unsupported /
+    // missing value degrades to the company default, and toLocale() to 'de' from there.
+    const leadLanguage = isLocale(lead_data.language)
+      ? lead_data.language
+      : toLocale(company.default_language);
+
     const leadInsert: Record<string, unknown> = {
       company_id: company_id,
+      language: leadLanguage,
       customer_first_name: lead_data.customer_first_name || "Unbekannt",
       customer_last_name: lead_data.customer_last_name || "Unbekannt",
       customer_email: lead_data.customer_email || "",

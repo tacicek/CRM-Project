@@ -1,3 +1,5 @@
+import type { Json } from "@/integrations/supabase/types";
+
 /**
  * Shared types for Leistungskatalog (Service Catalog) module
  * Used by: Leistungskatalog.tsx, CatalogServiceSelector.tsx, LeistungsuebersichtSection.tsx
@@ -18,6 +20,23 @@ export interface ServiceItem {
   is_default_included: boolean;
   is_optional: boolean;
   display_order: number;
+  /**
+   * Übersetzte Varianten von `name` / `description`, Form:
+   *   {"fr": {"name": "…", "description": "…"}, "en": {…}}
+   *
+   * `name` und `description` bleiben die deutsche Basis und der Fallback. Beim
+   * Erstellen einer Offerte wird die Kundensprache über `localizedField()`
+   * aufgelöst und als Snapshot in `offer_items.description` geschrieben.
+   *
+   * Muss hier deklariert sein: sonst würde ein späteres
+   * `.select("id, name, description")` die Übersetzungen still fallen lassen und
+   * der Kunde bekäme deutsche Positionen in einer französischen Offerte — ohne
+   * dass der Compiler etwas merkt.
+   *
+   * Typ ist `Json` (so liefert es Supabase). `localizedField()` nimmt es strukturell
+   * entgegen; `asTranslations()` engt es für die Bearbeitungs-UI ein.
+   */
+  translations?: Json;
 }
 
 /**

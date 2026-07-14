@@ -3,6 +3,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { logEmail } from "../_shared/logEmail.ts";
+import {
+  createTranslator,
+  DEFAULT_LOCALE,
+  formatDateLong,
+  toLocale,
+  type Locale,
+} from "../_shared/i18n/index.ts";
+import { escapeHtml } from "../_shared/escapeHtml.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,6 +28,11 @@ interface NotifyCancelledRequest {
   companyEmail: string;
   companyName: string;
   companyId: string;
+  /**
+   * Optional caller-supplied locale. The appointments row is the authoritative source and
+   * takes precedence; this only covers a caller that has a language but no persisted row yet.
+   */
+  language?: string;
 }
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
@@ -53,13 +66,41 @@ const handler = async (req: Request): Promise<Response> => {
         .select("id, company_name, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
         .eq("id", request.companyId)
         .single();
-      
+
       if (error) {
         logStep("Error fetching company", { error });
       } else {
         company = data;
       }
     }
+
+    // ── Locales ────────────────────────────────────────────────────────────────
+    // Two recipients, two languages. The customer half follows appointments.language, read
+    // from the DB rather than taken from the body: this is a PUBLIC endpoint and the row is
+    // the authoritative record. The firma half follows companies.default_language.
+    const { data: aptRow } = await supabase
+      .from("appointments")
+      .select("company_id, language")
+      .eq("id", request.appointmentId)
+      .maybeSingle();
+
+    const customerLocale: Locale = aptRow?.language
+      ? toLocale(aptRow.language)
+      : toLocale(request.language);
+
+    const companyIdForLocale = request.companyId || aptRow?.company_id;
+    let companyLocale: Locale = DEFAULT_LOCALE;
+    if (companyIdForLocale) {
+      const { data: companyLangRow } = await supabase
+        .from("companies")
+        .select("default_language")
+        .eq("id", companyIdForLocale)
+        .maybeSingle();
+      companyLocale = toLocale(companyLangRow?.default_language);
+    }
+
+    const tCustomer = createTranslator(customerLocale);
+    const tCompany = createTranslator(companyLocale);
 
     // Determine which Resend API key and from address to use
     let resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -87,20 +128,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     const resend = new Resend(resendApiKey);
 
-    const formatDate = (dateString: string) => {
-      return new Date(dateString).toLocaleDateString("de-CH", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      });
-    };
-
     const formatTime = (timeStr: string) => {
       return timeStr.substring(0, 5);
     };
 
-    // Email to company
+    // Email to company — COMPANY language (this half must never follow the customer's locale)
     const companyEmailHtml = `
       <!DOCTYPE html>
       <html>
@@ -121,37 +153,37 @@ const handler = async (req: Request): Promise<Response> => {
             <p>Der Kunde <strong>${request.customerName || "Unbekannt"}</strong> hat den folgenden Termin abgesagt:</p>
             
             <div style="background: #FEE2E2; border: 1px solid #EF4444; border-radius: 8px; padding: 20px; margin: 20px 0;">
-              <h3 style="margin: 0 0 15px 0; color: #991B1B; font-size: 16px;">${request.appointmentTitle}</h3>
+              <h3 style="margin: 0 0 15px 0; color: #991B1B; font-size: 16px;">${escapeHtml(request.appointmentTitle)}</h3>
               <p style="margin: 0; font-size: 16px; color: #7F1D1D;">
-                📅 ${formatDate(request.appointmentDate)}<br>
-                🕐 ${formatTime(request.appointmentTime)} Uhr
+                📅 ${formatDateLong(request.appointmentDate, companyLocale)}<br>
+                🕐 ${tCompany("common.timeValue", { time: formatTime(request.appointmentTime) })}
               </p>
             </div>
-            
+
             ${request.cancellationReason ? `
               <div style="background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 8px; padding: 16px; margin: 20px 0;">
                 <p style="margin: 0 0 8px 0; font-weight: 600; color: #92400E;">📝 Absagegrund:</p>
-                <p style="margin: 0; color: #78350F;">${request.cancellationReason}</p>
+                <p style="margin: 0; color: #78350F;">${escapeHtml(request.cancellationReason)}</p>
               </div>
             ` : ""}
-            
+
             ${request.customerEmail ? `
               <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
                 <p style="margin: 0 0 8px 0; font-weight: 600; color: #374151;">Kundenkontakt:</p>
                 <p style="margin: 0;">
-                  <a href="mailto:${request.customerEmail}" style="color: #3b82f6;">${request.customerEmail}</a>
+                  <a href="mailto:${encodeURIComponent(request.customerEmail)}" style="color: #3b82f6;">${escapeHtml(request.customerEmail)}</a>
                 </p>
               </div>
             ` : ""}
-            
+
             <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
-              Mit freundlichen Grüssen<br>
-              <strong>${isCompanyEmail ? request.companyName : `Ihr ${getAppName()} Team`}</strong>
+              ${tCompany("common.regards")}<br>
+              <strong>${escapeHtml(isCompanyEmail ? request.companyName : tCompany("common.teamSignature", { appName: getAppName() }))}</strong>
             </p>
           </div>
-          
+
           <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-            <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : ` von ${getAppName()}`} gesendet.</p>
+            <p>${tCompany("common.autoSentBy", { sender: escapeHtml(isCompanyEmail ? request.companyName : getAppName()) })}</p>
           </div>
         </body>
       </html>
@@ -177,6 +209,7 @@ const handler = async (req: Request): Promise<Response> => {
         status: "failed",
         errorMessage: JSON.stringify(error),
         companyId: request.companyId,
+        language: companyLocale,
         metadata: { 
           appointmentId: request.appointmentId,
           appointmentTitle: request.appointmentTitle,
@@ -196,6 +229,7 @@ const handler = async (req: Request): Promise<Response> => {
       emailType: "appointment_cancelled",
       status: "sent",
       companyId: request.companyId,
+      language: companyLocale,
       metadata: { 
         appointmentId: request.appointmentId,
         appointmentTitle: request.appointmentTitle,
@@ -203,11 +237,15 @@ const handler = async (req: Request): Promise<Response> => {
       },
     });
 
-    // Send confirmation to customer if email available
+    // Send confirmation to customer if email available — CUSTOMER language
     if (request.customerEmail) {
+      const customerSignature = isCompanyEmail
+        ? request.companyName
+        : tCustomer("common.teamSignature", { appName: getAppName() });
+
       const customerEmailHtml = `
         <!DOCTYPE html>
-        <html>
+        <html lang="${customerLocale}">
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -215,45 +253,50 @@ const handler = async (req: Request): Promise<Response> => {
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; width:100%;max-width:100%;box-sizing:border-box;margin:0;padding:16px 14px;background-color:#e4e4e8;">
             <div style="background: linear-gradient(135deg, #F97316 0%, #EA580C 100%); padding: 30px; border-radius: 12px 12px 0 0;">
               <h1 style="color: white; margin: 0; font-size: 24px;">
-                ✅ Absage bestätigt
+                ✅ ${tCustomer("email.appointmentCancelled.headerTitle")}
               </h1>
             </div>
-            
+
             <div style="background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
-              <p style="margin-top: 0;">Guten Tag ${request.customerName},</p>
-              
-              <p>Ihre Terminabsage wurde erfolgreich verarbeitet und <strong>${request.companyName}</strong> wurde benachrichtigt.</p>
-              
+              <p style="margin-top: 0;">${tCustomer("common.greeting", { name: escapeHtml(request.customerName) })}</p>
+
+              <p>${tCustomer("email.appointmentCancelled.intro", { companyName: `<strong>${escapeHtml(request.companyName)}</strong>` })}</p>
+
               <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                <h3 style="margin: 0 0 15px 0; color: #374151; font-size: 16px;">Abgesagter Termin:</h3>
+                <h3 style="margin: 0 0 15px 0; color: #374151; font-size: 16px;">${tCustomer("email.appointmentCancelled.cancelledTitle")}</h3>
                 <p style="margin: 0; color: #6B7280;">
-                  <strong>${request.appointmentTitle}</strong><br>
-                  📅 ${formatDate(request.appointmentDate)}<br>
-                  🕐 ${formatTime(request.appointmentTime)} Uhr
+                  <strong>${escapeHtml(request.appointmentTitle)}</strong><br>
+                  📅 ${formatDateLong(request.appointmentDate, customerLocale)}<br>
+                  🕐 ${tCustomer("common.timeValue", { time: formatTime(request.appointmentTime) })}
                 </p>
               </div>
-              
-              <p>Falls Sie einen neuen Termin vereinbaren möchten, kontaktieren Sie bitte <strong>${request.companyName}</strong> direkt.</p>
-              
+
+              <p>${tCustomer("email.appointmentCancelled.outro", { companyName: `<strong>${escapeHtml(request.companyName)}</strong>` })}</p>
+
               <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">
-                Mit freundlichen Grüssen<br>
-                <strong>${isCompanyEmail ? request.companyName : `Ihr ${getAppName()} Team`}</strong>
+                ${tCustomer("common.regards")}<br>
+                <strong>${escapeHtml(customerSignature)}</strong>
               </p>
             </div>
-            
+
             <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
-              <p>Diese E-Mail wurde automatisch${isCompanyEmail ? ` von ${request.companyName}` : ` von ${getAppName()}`} gesendet.</p>
+              <p>${tCustomer("common.autoSentBy", { sender: escapeHtml(isCompanyEmail ? request.companyName : getAppName()) })}</p>
             </div>
           </body>
         </html>
       `;
+
+      // Emoji prefix preserved (the catalog values are emoji-free by design).
+      const customerSubject = `✅ ${tCustomer("email.appointmentCancelled.subject", {
+        title: request.appointmentTitle,
+      })}`;
 
       try {
         // resend.emails.send resolves with { error } instead of throwing.
         const { error: customerEmailError } = await resend.emails.send({
           from: fromAddress,
           to: [request.customerEmail],
-          subject: `✅ Terminabsage bestätigt - ${request.appointmentTitle}`,
+          subject: customerSubject,
           html: customerEmailHtml,
         });
         if (customerEmailError) {
@@ -261,6 +304,17 @@ const handler = async (req: Request): Promise<Response> => {
         } else {
           logStep("Customer confirmation email sent", { isCompanyEmail });
         }
+        await logEmail({
+          recipientEmail: request.customerEmail,
+          recipientName: request.customerName,
+          subject: customerSubject,
+          emailType: "appointment_cancelled_customer",
+          status: customerEmailError ? "failed" : "sent",
+          errorMessage: customerEmailError ? JSON.stringify(customerEmailError) : undefined,
+          companyId: request.companyId,
+          language: customerLocale,
+          metadata: { appointmentId: request.appointmentId, isCompanyEmail },
+        });
       } catch (customerEmailError) {
         logStep("Failed to send customer confirmation email", { error: customerEmailError });
       }

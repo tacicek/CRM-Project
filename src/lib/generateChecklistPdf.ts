@@ -1,5 +1,7 @@
 import jsPDF from "jspdf";
 import type { ChecklistSection } from "@/lib/checklistTemplates";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Locale } from "@/i18n/locale";
 
 interface CompanyInfo {
   company_name: string;
@@ -19,6 +21,14 @@ interface ChecklistData {
   title: string;
   subtitle?: string | null;
   sections: ChecklistSection[];
+  /**
+   * The CUSTOMER's language — the checklist travels with the offer.
+   *
+   * Only the generator's own chrome (contact labels, page number) follows it. `title`,
+   * `subtitle` and `sections` are DB-authored content copied from `checklist_templates`
+   * on creation; they are printed as stored and are NOT translated here.
+   */
+  locale: Locale;
   company: CompanyInfo;
 }
 
@@ -106,6 +116,8 @@ const lightenColor = (r: number, g: number, b: number, factor: number = 0.85): {
 };
 
 export const generateChecklistPdf = async (data: ChecklistData): Promise<jsPDF> => {
+  const { t } = documentI18nFor(data.locale);
+
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -153,7 +165,7 @@ export const generateChecklistPdf = async (data: ChecklistData): Promise<jsPDF> 
     // Build contact line
     const contactParts: string[] = [data.company.company_name];
     if (data.company.phone) {
-      contactParts.push(`Tel: ${data.company.phone}`);
+      contactParts.push(`${t("doc.contact.phoneShort")}${data.company.phone}`);
     }
     contactParts.push(data.company.email);
     const contactLine = contactParts.join(" | ");
@@ -165,7 +177,7 @@ export const generateChecklistPdf = async (data: ChecklistData): Promise<jsPDF> 
 
     doc.text(contactLine, pageWidth / 2, footerY - 9, { align: "center" });
     doc.text(addressLine, pageWidth / 2, footerY - 4, { align: "center" });
-    doc.text(`Seite ${pageNum}`, pageWidth / 2, footerY + 1, { align: "center" });
+    doc.text(t("doc.checklist.page", { page: pageNum }), pageWidth / 2, footerY + 1, { align: "center" });
   };
 
   const checkPageBreak = (neededHeight: number): boolean => {
@@ -235,12 +247,12 @@ export const generateChecklistPdf = async (data: ChecklistData): Promise<jsPDF> 
 
   // Phone
   if (data.company.phone) {
-    doc.text(`Tel: ${data.company.phone}`, marginLeft, yPos);
+    doc.text(`${t("doc.contact.phone")}${data.company.phone}`, marginLeft, yPos);
     yPos += 4;
   }
 
   // Email
-  doc.text(`E-Mail: ${data.company.email}`, marginLeft, yPos);
+  doc.text(`${t("doc.contact.email")}${data.company.email}`, marginLeft, yPos);
   yPos += 4;
 
   // Website
@@ -346,10 +358,10 @@ export const generateChecklistPdf = async (data: ChecklistData): Promise<jsPDF> 
 
 export const downloadChecklistPdf = async (data: ChecklistData): Promise<void> => {
   const doc = await generateChecklistPdf(data);
-  const sanitizedCompanyName = data.company.company_name
-    .replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, "_")
-    .replace(/_+/g, "_");
-  const fileName = `Checkliste_${sanitizedCompanyName}.pdf`;
+  const { t } = documentI18nFor(data.locale);
+  const sanitize = (value: string): string =>
+    value.replace(/[^a-zA-Z0-9äöüÄÖÜßàâçéèêëîïôùûÀÂÇÉÈÊËÎÏÔÙÛ]/g, "_").replace(/_+/g, "_");
+  const fileName = `${sanitize(t("doc.checklist.title"))}_${sanitize(data.company.company_name)}.pdf`;
   doc.save(fileName);
 };
 

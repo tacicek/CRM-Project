@@ -1,5 +1,7 @@
 // calculation-utils.ts - Moving Cost Calculation Logic
 
+import { createTranslator } from "@/i18n/translator";
+import type { Locale } from "@/i18n/locale";
 import {
   BuildingInfo,
   InventorySelection,
@@ -506,21 +508,30 @@ export function calculateMovingCost(
 // =====================================
 
 /**
- * Format minutes to human-readable time string
+ * Format minutes to a human-readable duration.
+ *
+ * Takes the locale EXPLICITLY, because the same helper feeds two different axes:
+ *   - the calculator panel, in the OPERATOR's dashboard language, and
+ *   - the item descriptions written into the offer ("Geschätzte Arbeitszeit: …"), which
+ *     the CUSTOMER reads on the PDF.
+ * It used to hardcode German "Std"/"Min", so a French offer carried a French sentence with
+ * German time abbreviations. A locale-less helper cannot serve both — hence the parameter.
  */
-export function formatTime(minutes: number): string {
+export function formatTime(minutes: number, locale: Locale): string {
+  const t = createTranslator(locale);
+
   // Handle NaN, undefined, null, or negative values
   if (minutes === null || minutes === undefined || isNaN(minutes) || minutes < 0) {
-    return '0 Min';
+    return t("doc.time.minutesOnly", { minutes: 0 });
   }
-  
+
   const totalMinutes = Math.round(minutes);
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
-  
-  if (hours === 0) return `${mins} Min`;
-  if (mins === 0) return `${hours} Std`;
-  return `${hours} Std ${mins} Min`;
+
+  if (hours === 0) return t("doc.time.minutesOnly", { minutes: mins });
+  if (mins === 0) return t("doc.time.hoursOnly", { hours });
+  return t("doc.time.hoursMinutes", { hours, minutes: mins });
 }
 
 /**

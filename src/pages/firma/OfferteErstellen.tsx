@@ -1,5 +1,12 @@
 import { Helmet } from "react-helmet-async";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -39,15 +46,24 @@ import {
   CheckCircle,
   Route,
   AlertCircle,
+  Languages,
 } from "lucide-react";
-import { MovingCalculatorWithLead, CalculationResult, formatCHF as formatCalculatorCHF, formatTime } from "@/components/offers/moving-calculator";
+import { MovingCalculatorWithLead, CalculationResult, formatTime } from "@/components/offers/moving-calculator";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { format } from "date-fns";
 import { useCompanyPricing } from "@/hooks/useCompanyPricing";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { normalizeToCatalogBase, groupItemsByService } from "@/lib/offerServiceType";
 import { formatFloorLabel } from "@/lib/floorUtils";
+import { DEFAULT_LOCALE, LOCALES, LOCALE_NAMES, toLocale, type Locale } from "@/i18n/locale";
+import { localizedField } from "@/i18n/localizedField";
+import { useI18n, useT } from "@/i18n/useI18n";
+import { getServiceLabel } from "@/i18n/domain";
+import { formatCurrency as formatCurrencyI18n, formatPercent } from "@/i18n/format";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { MessageKey } from "@/i18n/translator";
 import type { ServiceItem } from "@/types/leistungskatalog";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -61,7 +77,7 @@ import { ItemChip } from "@/components/offerte/ItemChip";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerHasRateItem, type SubtotalItem, RATE_AGGREGATE_NOTE } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerHasRateItem, type SubtotalItem } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -98,6 +114,8 @@ interface Company {
   logo_url?: string | null;
   default_terms_and_conditions?: string | null;
   default_payment_terms?: string | null;
+  /** Fallback customer language when the lead carries none. */
+  default_language?: string | null;
 }
 
 interface Lead {
@@ -107,6 +125,8 @@ interface Lead {
   customer_email: string;
   customer_phone: string;
   service_type: string;
+  /** DOCUMENT locale of the customer — frozen onto the offer at creation. */
+  language?: string | null;
   from_street?: string | null;
   from_house_number?: string | null;
   from_plz: string;
@@ -195,6 +215,93 @@ const createEmptyItem = (position: number): OfferItem => ({
   serviceType: null, // default Allgemein; the real primary-base is set in addItem in 2.3
 });
 
+/**
+ * DOCUMENT-locale keys — every map below produces text that is WRITTEN INTO the offer
+ * (title, offer_items.description, payment_terms) and read by the CUSTOMER in the PDF and
+ * the e-mail. They are resolved with `documentI18nFor(offerLocale)`, never with `useT()`.
+ */
+
+/** Generated offer title per lead service_type (incl. historic aliases). */
+const OFFER_TITLE_KEY_BY_SERVICE: Record<string, MessageKey> = {
+  // Umzug
+  umzug: "offer.doc.title.umzug",
+  umzug_privat: "offer.doc.title.umzug_privat",
+  umzug_buero: "offer.doc.title.umzug_buero",
+  umzug_firmen: "offer.doc.title.umzug_firmen",
+
+  // Reinigung
+  reinigung: "offer.doc.title.reinigung",
+  reinigung_end: "offer.doc.title.reinigung_end",
+  reinigung_bau: "offer.doc.title.reinigung_bau",
+  reinigung_unterhalts: "offer.doc.title.reinigung_unterhalts",
+  reinigung_glas: "offer.doc.title.reinigung_glas",
+  reinigung_fassade: "offer.doc.title.reinigung_fassade",
+  reinigung_teppich: "offer.doc.title.reinigung_teppich",
+  reinigung_praxis: "offer.doc.title.reinigung_praxis",
+  cleaning: "offer.doc.title.reinigung",
+
+  // Räumung / Entsorgung
+  raeumung: "offer.doc.title.raeumung",
+  raeumung_haushalt: "offer.doc.title.raeumung_haushalt",
+  raeumung_todesfall: "offer.doc.title.raeumung_todesfall",
+  raeumung_messie: "offer.doc.title.raeumung_messie",
+  raeumung_zwang: "offer.doc.title.raeumung_zwang",
+  entsorgung: "offer.doc.title.entsorgung",
+  entrümpelung: "offer.doc.title.entruempelung",
+
+  // Lagerung
+  lagerung: "offer.doc.title.lagerung",
+  storage: "offer.doc.title.lagerung",
+
+  // Spezialtransporte
+  klaviertransport: "offer.doc.title.klaviertransport",
+  piano: "offer.doc.title.klaviertransport",
+  klavier: "offer.doc.title.klaviertransport",
+
+  // Möbellift
+  moebellift: "offer.doc.title.moebellift",
+  moebellift_mieten: "offer.doc.title.moebellift_mieten",
+  lift: "offer.doc.title.moebellift",
+
+  // Möbeltransport
+  moebeltransport: "offer.doc.title.moebeltransport",
+  furniture: "offer.doc.title.moebeltransport",
+
+  // Malerarbeiten
+  maler: "offer.doc.title.maler",
+  malerarbeit: "offer.doc.title.maler",
+  painting: "offer.doc.title.maler",
+};
+
+/** Moving-calculator vehicle names, printed inside the position description. */
+const VEHICLE_NAME_KEYS: Record<string, MessageKey> = {
+  transporter: "offer.doc.calc.vehicle.transporter",
+  truck_3_5t: "offer.doc.calc.vehicle.truck_3_5t",
+  truck_7_5t: "offer.doc.calc.vehicle.truck_7_5t",
+  truck_18t: "offer.doc.calc.vehicle.truck_18t",
+};
+
+/** Payment condition text written into offers.payment_terms. */
+const PAYMENT_METHOD_KEYS: Record<string, MessageKey> = {
+  bar: "offer.doc.paymentMethod.bar",
+  rechnung_14: "offer.doc.paymentMethod.rechnung_14",
+  rechnung_30: "offer.doc.paymentMethod.rechnung_30",
+  twint: "offer.doc.paymentMethod.twint",
+  vorauskasse: "offer.doc.paymentMethod.vorauskasse",
+  teilzahlung: "offer.doc.paymentMethod.teilzahlung",
+};
+
+/** Quick-pick payment chips: chip LABEL is operator chrome, chip VALUE is document text. */
+const PAYMENT_QUICK_PICKS: readonly { valueKey: MessageKey; labelKey: MessageKey }[] = [
+  { valueKey: "offer.doc.payment.cash", labelKey: "offer.form.payment.quick.cash" },
+  { valueKey: "offer.doc.payment.net10", labelKey: "offer.form.payment.quick.net10" },
+  { valueKey: "offer.doc.payment.deposit50", labelKey: "offer.form.payment.quick.deposit50" },
+  { valueKey: "offer.doc.payment.net30", labelKey: "offer.form.payment.quick.net30" },
+  { valueKey: "offer.doc.payment.invoice", labelKey: "offer.form.payment.quick.invoice" },
+  { valueKey: "offer.doc.payment.twint", labelKey: "offer.form.payment.quick.twint" },
+  { valueKey: "offer.doc.payment.card", labelKey: "offer.form.payment.quick.card" },
+];
+
 /** Gültig bis kürzer als 7 Tage ab heute — nur Hinweis im Formular */
 const isValidUntilShorterThanSevenDays = (isoDate: string): boolean => {
   const [y, m, d] = isoDate.split("-").map(Number);
@@ -214,11 +321,34 @@ const FirmaOfferteErstellen = () => {
   const [searchParams] = useSearchParams();
   const leadId = searchParams.get("lead");
   const distributionId = searchParams.get("distribution");
+  // Dashboard locale — the OPERATOR's chrome only. Everything the customer reads (offer
+  // title, item descriptions, payment terms, AGB, PDF, e-mail) resolves `offerLocale`
+  // below instead — see documentT.
+  const t = useT();
+  const { locale, dateLocale } = useI18n();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
   const [lead, setLead] = useState<Lead | null>(null);
+
+  /**
+   * DOCUMENT locale of this offer — the language the CUSTOMER is addressed in.
+   *
+   * Seeded from the lead, falling back to the company default, then German. It is frozen
+   * into offers.language on save AND decides in which language catalog items are snapshotted
+   * into offer_items. It is NOT the operator's dashboard language.
+   *
+   * It is STATE, not a derived constant: leads that predate the language column were all
+   * backfilled to 'de', so a French customer arrives tagged German. Without a way to correct
+   * it here, the operator would silently send that customer a German offer — the preview
+   * would even look French, because the panel is drawn in the operator's language. The
+   * picker below is the correction point.
+   */
+  const [offerLocale, setOfferLocale] = useState<Locale>(DEFAULT_LOCALE);
+  // Translator for text that is WRITTEN INTO the offer (title, item descriptions, payment
+  // terms, AGB) — resolves the customer's language, never the operator's. Not useT().
+  const documentT = documentI18nFor(offerLocale).t;
 
   // Company-specific pricing configuration
   const { pricingConfig, loadConfig: loadPricingConfig } = useCompanyPricing();
@@ -230,12 +360,15 @@ const FirmaOfferteErstellen = () => {
   const [validUntil, setValidUntil] = useState("");
   const [vatRate, setVatRate] = useState(8.1);
   const [mwstEnabled, setMwstEnabled] = useState(false);
-  const [paymentTerms, setPaymentTerms] = useState("Barzahlung nach der Ausführung");
+  // Payment terms — DOCUMENT content: printed on the customer's PDF, therefore seeded in the
+  // CUSTOMER's language (see fetchData), never in the operator's dashboard language.
+  const [paymentTerms, setPaymentTerms] = useState("");
   const [termsAndConditions, setTermsAndConditions] = useState("");
   const [items, setItems] = useState<OfferItem[]>([]);
 
-  // Leistungsübersicht state
-  const [selectedLeistungen, setSelectedLeistungen] = useState<Array<{ id: string; name: string; category?: string }>>([]);
+  // Leistungsübersicht state — name/description are a SNAPSHOT in the customer's language
+  // (localizedField at add-time), so the PDF needs no runtime translation.
+  const [selectedLeistungen, setSelectedLeistungen] = useState<Array<{ id: string; name: string; description?: string | null; category?: string }>>([]);
   const [excludedLeistungen, _setExcludedLeistungen] = useState<string[]>([]);
   const [leistungNotes, _setLeistungNotes] = useState("");
   // Track only IDs explicitly added via catalog in this session (for "Bereits hinzugefügt")
@@ -244,8 +377,9 @@ const FirmaOfferteErstellen = () => {
   // AGB sections state
   const [, setAgbSections] = useState<Array<{ title: string; content: string }>>([]);
 
-  // Optional services state
-  const [optionalServices, setOptionalServices] = useState<Array<{ id: string; name: string; price: number }>>([]);
+  // Optional services state — full catalog rows (the query selects "*"), so the
+  // translations bundle travels with them.
+  const [optionalServices, setOptionalServices] = useState<ServiceItem[]>([]);
   const [selectedOptionalIds, setSelectedOptionalIds] = useState<Set<string>>(new Set());
   const [showOptionalDialog, setShowOptionalDialog] = useState(false);
 
@@ -253,15 +387,6 @@ const FirmaOfferteErstellen = () => {
   const [showCatalogSelector, setShowCatalogSelector] = useState(false);
   // AGB section collapsed by default
   const [showAgb, setShowAgb] = useState(false);
-
-  const PAYMENT_METHOD_LABELS: Record<string, string> = {
-    bar: "Barzahlung nach der Ausführung",
-    rechnung_14: "Zahlung innerhalb 14 Tagen netto",
-    rechnung_30: "Zahlung innerhalb 30 Tagen netto",
-    twint: "TWINT – Zahlung nach Ausführung",
-    vorauskasse: "Vorauskasse vor dem Termin",
-    teilzahlung: "50% Anzahlung vor dem Termin, Rest nach Ausführung",
-  };
 
   // Enhanced offer details state
   const [offerDetails, setOfferDetails] = useState(DEFAULT_OFFER_DETAILS);
@@ -279,10 +404,11 @@ const FirmaOfferteErstellen = () => {
 
   const handleOfferDetailsChange = (newDetails: typeof DEFAULT_OFFER_DETAILS) => {
     setOfferDetails(newDetails);
-    // Auto-fill paymentTerms when paymentMethod changes
+    // Auto-fill paymentTerms when paymentMethod changes. The text lands on the customer's
+    // PDF → customer language (documentT), not the operator's dashboard language.
     if (newDetails.paymentMethod !== offerDetails.paymentMethod && newDetails.paymentMethod) {
-      const label = PAYMENT_METHOD_LABELS[newDetails.paymentMethod];
-      if (label) setPaymentTerms(label);
+      const key = PAYMENT_METHOD_KEYS[newDetails.paymentMethod];
+      if (key) setPaymentTerms(documentT(key));
     }
   };
   const [offerNumber, setOfferNumber] = useState<number | undefined>(undefined);
@@ -380,7 +506,7 @@ const FirmaOfferteErstellen = () => {
         const companyData = await fetchSingleCompanyForUser<Company>({
           userId: user.id,
           userEmail: user.email,
-          select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, logo_url, default_terms_and_conditions, default_payment_terms",
+          select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, logo_url, default_terms_and_conditions, default_payment_terms, default_language",
         });
 
         if (!companyData) {
@@ -424,8 +550,8 @@ const FirmaOfferteErstellen = () => {
 
         if (!leadData) {
           toast({
-            title: "Anfrage nicht gefunden",
-            description: "Die Anfrage konnte nicht geladen werden. Bitte gehen Sie zu den Anfragen zurück.",
+            title: t("offer.create.toast.leadNotFound.title"),
+            description: t("offer.create.toast.leadNotFound.description"),
             variant: "destructive",
           });
           setIsLoading(false);
@@ -433,68 +559,38 @@ const FirmaOfferteErstellen = () => {
         }
 
         setLead(leadData as Lead);
+        // Seed the customer language from the lead (company default as fallback). The
+        // operator can override it before saving — see the language picker.
+        setOfferLocale(toLocale(leadData?.language ?? companyData?.default_language));
 
-        // Set default title based on service type - comprehensive mapping
-        const serviceLabels: Record<string, string> = {
-          // Umzug
-          umzug: "Umzugsofferte",
-          umzug_privat: "Privatumzug",
-          umzug_buero: "Büroumzug",
-          umzug_firmen: "Firmenumzug",
+        // DOCUMENT locale of this offer. The state (`offerLocale`) is not populated yet at this
+        // point, so resolve it from the freshly fetched rows: lead → company default → German.
+        // Everything the customer will read (title, payment terms, catalog snapshots) uses it.
+        const localeForOffer = toLocale(leadData.language ?? companyData.default_language);
+        const docT = documentI18nFor(localeForOffer).t;
 
-          // Reinigung - alle Varianten
-          reinigung: "Reinigungsofferte",
-          reinigung_end: "Übergabereinigung",
-          reinigung_bau: "Baureinigung",
-          reinigung_unterhalts: "Unterhaltsreinigung",
-          reinigung_glas: "Glasreinigung",
-          reinigung_fassade: "Fassadenreinigung",
-          reinigung_teppich: "Teppichreinigung",
-          reinigung_praxis: "Praxisreinigung",
-          cleaning: "Reinigungsofferte",
-
-          // Räumung/Entsorgung
-          raeumung: "Räumungsofferte",
-          raeumung_haushalt: "Haushaltsauflösung",
-          raeumung_todesfall: "Todesfallräumung",
-          raeumung_messie: "Messieräumung",
-          raeumung_zwang: "Zwangsräumung",
-          entsorgung: "Entsorgungsofferte",
-          entrümpelung: "Entrümpelungsofferte",
-
-          // Lagerung
-          lagerung: "Lagerungsofferte",
-          storage: "Lagerungsofferte",
-
-          // Spezialtransporte
-          klaviertransport: "Klaviertransport-Offerte",
-          piano: "Klaviertransport-Offerte",
-          klavier: "Klaviertransport-Offerte",
-
-          // Möbellift
-          moebellift: "Möbellift-Offerte",
-          moebellift_mieten: "Möbellift-Mietofferte",
-          lift: "Möbellift-Offerte",
-
-          // Möbeltransport
-          moebeltransport: "Möbeltransport-Offerte",
-          furniture: "Möbeltransport-Offerte",
-
-          // Malerarbeiten
-          maler: "Malerofferte",
-          malerarbeit: "Malerofferte",
-          painting: "Malerofferte",
-        };
-
-        // Generate professional title with location if available
-        const baseTitle = serviceLabels[leadData.service_type] || serviceLabels[leadData.service_type?.toLowerCase()] || "Offerte";
+        // Generate the offer title in the CUSTOMER's language (it is stored on the offer and
+        // printed on the PDF). "nach"/"from…to" comes from the catalog, not from a literal.
+        const rawServiceType: string = leadData.service_type ?? "";
+        const titleKey =
+          OFFER_TITLE_KEY_BY_SERVICE[rawServiceType] ??
+          OFFER_TITLE_KEY_BY_SERVICE[rawServiceType.toLowerCase()] ??
+          "offer.doc.title.default";
+        const baseTitle = docT(titleKey);
         let generatedTitle = baseTitle;
 
-        // Add location for Umzug (use "nach" instead of "→" for PDF compatibility)
-        if (leadData.service_type?.includes('umzug') && leadData.from_city && leadData.to_city) {
-          generatedTitle = `${baseTitle} ${leadData.from_city} nach ${leadData.to_city}`;
+        // Add location for Umzug (spelled-out "nach" instead of "→" for PDF compatibility)
+        if (rawServiceType.includes("umzug") && leadData.from_city && leadData.to_city) {
+          generatedTitle = docT("offer.doc.title.route", {
+            base: baseTitle,
+            from: leadData.from_city,
+            to: leadData.to_city,
+          });
         } else if (leadData.from_city) {
-          generatedTitle = `${baseTitle} in ${leadData.from_city}`;
+          generatedTitle = docT("offer.doc.title.inCity", {
+            base: baseTitle,
+            city: leadData.from_city,
+          });
         }
 
         setTitle(generatedTitle);
@@ -531,11 +627,14 @@ const FirmaOfferteErstellen = () => {
           setTermsAndConditions(companyData.default_terms_and_conditions);
         }
 
-        // Pre-fill payment terms (service-specific takes priority)
+        // Pre-fill payment terms (service-specific takes priority). Without a stored text the
+        // default condition is written in the CUSTOMER's language, not the operator's.
         if (serviceTemplate?.payment_terms) {
           setPaymentTerms(serviceTemplate.payment_terms);
         } else if (companyData.default_payment_terms) {
           setPaymentTerms(companyData.default_payment_terms);
+        } else {
+          setPaymentTerms(docT("offer.doc.payment.cash"));
         }
 
         // Fetch company service items for automatic offer item creation
@@ -581,12 +680,14 @@ const FirmaOfferteErstellen = () => {
           .order("display_order");
 
         if (allServiceItems && allServiceItems.length > 0) {
+          // Snapshot the catalog in the CUSTOMER's language (localeForOffer above — the state
+          // isn't set yet here). German is the fallback.
           const defaultIncluded = allServiceItems
             .filter(item => item.is_default_included)
             .map(item => ({
               id: item.id,
-              name: item.name,
-              description: item.description,
+              name: localizedField(item, "name", localeForOffer),
+              description: localizedField(item, "description", localeForOffer),
               category: item.category,
             }));
           setSelectedLeistungen(defaultIncluded);
@@ -603,7 +704,7 @@ const FirmaOfferteErstellen = () => {
     };
 
     fetchData();
-  }, [user, leadId, navigate, toast, loadPricingConfig, distributionId]);
+  }, [user, leadId, navigate, toast, loadPricingConfig, distributionId, t]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -656,19 +757,18 @@ const FirmaOfferteErstellen = () => {
     const newItems: OfferItem[] = [];
     let position = replace ? 0 : items.length;
 
-    const vehicleNames: Record<string, string> = {
-      transporter: 'Transporter', truck_3_5t: 'LKW 3.5t',
-      truck_7_5t: 'LKW 7.5t', truck_18t: 'LKW 18t',
-    };
-
+    // The calculator writes offer_items.description → CUSTOMER-facing text: documentT, not t.
     const descriptionLines = [
-      `Umzugsservice mit ${vehicleNames[result.recommendedVehicle]} und ${result.recommendedCrew} Mitarbeiter`,
-      `• Volumen: ${result.netVolume.toFixed(1)} m³`,
-      `• Geschätzte Arbeitszeit: ${formatTime(result.timeBreakdown.totalTime)}`,
-      `• Tragezeit: ${formatTime(result.timeBreakdown.carryingTime)}`,
-      `• Montage/Demontage: ${formatTime(result.timeBreakdown.assemblyTime)}`,
-      `• Fahrzeit: ${formatTime(result.timeBreakdown.drivingTime)}`,
-      `• Pufferzeit: ${formatTime(result.timeBreakdown.bufferTime)}`,
+      documentT("offer.doc.calc.main", {
+        vehicle: documentT(VEHICLE_NAME_KEYS[result.recommendedVehicle]),
+        crew: result.recommendedCrew,
+      }),
+      documentT("offer.doc.calc.volume", { value: result.netVolume.toFixed(1) }),
+      documentT("offer.doc.calc.workTime", { value: formatTime(result.timeBreakdown.totalTime, offerLocale) }),
+      documentT("offer.doc.calc.carryTime", { value: formatTime(result.timeBreakdown.carryingTime, offerLocale) }),
+      documentT("offer.doc.calc.assembly", { value: formatTime(result.timeBreakdown.assemblyTime, offerLocale) }),
+      documentT("offer.doc.calc.driveTime", { value: formatTime(result.timeBreakdown.drivingTime, offerLocale) }),
+      documentT("offer.doc.calc.buffer", { value: formatTime(result.timeBreakdown.bufferTime, offerLocale) }),
     ];
 
     newItems.push({
@@ -683,17 +783,17 @@ const FirmaOfferteErstellen = () => {
     if (result.costBreakdown.distanceSurcharge > 0) {
       newItems.push({
         id: generateItemId(), position: ++position,
-        description: `Distanz-Zuschlag (${result.movingDetails.distanceKm} km)`,
+        description: documentT("offer.doc.calc.distanceSurcharge", { km: result.movingDetails.distanceKm }),
         quantity: 1, unit: "Pauschale", unit_price: result.costBreakdown.distanceSurcharge,
         priceType: "pauschale", highlighted: false, details: [],
         serviceType: primaryBase,
       });
     }
-    if (result.extraServices.packingService) newItems.push({ id: generateItemId(), position: ++position, description: "Verpackungsservice", quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.packingServiceRate ?? 50), priceType: "pauschale", highlighted: false, details: ["Professionelles Verpacken Ihres Umzugsguts"], serviceType: primaryBase });
-    if (result.extraServices.externalLift) newItems.push({ id: generateItemId(), position: ++position, description: "Außenlift / Möbellift", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.externalLiftCost ?? 600, priceType: "pauschale", highlighted: false, details: [], serviceType: "umzug" });
-    if (result.extraServices.disposal) newItems.push({ id: generateItemId(), position: ++position, description: "Entsorgung / Sperrgut", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.disposalCost ?? 300, priceType: "pauschale", highlighted: false, details: [], serviceType: "entsorgung" });
-    if (result.extraServices.pianoTransport) newItems.push({ id: generateItemId(), position: ++position, description: "Klaviertransport", quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.pianoTransportCost ?? 400, priceType: "pauschale", highlighted: false, details: ["Spezialtransport für Klavier/Flügel"], serviceType: "transport" });
-    if (result.extraServices.storage) newItems.push({ id: generateItemId(), position: ++position, description: `Zwischenlagerung (${result.netVolume.toFixed(1)} m³)`, quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.storageCostPerM3 ?? 80), priceType: "pauschale", highlighted: false, details: ["Sichere Lagerung Ihres Umzugsguts"], serviceType: "lagerung" });
+    if (result.extraServices.packingService) newItems.push({ id: generateItemId(), position: ++position, description: documentT("offer.doc.calc.packing"), quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.packingServiceRate ?? 50), priceType: "pauschale", highlighted: false, details: [documentT("offer.doc.calc.packingDetail")], serviceType: primaryBase });
+    if (result.extraServices.externalLift) newItems.push({ id: generateItemId(), position: ++position, description: documentT("offer.doc.calc.lift"), quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.externalLiftCost ?? 600, priceType: "pauschale", highlighted: false, details: [], serviceType: "umzug" });
+    if (result.extraServices.disposal) newItems.push({ id: generateItemId(), position: ++position, description: documentT("offer.doc.calc.disposal"), quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.disposalCost ?? 300, priceType: "pauschale", highlighted: false, details: [], serviceType: "entsorgung" });
+    if (result.extraServices.pianoTransport) newItems.push({ id: generateItemId(), position: ++position, description: documentT("offer.doc.calc.piano"), quantity: 1, unit: "Pauschale", unit_price: pricingConfig?.pianoTransportCost ?? 400, priceType: "pauschale", highlighted: false, details: [documentT("offer.doc.calc.pianoDetail")], serviceType: "transport" });
+    if (result.extraServices.storage) newItems.push({ id: generateItemId(), position: ++position, description: documentT("offer.doc.calc.storage", { volume: result.netVolume.toFixed(1) }), quantity: 1, unit: "Pauschale", unit_price: result.netVolume * (pricingConfig?.storageCostPerM3 ?? 80), priceType: "pauschale", highlighted: false, details: [documentT("offer.doc.calc.storageDetail")], serviceType: "lagerung" });
 
     setItems(replace ? newItems : [...items, ...newItems]);
     setCalculatorResult(result);
@@ -702,8 +802,10 @@ const FirmaOfferteErstellen = () => {
     setShowCalculatorReplaceDialog(false);
 
     toast({
-      title: "Kalkulation übernommen",
-      description: `${newItems.length} Position${newItems.length > 1 ? 'en' : ''} ${replace ? 'ersetzt' : 'hinzugefügt'}.`,
+      title: t("offer.create.toast.calcApplied.title"),
+      description: replace
+        ? t("offer.create.toast.calcApplied.replaced", { count: newItems.length })
+        : t("offer.create.toast.calcApplied.added", { count: newItems.length }),
     });
   };
 
@@ -719,10 +821,14 @@ const FirmaOfferteErstellen = () => {
 
     const newItems: OfferItem[] = services.map((service, index) => {
       const pt = derivePriceTypeFromCatalog(service);
+      // offer_items are a SNAPSHOT of the catalog — take it in the customer's language now,
+      // so the PDF/e-mail needs no runtime translation. German is the fallback.
+      const name = localizedField(service, "name", offerLocale);
+      const desc = localizedField(service, "description", offerLocale);
       return {
         id: generateItemId(),
         position: items.length + index + 1,
-        description: service.name + (service.description ? `\n${service.description}` : ""),
+        description: name + (desc ? `\n${desc}` : ""),
         quantity: 1,
         unit: service.unit || "Pauschale",
         unit_price: service.default_price || 0,
@@ -745,13 +851,13 @@ const FirmaOfferteErstellen = () => {
       return next;
     });
 
-    // Also add to Leistungsübersicht if not already there
+    // Also add to Leistungsübersicht if not already there (same customer-language snapshot)
     const newLeistungen = services
       .filter(s => !selectedLeistungen.find(l => l.id === s.id))
       .map(s => ({
         id: s.id,
-        name: s.name,
-        description: s.description,
+        name: localizedField(s, "name", offerLocale),
+        description: localizedField(s, "description", offerLocale),
         category: s.category,
       }));
 
@@ -760,8 +866,8 @@ const FirmaOfferteErstellen = () => {
     }
 
     toast({
-      title: "Leistungen hinzugefügt",
-      description: `${services.length} Leistung${services.length > 1 ? 'en' : ''} wurde${services.length > 1 ? 'n' : ''} zur Offerte hinzugefügt.`,
+      title: t("offer.form.toast.servicesAdded.title"),
+      description: t("offer.form.toast.servicesAdded.description", { count: services.length }),
     });
   };
 
@@ -782,8 +888,8 @@ const FirmaOfferteErstellen = () => {
 
     if (servicesToAdd.length === 0) {
       toast({
-        title: "Keine Auswahl",
-        description: "Bitte wählen Sie mindestens eine optionale Leistung aus.",
+        title: t("offer.form.toast.noSelection.title"),
+        description: t("offer.form.toast.noSelection.description"),
         variant: "destructive",
       });
       return;
@@ -791,10 +897,13 @@ const FirmaOfferteErstellen = () => {
 
     const newItems: OfferItem[] = servicesToAdd.map((item, index) => {
       const pt = derivePriceTypeFromCatalog(item);
+      // Same snapshot rule as the catalog selector: customer language, German fallback.
+      const name = localizedField(item, "name", offerLocale);
+      const desc = localizedField(item, "description", offerLocale);
       return {
         id: generateItemId(),
         position: items.length + index + 1,
-        description: item.name + (item.description ? `\n${item.description}` : ""),
+        description: name + (desc ? `\n${desc}` : ""),
         quantity: 1,
         unit: item.unit || "Pauschale",
         unit_price: item.default_price || 0,
@@ -812,8 +921,8 @@ const FirmaOfferteErstellen = () => {
     // Also add to Leistungsübersicht
     const newLeistungen = servicesToAdd.map(item => ({
       id: item.id,
-      name: item.name,
-      description: item.description,
+      name: localizedField(item, "name", offerLocale),
+      description: localizedField(item, "description", offerLocale),
       category: item.category,
     }));
     setSelectedLeistungen([...selectedLeistungen, ...newLeistungen]);
@@ -824,8 +933,8 @@ const FirmaOfferteErstellen = () => {
     setShowOptionalDialog(false);
 
     toast({
-      title: "Leistungen hinzugefügt",
-      description: `${servicesToAdd.length} optionale Leistung${servicesToAdd.length > 1 ? 'en' : ''} wurde${servicesToAdd.length > 1 ? 'n' : ''} hinzugefügt.`,
+      title: t("offer.form.toast.servicesAdded.title"),
+      description: t("offer.form.toast.optionalAdded.description", { count: servicesToAdd.length }),
     });
   };
 
@@ -990,14 +1099,8 @@ const FirmaOfferteErstellen = () => {
     return maxBase + (calculateMaxVat() ?? 0);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("de-CH", {
-      style: "currency",
-      currency: "CHF",
-    }).format(amount);
-  };
-
-  /** Convert YYYY-MM-DD to dd.MM.yyyy for display hint */
+  // Dashboard locale — these amounts are shown to the OPERATOR in the form and live summary.
+  const formatCurrency = (amount: number) => formatCurrencyI18n(amount, locale);
 
   /** Apply corrected field values back to form state, then save. */
   const applySpellCorrections = useCallback(
@@ -1046,8 +1149,8 @@ const FirmaOfferteErstellen = () => {
 
     if (!title.trim()) {
       toast({
-        title: "Fehler",
-        description: "Bitte geben Sie einen Titel ein",
+        title: t("common.error"),
+        description: t("offer.form.toast.titleRequired"),
         variant: "destructive",
       });
       return;
@@ -1055,8 +1158,8 @@ const FirmaOfferteErstellen = () => {
 
     if (items.length === 0) {
       toast({
-        title: "Fehler",
-        description: "Bitte fügen Sie mindestens eine Position hinzu",
+        title: t("common.error"),
+        description: t("offer.form.toast.itemsRequired"),
         variant: "destructive",
       });
       return;
@@ -1064,8 +1167,8 @@ const FirmaOfferteErstellen = () => {
 
     if (items.some((item) => !item.description.trim())) {
       toast({
-        title: "Fehler",
-        description: "Bitte füllen Sie alle Positionen aus",
+        title: t("common.error"),
+        description: t("offer.form.toast.itemsIncomplete"),
         variant: "destructive",
       });
       return;
@@ -1074,8 +1177,8 @@ const FirmaOfferteErstellen = () => {
     if (priceModel === 'stundenansatz' || priceModel === 'kostendach') {
       if (!hourlyRate || Number(hourlyRate) <= 0) {
         toast({
-          title: "Fehler",
-          description: "Bitte geben Sie einen gültigen Stundenansatz ein",
+          title: t("common.error"),
+          description: t("offer.form.toast.hourlyRateRequired"),
           variant: "destructive",
         });
         return;
@@ -1085,16 +1188,16 @@ const FirmaOfferteErstellen = () => {
     if (priceModel === 'kostendach') {
       if (!kostendachMax || Number(kostendachMax) <= 0) {
         toast({
-          title: "Fehler",
-          description: "Bitte geben Sie ein gültiges Kostendach ein",
+          title: t("common.error"),
+          description: t("offer.form.toast.kostendachRequired"),
           variant: "destructive",
         });
         return;
       }
       if (Number(kostendachMax) < Number(hourlyRate)) {
         toast({
-          title: "Fehler",
-          description: "Das Kostendach muss mindestens so hoch sein wie der Stundenansatz",
+          title: t("common.error"),
+          description: t("offer.form.toast.kostendachTooLow"),
           variant: "destructive",
         });
         return;
@@ -1105,12 +1208,21 @@ const FirmaOfferteErstellen = () => {
     for (const item of items) {
       const te = item.timeEstimate;
       if (!te) continue;
+      const itemLabel = item.description || t("offer.form.toast.itemFallback");
       if (!te.minHours || !te.maxHours || !te.hourlyRate) {
-        toast({ title: "Fehler", description: `Zeitschätzung für "${item.description || 'Position'}" unvollständig`, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: t("offer.form.toast.timeEstimateIncomplete", { item: itemLabel }),
+          variant: "destructive",
+        });
         return;
       }
       if (parseFloat(te.maxHours) < parseFloat(te.minHours)) {
-        toast({ title: "Fehler", description: `Max. Stunden müssen ≥ Min. Stunden sein (${item.description || 'Position'})`, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: t("offer.form.toast.timeEstimateInvalid", { item: itemLabel }),
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -1190,6 +1302,10 @@ const FirmaOfferteErstellen = () => {
         frozen_has_estrich: lead.from_has_estrich ?? null,
         frozen_has_keller: lead.from_has_keller ?? null,
         frozen_address_at: new Date().toISOString(),
+        // FROZEN copy of the customer's language (same rationale as the frozen address:
+        // the offer must still render correctly after the lead is deleted). Every
+        // downstream document — auftrag, rechnung, quittung, appointment — inherits it.
+        language: offerLocale,
         title,
         description,
         service_date: serviceDate || null,
@@ -1350,8 +1466,10 @@ const FirmaOfferteErstellen = () => {
         const result = await sendOffer({ offerId: offer.id, companyId: company.id, forceResend: false });
         if (!result.success) {
           toast({
-            title: "E-Mail nicht gesendet",
-            description: `Die Offerte wurde gespeichert, aber: ${result.error ?? "Die E-Mail konnte nicht gesendet werden."} Sie können sie unter Offerten erneut versenden.`,
+            title: t("offer.create.toast.sendFailed.title"),
+            description: t("offer.create.toast.sendFailed.description", {
+              error: result.error ?? t("offer.create.toast.sendFailed.genericError"),
+            }),
             variant: "destructive",
           });
           navigate("/firma/offerten");
@@ -1360,10 +1478,12 @@ const FirmaOfferteErstellen = () => {
       }
 
       toast({
-        title: sendAfterSave ? "Offerte gesendet" : "Offerte gespeichert",
+        title: sendAfterSave
+          ? t("offer.create.toast.sent.title")
+          : t("offer.create.toast.saved.title"),
         description: sendAfterSave
-          ? "Die Offerte wurde erfolgreich per E-Mail an den Kunden gesendet."
-          : "Die Offerte wurde als Entwurf gespeichert.",
+          ? t("offer.create.toast.sent.description")
+          : t("offer.create.toast.saved.description"),
         variant: sendAfterSave ? "success" : "default",
       });
 
@@ -1371,8 +1491,8 @@ const FirmaOfferteErstellen = () => {
     } catch (error) {
       console.error("Error saving offer:", error);
       toast({
-        title: "Fehler",
-        description: "Die Offerte konnte nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("offer.form.toast.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -1386,7 +1506,7 @@ const FirmaOfferteErstellen = () => {
     return (
       <>
         <Helmet>
-          <title>Offerte erstellen | Firma</title>
+          <title>{t("offer.create.pageTitle")}</title>
         </Helmet>
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-secondary" />
@@ -1399,16 +1519,16 @@ const FirmaOfferteErstellen = () => {
     return (
       <>
         <Helmet>
-          <title>Offerte erstellen | Firma</title>
+          <title>{t("offer.create.pageTitle")}</title>
         </Helmet>
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">Kein Lead ausgewählt</h3>
+            <h3 className="text-lg font-medium mb-2">{t("offer.create.noLead.title")}</h3>
             <p className="text-muted-foreground mb-4">
-              Bitte wählen Sie einen akzeptierten Lead aus, um eine Offerte zu erstellen.
+              {t("offer.create.noLead.description")}
             </p>
             <Button onClick={() => navigate("/firma/anfragen")}>
-              Zu den Anfragen
+              {t("offer.create.noLead.action")}
             </Button>
           </div>
       </>
@@ -1418,7 +1538,7 @@ const FirmaOfferteErstellen = () => {
   return (
     <>
       <Helmet>
-        <title>Offerte erstellen | Firma</title>
+        <title>{t("offer.create.pageTitle")}</title>
       </Helmet>
         <div className="space-y-4 sm:space-y-6">
           {/* Folk-style header */}
@@ -1428,17 +1548,19 @@ const FirmaOfferteErstellen = () => {
               size="icon"
               onClick={() => navigate(-1)}
               className="h-9 w-9 shrink-0 rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink2"
-              aria-label="Zurück"
+              aria-label={t("common.back")}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <span className="text-2xl leading-none">📄</span>
-                <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">Offerte erstellen</h1>
+                <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">{t("offer.create.title")}</h1>
               </div>
               <p className="mt-1 text-[15px] text-folk-ink2">
-                Für <span className="font-semibold text-folk-ink">{lead.customer_first_name} {lead.customer_last_name}</span> — Positionen hinzufügen, Versandkanal wählen, senden.
+                {t("offer.create.subtitle", {
+                  customer: `${lead.customer_first_name} ${lead.customer_last_name}`,
+                })}
               </p>
             </div>
           </div>
@@ -1453,10 +1575,10 @@ const FirmaOfferteErstellen = () => {
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                       <User className="w-4 h-4 text-secondary" />
-                      Anfrage-Übersicht
+                      {t("offer.create.overview.title")}
                     </CardTitle>
                     <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
-                      Aus Anfrage übernommen
+                      {t("offer.create.overview.badge")}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -1468,7 +1590,7 @@ const FirmaOfferteErstellen = () => {
                     <div className="flex items-center gap-2 min-w-0">
                       <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-[10px] text-muted-foreground">Kunde</p>
+                        <p className="text-[10px] text-muted-foreground">{t("offer.create.overview.customer")}</p>
                         <p className="font-semibold text-sm truncate">
                           {lead.customer_first_name} {lead.customer_last_name}
                         </p>
@@ -1477,14 +1599,14 @@ const FirmaOfferteErstellen = () => {
                     <a href={`tel:${lead.customer_phone}`} className="flex items-center gap-2 min-w-0 hover:text-primary">
                       <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-[10px] text-muted-foreground">Telefon</p>
+                        <p className="text-[10px] text-muted-foreground">{t("common.phone")}</p>
                         <p className="font-medium text-sm truncate">{lead.customer_phone}</p>
                       </div>
                     </a>
                     <a href={`mailto:${lead.customer_email}`} className="flex items-center gap-2 min-w-0 hover:text-primary">
                       <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-[10px] text-muted-foreground">E-Mail</p>
+                        <p className="text-[10px] text-muted-foreground">{t("common.email")}</p>
                         <p className="font-medium text-sm truncate">{lead.customer_email}</p>
                       </div>
                     </a>
@@ -1497,7 +1619,7 @@ const FirmaOfferteErstellen = () => {
                     {/* Von */}
                     <div className="rounded-lg bg-red-50 border border-red-100 p-3">
                       <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide mb-1 flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> Auszug
+                        <MapPin className="w-3 h-3" /> {t("offer.create.overview.moveOut")}
                       </p>
                       <p className="font-semibold text-sm">
                         {lead.from_street}{lead.from_house_number ? ` ${lead.from_house_number}` : ""}
@@ -1514,16 +1636,22 @@ const FirmaOfferteErstellen = () => {
                             variant="outline"
                             className={`text-[10px] h-5 px-1.5 ${lead.from_has_lift ? 'border-emerald-400 text-emerald-700 bg-emerald-50' : 'border-red-300 text-red-600'}`}
                           >
-                            {lead.from_has_lift ? '✓ Lift' : '✗ Kein Lift'}
+                            {lead.from_has_lift
+                              ? `✓ ${t("offer.create.overview.lift")}`
+                              : `✗ ${t("offer.create.overview.noLift")}`}
                           </Badge>
                           {lead.from_has_estrich !== null && lead.from_has_estrich !== undefined && (
                             <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                              {lead.from_has_estrich ? '✓ Estrich' : '✗ Kein Estrich'}
+                              {lead.from_has_estrich
+                                ? `✓ ${t("offer.create.overview.estrich")}`
+                                : `✗ ${t("offer.create.overview.noEstrich")}`}
                             </Badge>
                           )}
                           {lead.from_has_keller !== null && lead.from_has_keller !== undefined && (
                             <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                              {lead.from_has_keller ? '✓ Keller' : '✗ Kein Keller'}
+                              {lead.from_has_keller
+                                ? `✓ ${t("offer.create.overview.keller")}`
+                                : `✗ ${t("offer.create.overview.noKeller")}`}
                             </Badge>
                           )}
                         </div>
@@ -1539,7 +1667,7 @@ const FirmaOfferteErstellen = () => {
                     {lead.to_city ? (
                       <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3">
                         <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide mb-1 flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> Einzug
+                          <MapPin className="w-3 h-3" /> {t("offer.create.overview.moveIn")}
                         </p>
                         <p className="font-semibold text-sm">
                           {lead.to_street}{lead.to_house_number ? ` ${lead.to_house_number}` : ""}
@@ -1556,14 +1684,16 @@ const FirmaOfferteErstellen = () => {
                               variant="outline"
                               className={`text-[10px] h-5 px-1.5 ${lead.to_has_lift ? 'border-emerald-400 text-emerald-700 bg-emerald-50' : 'border-red-300 text-red-600'}`}
                             >
-                              {lead.to_has_lift ? '✓ Lift' : '✗ Kein Lift'}
+                              {lead.to_has_lift
+                                ? `✓ ${t("offer.create.overview.lift")}`
+                                : `✗ ${t("offer.create.overview.noLift")}`}
                             </Badge>
                           </div>
                         )}
                       </div>
                     ) : (
                       <div className="rounded-lg bg-muted/40 border border-dashed p-3 flex items-center justify-center text-xs text-muted-foreground">
-                        Kein Einzugsort
+                        {t("offer.create.overview.noDestination")}
                       </div>
                     )}
                   </div>
@@ -1575,7 +1705,7 @@ const FirmaOfferteErstellen = () => {
                         <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
                           <p className="text-lg font-bold">{lead.from_rooms}</p>
                           <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">
-                            <Home className="w-2.5 h-2.5" /> Zimmer
+                            <Home className="w-2.5 h-2.5" /> {t("offer.create.overview.rooms")}
                           </p>
                         </div>
                       )}
@@ -1591,7 +1721,7 @@ const FirmaOfferteErstellen = () => {
                         <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
                           <p className="text-sm font-semibold capitalize">{lead.property_type}</p>
                           <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">
-                            <Building2 className="w-2.5 h-2.5" /> Objekt
+                            <Building2 className="w-2.5 h-2.5" /> {t("offer.create.overview.object")}
                           </p>
                         </div>
                       )}
@@ -1611,9 +1741,10 @@ const FirmaOfferteErstellen = () => {
                     <div className="flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
                       <CalendarDays className="w-4 h-4 text-blue-600 shrink-0" />
                       <div>
-                        <span className="text-xs text-blue-600 font-medium">Wunschtermin: </span>
+                        <span className="text-xs text-blue-600 font-medium">{t("offer.create.overview.preferredDate")} </span>
                         <span className="text-sm font-semibold">
-                          {new Date(lead.preferred_date).toLocaleDateString('de-CH', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                          {/* Operator-facing card → dashboard locale. "PPPP" = full localised date incl. weekday. */}
+                          {format(new Date(lead.preferred_date), "PPPP", { locale: dateLocale })}
                         </span>
                         {lead.preferred_time_slot && (
                           <span className="text-xs text-muted-foreground ml-2">({lead.preferred_time_slot})</span>
@@ -1626,27 +1757,27 @@ const FirmaOfferteErstellen = () => {
                   {(lead.packing_service_needed || lead.cleaning_service_needed || lead.storage_needed || lead.piano_transport_needed) && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                        <Package className="w-3 h-3" /> Gewünschte Zusatzleistungen
+                        <Package className="w-3 h-3" /> {t("offer.create.overview.extras")}
                       </p>
                       <div className="flex flex-wrap gap-1.5">
                         {lead.packing_service_needed && (
                           <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-xs font-normal gap-1">
-                            <CheckCircle className="w-3 h-3" /> Verpackungsservice
+                            <CheckCircle className="w-3 h-3" /> {t("offer.create.overview.packing")}
                           </Badge>
                         )}
                         {lead.cleaning_service_needed && (
                           <Badge className="bg-cyan-100 text-cyan-800 border-cyan-200 text-xs font-normal gap-1">
-                            <CheckCircle className="w-3 h-3" /> Reinigung
+                            <CheckCircle className="w-3 h-3" /> {getServiceLabel("reinigung", locale)}
                           </Badge>
                         )}
                         {lead.storage_needed && (
                           <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-xs font-normal gap-1">
-                            <CheckCircle className="w-3 h-3" /> Lagerung
+                            <CheckCircle className="w-3 h-3" /> {getServiceLabel("lagerung", locale)}
                           </Badge>
                         )}
                         {lead.piano_transport_needed && (
                           <Badge className="bg-rose-100 text-rose-800 border-rose-200 text-xs font-normal gap-1">
-                            <CheckCircle className="w-3 h-3" /> Klaviertransport
+                            <CheckCircle className="w-3 h-3" /> {getServiceLabel("klaviertransport", locale)}
                           </Badge>
                         )}
                       </div>
@@ -1657,7 +1788,7 @@ const FirmaOfferteErstellen = () => {
                   {lead.description && (
                     <div className="rounded-lg bg-muted/40 border border-dashed px-3 py-2.5">
                       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
-                        <MessageSquare className="w-3 h-3" /> Kundenbemerkung
+                        <MessageSquare className="w-3 h-3" /> {t("offer.create.overview.customerNote")}
                       </p>
                       <p className="text-sm italic text-foreground/80 leading-relaxed">
                         &ldquo;{lead.description}&rdquo;
@@ -1675,6 +1806,9 @@ const FirmaOfferteErstellen = () => {
                   leadId={leadId}
                   customerName={`${lead.customer_first_name} ${lead.customer_last_name}`}
                   onApplyItems={handleAIItems}
+                  // The panel writes offer_items.description → CUSTOMER-bound text, so it
+                  // gets the DOCUMENT locale, never the operator's dashboard locale.
+                  documentLocale={offerLocale}
                 />
               )}
 
@@ -1692,15 +1826,23 @@ const FirmaOfferteErstellen = () => {
                         </div>
                         <div>
                           <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                            Umzugsrechner
-                            <Badge variant="secondary" className="text-xs">NEU</Badge>
+                            {t("offer.create.calculator.title")}
+                            <Badge variant="secondary" className="text-xs">{t("offer.create.calculator.badgeNew")}</Badge>
                           </CardTitle>
                           <CardDescription className="text-xs sm:text-sm">
-                            Berechnen Sie Volumen, Zeit und Kosten automatisch
+                            {t("offer.create.calculator.description")}
                           </CardDescription>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={showMovingCalculator ? "Umzugsrechner schließen" : "Umzugsrechner öffnen"} aria-expanded={showMovingCalculator}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label={showMovingCalculator
+                          ? t("offer.create.calculator.close")
+                          : t("offer.create.calculator.open")}
+                        aria-expanded={showMovingCalculator}
+                      >
                         {showMovingCalculator ? (
                           <ChevronUp className="w-4 h-4" />
                         ) : (
@@ -1711,12 +1853,12 @@ const FirmaOfferteErstellen = () => {
                     {calculatorResult && !showMovingCalculator && (
                       <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
                         <div className="flex items-center gap-2 text-green-700 text-sm">
-                          <span className="font-medium">Letzte Berechnung:</span>
+                          <span className="font-medium">{t("offer.create.calculator.lastResult")}</span>
                           <span>{calculatorResult.netVolume.toFixed(1)} m³</span>
                           <span>•</span>
                           <span>{formatTime(calculatorResult.timeBreakdown.totalTime)}</span>
                           <span>•</span>
-                          <span className="font-semibold">{formatCalculatorCHF(calculatorResult.costBreakdown.total)}</span>
+                          <span className="font-semibold">{formatCurrency(calculatorResult.costBreakdown.total)}</span>
                         </div>
                       </div>
                     )}
@@ -1760,23 +1902,50 @@ const FirmaOfferteErstellen = () => {
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
                   <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                     <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-secondary" />
-                    Offerten-Details
+                    {t("offer.form.details.title")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
+                  {/* Sprache des KUNDEN. Steuert Titel, Positionstexte, Zahlungskondition,
+                      AGB, PDF und E-Mail — nicht die Sprache dieses Dashboards. Muss hier
+                      korrigierbar sein: Leads von vor der Sprachspalte sind alle auf 'de'
+                      gesetzt, ein französischer Kunde käme sonst still zu einer deutschen
+                      Offerte. */}
                   <div className="space-y-1.5 sm:space-y-2">
-                    <Label htmlFor="title" className="text-xs sm:text-sm">Titel</Label>
+                    <Label htmlFor="offer-language" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                      <Languages className="h-3.5 w-3.5" />
+                      {t("offer.form.customerLanguage.label")}
+                    </Label>
+                    <Select value={offerLocale} onValueChange={(v) => setOfferLocale(toLocale(v))}>
+                      <SelectTrigger id="offer-language" className="h-9 sm:h-10 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LOCALES.map((l) => (
+                          <SelectItem key={l} value={l}>
+                            {LOCALE_NAMES[l]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {t("offer.form.customerLanguage.hint")}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="title" className="text-xs sm:text-sm">{t("offer.form.field.title")}</Label>
                     <Input
                       id="title"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="z.B. Umzugsofferte"
+                      placeholder={t("offer.form.placeholder.title")}
                       className="h-9 sm:h-10 text-sm"
                     />
                   </div>
                   <div className="grid gap-3 sm:gap-4 grid-cols-2">
                     <div className="space-y-1.5 sm:space-y-2">
-                      <Label htmlFor="serviceDate" className="text-xs sm:text-sm">Ausführungsdatum</Label>
+                      <Label htmlFor="serviceDate" className="text-xs sm:text-sm">{t("offer.form.field.serviceDate")}</Label>
                       <DateInputCH
                         id="serviceDate"
                         value={serviceDate}
@@ -1785,14 +1954,14 @@ const FirmaOfferteErstellen = () => {
                     </div>
                     <div className="space-y-1.5 sm:space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="validUntil" className="text-xs sm:text-sm">Gültig bis</Label>
+                        <Label htmlFor="validUntil" className="text-xs sm:text-sm">{t("offer.form.field.validUntil")}</Label>
                         {validUntil && (
                           <button
                             type="button"
                             onClick={() => setValidUntil("")}
                             className="text-[10px] text-muted-foreground hover:text-destructive"
                           >
-                            Entfernen
+                            {t("common.remove")}
                           </button>
                         )}
                       </div>
@@ -1812,7 +1981,7 @@ const FirmaOfferteErstellen = () => {
                           }}
                           className="w-full h-9 sm:h-10 border border-dashed border-input rounded-md text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1"
                         >
-                          + Gültig bis hinzufügen
+                          {t("offer.form.validUntil.add")}
                         </button>
                       )}
                     </div>
@@ -1821,17 +1990,17 @@ const FirmaOfferteErstellen = () => {
                     <Alert className="bg-amber-50 border-amber-200">
                       <AlertCircle className="h-4 w-4 text-amber-600" />
                       <AlertDescription className="text-amber-800 text-sm">
-                        Hinweis: «Gültig bis» liegt weniger als 7 Tage ab heute. Üblich sind mindestens 7 Tage Gültigkeit.
+                        {t("offer.form.validUntil.shortWarning")}
                       </AlertDescription>
                     </Alert>
                   )}
                   <div className="space-y-1.5 sm:space-y-2">
-                    <Label htmlFor="description" className="text-xs sm:text-sm">Beschreibung / Anmerkungen</Label>
+                    <Label htmlFor="description" className="text-xs sm:text-sm">{t("offer.form.field.description")}</Label>
                     <Textarea
                       id="description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Zusätzliche Informationen..."
+                      placeholder={t("offer.form.placeholder.description")}
                       rows={3}
                       className="text-sm"
                     />
@@ -1842,16 +2011,16 @@ const FirmaOfferteErstellen = () => {
               {/* Preismodell */}
               <Card>
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                  <CardTitle className="text-sm sm:text-base">Preismodell</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.form.priceModel.title")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {(
                       [
-                        { value: 'pauschal', label: 'Pauschalpreis' },
-                        { value: 'stundenansatz', label: 'Stundenansatz' },
-                        { value: 'kostendach', label: 'Stundenansatz mit Kostendach' },
-                      ] as const
+                        { value: 'pauschal', labelKey: 'offer.form.priceModel.pauschal' },
+                        { value: 'stundenansatz', labelKey: 'domain.priceModel.stundenansatz' },
+                        { value: 'kostendach', labelKey: 'offer.form.priceModel.kostendach' },
+                      ] as const satisfies readonly { value: 'pauschal' | 'stundenansatz' | 'kostendach'; labelKey: MessageKey }[]
                     ).map((opt) => (
                       <button
                         key={opt.value}
@@ -1863,7 +2032,7 @@ const FirmaOfferteErstellen = () => {
                             : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/50 hover:text-foreground'
                         }`}
                       >
-                        {opt.label}
+                        {t(opt.labelKey)}
                       </button>
                     ))}
                   </div>
@@ -1871,31 +2040,31 @@ const FirmaOfferteErstellen = () => {
                   {(priceModel === 'stundenansatz' || priceModel === 'kostendach') && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
                       <div className="space-y-1">
-                        <Label className="text-xs sm:text-sm">Stundenansatz (CHF / Std.)</Label>
+                        <Label className="text-xs sm:text-sm">{t("offer.form.field.hourlyRate")}</Label>
                         <Input
                           type="number"
                           min={1}
                           step={1}
                           value={hourlyRate}
                           onChange={(e) => applyGlobalHourlyRate(e.target.value)}
-                          placeholder="z.B. 120"
+                          placeholder={t("offer.form.placeholder.hourlyRate")}
                           className="h-9 sm:h-10 text-sm"
                         />
                       </div>
                       {priceModel === 'kostendach' && (
                         <div className="space-y-1">
-                          <Label className="text-xs sm:text-sm">Kostendach (max. CHF)</Label>
+                          <Label className="text-xs sm:text-sm">{t("offer.form.field.kostendach")}</Label>
                           <Input
                             type="number"
                             min={1}
                             step={1}
                             value={kostendachMax}
                             onChange={(e) => setKostendachMax(e.target.value)}
-                            placeholder="z.B. 1800"
+                            placeholder={t("offer.form.placeholder.kostendach")}
                             className="h-9 sm:h-10 text-sm"
                           />
                           <p className="text-xs text-muted-foreground">
-                            Der Kunde zahlt maximal diesen Betrag, unabhängig vom Zeitaufwand.
+                            {t("offer.form.kostendach.hint")}
                           </p>
                         </div>
                       )}
@@ -1904,7 +2073,7 @@ const FirmaOfferteErstellen = () => {
 
                   {/* Offer-level Rabatt (%) — F1a: captured+saved, totals integration is F3 */}
                   <div className="space-y-1 pt-1 sm:max-w-[50%]">
-                    <Label className="text-xs sm:text-sm">Rabatt gesamt (%)</Label>
+                    <Label className="text-xs sm:text-sm">{t("offer.form.field.discount")}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -1912,7 +2081,7 @@ const FirmaOfferteErstellen = () => {
                       step={0.5}
                       value={discountPercent}
                       onChange={(e) => setDiscountPercent(e.target.value)}
-                      placeholder="z.B. 10 (optional)"
+                      placeholder={t("offer.form.placeholder.discount")}
                       className="h-9 sm:h-10 text-sm"
                     />
                   </div>
@@ -1927,6 +2096,7 @@ const FirmaOfferteErstellen = () => {
                     onChange={setSurcharges}
                     itemsSubtotal={calculateSubtotal()}
                     distanceKm={lead?.distance_km ?? null}
+                    documentLocale={offerLocale}
                   />
                 </CardContent>
               </Card>
@@ -1935,15 +2105,15 @@ const FirmaOfferteErstellen = () => {
               <Card>
                 <CardContent className="px-3 sm:px-6 py-3 sm:py-4 space-y-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <Label className="text-sm font-medium">Offerte-Art</Label>
+                    <Label className="text-sm font-medium">{t("offer.form.offerType.title")}</Label>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {(
                       [
-                        { value: 'normal' as const, label: 'Normal Offerte', sub: 'Nach Besichtigung' },
-                        { value: 'blind'  as const, label: 'Blind Offerte',  sub: 'Ohne Besichtigung' },
-                      ]
-                    ).map(({ value, label, sub }) => (
+                        { value: 'normal', labelKey: 'offer.form.offerType.normal', subKey: 'offer.form.offerType.normalHint' },
+                        { value: 'blind', labelKey: 'offer.form.offerType.blind', subKey: 'offer.form.offerType.blindHint' },
+                      ] as const satisfies readonly { value: 'normal' | 'blind'; labelKey: MessageKey; subKey: MessageKey }[]
+                    ).map(({ value, labelKey, subKey }) => (
                       <button
                         key={value}
                         type="button"
@@ -1956,15 +2126,14 @@ const FirmaOfferteErstellen = () => {
                             : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
                         }`}
                       >
-                        <p className="text-xs font-semibold">{label}</p>
-                        <p className="text-[10px] mt-0.5">{sub}</p>
+                        <p className="text-xs font-semibold">{t(labelKey)}</p>
+                        <p className="text-[10px] mt-0.5">{t(subKey)}</p>
                       </button>
                     ))}
                   </div>
                   {offerteType === 'blind' && (
                     <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                      Diese Offerte basiert auf Kundenangaben ohne persönliche Besichtigung.
-                      Preise sind Schätzungen und können nach Besichtigung angepasst werden.
+                      {t("offer.form.offerType.blindNote")}
                     </p>
                   )}
                 </CardContent>
@@ -1976,10 +2145,10 @@ const FirmaOfferteErstellen = () => {
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-0.5">
                       <Label htmlFor="brief-layout-toggle" className="text-sm font-medium cursor-pointer">
-                        Als Brief versenden
+                        {t("offer.form.brief.label")}
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        PDF im Schweizer Briefstandard SN 010 130 (mit Absenderblock, Empfängeradresse und korrekter Anrede)
+                        {t("offer.form.brief.hint")}
                       </p>
                     </div>
                     <Switch
@@ -1994,9 +2163,9 @@ const FirmaOfferteErstellen = () => {
               {/* Positions with Drag & Drop */}
               <Card>
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                  <CardTitle className="text-sm sm:text-base">Positionen & Preise</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.form.items.title")}</CardTitle>
                   <CardDescription className="text-xs sm:text-sm">
-                    Fügen Sie Leistungen aus Ihrem Katalog hinzu oder erstellen Sie neue Positionen
+                    {t("offer.form.items.description")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
@@ -2006,9 +2175,9 @@ const FirmaOfferteErstellen = () => {
                       <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-secondary/10 flex items-center justify-center">
                         <ClipboardList className="w-8 h-8 text-secondary/60" />
                       </div>
-                      <h3 className="text-base font-semibold text-foreground mb-2">Keine Positionen</h3>
+                      <h3 className="text-base font-semibold text-foreground mb-2">{t("offer.form.items.empty.title")}</h3>
                       <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
-                        Fügen Sie Positionen aus Ihrem Leistungskatalog hinzu oder erstellen Sie eine leere Position.
+                        {t("offer.form.items.empty.description")}
                       </p>
                       <div className="flex flex-wrap justify-center gap-2">
                         <Button
@@ -2018,11 +2187,11 @@ const FirmaOfferteErstellen = () => {
                           className="gap-1.5"
                         >
                           <Plus className="w-4 h-4" />
-                          Aus Katalog hinzufügen
+                          {t("offer.form.items.fromCatalog")}
                         </Button>
                         <Button variant="outline" size="sm" onClick={addItem}>
                           <Plus className="w-4 h-4 mr-1" />
-                          Manuell eingeben
+                          {t("offer.form.items.manual")}
                         </Button>
                       </div>
                     </div>
@@ -2044,11 +2213,11 @@ const FirmaOfferteErstellen = () => {
                                 <div className="flex flex-wrap items-center gap-2 px-1">
                                   <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                    {group.label}
+                                    {getServiceLabel(group.serviceType, locale)}
                                   </span>
                                   {allGroups.length > 1 && (
                                     <div className="flex items-center gap-1.5 ml-auto">
-                                      <span className="text-[10px] text-muted-foreground">Termin</span>
+                                      <span className="text-[10px] text-muted-foreground">{t("offer.form.group.appointment")}</span>
                                       <DatePicker
                                         value={groupDates[serviceKey]?.date ?? ""}
                                         onChange={(value) => updateGroupDate(serviceKey, "date", value)}
@@ -2150,11 +2319,11 @@ const FirmaOfferteErstellen = () => {
                           className="gap-1.5 text-xs sm:text-sm h-8 sm:h-9"
                         >
                           <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          Position hinzufügen
+                          {t("offer.form.items.add")}
                         </Button>
                         <Button variant="outline" size="sm" onClick={addItem} className="text-xs sm:text-sm h-8 sm:h-9">
                           <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
-                          Manuell eingeben
+                          {t("offer.form.items.manual")}
                         </Button>
                         {optionalServices.length > 0 && (
                           <Button
@@ -2164,7 +2333,7 @@ const FirmaOfferteErstellen = () => {
                             className="text-secondary border-secondary/30 hover:bg-secondary/10 text-xs sm:text-sm h-8 sm:h-9"
                           >
                             <PackagePlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
-                            Optionale ({optionalServices.length})
+                            {t("offer.form.items.optional", { count: optionalServices.length })}
                           </Button>
                         )}
                       </div>
@@ -2177,11 +2346,8 @@ const FirmaOfferteErstellen = () => {
                   {items.some(item => item.priceType === "per_hour" || item.unit === "Stunden") && (
                     <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-xs sm:text-sm text-amber-800">
-                        <span className="font-medium">⏱️ Hinweis zu Stundenarbeiten:</span>{" "}
-                        Die angegebenen Stunden sind eine Schätzung basierend auf unserer Erfahrung.
-                        Die tatsächliche Arbeitszeit kann je nach Gegebenheiten vor Ort (Zugänglichkeit,
-                        Stockwerk, Parkplatzsituation etc.) variieren. Die Abrechnung erfolgt nach
-                        effektivem Aufwand.
+                        <span className="font-medium">⏱️ {t("offer.form.hourlyNotice.label")}</span>{" "}
+                        {t("offer.form.hourlyNotice.text")}
                       </p>
                     </div>
                   )}
@@ -2191,13 +2357,13 @@ const FirmaOfferteErstellen = () => {
                     <div className="w-full sm:w-72 space-y-2">
                       {hasRateItem() ? (
                         <div className="text-right text-xs sm:text-sm text-muted-foreground leading-snug">
-                          {RATE_AGGREGATE_NOTE}
+                          {t("doc.offer.rateAggregateNote")}
                         </div>
                       ) : (
                       <>
                       {/* Zwischensumme */}
                       <div className="flex justify-between items-start text-xs sm:text-sm">
-                        <span className="shrink-0">Zwischensumme</span>
+                        <span className="shrink-0">{t("common.subtotal")}</span>
                         {calculateMaxSubtotal() !== null ? (
                           <div className="text-right text-amber-700 font-medium leading-snug">
                             <div>{formatCurrency(calculateSubtotal())}</div>
@@ -2210,7 +2376,7 @@ const FirmaOfferteErstellen = () => {
                       {/* Zuschläge (zwischen Zwischensumme und MwSt) */}
                       {surcharges.map((s, i) => (
                         <div key={i} className="flex justify-between items-center text-xs sm:text-sm text-slate-600">
-                          <span className="shrink-0 truncate">{s.label || "Zuschlag"}</span>
+                          <span className="shrink-0 truncate">{s.label || t("offer.form.totals.surcharge")}</span>
                           <span>{formatCurrency(computeSurchargeAmount(s, calculateSubtotal(), lead?.distance_km ?? null))}</span>
                         </div>
                       ))}
@@ -2218,7 +2384,9 @@ const FirmaOfferteErstellen = () => {
                       {parsedDiscountPercent !== null && parsedDiscountPercent > 0 && (
                         <>
                           <div className="flex justify-between items-start text-xs sm:text-sm text-slate-600">
-                            <span className="shrink-0">Rabatt {parsedDiscountPercent.toLocaleString("de-CH")} %</span>
+                            <span className="shrink-0">
+                              {t("offer.form.totals.discount", { percent: formatPercent(parsedDiscountPercent, locale) })}
+                            </span>
                             {calculateMaxTaxableBase() !== null ? (
                               <div className="text-right text-amber-700 leading-snug">
                                 <div>- {formatCurrency(computeDiscountAmount(calculateTaxableBase(), parsedDiscountPercent))}</div>
@@ -2229,7 +2397,7 @@ const FirmaOfferteErstellen = () => {
                             )}
                           </div>
                           <div className="flex justify-between items-start text-xs sm:text-sm">
-                            <span className="shrink-0">Total exkl. MwSt</span>
+                            <span className="shrink-0">{t("offer.form.totals.totalExclVat")}</span>
                             {calculateMaxDiscountedBase() !== null ? (
                               <div className="text-right text-amber-700 font-medium leading-snug">
                                 <div>{formatCurrency(calculateDiscountedBase())}</div>
@@ -2248,7 +2416,7 @@ const FirmaOfferteErstellen = () => {
                             checked={mwstEnabled}
                             onCheckedChange={setMwstEnabled}
                           />
-                          <span>MwSt.</span>
+                          <span>{t("common.vat")}</span>
                           {mwstEnabled && (
                             <div className="flex items-center gap-1">
                               <Input
@@ -2276,7 +2444,7 @@ const FirmaOfferteErstellen = () => {
                       <Separator />
                       {/* Total */}
                       <div className="flex justify-between items-start font-bold text-base sm:text-lg">
-                        <span className="shrink-0">Total</span>
+                        <span className="shrink-0">{t("common.total")}</span>
                         {calculateMaxTotal() !== null ? (
                           <div className="text-right text-amber-700 leading-snug">
                             <div>{formatCurrency(calculateTotal())}</div>
@@ -2296,66 +2464,30 @@ const FirmaOfferteErstellen = () => {
               {/* Payment Terms */}
               <Card>
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                  <CardTitle className="text-sm sm:text-base">Zahlungskondition</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.form.payment.title")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                   <Textarea
                     value={paymentTerms}
                     onChange={(e) => setPaymentTerms(e.target.value)}
-                    placeholder="z.B. Barzahlung nach dem Umzug an den Teamchef"
+                    placeholder={t("offer.form.payment.placeholder")}
                     rows={2}
                     className="text-sm"
                   />
+                  {/* Chip LABEL = operator chrome (dashboard locale).
+                      Chip VALUE = the payment term printed on the OFFER, so it is written
+                      in the CUSTOMER's language (documentT), not the operator's. */}
                   <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-secondary/10 text-xs"
-                      onClick={() => setPaymentTerms("Barzahlung nach der Ausführung")}
-                    >
-                      Barzahlung
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-secondary/10 text-xs"
-                      onClick={() => setPaymentTerms("Zahlung innerhalb 10 Tagen netto")}
-                    >
-                      10 Tage netto
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-secondary/10 text-xs"
-                      onClick={() => setPaymentTerms("50% Anzahlung, Rest bei Fertigstellung")}
-                    >
-                      50% Anzahlung
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-secondary/10 text-xs"
-                      onClick={() => setPaymentTerms("Zahlung innerhalb 30 Tagen")}
-                    >
-                      30 Tage
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-secondary/10 text-xs"
-                      onClick={() => setPaymentTerms("Zahlung per Rechnung innerhalb 30 Tagen")}
-                    >
-                      Rechnung
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-secondary/10 text-xs"
-                      onClick={() => setPaymentTerms("Zahlung per TWINT nach der Ausführung")}
-                    >
-                      TWINT
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer hover:bg-secondary/10 text-xs"
-                      onClick={() => setPaymentTerms("Zahlung per Kreditkarte nach der Ausführung")}
-                    >
-                      Kreditkarte
-                    </Badge>
+                    {PAYMENT_QUICK_PICKS.map((pick) => (
+                      <Badge
+                        key={pick.valueKey}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-secondary/10 text-xs"
+                        onClick={() => setPaymentTerms(documentT(pick.valueKey))}
+                      >
+                        {t(pick.labelKey)}
+                      </Badge>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -2368,35 +2500,37 @@ const FirmaOfferteErstellen = () => {
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
                 >
                   <div>
-                    <p className="text-sm font-semibold">Allgemeine Geschäftsbedingungen</p>
+                    <p className="text-sm font-semibold">{t("offer.form.agb.title")}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {termsAndConditions
                         ? `${termsAndConditions.slice(0, 50)}…`
-                        : "Erscheinen auf Seite 2 der Offerte · Optional"}
+                        : t("offer.form.agb.hint")}
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground shrink-0 ml-2">
-                    {showAgb ? "Einklappen ↑" : "Bearbeiten ↓"}
+                    {showAgb ? t("offer.form.agb.collapse") : t("offer.form.agb.expand")}
                   </span>
                 </button>
 
                 {showAgb && (
                   <CardContent className="px-4 pb-4 pt-0 space-y-3 border-t">
                     <div className="pt-3">
+                      {/* Button LABEL = operator chrome; the inserted AGB TEXT is printed on page 2
+                          of the customer's PDF → customer language (documentT). */}
                       <Button
                         type="button"
                         variant="default"
                         size="sm"
                         className="w-full mb-3 gap-2"
-                        onClick={() => setTermsAndConditions(`Versicherung\nDie Firma verfügt über eine Betriebs- und Transportversicherung. Alle Schäden müssen sofort nach Feststellung, spätestens jedoch innerhalb von 24 Stunden, schriftlich gemeldet werden.\n\nHaftung\nDie Haftung für Schäden an transportierten Gütern richtet sich nach den gesetzlichen Bestimmungen des Schweizerischen Obligationenrechts.\n\nStornierung\nBei Stornierung weniger als 48 Stunden vor dem vereinbarten Termin werden 50% des Offertbetrages in Rechnung gestellt.\n\nZahlungsbedingungen\nDie Rechnung ist sofort nach Abschluss der Arbeiten zahlbar. Bei Zahlungsverzug wird ein Verzugszins von 5% pro Jahr berechnet.\n\nGerichtsstand\nGerichtsstand ist der Sitz unserer Firma.`)}
+                        onClick={() => setTermsAndConditions(documentT("offer.doc.agb.default"))}
                       >
                         <Plus className="w-4 h-4" />
-                        Standard-AGB automatisch einfügen
+                        {t("offer.form.agb.insertDefault")}
                       </Button>
                       <Textarea
                         value={termsAndConditions}
                         onChange={(e) => setTermsAndConditions(e.target.value)}
-                        placeholder="Geben Sie hier Ihre allgemeinen Geschäftsbedingungen ein…"
+                        placeholder={t("offer.form.agb.placeholder")}
                         rows={6}
                         className="text-sm"
                       />
@@ -2414,7 +2548,7 @@ const FirmaOfferteErstellen = () => {
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm">
                     <Building2 className="w-4 h-4" />
-                    Ihre Firma
+                    {t("offer.form.company.title")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
@@ -2434,7 +2568,7 @@ const FirmaOfferteErstellen = () => {
                   </p>
                   {company?.mwst_number && (
                     <p className="text-muted-foreground text-xs">
-                      MwSt: {company.mwst_number}
+                      {t("offer.form.company.vat", { number: company.mwst_number })}
                     </p>
                   )}
                 </CardContent>
@@ -2458,11 +2592,12 @@ const FirmaOfferteErstellen = () => {
                       <SheetHeader>
                         <SheetTitle className="flex items-center gap-2">
                           <Eye className="w-5 h-5" />
-                          Live-Vorschau
+                          {t("offer.form.preview.title")}
                         </SheetTitle>
                       </SheetHeader>
                       <div className="mt-4">
                         <OfferteLivePreview
+                          documentLocale={offerLocale}
                           company={company}
                           lead={lead}
                           title={title}
@@ -2505,7 +2640,7 @@ const FirmaOfferteErstellen = () => {
                       <SheetHeader>
                         <SheetTitle className="flex items-center gap-2">
                           <Info className="w-5 h-5 text-secondary" />
-                          Original-Anfrage
+                          {t("offer.form.originalAnfrage")}
                         </SheetTitle>
                       </SheetHeader>
                       <div className="mt-6">
@@ -2521,13 +2656,13 @@ const FirmaOfferteErstellen = () => {
                     disabled={isSaving || isSpellChecking}
                   >
                     {isSpellChecking ? (
-                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Text wird geprüft...</>
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t("offer.form.spellChecking")}</>
                     ) : isSaving ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     ) : (
                       <Send className="w-4 h-4 mr-2" />
                     )}
-                    {!isSpellChecking && "Offerte senden"}
+                    {!isSpellChecking && t("offer.form.send")}
                   </Button>
 
                   {/* Save Draft Button */}
@@ -2556,11 +2691,12 @@ const FirmaOfferteErstellen = () => {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Eye className="w-4 h-4" />
-                      Live-Vorschau
+                      {t("offer.form.preview.title")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <OfferteLivePreview
+                          documentLocale={offerLocale}
                       company={company}
                       lead={lead}
                       title={title}
@@ -2599,14 +2735,14 @@ const FirmaOfferteErstellen = () => {
                             className="w-full h-10 text-sm border-secondary text-secondary hover:bg-secondary/10"
                           >
                             <FileText className="w-4 h-4 mr-2" />
-                            Anfrage-Details
+                            {t("offer.form.anfrageDetails")}
                           </Button>
                         </SheetTrigger>
                         <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
                           <SheetHeader>
                             <SheetTitle className="flex items-center gap-2">
                               <Info className="w-5 h-5 text-secondary" />
-                              Original-Anfrage
+                              {t("offer.form.originalAnfrage")}
                             </SheetTitle>
                           </SheetHeader>
                           <div className="mt-6">
@@ -2621,13 +2757,13 @@ const FirmaOfferteErstellen = () => {
                         disabled={isSaving || isSpellChecking}
                       >
                         {isSpellChecking ? (
-                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Text wird geprüft...</>
+                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t("offer.form.spellChecking")}</>
                         ) : isSaving ? (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         ) : (
                           <Send className="w-4 h-4 mr-2" />
                         )}
-                        {!isSpellChecking && "Offerte senden"}
+                        {!isSpellChecking && t("offer.form.send")}
                       </Button>
                       <Button
                         variant="outline"
@@ -2640,7 +2776,7 @@ const FirmaOfferteErstellen = () => {
                         ) : (
                           <Save className="w-4 h-4 mr-2" />
                         )}
-                        Als Entwurf speichern
+                        {t("offer.form.saveDraft")}
                       </Button>
                     </div>
                   </CardContent>
@@ -2654,18 +2790,17 @@ const FirmaOfferteErstellen = () => {
         <Dialog open={showCalculatorReplaceDialog} onOpenChange={setShowCalculatorReplaceDialog}>
           <DialogContent className="max-w-sm p-6">
             <DialogHeader>
-              <DialogTitle>Positionen ersetzen?</DialogTitle>
+              <DialogTitle>{t("offer.create.calculator.replace.title")}</DialogTitle>
               <DialogDescription className="text-sm pt-1">
-                Sie haben bereits <strong>{items.length} Position{items.length !== 1 ? 'en' : ''}</strong> in der Offerte.
-                Sollen die Positionen aus dem Rechner diese ersetzen oder hinzugefügt werden?
+                {t("offer.create.calculator.replace.description", { count: items.length })}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
               <Button variant="outline" onClick={() => handleCalculatorDialogChoice(false)} className="flex-1">
-                Hinzufügen
+                {t("offer.create.calculator.replace.append")}
               </Button>
               <Button variant="destructive" onClick={() => handleCalculatorDialogChoice(true)} className="flex-1">
-                Ersetzen
+                {t("offer.create.calculator.replace.replace")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -2689,17 +2824,17 @@ const FirmaOfferteErstellen = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
                 <PackagePlus className="w-4 h-4 sm:w-5 sm:h-5 text-secondary" />
-                Optionale Leistungen
+                {t("offer.form.optional.title")}
               </DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">
-                Wählen Sie die optionalen Leistungen aus.
+                {t("offer.form.optional.description")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="flex-1 overflow-y-auto py-3 sm:py-4 space-y-2 -mx-4 px-4 sm:mx-0 sm:px-0">
               {optionalServices.length === 0 ? (
                 <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">
-                  Keine optionalen Leistungen verfügbar
+                  {t("offer.form.optional.empty")}
                 </p>
               ) : (
                 optionalServices.map((service) => (
@@ -2721,17 +2856,19 @@ const FirmaOfferteErstellen = () => {
                       />
                     </div>
                     <div className="flex-1 min-w-0">
+                      {/* Catalog row shown to the OPERATOR → dashboard locale (the customer-language
+                          snapshot is taken separately in addSelectedOptionalServices). */}
                       <div className="flex items-start sm:items-center justify-between gap-2 flex-col sm:flex-row">
-                        <span className="font-medium text-sm">{service.name}</span>
+                        <span className="font-medium text-sm">{localizedField(service, "name", locale)}</span>
                         {service.default_price > 0 && (
                           <Badge variant="outline" className="shrink-0 text-xs">
-                            CHF {service.default_price.toFixed(2)}
+                            {formatCurrency(service.default_price)}
                           </Badge>
                         )}
                       </div>
                       {service.description && (
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {service.description}
+                          {localizedField(service, "description", locale)}
                         </p>
                       )}
                       <div className="flex items-center gap-2 mt-1">
@@ -2751,15 +2888,15 @@ const FirmaOfferteErstellen = () => {
             <DialogFooter className="border-t pt-3 sm:pt-4">
               <div className="flex items-center justify-between w-full gap-2">
                 <span className="text-xs sm:text-sm text-muted-foreground">
-                  {selectedOptionalIds.size} ausgewählt
+                  {t("offer.form.optional.selected", { count: selectedOptionalIds.size })}
                 </span>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => setShowOptionalDialog(false)} className="text-xs sm:text-sm">
-                    Abbrechen
+                    {t("common.cancel")}
                   </Button>
                   <Button size="sm" onClick={addSelectedOptionalServices} disabled={selectedOptionalIds.size === 0} className="text-xs sm:text-sm">
                     <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
-                    Hinzufügen
+                    {t("common.add")}
                   </Button>
                 </div>
               </div>

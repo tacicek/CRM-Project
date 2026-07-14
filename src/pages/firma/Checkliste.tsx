@@ -46,6 +46,8 @@ import {
   type ChecklistSection,
 } from "@/lib/checklistTemplates";
 import { downloadChecklistPdf, generateChecklistPdf } from "@/lib/generateChecklistPdf";
+import { resolveDocumentLocale } from "@/i18n/documentLocale";
+import { useI18n, useT } from "@/i18n/useI18n";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import {
   Tooltip,
@@ -61,11 +63,13 @@ import {
 } from "@/components/ui/dialog";
 
 // Import shared constants
-import { SERVICE_TYPES, getServiceTypeConfig } from "@/constants/service-catalog";
+import { SERVICE_TYPES, getServiceTypeConfig, getServiceTypeLabel } from "@/constants/service-catalog";
 
 interface Company {
   id: string;
   company_name: string;
+  /** Checklist templates carry no language of their own → company default is the doc locale. */
+  default_language?: string | null;
   street?: string | null;
   house_number?: string | null;
   plz: string;
@@ -92,6 +96,8 @@ interface DbChecklistTemplate {
 const FirmaCheckliste = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const t = useT();
+  const { locale } = useI18n();
   const [company, setCompany] = useState<Company | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -136,7 +142,7 @@ const FirmaCheckliste = () => {
         const companyData = await fetchSingleCompanyForUser<Company>({
           userId: user.id,
           userEmail: user.email,
-          select: "id, company_name, street, house_number, plz, city, phone, email, website, logo_url, primary_color",
+          select: "id, company_name, street, house_number, plz, city, phone, email, website, logo_url, primary_color, default_language",
         });
 
         if (!isMounted) return;
@@ -202,8 +208,8 @@ const FirmaCheckliste = () => {
         order: i + 1
       })));
       toast({
-        title: "Vorlage geladen",
-        description: "Die Standard-Vorlage wurde übernommen. Sie können diese anpassen.",
+        title: t("checklist.toast.templateLoaded"),
+        description: t("checklist.toast.templateLoadedDescription"),
       });
     }
   };
@@ -301,8 +307,8 @@ const FirmaCheckliste = () => {
 
     if (!title.trim()) {
       toast({
-        title: "Fehler",
-        description: "Bitte geben Sie einen Titel ein.",
+        title: t("common.error"),
+        description: t("checklist.toast.titleRequired"),
         variant: "destructive",
       });
       return;
@@ -313,8 +319,8 @@ const FirmaCheckliste = () => {
 
     if (cleaned.length === 0) {
       toast({
-        title: "Fehler",
-        description: "Bitte fügen Sie mindestens einen Abschnitt mit Punkten hinzu.",
+        title: t("common.error"),
+        description: t("checklist.toast.sectionRequired"),
         variant: "destructive",
       });
       return;
@@ -359,14 +365,14 @@ const FirmaCheckliste = () => {
       }
 
       toast({
-        title: "Gespeichert",
-        description: "Die Checkliste wurde erfolgreich gespeichert.",
+        title: t("checklist.toast.saved"),
+        description: t("checklist.toast.savedDescription"),
       });
     } catch (error) {
       console.error("Error saving checklist:", error);
       toast({
-        title: "Fehler",
-        description: "Die Checkliste konnte nicht gespeichert werden.",
+        title: t("common.error"),
+        description: t("checklist.toast.saveFailed"),
         variant: "destructive",
       });
     } finally {
@@ -379,7 +385,7 @@ const FirmaCheckliste = () => {
     // FIX: Prevent concurrent operations
     if (!templateId || isSaving || pendingOperation) return;
     
-    if (!confirm("Möchten Sie diese Checkliste wirklich löschen?")) return;
+    if (!confirm(t("checklist.confirm.delete"))) return;
 
     setPendingOperation("delete");
     try {
@@ -397,14 +403,14 @@ const FirmaCheckliste = () => {
       resetSections([getEmptySection(1)]);
 
       toast({
-        title: "Gelöscht",
-        description: "Die Checkliste wurde gelöscht.",
+        title: t("checklist.toast.deleted"),
+        description: t("checklist.toast.deletedDescription"),
       });
     } catch (error) {
       console.error("Error deleting checklist:", error);
       toast({
-        title: "Fehler",
-        description: "Die Checkliste konnte nicht gelöscht werden.",
+        title: t("common.error"),
+        description: t("checklist.toast.deleteFailed"),
         variant: "destructive",
       });
     } finally {
@@ -419,19 +425,21 @@ const FirmaCheckliste = () => {
     // FIX: Validate title before copying
     if (!title.trim()) {
       toast({
-        title: "Fehler",
-        description: "Bitte speichern Sie zuerst die aktuelle Checkliste.",
+        title: t("common.error"),
+        description: t("checklist.toast.saveFirst"),
         variant: "destructive",
       });
       setShowCopyDialog(false);
       return;
     }
 
-    const existingTarget = existingTemplates.find(t => t.service_type === copyTargetServiceType);
+    const targetServiceLabel = getServiceTypeLabel(copyTargetServiceType, locale);
+
+    const existingTarget = existingTemplates.find(tpl => tpl.service_type === copyTargetServiceType);
     if (existingTarget) {
       toast({
-        title: "Fehler",
-        description: `Für ${SERVICE_TYPES.find(s => s.value === copyTargetServiceType)?.label} existiert bereits eine Checkliste. Bitte löschen Sie diese zuerst.`,
+        title: t("common.error"),
+        description: t("checklist.toast.targetExists", { service: targetServiceLabel }),
         variant: "destructive",
       });
       setShowCopyDialog(false);
@@ -522,6 +530,9 @@ const FirmaCheckliste = () => {
         title: title || "Checkliste",
         subtitle,
         sections: cleaned,
+        // Only the PDF chrome follows this; title/subtitle/sections are the operator's
+        // DB-authored template text and are printed as written.
+        locale: resolveDocumentLocale(null, company),
         company: {
           company_name: company.company_name,
           street: company.street,
@@ -553,6 +564,7 @@ const FirmaCheckliste = () => {
       title: title || "Checkliste",
       subtitle,
       sections: cleaned,
+      locale: resolveDocumentLocale(null, company),
       company: {
         company_name: company.company_name,
         street: company.street,

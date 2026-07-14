@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "@react-pdf/renderer";
 import { FONT_SIZES, SPACING } from "../styles/constants";
-import { BLIND_DISCLAIMER_LABEL, BLIND_DISCLAIMER_TEXT } from "@/lib/offerPricing";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import type { Locale } from "@/i18n/locale";
 
 const styles = StyleSheet.create({
   wrapper: {
@@ -28,9 +29,18 @@ const styles = StyleSheet.create({
   },
 });
 
-export const BlindOfferteDisclaimer = () => (
-  <View style={styles.wrapper} wrap={false}>
-    <Text style={styles.label}>{BLIND_DISCLAIMER_LABEL}</Text>
-    <Text style={styles.text}>{BLIND_DISCLAIMER_TEXT}</Text>
-  </View>
-);
+interface BlindOfferteDisclaimerProps {
+  locale: Locale;
+}
+
+// Same wording as the dashboard constants (BLIND_DISCLAIMER_* in offerPricing) — both
+// resolve doc.offer.blind.label / doc.offer.blind.text, here in the customer's language.
+export const BlindOfferteDisclaimer = ({ locale }: BlindOfferteDisclaimerProps) => {
+  const { t } = documentI18nFor(locale);
+  return (
+    <View style={styles.wrapper} wrap={false}>
+      <Text style={styles.label}>{t("doc.offer.blind.label")}</Text>
+      <Text style={styles.text}>{t("doc.offer.blind.text")}</Text>
+    </View>
+  );
+};

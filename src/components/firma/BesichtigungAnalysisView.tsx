@@ -29,6 +29,8 @@ import {
   Shield,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useT } from "@/i18n/useI18n";
+import type { Translator } from "@/i18n/translator";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface DetectedItem {
@@ -70,14 +72,25 @@ interface BesichtigungAnalysisViewProps {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const truckLabel = (truck: string | null) => {
+// The AI returns machine keys ("3.5t", "einfach"); the operator sees them in the
+// dashboard language. Unknown keys are shown verbatim rather than swallowed.
+const truckLabel = (truck: string | null, t: Translator) => {
   switch (truck) {
-    case "transporter": return "Transporter";
-    case "3.5t": return "3.5t LKW";
-    case "7.5t": return "7.5t LKW";
-    case "12t": return "12t LKW";
-    case "18t": return "18t LKW";
+    case "transporter": return t("calendar.analysis.truck.transporter");
+    case "3.5t": return t("calendar.analysis.truck.t35");
+    case "7.5t": return t("calendar.analysis.truck.t75");
+    case "12t": return t("calendar.analysis.truck.t12");
+    case "18t": return t("calendar.analysis.truck.t18");
     default: return truck || "–";
+  }
+};
+
+const difficultyLabel = (d: string, t: Translator) => {
+  switch (d) {
+    case "einfach": return t("calendar.analysis.difficulty.einfach");
+    case "mittel": return t("calendar.analysis.difficulty.mittel");
+    case "schwierig": return t("calendar.analysis.difficulty.schwierig");
+    default: return d;
   }
 };
 
@@ -105,6 +118,7 @@ export const BesichtigungAnalysisView = ({
   photoCount,
   sessionStatus: _sessionStatus,
 }: BesichtigungAnalysisViewProps) => {
+  const t = useT();
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -146,7 +160,7 @@ export const BesichtigungAnalysisView = ({
   // Start AI analysis
   const handleStartAnalysis = async () => {
     if (photoCount === 0) {
-      toast.error("Keine Fotos vorhanden. Der Kunde muss zuerst Fotos hochladen.");
+      toast.error(t("calendar.analysis.toast.noPhotos"));
       return;
     }
 
@@ -160,11 +174,11 @@ export const BesichtigungAnalysisView = ({
         accessToken = refreshed.session?.access_token;
       }
       if (!accessToken) {
-        toast.error("Sitzung abgelaufen. Bitte erneut einloggen.");
+        toast.error(t("calendar.analysis.toast.sessionExpired"));
         return;
       }
 
-      toast.info("KI-Analyse läuft... Dies kann 30-60 Sekunden dauern.");
+      toast.info(t("calendar.analysis.toast.running"));
 
       const { data, error } = await supabase.functions.invoke(
         "analyze-besichtigung",
@@ -184,14 +198,14 @@ export const BesichtigungAnalysisView = ({
           special_items: data.analysis.special_items || [],
           special_requirements: data.analysis.special_requirements || [],
         });
-        toast.success("KI-Analyse abgeschlossen!");
+        toast.success(t("calendar.analysis.toast.done"));
       } else if (data?.error) {
         toast.error(data.error);
       }
     } catch (err: unknown) {
       console.error("Analysis error:", err);
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      toast.error(`Analyse fehlgeschlagen: ${message}`);
+      const message = err instanceof Error ? err.message : t("calendar.analysis.unknownError");
+      toast.error(t("calendar.analysis.toast.failed", { message }));
     } finally {
       setLoading(false);
     }
@@ -210,7 +224,7 @@ export const BesichtigungAnalysisView = ({
     return (
       <div className="flex items-center justify-center py-6">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mr-2" />
-        <span className="text-sm text-muted-foreground">Analyse wird geladen...</span>
+        <span className="text-sm text-muted-foreground">{t("calendar.analysis.loading")}</span>
       </div>
     );
   }
@@ -223,9 +237,9 @@ export const BesichtigungAnalysisView = ({
           <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
             <Sparkles className="w-7 h-7 text-white" />
           </div>
-          <h4 className="font-semibold text-base mb-1">KI-Analyse</h4>
+          <h4 className="font-semibold text-base mb-1">{t("calendar.analysis.heading")}</h4>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-4">
-            Lassen Sie die KI alle Fotos analysieren und eine Inventarliste mit Volumen-Schätzung erstellen.
+            {t("calendar.analysis.intro")}
           </p>
           <Button
             onClick={handleStartAnalysis}
@@ -235,18 +249,18 @@ export const BesichtigungAnalysisView = ({
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Analyse läuft...
+                {t("calendar.analysis.running")}
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
-                Analyse starten ({photoCount} Fotos)
+                {t("calendar.analysis.start", { count: photoCount })}
               </>
             )}
           </Button>
           {photoCount === 0 && (
             <p className="text-xs text-red-500 mt-2">
-              Es wurden noch keine Fotos hochgeladen.
+              {t("calendar.analysis.noPhotos")}
             </p>
           )}
         </div>
@@ -264,7 +278,7 @@ export const BesichtigungAnalysisView = ({
       <div className="flex items-center justify-between">
         <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-purple-500" />
-          KI-Analyse Ergebnis
+          {t("calendar.analysis.result")}
         </h4>
         <Button
           variant="ghost"
@@ -274,7 +288,7 @@ export const BesichtigungAnalysisView = ({
           disabled={loading}
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Erneut analysieren
+          {t("calendar.analysis.reanalyze")}
         </Button>
       </div>
 
@@ -286,16 +300,16 @@ export const BesichtigungAnalysisView = ({
             <p className="text-xl font-bold text-blue-700">
               {analysis.estimated_volume_m3 ?? "–"} m³
             </p>
-            <p className="text-xs text-blue-600/70">Geschätztes Volumen</p>
+            <p className="text-xs text-blue-600/70">{t("calendar.analysis.volume")}</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100">
           <CardContent className="p-3 text-center">
             <Clock className="w-5 h-5 mx-auto mb-1 text-amber-600" />
             <p className="text-xl font-bold text-amber-700">
-              {analysis.estimated_time_hours ?? "–"} Std.
+              {analysis.estimated_time_hours ?? "–"} {t("domain.unit.hour")}
             </p>
-            <p className="text-xs text-amber-600/70">Geschätzte Dauer</p>
+            <p className="text-xs text-amber-600/70">{t("calendar.analysis.duration")}</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100">
@@ -304,16 +318,16 @@ export const BesichtigungAnalysisView = ({
             <p className="text-xl font-bold text-emerald-700">
               {analysis.recommended_workers ?? "–"}
             </p>
-            <p className="text-xs text-emerald-600/70">Empf. Arbeiter</p>
+            <p className="text-xs text-emerald-600/70">{t("calendar.analysis.workers")}</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100">
           <CardContent className="p-3 text-center">
             <Truck className="w-5 h-5 mx-auto mb-1 text-purple-600" />
             <p className="text-xl font-bold text-purple-700">
-              {truckLabel(analysis.recommended_truck)}
+              {truckLabel(analysis.recommended_truck, t)}
             </p>
-            <p className="text-xs text-purple-600/70">Empf. Fahrzeug</p>
+            <p className="text-xs text-purple-600/70">{t("calendar.analysis.truck")}</p>
           </CardContent>
         </Card>
       </div>
@@ -322,24 +336,26 @@ export const BesichtigungAnalysisView = ({
       <div className="flex flex-wrap gap-2">
         <Badge variant="outline" className="gap-1.5">
           <Box className="w-3 h-3" />
-          {totalItems} Gegenstände erkannt
+          {t("calendar.analysis.itemsDetected", { count: totalItems })}
         </Badge>
         {specialCount > 0 && (
           <Badge variant="outline" className="gap-1.5 border-amber-200 text-amber-700 bg-amber-50">
             <AlertTriangle className="w-3 h-3" />
-            {specialCount} Spezial
+            {t("calendar.analysis.special", { count: specialCount })}
           </Badge>
         )}
         {analysis.from_access_difficulty && (
           <Badge className={`gap-1.5 border ${difficultyColor(analysis.from_access_difficulty)}`}>
             <Shield className="w-3 h-3" />
-            Zugang: {analysis.from_access_difficulty}
+            {t("calendar.analysis.access", {
+              level: difficultyLabel(analysis.from_access_difficulty, t),
+            })}
           </Badge>
         )}
         {analysis.confidence !== null && analysis.confidence !== undefined && (
           <Badge variant="outline" className="gap-1.5">
             <BarChart3 className="w-3 h-3" />
-            Konfidenz: {Math.round(analysis.confidence * 100)}%
+            {t("calendar.analysis.confidence", { percent: Math.round(analysis.confidence * 100) })}
           </Badge>
         )}
       </div>
@@ -349,7 +365,7 @@ export const BesichtigungAnalysisView = ({
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5">
           <h5 className="font-medium text-sm text-amber-700 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
-            Spezielle Gegenstände
+            {t("calendar.analysis.specialItems")}
           </h5>
           <div className="flex flex-wrap gap-1.5">
             {analysis.special_items.map((item, i) => (
@@ -366,7 +382,7 @@ export const BesichtigungAnalysisView = ({
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-1.5">
           <h5 className="font-medium text-sm text-blue-700 flex items-center gap-2">
             <Zap className="w-4 h-4" />
-            Besondere Anforderungen
+            {t("calendar.analysis.specialRequirements")}
           </h5>
           <ul className="text-sm text-blue-700 space-y-0.5">
             {analysis.special_requirements.map((req, i) => (
@@ -383,7 +399,7 @@ export const BesichtigungAnalysisView = ({
       {analysis.room_breakdown.length > 0 && (
         <div className="space-y-2">
           <h5 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-            Raum-Übersicht
+            {t("calendar.analysis.rooms")}
           </h5>
           {analysis.room_breakdown.map((room, idx) => (
             <Card key={idx} className="overflow-hidden">
@@ -394,7 +410,9 @@ export const BesichtigungAnalysisView = ({
                 <div className="flex items-center gap-2">
                   <span className="text-base">🏠</span>
                   <span className="font-medium text-sm">{room.room}</span>
-                  <Badge variant="secondary" className="text-xs">{room.items.length} Gegenstände</Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    {t("calendar.analysis.roomItems", { count: room.items.length })}
+                  </Badge>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">{room.volume_m3} m³</span>
@@ -426,18 +444,18 @@ export const BesichtigungAnalysisView = ({
       {analysis.detected_items.length > 0 && (
         <div className="space-y-2">
           <h5 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-            Erkannte Gegenstände
+            {t("calendar.analysis.detectedItems")}
           </h5>
           <div className="border rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
-                    <th className="text-left p-2.5 pl-3">Gegenstand</th>
-                    <th className="text-center p-2.5 w-16">Anz.</th>
-                    <th className="text-center p-2.5 w-20">Volumen</th>
-                    <th className="text-center p-2.5 w-20 hidden sm:table-cell">Gewicht</th>
-                    <th className="text-center p-2.5 w-16">Typ</th>
+                    <th className="text-left p-2.5 pl-3">{t("calendar.analysis.col.item")}</th>
+                    <th className="text-center p-2.5 w-16">{t("calendar.analysis.col.count")}</th>
+                    <th className="text-center p-2.5 w-20">{t("calendar.analysis.col.volume")}</th>
+                    <th className="text-center p-2.5 w-20 hidden sm:table-cell">{t("calendar.analysis.col.weight")}</th>
+                    <th className="text-center p-2.5 w-16">{t("calendar.analysis.col.type")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -463,7 +481,7 @@ export const BesichtigungAnalysisView = ({
                 </tbody>
                 <tfoot>
                   <tr className="bg-muted/30 font-semibold text-xs">
-                    <td className="p-2.5 pl-3">Gesamt</td>
+                    <td className="p-2.5 pl-3">{t("calendar.analysis.total")}</td>
                     <td className="p-2.5 text-center">{totalItems}x</td>
                     <td className="p-2.5 text-center">
                       {analysis.detected_items.reduce((s, i) => s + (i.volume_m3 * i.count), 0).toFixed(1)} m³
@@ -488,10 +506,7 @@ export const BesichtigungAnalysisView = ({
       {/* Data retention notice */}
       <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
         <span className="shrink-0 mt-0.5">⏰</span>
-        <span>
-          Fotos und Analysedaten werden <strong>3 Tage nach Offerte-Versand</strong> automatisch gelöscht.
-          Bitte erstellen Sie vorher Ihre Offerte.
-        </span>
+        <span>{t("calendar.analysis.retention")}</span>
       </div>
     </div>
   );

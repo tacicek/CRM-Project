@@ -290,6 +290,34 @@ Mantık: `auftragStatus.ts` (state machine), `crmAccess.ts` (feature guard, stan
 - **Yetki rolleri** ([src/lib/adminPermissions.ts](../src/lib/adminPermissions.ts)):
   `super_admin(100) > admin(50) > moderator(10) > (rolsüz → normal /firma kullanıcısı)`.
 
+### 6.6 Çok dillilik — İKİ EKSEN (kritik)
+
+> Tam rehber: [src/i18n/README.md](../src/i18n/README.md)
+
+```
+DASHBOARD dili  ── companies.default_language ──▶  /firma/*        ──▶  useT()  (React context)
+                                                   (operatörün dili)
+
+DOKÜMAN dili    ── leads.language ──frozen──▶ offers.language ──▶ appointments
+                   (müşterinin dili)                             ──▶ auftraege
+                                                                 ──▶ rechnungen / quittungen
+                                                   ▼
+                                    PDF · e-posta · SMS · public token sayfaları
+                                    → locale ARGÜMAN olarak geçirilir, ASLA context'ten okunmaz
+```
+
+Alman operatör, Fransız müşteriye Fransızca teklif gönderir — iki eksen aynı anda canlıdır.
+Müşteriye giden bir renderer `useT()` çağırırsa operatörün dili müşterinin belgesine sızar.
+
+- Dil **DB'de kalıcı olmak zorunda**: `notify-appointment-reminder` / `notify-auftrag-reminder`
+  pg_cron ile çalışır, dil geçirecek çağıranı yoktur → satırdan okur.
+- Katalog anahtar kümesi: **Almanca tek doğruluk kaynağı**. `fr`/`en` = `Record<keyof typeof de, string>`
+  → eksik anahtar **derleme hatası**.
+- Firma içeriği (katalog/AGB/checklist) `translations` JSONB: `{"fr":{...},"en":{...}}`,
+  Almanca temel kolon fallback. `offer_items` çeviri kolonu almaz — oluşturma anında
+  müşterinin dilinde snapshot alınır.
+- QR-fatura etiketleri (`doc.qr.*`) SIX-normlu — serbest çeviri yasak.
+
 ---
 
 ## 7. Dış Servisler

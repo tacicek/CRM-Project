@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Camera, Copy, Check, ExternalLink, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import { useI18n, useT } from "@/i18n/useI18n";
 
 interface CreateVirtualBesichtigungDialogProps {
   open: boolean;
@@ -42,6 +44,11 @@ export function CreateVirtualBesichtigungDialog({
   fromPlz = "",
   fromCity = "",
 }: CreateVirtualBesichtigungDialogProps) {
+  const t = useT();
+  // companyLocale = companies.default_language, i.e. the DOCUMENT-locale fallback for a
+  // customer who has no row of their own yet (see resolveDocumentLocale). It deliberately
+  // ignores the operator's personal dashboard override — see the mailto draft below.
+  const { companyLocale } = useI18n();
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
@@ -71,7 +78,7 @@ export function CreateVirtualBesichtigungDialog({
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      toast.error("Bitte geben Sie den Kundennamen ein");
+      toast.error(t("calendar.virtualCreate.error.nameRequired"));
       return;
     }
 
@@ -92,7 +99,7 @@ export function CreateVirtualBesichtigungDialog({
       }
 
       if (!activeSession?.access_token) {
-        toast.error("Sitzung abgelaufen. Bitte erneut einloggen.");
+        toast.error(t("calendar.virtualCreate.error.sessionExpired"));
         return;
       }
 
@@ -100,7 +107,7 @@ export function CreateVirtualBesichtigungDialog({
         activeSession.access_token
       );
       if (userError || !userData.user) {
-        toast.error("Sitzung ist ungültig. Bitte erneut einloggen.");
+        toast.error(t("calendar.virtualCreate.error.sessionInvalid"));
         return;
       }
 
@@ -126,11 +133,11 @@ export function CreateVirtualBesichtigungDialog({
       if (error) throw error;
 
       setCreatedUrl(data.url);
-      toast.success("Virtueller Besichtigungslink erstellt!");
+      toast.success(t("calendar.virtualCreate.toast.created"));
     } catch (error: unknown) {
       console.error("Error creating virtual besichtigung:", error);
       // Extract detailed error from edge function response
-      let errorMsg = "Fehler beim Erstellen des Links";
+      let errorMsg = t("calendar.virtualCreate.error.createFailed");
       if (error && typeof error === "object" && "context" in error) {
         try {
           const ctx = (error as { context: { json: () => Promise<{ error?: string; details?: string }> } }).context;
@@ -153,19 +160,30 @@ export function CreateVirtualBesichtigungDialog({
     try {
       await navigator.clipboard.writeText(createdUrl);
       setCopied(true);
-      toast.success("Link in Zwischenablage kopiert");
+      toast.success(t("calendar.virtualCreate.toast.copied"));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Kopieren fehlgeschlagen");
+      toast.error(t("calendar.virtualCreate.toast.copyFailed"));
     }
   };
 
   const handleSendEmail = () => {
     if (!createdUrl || !email) return;
 
-    const subject = encodeURIComponent("Virtuelle Besichtigung - Laden Sie Ihre Fotos hoch");
+    // CUSTOMER-facing draft → DOCUMENT locale, not the dashboard locale. The customer has no
+    // row (and therefore no `language`) at this point — the dialog creates the very first
+    // record for them — so the company default applies, exactly as resolveDocumentLocale()
+    // does for a row without a language. Reading useT() here would leak a French operator's
+    // personal UI override into a German customer's mail.
+    const { t: tDoc } = documentI18nFor(companyLocale);
+
+    const subject = encodeURIComponent(tDoc("calendar.virtualCreate.mail.subject"));
     const body = encodeURIComponent(
-      `Guten Tag ${name},\n\nBitte laden Sie Fotos Ihrer Wohnung für die virtuelle Besichtigung hoch:\n\n${createdUrl}\n\nDer Link ist ${expiresDays} Tage gültig.\n\nMit freundlichen Grüssen`
+      tDoc("calendar.virtualCreate.mail.body", {
+        name,
+        url: createdUrl,
+        validity: tDoc("calendar.virtualCreate.validityHint", { count: expiresDays }),
+      })
     );
 
     window.open(`mailto:${email}?subject=${subject}&body=${body}`, "_blank");
@@ -181,17 +199,16 @@ export function CreateVirtualBesichtigungDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Camera className="w-5 h-5 text-primary" />
-            Virtuelle Besichtigung
+            {t("calendar.virtualCreate.title")}
           </DialogTitle>
           <DialogDescription>
-            Erstellen Sie einen Link, den der Kunde verwenden kann, um Fotos seiner
-            Wohnung hochzuladen.
+            {t("calendar.virtualCreate.description")}
           </DialogDescription>
           <div className="mt-2 flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
             <span className="shrink-0 mt-0.5">⏰</span>
             <span>
-              <strong>Datenschutz-Hinweis:</strong> Hochgeladene Fotos werden automatisch <strong>3 Tage nach Versand der Offerte</strong> gelöscht.
-              Ohne Offerte werden die Daten nach 30 Tagen entfernt.
+              <strong>{t("calendar.virtualCreate.privacyTitle")}</strong>{" "}
+              {t("calendar.virtualCreate.privacyBody")}
             </span>
           </div>
         </DialogHeader>
@@ -200,7 +217,7 @@ export function CreateVirtualBesichtigungDialog({
           // Creation form
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Kundenname *</Label>
+              <Label htmlFor="name">{t("calendar.virtualCreate.customerName")} *</Label>
               <Input
                 id="name"
                 value={name}
@@ -211,7 +228,7 @@ export function CreateVirtualBesichtigungDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="email">E-Mail</Label>
+                <Label htmlFor="email">{t("common.email")}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -221,7 +238,7 @@ export function CreateVirtualBesichtigungDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Telefon</Label>
+                <Label htmlFor="phone">{t("common.phone")}</Label>
                 <Input
                   id="phone"
                   value={phone}
@@ -232,7 +249,7 @@ export function CreateVirtualBesichtigungDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="address">Adresse (Auszug)</Label>
+              <Label htmlFor="address">{t("calendar.virtualCreate.addressLabel")}</Label>
               <Input
                 id="address"
                 value={address}
@@ -243,7 +260,7 @@ export function CreateVirtualBesichtigungDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="plz">PLZ</Label>
+                <Label htmlFor="plz">{t("common.plz")}</Label>
                 <Input
                   id="plz"
                   value={plz}
@@ -252,7 +269,7 @@ export function CreateVirtualBesichtigungDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="city">Ort</Label>
+                <Label htmlFor="city">{t("common.city")}</Label>
                 <Input
                   id="city"
                   value={city}
@@ -263,17 +280,18 @@ export function CreateVirtualBesichtigungDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="expires">Link gültig für</Label>
+              <Label htmlFor="expires">{t("calendar.virtualCreate.validFor")}</Label>
               <select
                 id="expires"
                 value={expiresDays}
                 onChange={(e) => setExpiresDays(Number(e.target.value))}
                 className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
               >
-                <option value={7}>7 Tage</option>
-                <option value={14}>14 Tage</option>
-                <option value={30}>30 Tage</option>
-                <option value={60}>60 Tage</option>
+                {[7, 14, 30, 60].map((days) => (
+                  <option key={days} value={days}>
+                    {t("calendar.virtualCreate.days", { count: days })}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -283,12 +301,12 @@ export function CreateVirtualBesichtigungDialog({
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
               <Check className="w-8 h-8 text-green-500 mx-auto mb-2" />
               <p className="text-sm font-medium text-green-800">
-                Link erfolgreich erstellt!
+                {t("calendar.virtualCreate.created")}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Besichtigungslink</Label>
+              <Label>{t("calendar.virtualCreate.linkLabel")}</Label>
               <div className="flex gap-2">
                 <Input
                   value={createdUrl}
@@ -317,7 +335,7 @@ export function CreateVirtualBesichtigungDialog({
                 onClick={() => window.open(createdUrl, "_blank")}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
-                Öffnen
+                {t("calendar.virtualCreate.open")}
               </Button>
               {email && (
                 <Button
@@ -326,15 +344,15 @@ export function CreateVirtualBesichtigungDialog({
                   onClick={handleSendEmail}
                 >
                   <Send className="w-4 h-4 mr-2" />
-                  E-Mail senden
+                  {t("calendar.virtualCreate.sendEmail")}
                 </Button>
               )}
             </div>
 
             <p className="text-xs text-muted-foreground text-center">
-              Der Kunde kann über diesen Link Fotos seiner Wohnung hochladen.
+              {t("calendar.virtualCreate.hint")}
               <br />
-              Der Link ist {expiresDays} Tage gültig.
+              {t("calendar.virtualCreate.validityHint", { count: expiresDays })}
             </p>
           </div>
         )}
@@ -343,24 +361,24 @@ export function CreateVirtualBesichtigungDialog({
           {!createdUrl ? (
             <>
               <Button variant="outline" onClick={handleClose}>
-                Abbrechen
+                {t("common.cancel")}
               </Button>
               <Button onClick={handleCreate} disabled={isLoading || !name.trim()}>
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Wird erstellt...
+                    {t("calendar.virtualCreate.creating")}
                   </>
                 ) : (
                   <>
                     <Camera className="w-4 h-4 mr-2" />
-                    Link erstellen
+                    {t("calendar.virtualCreate.create")}
                   </>
                 )}
               </Button>
             </>
           ) : (
-            <Button onClick={handleClose}>Schliessen</Button>
+            <Button onClick={handleClose}>{t("common.close")}</Button>
           )}
         </DialogFooter>
       </DialogContent>

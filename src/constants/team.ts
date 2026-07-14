@@ -1,8 +1,15 @@
 /**
- * Shared constants for Team module
+ * Shared constants for the Team module.
+ *
+ * Role and colour labels are locale-aware: the operator's dashboard language decides
+ * how a role reads, so every lookup takes the locale explicitly instead of shipping a
+ * hardcoded German map. The stored values (`fahrer`, `#3B82F6`, …) are unchanged — only
+ * the labels are translated.
  */
 
 import { Car, HardHat, Wrench, Briefcase, Building2, Users, type LucideIcon } from "lucide-react";
+import type { Locale } from "@/i18n/locale";
+import { createTranslator, type MessageKey } from "@/i18n/translator";
 
 export interface RoleOption {
   value: string;
@@ -15,25 +22,34 @@ export interface ColorOption {
   name: string;
 }
 
-export const ROLE_OPTIONS: RoleOption[] = [
-  { value: "fahrer", label: "Fahrer", icon: Car },
-  { value: "helfer", label: "Helfer", icon: HardHat },
-  { value: "reiniger", label: "Reiniger", icon: Wrench },
-  { value: "teamleiter", label: "Teamleiter", icon: Briefcase },
-  { value: "buero", label: "Büro", icon: Building2 },
-];
+/** The role values stored on `team_members.role`. */
+export const ROLE_VALUES = ["fahrer", "helfer", "reiniger", "teamleiter", "buero"] as const;
 
-export const COLOR_OPTIONS: ColorOption[] = [
-  { value: "#3B82F6", name: "Blau" },
-  { value: "#10B981", name: "Grün" },
-  { value: "#8B5CF6", name: "Violet" },
-  { value: "#F59E0B", name: "Amber" },
-  { value: "#EF4444", name: "Rot" },
-  { value: "#EC4899", name: "Pink" },
-  { value: "#06B6D4", name: "Cyan" },
-  { value: "#84CC16", name: "Lime" },
-  { value: "#F97316", name: "Orange" },
-  { value: "#6366F1", name: "Indigo" },
+export type RoleValue = (typeof ROLE_VALUES)[number];
+
+const ROLE_ICONS: Record<RoleValue, LucideIcon> = {
+  fahrer: Car,
+  helfer: HardHat,
+  reiniger: Wrench,
+  teamleiter: Briefcase,
+  buero: Building2,
+};
+
+const isRoleValue = (value: string): value is RoleValue =>
+  (ROLE_VALUES as readonly string[]).includes(value);
+
+/** Hex colour + catalog key. The hex value is what lands in `team_members.color_code`. */
+const COLORS: ReadonlyArray<{ value: string; key: MessageKey }> = [
+  { value: "#3B82F6", key: "team.color.blue" },
+  { value: "#10B981", key: "team.color.green" },
+  { value: "#8B5CF6", key: "team.color.violet" },
+  { value: "#F59E0B", key: "team.color.amber" },
+  { value: "#EF4444", key: "team.color.red" },
+  { value: "#EC4899", key: "team.color.pink" },
+  { value: "#06B6D4", key: "team.color.cyan" },
+  { value: "#84CC16", key: "team.color.lime" },
+  { value: "#F97316", key: "team.color.orange" },
+  { value: "#6366F1", key: "team.color.indigo" },
 ];
 
 export const DEFAULT_WORK_HOURS = {
@@ -49,17 +65,33 @@ export const APPOINTMENT_TYPE_COLORS: Record<string, { bg: string; label: string
   blocked: { bg: "bg-gray-500", label: "Blockiert" },
 };
 
-// Helper functions
-export function getRoleLabel(roleValue: string | null): string | null {
+// --- Locale-aware lookups -----------------------------------------------------------
+
+export const getRoleOptions = (locale: Locale): RoleOption[] => {
+  const t = createTranslator(locale);
+  return ROLE_VALUES.map((value) => ({
+    value,
+    label: t(`team.role.${value}` as const),
+    icon: ROLE_ICONS[value],
+  }));
+};
+
+export const getColorOptions = (locale: Locale): ColorOption[] => {
+  const t = createTranslator(locale);
+  return COLORS.map(({ value, key }) => ({ value, name: t(key) }));
+};
+
+/** Unknown roles (free text from an older import) are shown as stored, not swallowed. */
+export const getRoleLabel = (roleValue: string | null, locale: Locale): string | null => {
   if (!roleValue) return null;
-  return ROLE_OPTIONS.find(r => r.value === roleValue)?.label || roleValue;
-}
+  if (!isRoleValue(roleValue)) return roleValue;
+  return createTranslator(locale)(`team.role.${roleValue}` as const);
+};
 
-export function getRoleIcon(roleValue: string | null): LucideIcon {
-  if (!roleValue) return Users;
-  return ROLE_OPTIONS.find(r => r.value === roleValue)?.icon || Users;
-}
+export const getRoleIcon = (roleValue: string | null): LucideIcon => {
+  if (!roleValue || !isRoleValue(roleValue)) return Users;
+  return ROLE_ICONS[roleValue];
+};
 
-export function getRandomColor(): string {
-  return COLOR_OPTIONS[Math.floor(Math.random() * COLOR_OPTIONS.length)].value;
-}
+export const getRandomColor = (): string =>
+  COLORS[Math.floor(Math.random() * COLORS.length)].value;

@@ -1,0 +1,246 @@
+import { auftrag as de } from "@/i18n/catalog/de/auftrag";
+
+export const auftrag: Record<keyof typeof de, string> = {
+  // --- Aufträge list ------------------------------------------------------------------
+  "auftrag.pageTitle": "Mandats · CRM",
+  "auftrag.title": "Mandats",
+  "auftrag.subtitle":
+    "Ordres de travail et affectations d'équipe — vue d'ensemble de toutes les interventions planifiées.",
+  "auftrag.summary": "{total} au total · {today} aujourd'hui · {week} cette semaine",
+  "auftrag.new": "Nouveau mandat",
+  "auftrag.searchPlaceholder": "Rechercher dans les mandats …",
+  "auftrag.empty": "Aucun mandat trouvé",
+  "auftrag.emptyAction": "Créer un premier mandat",
+
+  // --- KPI tiles + tabs -----------------------------------------------------------------
+  "auftrag.kpi.today": "Aujourd'hui",
+  "auftrag.kpi.tomorrow": "Demain",
+  "auftrag.kpi.planned": "Planifiés",
+  "auftrag.kpi.completed": "Terminés",
+  "auftrag.tab.all": "Tous",
+  "auftrag.tab.today": "Aujourd'hui",
+  "auftrag.tab.tomorrow": "Demain",
+  "auftrag.tab.planned": "Planifiés",
+  "auftrag.tab.done": "Terminés",
+  "auftrag.overdue": "{count} mandats en retard",
+  "auftrag.overdue#one": "{count} mandat en retard",
+  "auftrag.overdue#other": "{count} mandats en retard",
+
+  // --- Table ------------------------------------------------------------------------------
+  "auftrag.table.auftrag": "Mandat",
+  "auftrag.table.customer": "Client",
+  "auftrag.table.dateTime": "Date/heure",
+  "auftrag.table.team": "Équipe",
+  "auftrag.badge.today": "Aujourd'hui",
+  "auftrag.badge.tomorrow": "Demain",
+  "auftrag.badge.overdue": "En retard",
+  "auftrag.time.oclock": "h",
+  "auftrag.team.notified": "Informé",
+  "auftrag.team.unassigned": "Non attribué",
+
+  // --- Row menu ----------------------------------------------------------------------------
+  "auftrag.menu.aria": "Options du mandat",
+  "auftrag.menu.sahaExtras": "Extras sur site",
+  "auftrag.menu.downloadPdf": "Télécharger le PDF",
+  "auftrag.menu.viewOffer": "Afficher le devis",
+  "auftrag.menu.createQuittung": "Créer une quittance",
+  "auftrag.menu.anotherQuittung": "Quittance supplémentaire (déjà existante)",
+  "auftrag.menu.createRechnung": "Créer une facture",
+  "auftrag.menu.rechnungExists": "Facture déjà créée",
+  "auftrag.menu.markConfirmed": "Marquer comme confirmé",
+  "auftrag.menu.inProgress": "En cours",
+  "auftrag.menu.complete": "Clôturer …",
+  "auftrag.menu.reactivate": "Réactiver",
+  "auftrag.menu.cancel": "Annuler le mandat",
+  "auftrag.menu.archive": "Archiver",
+
+  // --- Archive dialog ------------------------------------------------------------------------
+  "auftrag.archive.title": "Archiver le mandat ?",
+  "auftrag.archive.description":
+    "Voulez-vous vraiment archiver le mandat « {title} » ? Le mandat sera retiré de la liste, mais restera enregistré à des fins de traçabilité.",
+  "auftrag.archive.deleting": "Suppression en cours …",
+
+  // --- Toasts (list) --------------------------------------------------------------------------
+  "auftrag.toast.savedTitle": "Enregistré",
+  "auftrag.toast.loadFailed": "Les mandats n'ont pas pu être chargés.",
+  "auftrag.toast.pdfDownloaded": "Le PDF a été téléchargé.",
+  "auftrag.toast.pdfFailed": "Le PDF n'a pas pu être créé.",
+  "auftrag.toast.archived": "Le mandat a été archivé.",
+  "auftrag.toast.deleteFailed": "Le mandat n'a pas pu être supprimé.",
+  "auftrag.toast.statusUpdated": "Le statut a été mis à jour.",
+  "auftrag.toast.statusFailed": "Le statut n'a pas pu être mis à jour.",
+  "auftrag.toast.invalidTransition": "Changement de statut non valable : {from} → {to}",
+  "auftrag.toast.ibanMissing": "IBAN manquant",
+  "auftrag.toast.ibanMissingHint":
+    "Veuillez renseigner l'IBAN dans les réglages avant de créer une facture QR.",
+
+  // --- Modal shell -------------------------------------------------------------------------------
+  "auftrag.modal.edit": "Modifier le mandat : {number}",
+  "auftrag.modal.new": "Nouveau mandat",
+  "auftrag.modal.fromOffer": "Créé à partir du devis :",
+  "auftrag.modal.selectOffer": "Sélectionnez un devis accepté",
+  "auftrag.modal.createAndAssign": "Créer le mandat et affecter l'équipe",
+  "auftrag.modal.loadingOffers": "Chargement des devis acceptés …",
+  "auftrag.modal.noApprovedOffers": "Aucun devis accepté",
+  "auftrag.modal.noApprovedOffersHint":
+    "Il n'existe aucun devis accepté à partir duquel un mandat pourrait être créé.",
+  "auftrag.modal.manualHint": "Vous pouvez néanmoins créer un mandat manuellement.",
+  "auftrag.modal.createManually": "Créer manuellement",
+  "auftrag.modal.offersAvailable": "{count} devis acceptés disponibles",
+  "auftrag.modal.offersAvailable#one": "{count} devis accepté disponible",
+  "auftrag.modal.offersAvailable#other": "{count} devis acceptés disponibles",
+  "auftrag.modal.approved": "Accepté",
+
+  // --- Pricing -------------------------------------------------------------------------------------
+  "auftrag.pricing.title": "Tarification",
+  "auftrag.pricing.type": "Type de prix",
+  "auftrag.pricing.fixed": "Prix forfaitaire",
+  "auftrag.pricing.hourly": "Selon dépense",
+  "auftrag.pricing.estimate": "Devis estimatif",
+  "auftrag.pricing.hourlyRate": "Tarif horaire (CHF)",
+  "auftrag.pricing.hourlyRatePlaceholder": "p. ex. 85",
+  "auftrag.pricing.finalPriceNote": "Le prix final sera calculé après la clôture",
+  "auftrag.offerItems.title": "Postes du devis",
+  "auftrag.vatWithRate": "TVA ({rate} %)",
+
+  // --- Extra services (in the modal) ------------------------------------------------------------------
+  "auftrag.extras.title": "Prestations supplémentaires",
+  "auftrag.extras.empty":
+    "Aucune prestation supplémentaire. Cliquez sur « Ajouter » pour créer un nouveau poste.",
+  "auftrag.extras.descriptionPlaceholder": "p. ex. montage de meubles",
+  "auftrag.extras.priceChf": "Prix (CHF)",
+
+  // --- Service details --------------------------------------------------------------------------------
+  "auftrag.serviceDetails": "{service} — détails",
+  "auftrag.details.rooms": "{count} pièces",
+  "auftrag.details.bathrooms": "{count} salle(s) de bains",
+  "auftrag.details.packing": "Service d'emballage",
+  "auftrag.details.cleaning": "Nettoyage",
+  "auftrag.details.piano": "Piano",
+  "auftrag.details.windows": "Fenêtres",
+  "auftrag.details.balcony": "Balcon",
+  "auftrag.details.garage": "Garage",
+  "auftrag.details.heavyItems": "Objets lourds",
+
+  // --- Form fields ---------------------------------------------------------------------------------------
+  "auftrag.field.title": "Titre *",
+  "auftrag.field.titlePlaceholder": "p. ex. déménagement famille Müller",
+  "auftrag.field.customerData": "Données du client",
+  "auftrag.field.namePlaceholder": "Nom *",
+  "auftrag.field.fromAddress": "Adresse de départ",
+  "auftrag.field.toAddress": "Adresse d'arrivée",
+  "auftrag.field.addressPlaceholder": "Rue n°\nNPA localité\nÉtage (ascenseur)",
+  "auftrag.field.date": "Date *",
+  "auftrag.field.duration": "Durée estimée",
+  "auftrag.field.durationPlaceholder": "Choisir la durée",
+  "auftrag.field.descriptionPlaceholder": "Description générale du mandat …",
+  "auftrag.field.internalNotes": "Notes internes",
+  "auftrag.field.internalNotesPlaceholder": "Visible en interne uniquement …",
+  "auftrag.field.specialInstructions": "Instructions particulières",
+  "auftrag.field.specialInstructionsPlaceholder":
+    "Remarques importantes pour l'équipe (mises en évidence dans l'e-mail de rappel) …",
+
+  // --- Duration options -------------------------------------------------------------------------------------
+  "auftrag.duration.min30": "30 min",
+  "auftrag.duration.h1": "1 heure",
+  "auftrag.duration.h1_5": "1.5 heure",
+  "auftrag.duration.h2": "2 heures",
+  "auftrag.duration.h3": "3 heures",
+  "auftrag.duration.h4": "4 heures",
+  "auftrag.duration.h5": "5 heures",
+  "auftrag.duration.h6": "6 heures",
+  "auftrag.duration.h7": "7 heures",
+  "auftrag.duration.h8": "8 heures (journée entière)",
+  "auftrag.duration.h10": "10 heures",
+  "auftrag.duration.h12": "12 heures",
+
+  // --- Team ------------------------------------------------------------------------------------------------
+  "auftrag.team.title": "Affectation de l'équipe",
+  "auftrag.team.leader": "Chef d'équipe (reçoit le rappel)",
+  "auftrag.team.leaderPlaceholder": "Choisir un chef d'équipe (facultatif)",
+  "auftrag.team.noLeader": "Aucun chef d'équipe",
+  "auftrag.team.noEmailWarning": "Aucun membre de l'équipe ne dispose d'une adresse e-mail.",
+  "auftrag.team.reminder": "Envoyer un rappel",
+  "auftrag.team.members": "Autres membres de l'équipe",
+  "auftrag.reminder.d1": "1 jour avant",
+  "auftrag.reminder.d2": "2 jours avant",
+  "auftrag.reminder.d3": "3 jours avant",
+  "auftrag.reminder.w1": "1 semaine avant",
+
+  // --- Modal actions + toasts ---------------------------------------------------------------------------------
+  "auftrag.action.create": "Créer le mandat",
+  "auftrag.toast.requiredFields": "Veuillez remplir tous les champs obligatoires.",
+  "auftrag.toast.offerRequired": "Devis requis",
+  "auftrag.toast.offerRequiredHint":
+    "Un mandat doit être rattaché à un devis accepté. Veuillez sélectionner un devis ou ouvrir le mandat directement depuis un devis.",
+  "auftrag.toast.invalidEmail": "Adresse e-mail non valable",
+  "auftrag.toast.invalidEmailHint": "Veuillez saisir une adresse e-mail valable.",
+  "auftrag.toast.invalidPrice": "Prix non valable",
+  "auftrag.toast.negativeHourlyRate": "Le tarif horaire ne peut pas être négatif.",
+  "auftrag.toast.negativePrice": "Le prix ne peut pas être négatif.",
+  "auftrag.toast.pastDate": "Date dans le passé",
+  "auftrag.toast.pastDateHint": "La date sélectionnée se situe dans le passé.",
+  "auftrag.toast.updated": "Le mandat a été mis à jour.",
+  "auftrag.toast.created": "Le mandat a été créé.",
+  "auftrag.toast.saveFailed": "Erreur lors de l'enregistrement",
+  "auftrag.toast.saveFailedDefault": "Le mandat n'a pas pu être enregistré.",
+  "auftrag.toast.saveFailedForeignKey":
+    "Le devis associé ou un collaborateur est introuvable. Veuillez vérifier votre sélection.",
+  "auftrag.toast.saveFailedDuplicate":
+    "Un mandat portant ce numéro existe déjà. Veuillez réessayer.",
+  "auftrag.toast.saveFailedCheck": "Saisie non valable : {message}",
+  "auftrag.toast.saveFailedCheckFallback":
+    "Une valeur ne correspond pas aux options autorisées.",
+  "auftrag.toast.offersLoadFailed": "Les devis acceptés n'ont pas pu être chargés.",
+  "auftrag.toast.offerLoadFailed": "Les données du devis n'ont pas pu être chargées.",
+
+  // --- Saha Extras (field extras) ---------------------------------------------------------------------------------
+  "auftrag.saha.title": "Extras sur site",
+  "auftrag.saha.quickAdd": "Ajout rapide",
+  "auftrag.saha.preset.hour": "Heure supplémentaire",
+  "auftrag.saha.preset.disposal": "Élimination",
+  "auftrag.saha.preset.heavy": "Charge lourde",
+  "auftrag.saha.preset.assembly": "Montage",
+  "auftrag.saha.preset.specialFurniture": "Meubles spéciaux",
+  "auftrag.saha.preset.extraTrip": "Trajet supplémentaire",
+  "auftrag.saha.addCustom": "Ajouter un poste personnalisé",
+  "auftrag.saha.descriptionRequired": "Description *",
+  "auftrag.saha.customPlaceholder": "p. ex. cartons supplémentaires",
+  "auftrag.saha.added": "Extras ajoutés ({count})",
+  "auftrag.saha.none": "Aucun extra ajouté pour l'instant",
+  "auftrag.saha.extrasTotal": "Total des extras :",
+  "auftrag.saha.newSubtotal": "Sous-total (nouveau) :",
+  "auftrag.saha.newTotal": "Nouveau total :",
+  "auftrag.saha.difference": "Différence : {amount}",
+  "auftrag.saha.unsavedWarning":
+    "Vous avez des modifications non enregistrées. Voulez-vous vraiment fermer ?",
+  "auftrag.saha.loadFailed": "Le mandat n'a pas pu être chargé.",
+  "auftrag.saha.saveFailed": "Les extras n'ont pas pu être enregistrés.",
+  "auftrag.saha.saved": "{count} extras ont été enregistrés.",
+  "auftrag.saha.saved#one": "{count} extra a été enregistré.",
+  "auftrag.saha.saved#other": "{count} extras ont été enregistrés.",
+  "auftrag.saha.missingDescription": "Description manquante",
+  "auftrag.saha.missingDescriptionHint": "Veuillez saisir une description.",
+  "auftrag.saha.wait": "Veuillez patienter",
+  "auftrag.saha.waitHint": "L'enregistrement sera à nouveau possible dans un instant.",
+
+  // --- Completion dialog -----------------------------------------------------------------------------------------------
+  "auftrag.abschluss.title": "Clôturer le mandat",
+  "auftrag.abschluss.actualHours": "Heures effectivement réalisées *",
+  "auftrag.abschluss.hoursPlaceholder": "p. ex. 4.5",
+  "auftrag.abschluss.hourlyRate": "Tarif horaire",
+  "auftrag.abschluss.subtotalHours": "Sous-total ({hours} h)",
+  "auftrag.abschluss.finalPrice": "Prix final",
+  "auftrag.abschluss.fixedPrice": "Prix forfaitaire (montant final)",
+  "auftrag.abschluss.notes": "Notes de clôture (facultatif)",
+  "auftrag.abschluss.notesPlaceholder":
+    "p. ex. prestations supplémentaires, particularités de l'intervention …",
+  "auftrag.abschluss.confirm": "Clôturer",
+  "auftrag.abschluss.hoursRequired": "Heures requises",
+  "auftrag.abschluss.hoursRequiredHint":
+    "Veuillez saisir les heures effectivement réalisées.",
+  "auftrag.abschluss.done": "Mandat clôturé",
+  "auftrag.abschluss.donePrice": "Prix final : {amount}",
+  "auftrag.abschluss.doneHint": "Le mandat a été marqué comme terminé.",
+  "auftrag.abschluss.failed": "Le mandat n'a pas pu être clôturé.",
+};

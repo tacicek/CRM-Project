@@ -1,4 +1,6 @@
 import { Document, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
+import { documentI18nFor } from "@/i18n/documentLocale";
+import { DEFAULT_LOCALE, type Locale } from "@/i18n/locale";
 
 export interface AgbPdfSection {
   id?: string;
@@ -47,11 +49,26 @@ const styles = StyleSheet.create({
   },
 });
 
+/**
+ * AGB attachment for the offer e-mail.
+ *
+ * `locale` is the CUSTOMER's language (the offer's, not the operator's). It defaults to
+ * German so an old caller degrades to a readable document instead of throwing — the same
+ * contract as resolveDocumentLocale.
+ *
+ * Only the document chrome (title, subtitle) is translated. `section.title` /
+ * `section.content` come from the DB (agb_sections) and are printed exactly as authored;
+ * translating them needs the `translations` JSONB column on that table, which the caller
+ * would have to select.
+ */
 export const generateAgbPdfBase64 = async (
   sections: AgbPdfSection[],
-  companyName?: string
+  companyName?: string,
+  locale: Locale = DEFAULT_LOCALE
 ): Promise<string | null> => {
   if (!sections || sections.length === 0) return null;
+
+  const { t } = documentI18nFor(locale);
 
   const sortedSections = [...sections].sort(
     (a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)
@@ -61,11 +78,11 @@ export const generateAgbPdfBase64 = async (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>Allgemeine Geschäftsbedingungen (AGB)</Text>
+          <Text style={styles.title}>{t("doc.agb.title")}</Text>
           <Text style={styles.subtitle}>
             {companyName
-              ? `${companyName} - gültige Version zum Angebotszeitpunkt`
-              : "Gültige Version zum Angebotszeitpunkt"}
+              ? t("doc.agb.subtitle", { company: companyName })
+              : t("doc.agb.subtitleGeneric")}
           </Text>
         </View>
 
