@@ -28,7 +28,7 @@ import {
 } from "@/lib/rechnungStatus";
 import { useI18n } from "@/i18n/useI18n";
 import { formatCurrency } from "@/i18n/format";
-import { resolveDocumentLocale } from "@/i18n/documentLocale";
+import { resolveDocumentLocale, documentI18nFor } from "@/i18n/documentLocale";
 import { LOCALE_NAMES, LOCALES, toLocale, type Locale } from "@/i18n/locale";
 
 interface CompanyInfo {
@@ -50,10 +50,14 @@ interface CompanyInfo {
   default_language: string | null;
 }
 
-// Standardtexte für neue Rechnungen (rechnungsbezogen editierbar, siehe Formular).
-const DEFAULT_EINLEITUNG =
-  "Für die Erledigung der von Ihnen beauftragten Tätigkeiten berechnen wir Ihnen wie folgt:";
-const DEFAULT_SCHLUSSTEXT = "Besten Dank für Ihren Auftrag.";
+// Legacy German auto-seed: older invoices stored these hard-coded GERMAN intro/outro strings
+// regardless of the customer's language, so a French/English invoice rendered German text.
+// Now the intro/outro fields default to empty; the PDF renderer fills in the localized default
+// (doc.invoice.default*) in the customer's language. On load a stored value equal to this legacy
+// seed is blanked (below) so the editor shows the localized placeholder instead. Derived from the
+// DE catalog — single source, no magic string.
+const LEGACY_DE_EINLEITUNG = documentI18nFor("de").t("doc.invoice.defaultIntro");
+const LEGACY_DE_SCHLUSSTEXT = documentI18nFor("de").t("doc.invoice.defaultOutro");
 
 type EditPosition = RechnungPosition & { _key: string };
 
@@ -118,8 +122,9 @@ export default function RechnungDetail() {
   const [notiz, setNotiz] = useState("");
   // PDF-Redesign Textfelder (rechnungsbezogen, editierbar)
   const [anrede, setAnrede] = useState<string>("");
-  const [einleitung, setEinleitung] = useState(DEFAULT_EINLEITUNG);
-  const [schlusstext, setSchlusstext] = useState(DEFAULT_SCHLUSSTEXT);
+  // Empty = the PDF renders the localized default in the customer's language (see LEGACY_DE_* above).
+  const [einleitung, setEinleitung] = useState("");
+  const [schlusstext, setSchlusstext] = useState("");
   const [zahlungskonditionen, setZahlungskonditionen] = useState("");
   const [status, setStatus] = useState<RechnungStatus>("entwurf");
   // Document language — the language the CUSTOMER is invoiced in (rechnungen.language).
@@ -179,10 +184,11 @@ export default function RechnungDetail() {
     setMwstSatz(data.mwst_satz > 0 ? data.mwst_satz : 8.1);
     setMwstEnabled(data.mwst_satz > 0);
     setNotiz(data.notiz || "");
-    // NULL (Bestandsrechnungen) → Standardtext, damit Formular/PDF konsistent gefüllt sind.
     setAnrede(data.anrede ?? "");
-    setEinleitung(data.einleitung ?? DEFAULT_EINLEITUNG);
-    setSchlusstext(data.schlusstext ?? DEFAULT_SCHLUSSTEXT);
+    // NULL or the legacy German auto-seed → empty, so the field shows the localized placeholder
+    // and the renderer emits the customer-language default. Genuine custom text is kept verbatim.
+    setEinleitung(data.einleitung && data.einleitung !== LEGACY_DE_EINLEITUNG ? data.einleitung : "");
+    setSchlusstext(data.schlusstext && data.schlusstext !== LEGACY_DE_SCHLUSSTEXT ? data.schlusstext : "");
     setZahlungskonditionen(data.zahlungskonditionen ?? "");
     setStatus(isRechnungStatus(data.status) ? data.status : "entwurf");
     setLanguage(resolveDocumentLocale(data));
@@ -663,7 +669,7 @@ export default function RechnungDetail() {
           <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Anschreiben &amp; Konditionen</h3>
           <div>
             <Label className="text-xs">Einleitungstext</Label>
-            <Textarea value={einleitung} onChange={(e) => setEinleitung(e.target.value)} rows={2} className="mt-1 text-sm resize-none" />
+            <Textarea value={einleitung} onChange={(e) => setEinleitung(e.target.value)} rows={2} placeholder={documentI18nFor(language).t("doc.invoice.defaultIntro")} className="mt-1 text-sm resize-none" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -672,7 +678,7 @@ export default function RechnungDetail() {
             </div>
             <div>
               <Label className="text-xs">Schlusstext</Label>
-              <Input value={schlusstext} onChange={(e) => setSchlusstext(e.target.value)} className="mt-1 h-9 text-sm" />
+              <Input value={schlusstext} onChange={(e) => setSchlusstext(e.target.value)} placeholder={documentI18nFor(language).t("doc.invoice.defaultOutro")} className="mt-1 h-9 text-sm" />
             </div>
           </div>
         </div>

@@ -113,6 +113,22 @@ const groupAmount = (n: number, sep: string): string => {
 const formatQrAmount = (n: number): string => groupAmount(n, " ");
 
 /**
+ * jsPDF's built-in Helvetica is WinAnsi-only. Intl's fr-CH formatter emits U+202F
+ * (narrow no-break space) as the digit-grouping separator and U+00A0 before the currency
+ * code — neither has a WinAnsi glyph, so an amount like "2 500.00 CHF" renders as tofu.
+ * Normalise the exotic spaces Intl can produce to a plain space before any amount is drawn.
+ * (The QR payment part already uses a plain space per the SIX norm.)
+ */
+const sanitizePdfText = (s: string): string => s.replace(/[\u00a0\u2007\u2009\u202f\u2060]/g, " ");
+
+// Legacy German auto-seed: older invoices persisted these hard-coded GERMAN intro/outro
+// strings into every row regardless of the customer's language, so a French/English invoice
+// rendered German boilerplate. Sourced from the DE catalog (not a magic string); when a stored
+// value equals it, the renderer treats it as "unset" and falls back to the localized default.
+const DE_DEFAULT_INTRO = documentI18nFor("de").t("doc.invoice.defaultIntro");
+const DE_DEFAULT_OUTRO = documentI18nFor("de").t("doc.invoice.defaultOutro");
+
+/**
  * Free "customer_address" (single/multi-line) → QR-Bill structured debtor.
  * Swiss format: "<street no> <PLZ 4 digits> <Ort>". If it cannot be parsed, undefined
  * → debtor is not added at all (empty debtor instead of invalid QR; the norm allows this).
@@ -351,7 +367,7 @@ const LOGO_MAX_H = 20;
 const drawInvoiceBody = (doc: jsPDF, data: RechnungData, t: Translator, logoBase64: string | null): void => {
   const c = data.company;
   const locale = data.locale;
-  const money = (n: number): string => formatCurrency(n, locale);
+  const money = (n: number): string => sanitizePdfText(formatCurrency(n, locale));
   const accent = hexToRgb(c.primary_color, DEFAULT_ACCENT);
 
   // ── BLOCK 1: Akzent-Streifen + Header ──
@@ -446,12 +462,22 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, t: Translator, logoBase
     [t("doc.invoice.dueDate"), formatIsoDate(data.faellig_am, locale)],
     [t("doc.invoice.contact"), c.legal_name || c.company_name],
   ];
+  const metaGap = 3; // min space between label and value on one row
   let mrY = boxY + 8;
   for (const [label, value] of metaRows) {
     setFont(doc, 8, "normal");
     setText(doc, COL_GRAY);
     doc.text(label, boxX + metaPad, mrY);
-    setFont(doc, 9, "bold");
+    const labelW = doc.getTextWidth(label);
+    // Available width for the right-aligned value; shrink the value font until it fits so a
+    // long FR label ("Personne de contact") + a long value (company name) never overlap.
+    const valueMax = boxW - 2 * metaPad - labelW - metaGap;
+    let valueSize = 9;
+    setFont(doc, valueSize, "bold");
+    while (doc.getTextWidth(value) > valueMax && valueSize > 6.5) {
+      valueSize -= 0.5;
+      setFont(doc, valueSize, "bold");
+    }
     setText(doc, COL_DARK);
     doc.text(value, boxX + boxW - metaPad, mrY, { align: "right" });
     mrY += 8;
@@ -472,10 +498,17 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, t: Translator, logoBase
   doc.text(getLetterSalutation(data.anrede, data.customer_name, locale), MARGIN, y);
   y += 7;
 
-  if (data.einleitung && data.einleitung.trim()) {
+  // Intro text: the operator's custom text if set, otherwise the localized default in the
+  // CUSTOMER's language. A stored value equal to the legacy German auto-seed is treated as
+  // unset so a French/English invoice no longer prints German boilerplate.
+  const storedIntro = data.einleitung?.trim();
+  const introText = !storedIntro || storedIntro === DE_DEFAULT_INTRO
+    ? t("doc.invoice.defaultIntro")
+    : storedIntro;
+  if (introText) {
     setFont(doc, 9, "normal");
     setText(doc, COL_GRAY);
-    const einleitungLines = doc.splitTextToSize(data.einleitung.trim(), A4_W - 2 * MARGIN);
+    const einleitungLines = doc.splitTextToSize(introText, A4_W - 2 * MARGIN);
     doc.text(einleitungLines, MARGIN, y);
     y += einleitungLines.length * 4 + 2;
   }
@@ -578,19 +611,45 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, t: Translator, logoBase
   }
 
   // Rechts: dunkle Total-Box (weiße Schrift = garantierter Kontrast).
-  const boxX2 = 110;
-  const boxW2 = A4_W - MARGIN - boxX2; // 80
+  // Auto-fit: the label varies by language ("Rechnungstotal inkl. MwSt." vs. the much longer
+  // "Total de la facture TVA incluse") and the amount can be large. Measure both, grow the box
+  // leftward, and step the fonts down if they would still collide — the old fixed 80mm box let
+  // the French label overlap the amount and clipped it past the right edge.
+  const boxRight = A4_W - MARGIN;          // 190 — fixed right edge (aligns with the table)
+  const boxPad = 5;
+  const boxGap = 5;                        // min space between label and amount
+  const totalLabel = t("doc.invoice.total");
+  const totalValue = money(data.total);
+  const MAX_BOX_W = 98;                     // left edge ≥ 92 → leaves room for the left text column
+  const innerMax = MAX_BOX_W - 2 * boxPad;
+  const measure = (text: string, size: number, style: "normal" | "bold"): number => {
+    setFont(doc, size, style);
+    return doc.getTextWidth(text);
+  };
+  let labelSize = 8.5;
+  let valueSize = 13;
+  let labelW = measure(totalLabel, labelSize, "normal");
+  let valueW = measure(totalValue, valueSize, "bold");
+  // Shrink the label first, then the amount, until they fit the widest allowed box.
+  while (labelW + boxGap + valueW > innerMax && (labelSize > 7 || valueSize > 11)) {
+    if (labelSize > 7) labelSize -= 0.5;
+    else valueSize -= 0.5;
+    labelW = measure(totalLabel, labelSize, "normal");
+    valueW = measure(totalValue, valueSize, "bold");
+  }
+  const boxW2 = Math.min(MAX_BOX_W, Math.max(80, labelW + boxGap + valueW + 2 * boxPad));
+  const boxX2 = boxRight - boxW2;
   const boxH2 = 14;
   const boxY2 = ty + 1;
   doc.setFillColor(COL_DARK[0], COL_DARK[1], COL_DARK[2]);
   doc.roundedRect(boxX2, boxY2, boxW2, boxH2, 2, 2, "F");
   const boxMidY = boxY2 + boxH2 / 2 + 1;
-  setFont(doc, 8.5, "normal");
+  setFont(doc, labelSize, "normal");
   doc.setTextColor(226, 232, 240);
-  doc.text(t("doc.invoice.total"), boxX2 + 5, boxMidY);
-  setFont(doc, 13, "bold");
+  doc.text(totalLabel, boxX2 + boxPad, boxMidY);
+  setFont(doc, valueSize, "bold");
   doc.setTextColor(255, 255, 255);
-  doc.text(money(data.total), boxX2 + boxW2 - 5, boxMidY + 0.5, { align: "right" });
+  doc.text(totalValue, boxRight - boxPad, boxMidY + 0.5, { align: "right" });
 
   // Links: Zahlungskonditionen + Schlusstext + Unterschrift.
   let ly = finalY + 9;
@@ -606,10 +665,16 @@ const drawInvoiceBody = (doc: jsPDF, data: RechnungData, t: Translator, logoBase
     doc.text(data.zahlungskonditionen.trim(), MARGIN + lblW, ly);
     ly += 6;
   }
-  if (data.schlusstext && data.schlusstext.trim()) {
+  // Closing text: operator's custom text, else the localized default; the legacy German
+  // auto-seed is treated as unset (same rule as the intro above).
+  const storedOutro = data.schlusstext?.trim();
+  const outroText = !storedOutro || storedOutro === DE_DEFAULT_OUTRO
+    ? t("doc.invoice.defaultOutro")
+    : storedOutro;
+  if (outroText) {
     setFont(doc, 9, "normal");
     setText(doc, COL_GRAY);
-    const sl = doc.splitTextToSize(data.schlusstext.trim(), leftW);
+    const sl = doc.splitTextToSize(outroText, leftW);
     doc.text(sl, MARGIN, ly);
     ly += sl.length * 4 + 4;
   }
