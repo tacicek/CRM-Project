@@ -1,6 +1,7 @@
 // AddressDistanceForm.tsx - Address Input with Auto Distance Calculation
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { devLog } from '@/lib/devLog';
 import { MapPin, Navigation, Clock, Loader2, AlertCircle, Route } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -92,7 +93,7 @@ export function AddressDistanceForm({
     if (!force && 
         lastCalculated?.origin === originKey && 
         lastCalculated?.destination === destKey) {
-      console.log('[AddressDistanceForm] Already calculated for these addresses');
+      devLog('[AddressDistanceForm] Already calculated for these addresses');
       return;
     }
 
@@ -115,7 +116,7 @@ export function AddressDistanceForm({
         ? { lat: destinationAddress.lat, lng: destinationAddress.lng }
         : buildAddressString(destinationAddress);
 
-      console.log('[AddressDistanceForm] Calculating distance:', { origin, destination });
+      devLog('[AddressDistanceForm] Calculating distance:', { origin, destination });
 
       const { data, error } = await supabase.functions.invoke('calculate-distance', {
         body: { origin, destination, mode: 'driving' }
@@ -123,7 +124,7 @@ export function AddressDistanceForm({
 
       // Check if this is still the latest request (prevents race conditions)
       if (currentRequest !== calculationRequestRef.current) {
-        console.log('[AddressDistanceForm] Stale request, ignoring result');
+        devLog('[AddressDistanceForm] Stale request, ignoring result');
         return;
       }
 
@@ -134,7 +135,7 @@ export function AddressDistanceForm({
 
       if (data?.result) {
         const result: DistanceResult = data.result;
-        console.log('[AddressDistanceForm] Distance result:', result);
+        devLog('[AddressDistanceForm] Distance result:', result);
         onDistanceChange(result.distanceKm);
         onDrivingTimeChange(result.durationMinutes);
         setLastCalculated({ origin: originKey, destination: destKey });

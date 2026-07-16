@@ -1,13 +1,12 @@
 // useRecaptcha.ts - Google reCAPTCHA v3 hook for form protection
 
 import { useCallback, useEffect, useState } from "react";
+import { devLog, devWarn } from "@/lib/devLog";
 
 // Get site key from environment or use default
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || "";
 
-if (typeof window !== 'undefined' && import.meta.env.DEV) {
-  console.log('[reCAPTCHA] Site key configured:', RECAPTCHA_SITE_KEY ? 'Yes' : 'No');
-}
+devLog('[reCAPTCHA] Site key configured:', RECAPTCHA_SITE_KEY ? 'Yes' : 'No');
 
 declare global {
   interface Window {
@@ -51,7 +50,6 @@ export function useRecaptcha(): UseRecaptchaReturn {
   useEffect(() => {
     // Skip if reCAPTCHA is not configured
     if (!isEnabled) {
-      console.log("[reCAPTCHA] Not configured - skipping");
       return;
     }
 
@@ -72,7 +70,7 @@ export function useRecaptcha(): UseRecaptchaReturn {
     script.onload = () => {
       window.grecaptcha.ready(() => {
         setIsLoaded(true);
-        console.log("[reCAPTCHA] Script loaded successfully");
+        devLog("[reCAPTCHA] Script loaded successfully");
       });
     };
     
@@ -91,20 +89,18 @@ export function useRecaptcha(): UseRecaptchaReturn {
   const executeRecaptcha = useCallback(async (action: string): Promise<string | null> => {
     // If reCAPTCHA is not enabled, return null (submission should continue)
     if (!isEnabled) {
-      console.log("[reCAPTCHA] Not enabled, skipping verification");
       return null;
     }
 
     // If script not loaded yet, wait a bit
     if (!isLoaded || !window.grecaptcha) {
-      console.warn("[reCAPTCHA] Script not loaded yet");
+      devWarn("[reCAPTCHA] Script not loaded yet");
       setError("reCAPTCHA not loaded");
       return null;
     }
 
     try {
       const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
-      console.log(`[reCAPTCHA] Token generated for action: ${action}`);
       return token;
     } catch (err) {
       console.error("[reCAPTCHA] Error executing:", err);

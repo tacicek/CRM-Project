@@ -8,6 +8,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
+import { maskEmail } from "../_shared/logger.ts";
 import {
   createTranslator,
   DEFAULT_LOCALE,
@@ -191,7 +192,7 @@ serve(async (req) => {
           .eq("id", auftrag.auftrag_id);
 
         results.reminders_sent++;
-        console.log(`Reminder sent to ${auftrag.team_leader_email} for Auftrag ${auftrag.auftrag_nummer}`);
+        console.log(`Reminder sent to ${maskEmail(auftrag.team_leader_email ?? "")} for Auftrag ${auftrag.auftrag_nummer}`);
 
         // Also send copy to company email if different
         if (auftrag.company_email && auftrag.company_email !== auftrag.team_leader_email) {

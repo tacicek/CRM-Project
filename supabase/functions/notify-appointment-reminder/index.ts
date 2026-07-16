@@ -199,7 +199,7 @@ async function sendTwilioSms(
   // Normalise to E.164 — handles Swiss 079/0041 formats and international numbers
   const cleanPhone = normalizePhoneToE164(toPhone);
   if (!cleanPhone) {
-    console.log(`[sendTwilioSms] Could not normalise phone number: "${toPhone}" — skipping`);
+    console.log(`[sendTwilioSms] Could not normalise phone number: "${maskPhone(toPhone ?? "")}" — skipping`);
     return { success: false, error: `Invalid phone format: ${toPhone}` };
   }
 
@@ -510,7 +510,7 @@ const handler = async (req: Request): Promise<Response> => {
           });
           if (firmaSendErr) throw firmaSendErr; // resend returns { error } instead of throwing
 
-          console.log(`[notify-appointment-reminder] Sent reminder to firma ${recipientEmail} for appointment ${appointment.id}`);
+          console.log(`[notify-appointment-reminder] Sent reminder to firma ${maskEmail(recipientEmail)} for appointment ${appointment.id}`);
 
           await supabase.from("appointment_reminders").insert({
             appointment_id: appointment.id,
@@ -692,7 +692,7 @@ const handler = async (req: Request): Promise<Response> => {
             ],
           });
 
-          console.log(`[notify-appointment-reminder] Sent day-before reminder to firma ${recipientEmail}`);
+          console.log(`[notify-appointment-reminder] Sent day-before reminder to firma ${maskEmail(recipientEmail)}`);
 
           await supabase.from("appointment_reminders").insert({
             appointment_id: appointment.id,

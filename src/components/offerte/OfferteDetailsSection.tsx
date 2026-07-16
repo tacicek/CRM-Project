@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { useState, useEffect } from "react";
+import { devLog } from "@/lib/devLog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -175,7 +176,7 @@ export function OfferteDetailsSection({
         if (templatesRes.data) setTemplates(templatesRes.data as ServiceTemplate[]);
       } catch {
         // Table doesn't exist yet, ignore
-        console.log("service_detail_templates table not found");
+        devLog("service_detail_templates table not found");
       } finally {
         setLoading(false);
       }

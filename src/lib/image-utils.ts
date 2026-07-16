@@ -1,4 +1,5 @@
 import imageCompression from 'browser-image-compression';
+import { devLog } from '@/lib/devLog';
 
 interface CompressionOptions {
   maxWidthOrHeight?: number;
@@ -23,9 +24,9 @@ export async function convertToWebP(file: File, options: CompressionOptions = {}
   };
 
   try {
-    console.log(`Original file size: ${file.size / 1024 / 1024} MB`);
+    devLog(`Original file size: ${file.size / 1024 / 1024} MB`);
     const compressedFile = await imageCompression(file, defaultOptions);
-    console.log(`Compressed file size: ${compressedFile.size / 1024 / 1024} MB`);
+    devLog(`Compressed file size: ${compressedFile.size / 1024 / 1024} MB`);
     
     const fileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
     const webpFile = new File([compressedFile], `${fileName}.webp`, {

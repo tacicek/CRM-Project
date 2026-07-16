@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { devLog } from "@/lib/devLog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -159,7 +160,7 @@ export function KantonPlzSelector({
         }
       }
 
-      console.log(`Loaded ${allData.length} PLZ entries from database`);
+      devLog(`Loaded ${allData.length} PLZ entries from database`);
 
       // Remove duplicates (some PLZ have multiple cities)
       const uniquePlz = new Map<string, PlzData>();
@@ -169,7 +170,7 @@ export function KantonPlzSelector({
         }
       });
 
-      console.log(`After deduplication: ${uniquePlz.size} unique PLZ codes`);
+      devLog(`After deduplication: ${uniquePlz.size} unique PLZ codes`);
       setPlzData(Array.from(uniquePlz.values()));
     } catch (error) {
       console.error("Error loading PLZ data:", error);

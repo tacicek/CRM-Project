@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { maskEmail } from "../_shared/logger.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
@@ -238,7 +239,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
       emailSendError = confirmSendError;
       if (confirmSendError) console.error("[handle-reschedule-response] confirm email failed:", confirmSendError);
-      else console.log(`[handle-reschedule-response] Sent confirmation to customer: ${customerEmail}`);
+      else console.log(`[handle-reschedule-response] Sent confirmation to customer: ${maskEmail(customerEmail)}`);
 
     } else {
       // Reject - just update status and notify customer
@@ -321,7 +322,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
       emailSendError = rejectSendError;
       if (rejectSendError) console.error("[handle-reschedule-response] reject email failed:", rejectSendError);
-      else console.log(`[handle-reschedule-response] Sent rejection to customer: ${customerEmail}`);
+      else console.log(`[handle-reschedule-response] Sent rejection to customer: ${maskEmail(customerEmail)}`);
     }
 
     // Log the email — in the language it actually went out in.

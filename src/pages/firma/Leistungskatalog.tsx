@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -113,9 +113,53 @@ export default function FirmaLeistungskatalog() {
   });
 
   // FIX: Added isMounted flag to prevent memory leaks on unmount
+  // Reference-stable so it can be an honest useEffect dependency below. Its only
+  // non-stable closure is `t` (i18n translator, memoized per locale) — state setters
+  // and the supabase client are stable — so this reloads on user/locale change, not
+  // on every render.
+  const loadServices = useCallback(async (companyId: string, isInitialLoad = false) => {
+    const [servicesRes, templatesRes] = await Promise.all([
+      supabase
+        .from("company_service_items")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("service_type")
+        .order("category")
+        .order("display_order"),
+      supabase
+        .from("leistungsuebersicht_templates")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("service_type")
+        .order("name")
+    ]);
+
+    if (servicesRes.error) {
+      console.error("Error loading services:", servicesRes.error);
+      toast.error(t("catalog.toast.loadServicesFailed"));
+      return;
+    }
+
+    setServices(servicesRes.data || []);
+    setTemplates(templatesRes.data || []);
+
+    // Only expand all categories on initial load — preserve user's collapsed state on reloads
+    if (isInitialLoad) {
+      const categories = [...new Set((servicesRes.data || []).map(s => s.category))];
+      setExpandedCategories(categories);
+    } else {
+      // Expand any newly added categories that don't yet appear in expandedCategories
+      setExpandedCategories(prev => {
+        const newCategories = [...new Set((servicesRes.data || []).map(s => s.category))];
+        const added = newCategories.filter(c => !prev.includes(c));
+        return added.length > 0 ? [...prev, ...added] : prev;
+      });
+    }
+  }, [t]);
+
   useEffect(() => {
     let isMounted = true;
-    
+
     const loadData = async () => {
       if (!user) {
         if (isMounted) setLoading(false);
@@ -148,7 +192,7 @@ export default function FirmaLeistungskatalog() {
     return () => {
       isMounted = false;
     };
-  }, [user, t]);
+  }, [user, t, loadServices]);
   
   // FIX: Cancel inline edit when tab changes to prevent editing hidden items
   useEffect(() => {
@@ -163,48 +207,6 @@ export default function FirmaLeistungskatalog() {
     
     return () => clearTimeout(timer);
   }, [searchTerm]);
-
-  // loadCompanyAndServices is now inlined in useEffect to support proper cleanup
-
-  const loadServices = async (companyId: string, isInitialLoad = false) => {
-    const [servicesRes, templatesRes] = await Promise.all([
-      supabase
-        .from("company_service_items")
-        .select("*")
-        .eq("company_id", companyId)
-        .order("service_type")
-        .order("category")
-        .order("display_order"),
-      supabase
-        .from("leistungsuebersicht_templates")
-        .select("*")
-        .eq("company_id", companyId)
-        .order("service_type")
-        .order("name")
-    ]);
-
-    if (servicesRes.error) {
-      console.error("Error loading services:", servicesRes.error);
-      toast.error(t("catalog.toast.loadServicesFailed"));
-      return;
-    }
-
-    setServices(servicesRes.data || []);
-    setTemplates(templatesRes.data || []);
-    
-    // Only expand all categories on initial load — preserve user's collapsed state on reloads
-    if (isInitialLoad) {
-      const categories = [...new Set((servicesRes.data || []).map(s => s.category))];
-      setExpandedCategories(categories);
-    } else {
-      // Expand any newly added categories that don't yet appear in expandedCategories
-      setExpandedCategories(prev => {
-        const newCategories = [...new Set((servicesRes.data || []).map(s => s.category))];
-        const added = newCategories.filter(c => !prev.includes(c));
-        return added.length > 0 ? [...prev, ...added] : prev;
-      });
-    }
-  };
 
   const openAddModal = () => {
     setEditingService(null);

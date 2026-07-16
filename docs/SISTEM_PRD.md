@@ -5,6 +5,11 @@
 > **canlı sistem üzerinde doğrulanmıştır** (DB sorguları + dosya listesi), tahmin değildir.
 > Doğrulama tarihi: **2026-06-15**.
 >
+> **2026-07-16 doküman-senkron güncellemesi:** Rechnungen (QR-fatura) modülü, `useAuth` gerçek
+> alanları, `adminPermissions.ts`'in kaldırılışı, `quittungen.auftrag_id` eklenmesi ve genişleyen
+> test kümesi eklendi. Bu güncellemeler **repo + migration + generated types üzerinden** doğrulandı;
+> deployed edge-fn durumu ve canlı satır sayıları **canlı ortamda ayrıca doğrulanmalıdır**.
+>
 > **Okuma sırası:** Önce [CLAUDE.md](../CLAUDE.md) (kurallar + NEVER listesi), sonra bu dosya
 > (mimari + domain modeli). Bu dosya CLAUDE.md'yi tekrar etmez, **tamamlar**.
 >
@@ -105,11 +110,18 @@ aktif CRM akışında kullanılmayan yapı. **Bunlara dokunmadan önce kullanıc
   LEAD  ──"Neue Offerte"──▶  OFFER  ──"Auftrag erstellen"──▶  AUFTRAG
  (talep)                   (teklif)      (kabul sonrası)      (saha işi)
                               │                                   │
-                              │  müşteri public link ile          │ tamamlanınca
-                              │  görüntüler/kabul eder            ▼
-                              └──────────────────────────▶   QUITTUNG
-                                                            (makbuz/fatura)
+                              │  müşteri public link ile          │ tamamlanınca (abgeschlossen)
+                              │  görüntüler/kabul eder            ├──────────────▶  QUITTUNG (makbuz)
+                              └──────────────────────────────────┴──────────────▶  RECHNUNG (İsviçre QR-fatura)
 ```
+
+**Quittung vs Rechnung (işlevsel fark):**
+- **QUITTUNG** = makbuz. `offer_id`'e bağlı (+ opsiyonel tracking `auftrag_id`, UNIQUE değil).
+  status: `draft → signed → sent → paid`. Ödeme kanıtı; daha basit.
+- **RECHNUNG** = resmî **İsviçre QR-faturası**. Sadece `status='abgeschlossen'` Auftrag'tan,
+  Auftrag'ın **frozen snapshot**'ından ([src/lib/erstelleRechnung.ts](../src/lib/erstelleRechnung.ts))
+  üretilir; vade tarihli (`faellig_am`), QR-IBAN ödeme referanslı (`qr_iban`/`qr_referenz`),
+  **sipariş başına tek** (`auftrag_id` UNIQUE). status: `entwurf → versendet → bezahlt → ueberfaellig`.
 
 ### 3.2 Tablolar arası gerçek FK ilişkileri (doğrulandı)
 
@@ -118,14 +130,19 @@ leads ──< offers          (offers.lead_id → leads.id)
         └─ offers.lead_distribution_id → lead_distributions   [KALINTI FK, tek-kiracıda boş]
 offers ──< offer_items     (offer_items.offer_id → offers.id)
 offers ──< auftraege       (auftraege.offer_id → offers.id;  ayrıca lead_id, team_leader_id)
-offers ──< quittungen      (quittungen.offer_id → offers.id)   ⚠️ quittungen AUFTRAG'a değil OFFER'a bağlı
+offers ──< quittungen      (quittungen.offer_id → offers.id;  ayrıca quittungen.auftrag_id → auftraege.id)
+auftraege ──< quittungen   (quittungen.auftrag_id → auftraege.id)   [tracking, UNIQUE DEĞİL, ON DELETE SET NULL]
+auftraege ──1 rechnungen   (rechnungen.auftrag_id → auftraege.id)   [isOneToOne=true → sipariş başına TEK fatura]
+offers ──< rechnungen      (rechnungen.offer_id → offers.id, nullable)
 offers ──< appointments    (appointments.offer_id → offers.id; ayrıca lead_id)
 companies ──< [her şey].company_id
 ```
 
-> ⚠️ **Sık yapılan hata:** `quittungen` tablosunda `auftrag_id` **yoktur**; makbuz doğrudan
-> `offer_id` ile teklife bağlanır (`company_id` + `offer_id` FK'leri). UI'da "auftrag'dan
-> makbuz" akışı olsa bile DB ilişkisi offer üzerindendir.
+> ⚠️ **GÜNCELLEME (migration `20260705120000_quittung_auftrag_link.sql`):** `quittungen`
+> tablosuna **`auftrag_id` EKLENDİ** (tracking amaçlı; **UNIQUE DEĞİL** — bir sipariş birden
+> çok makbuza sahip olabilir, ör. taksit; `ON DELETE SET NULL`). Migration + generated types
+> uyumlu, sync riski yok. Eski "quittungen'de auftrag_id yoktur" ifadesi artık geçersiz.
+> `rechnungen` ise `auftrag_id`'yi **UNIQUE** taşır (sipariş başına tek fatura).
 
 ### 3.3 Status alanları (canlı DB'den doğrulandı)
 
@@ -135,6 +152,7 @@ companies ──< [her şey].company_id
 | `offers.status` | varchar, default `draft` | `draft → sent → viewed → accepted / rejected` (enum değil, serbest metin) |
 | `auftraege.status` | **enum `auftrag_status`** | `geplant, bestaetigt, in_bearbeitung, abgeschlossen, storniert` |
 | `quittungen.status` | text, default `draft` | draft → signed → sent → paid |
+| `rechnungen.status` | text, default `entwurf` | `entwurf → versendet → bezahlt → ueberfaellig` ([src/lib/rechnungStatus.ts](../src/lib/rechnungStatus.ts)) |
 | `appointments.status` | **enum `appointment_status`** | `pending, confirmed, completed, cancelled, rescheduled, no_show` |
 | `appointments.type` | **enum `appointment_type`** | `besichtigung, service, follow_up, meeting, blocked` |
 
@@ -156,8 +174,10 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 | Müşteri yanıtı | Public link [OfferView.tsx](../src/pages/public/OfferView.tsx) (token) | `update_offer_by_token` RPC → viewed/accepted/rejected; `notify-offer-response`/`handle-proposal-response` firmaya bildirir |
 | Offer → Auftrag | "Auftrag erstellen" + `AuftragModal` (offer kabul edildiyse) | `auftraege` INSERT (`offer_id`, `lead_id`, status=`geplant`) |
 | Auftrag yürüt | Status dropdown ([Auftraege.tsx](../src/pages/firma/Auftraege.tsx)) | `auftraege.status` geçişi (state machine) |
-| Auftrag → Quittung | [QuittungDetail.tsx](../src/pages/firma/QuittungDetail.tsx) | `quittungen` INSERT (`offer_id` ile) |
+| Auftrag → Quittung | [QuittungDetail.tsx](../src/pages/firma/QuittungDetail.tsx) | `quittungen` INSERT (`offer_id` + opsiyonel `auftrag_id`) |
 | Quittung gönder | "Senden" | `send-quittung` edge fn → Resend (PDF) → status=sent |
+| Auftrag → Rechnung | [RechnungDetail.tsx](../src/pages/firma/RechnungDetail.tsx) ([erstelleRechnung.ts](../src/lib/erstelleRechnung.ts)) | `rechnungen` INSERT (`auftrag_id` frozen snapshot'tan; `rechnung_nr`/`faellig_am` DB trigger, `qr_referenz` insert sonrası) |
+| Rechnung gönder | "Senden" ([Rechnungen.tsx](../src/pages/firma/Rechnungen.tsx)) | `send-rechnung-email` edge fn (prepare: signed upload URL → Storage; send: PDF'i Storage'dan yükle → Resend → sil) → status=versendet |
 
 ---
 
@@ -195,6 +215,11 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 ---
 
 ## 5. Edge Functions — Deployed Durum (2026-06-15 doğrulandı)
+
+> ⚠️ **Bu bölüm 2026-06-15 tarihli deployed anlık görüntüsüdür.** O tarihten sonra repo'ya
+> eklenen fonksiyonların (**`send-rechnung-email`, `translate-content`**) deploy durumu bu
+> listeye dahil DEĞİLDİR — **canlı ortamda doğrulanmalı**. "Repo'da mevcut ≠ prod'da deployed":
+> aşağıdaki C/B/A sınıflandırması yalnızca doğrulanma tarihindeki sunucu durumunu yansıtır.
 
 > **Runtime davranış notu (2026-06-15 doğrulandı):**
 > Bu self-hosted Supabase Edge Runtime'da "deployed değil" = HTTP 500
@@ -248,13 +273,20 @@ kalıntısı — repo'dan silindi, sunucuda deployed, çağıran yok)
   (→ OfferView), `/termin/:appointmentId/{absagen,verschieben,antwort}`,
   `/besichtigung/:leadId/antwort`, `/besichtigung/:token` (VirtualBesichtigung).
 - **Korumalı `/firma/*` rotaları:** dashboard, anfragen, offerten(+neu/:id/bearbeiten),
-  auftraege, quittungen(+neu/:id/bearbeiten), besichtigungen, kalender, umzugsboxen, team,
-  checkliste, leistungskatalog, preisgestaltung, manual-import, datenarchiv, einstellungen.
+  auftraege, quittungen(+neu/:id/bearbeiten), rechnungen(+neu/:id), besichtigungen, kalender,
+  umzugsboxen, team, checkliste, leistungskatalog, preisgestaltung, manual-import, datenarchiv,
+  einstellungen.
+- **Feature-flag route guard:** `/firma/*` rotaları [FirmaModuleGuard](../src/components/firma/FirmaModuleGuard.tsx)
+  ile korunur — [moduleRoutes.ts](../src/config/moduleRoutes.ts)'teki tek path→module haritası
+  bir modülü kapalı bulursa `/firma`'ya redirect eder (sidebar da aynı haritayı kullanır). `/firma`
+  dashboard guard'sız (güvenli hedef, loop yok). **Bu bir UX kontrolü, yetkilendirme değil** —
+  veri güvenliği Auth + RLS'te; public token rotaları wrapper dışında, etkilenmez.
 
 ### 6.2 Sayfalar — [src/pages/firma/](../src/pages/firma/) (19 dosya)
 
 `Anfragen` (lead listesi), `Offerten`/`OfferteErstellen`/`OfferteDetail`/`OfferteBearbeiten`
-(teklif), `Auftraege` (sipariş), `Quittungen`/`QuittungDetail` (makbuz), `Besichtigungen`
+(teklif), `Auftraege` (sipariş), `Quittungen`/`QuittungDetail` (makbuz),
+`Rechnungen`/`RechnungDetail` (İsviçre QR-fatura), `Besichtigungen`
 (keşif), `Kalender` (takvim, drag-drop), `Dashboard` (KPI), `Umzugsboxen` (kutu kiralama),
 `Team`, `Leistungskatalog` (servis kataloğu), `Checkliste`, `Preisgestaltung` (fiyat
 kuralları), `ManualImport`, `Datenarchiv` (soft-delete arşivi), `Einstellungen`.
@@ -264,8 +296,8 @@ Public: [src/pages/public/](../src/pages/public/) — `OfferView`, `VirtualBesic
 ### 6.3 Auth & Company context
 
 - [src/hooks/useAuth.tsx](../src/hooks/useAuth.tsx) — `AuthProvider`: `user`, `session`,
-  `isLoading`, `isAdmin`, `adminRole`, `signIn/signOut/resetPassword/updatePassword`.
-  `onAuthStateChange` aboneliği; `PASSWORD_RECOVERY` → `/auth/reset-password`.
+  `isLoading`, `signIn/signOut/resetPassword/updatePassword`. **`isAdmin`/`adminRole` YOK**
+  (koddan doğrulandı). `onAuthStateChange` aboneliği; `PASSWORD_RECOVERY` → `/auth/reset-password`.
 - [src/hooks/useCompanyContext.tsx](../src/hooks/useCompanyContext.tsx) — aktif şirket;
   `company_members ⋈ companies` sorgusu, `sessionStorage` cache. (Tek şirket olsa da
   context multi-company API'sini korur — RLS'yi kırma.)
@@ -277,9 +309,13 @@ Public: [src/pages/public/](../src/pages/public/) — `OfferView`, `VirtualBesic
 
 PDF: `generateOfferPdf.tsx`, `generateAuftragPdf.ts`, `generateChecklistPdf.ts`,
 `generateAgbPdf.tsx`, `buildOfferEmailAttachments.ts` (offer+AGB+checklist toplu üretim).
+Rechnung/QR: `erstelleRechnung.ts` (Auftrag→Rechnung map), `generateRechnungPdf.ts`,
+`rechnungStatus.ts`, `swiss-qr/core.ts` (QR-IBAN/QRR referans).
 Mantık: `auftragStatus.ts` (state machine), `crmAccess.ts` (feature guard, standalone'da no-op),
 `fetchSingleCompanyForUser.ts`/`fetchCompaniesForUser.ts`, `normalizeServiceType.ts`,
-`serviceLabels.ts`. Saf+TESTLİ: `authUtils.ts`, `adminPermissions.ts`. Validation:
+`serviceLabels.ts`. Saf+TESTLİ: `authUtils.ts`, `erstelleRechnung.ts`, `generateRechnungPdf.ts`,
+`rechnungStatus.ts`, `swiss-qr/core.ts`, `auftragStatus.ts`, `offerPricing`/`offerSurcharges`/
+`offerItemMeta` vb. **`adminPermissions.ts` artık YOK** (silindi). Validation:
 `src/lib/validations/` (zod, lead formları).
 
 ### 6.5 Önemli desenler
@@ -287,8 +323,9 @@ Mantık: `auftragStatus.ts` (state machine), `crmAccess.ts` (feature guard, stan
 - **Veri:** doğrudan `supabase.from` + `useState`/`useEffect`/`useCallback`; toast = `sonner`.
 - **Form:** `useState` ağırlıklı; zod yalnızca lead formlarında. Offer item'ları drag-drop
   (`@hello-pangea/dnd`).
-- **Yetki rolleri** ([src/lib/adminPermissions.ts](../src/lib/adminPermissions.ts)):
-  `super_admin(100) > admin(50) > moderator(10) > (rolsüz → normal /firma kullanıcısı)`.
+- **Yetkilendirme:** CRM UI erişimi yalnızca **authenticated + company membership (RLS)**
+  üzerinden. Frontend rol-hiyerarşisi tüketmez ve `adminPermissions.ts` **yoktur** (silindi).
+  (`app_role` enum'u + `has_role()`/`is_admin()` RPC'leri DB'de kalabilir ama CRM sayfaları okumaz.)
 
 ### 6.6 Çok dillilik — İKİ EKSEN (kritik)
 

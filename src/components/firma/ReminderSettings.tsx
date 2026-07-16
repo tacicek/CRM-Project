@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect } from "react";
 import { format } from "date-fns";
+import { devLog } from "@/lib/devLog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -109,7 +110,7 @@ export function ReminderSettings({ companyId }: ReminderSettingsProps) {
 
       if (error) {
         // View might not exist yet
-        console.log("Pending reminders view not available");
+        devLog("Pending reminders view not available");
         return;
       }
 

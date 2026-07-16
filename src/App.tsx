@@ -2,7 +2,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { FirmaModuleGuard } from "@/components/firma/FirmaModuleGuard";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/CompanyProvider";
@@ -96,7 +97,8 @@ const FirmaRouteWrapper = () => (
   <CompanyProvider>
     <I18nProvider>
       <FirmaLayout>
-        <Outlet />
+        {/* Route-level feature-flag guard — closes /firma routes whose module is off */}
+        <FirmaModuleGuard />
       </FirmaLayout>
     </I18nProvider>
   </CompanyProvider>

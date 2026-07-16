@@ -1,6 +1,7 @@
 // useLeadDataMapper.ts - Maps Lead/Anfrage data to Moving Calculator format
 
 import { useState, useCallback } from 'react';
+import { devLog, devWarn } from '@/lib/devLog';
 import { supabase } from '@/integrations/supabase/client';
 import {
   InventorySelection,
@@ -308,7 +309,7 @@ export function useLeadDataMapper(): UseLeadDataMapperReturn {
           }
         } catch (analysisError) {
           // Keep mapper resilient - calculator must still work without AI analysis.
-          console.warn("[LeadDataMapper] Could not load KI-Besichtigung analysis:", analysisError);
+          devWarn("[LeadDataMapper] Could not load KI-Besichtigung analysis:", analysisError);
         }
       }
     } catch (err) {
@@ -453,8 +454,8 @@ export function useLeadDataMapper(): UseLeadDataMapperReturn {
           processedItemIds.add(match.item.id);
         }
       } else {
-        // Track unmatched items for user notification
-        console.warn('[LeadDataMapper] No match found for item:', leadItem.name, 'in category:', leadItem.kategorie);
+        // Track unmatched items for user notification (surfaced in the UI via newUnmatchedItems)
+        devWarn('[LeadDataMapper] No match found for item:', leadItem.name, 'in category:', leadItem.kategorie);
         newUnmatchedItems.push({
           name: leadItem.name,
           kategorie: leadItem.kategorie,
@@ -480,9 +481,9 @@ export function useLeadDataMapper(): UseLeadDataMapperReturn {
     // Update unmatched items state
     setUnmatchedItems(newUnmatchedItems);
 
-    console.log('[LeadDataMapper] Mapped', selections.length, 'items from lead data');
+    devLog('[LeadDataMapper] Mapped', selections.length, 'items from lead data');
     if (newUnmatchedItems.length > 0) {
-      console.warn('[LeadDataMapper] Unmatched items:', newUnmatchedItems);
+      devWarn('[LeadDataMapper] Unmatched items:', newUnmatchedItems);
     }
     
     return selections;

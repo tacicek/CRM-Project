@@ -1044,12 +1044,14 @@ const handler = async (req: Request): Promise<Response> => {
     const { error: emailError } = await resend.emails.send(emailPayload);
 
     if (emailError) {
-      logStep("Email send failed", { error: emailError, statusCode: (emailError as any).statusCode });
-      
+      // Resend's typed error omits `statusCode` in some versions — read it through a
+      // narrow, explicit shape instead of `any`.
+      const resendError = emailError as { statusCode?: number; message?: string; name?: string };
+      logStep("Email send failed", { error: emailError, statusCode: resendError.statusCode });
+
       // Parse specific Resend error
       let userFriendlyError = "E-Mail konnte nicht gesendet werden.";
-      const resendError = emailError as any;
-      
+
       if (resendError.statusCode === 403 || (resendError.message && resendError.message.includes("domain"))) {
         userFriendlyError = `Domain nicht verifiziert: Die Domain "${fromEmail.split('@')[1]}" ist nicht in Ihrem Resend-Konto verifiziert. Bitte gehen Sie zu resend.com/domains und fügen Sie diese Domain hinzu.`;
       } else if (resendError.statusCode === 401) {

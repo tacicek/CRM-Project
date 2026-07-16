@@ -266,14 +266,15 @@ export const AppointmentModal = ({
       if (resourceRes.data) setResources(resourceRes.data);
       setCompanyLanguage(toLocale(companyRes.data?.default_language));
       if (leadsRes.data) {
-        // Transform the nested data structure
+        // The embedded to-one `leads` relation is typed as an object (or, on some
+        // supabase-js inference paths, a single-element array) — normalise both to one
+        // AcceptedLead and drop rows whose lead was deleted.
         const leads: AcceptedLead[] = leadsRes.data
-          .filter(d => d.leads)
-          .map(d => ({
-            lead_id: d.lead_id,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ...(d.leads as any),
-          }));
+          .map((d) => {
+            const lead = Array.isArray(d.leads) ? d.leads[0] : d.leads;
+            return lead ? { lead_id: d.lead_id, ...lead } : null;
+          })
+          .filter((l): l is AcceptedLead => l !== null);
         setAcceptedLeads(leads);
       }
     };
@@ -534,11 +535,12 @@ export const AppointmentModal = ({
         // Generate recurring appointments if needed
         if (formData.is_recurring && insertedAppointment?.id) {
           try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: countResult, error: recurringError } = await (supabase as any)
+            // p_end_date is an optional DATE (SQL DEFAULT NULL) — passing `undefined`
+            // omits it and the function applies that default, identical to passing null.
+            const { data: countResult, error: recurringError } = await supabase
               .rpc("generate_recurring_appointments", {
                 p_parent_id: insertedAppointment.id,
-                p_end_date: formData.recurrence_end_date || null,
+                p_end_date: formData.recurrence_end_date || undefined,
               });
             
             if (recurringError) {

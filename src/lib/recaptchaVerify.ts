@@ -1,6 +1,7 @@
 // recaptchaVerify.ts - Utility function for reCAPTCHA verification
 
 import { supabase } from "@/integrations/supabase/client";
+import { devLog } from "@/lib/devLog";
 
 interface VerifyResult {
   success: boolean;
@@ -46,7 +47,7 @@ export async function verifyRecaptchaToken(
       };
     }
 
-    console.log("[reCAPTCHA] Verification passed with score:", data.score);
+    devLog("[reCAPTCHA] Verification passed with score:", data.score);
     return { 
       success: true, 
       score: data.score 

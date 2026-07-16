@@ -1,5 +1,6 @@
 // calculation-utils.ts - Moving Cost Calculation Logic
 
+import { devLog, devWarn } from "@/lib/devLog";
 import { createTranslator } from "@/i18n/translator";
 import type { Locale } from "@/i18n/locale";
 import {
@@ -264,10 +265,10 @@ function getTeamHourlyRate(config: PricingConfig, recommendedCrew: number, truck
     }
     
     if (debug) {
-      console.log('[getTeamHourlyRate] Input:', { recommendedCrew, truckCount });
-      console.log('[getTeamHourlyRate] Match Type:', matchType);
-      console.log('[getTeamHourlyRate] Selected Team:', match);
-      console.log('[getTeamHourlyRate] Hourly Rate:', match.hourlyRate, 'CHF');
+      devLog('[getTeamHourlyRate] Input:', { recommendedCrew, truckCount });
+      devLog('[getTeamHourlyRate] Match Type:', matchType);
+      devLog('[getTeamHourlyRate] Selected Team:', match);
+      devLog('[getTeamHourlyRate] Hourly Rate:', match.hourlyRate, 'CHF');
     }
     
     return match.hourlyRate;
@@ -275,11 +276,11 @@ function getTeamHourlyRate(config: PricingConfig, recommendedCrew: number, truck
   
   // Fallback to legacy per-person pricing (DEPRECATED)
   // This maintains backward compatibility but should not be used
-  console.warn('[getTeamHourlyRate] Using legacy per-person pricing. Consider switching to team rates.');
+  devWarn('[getTeamHourlyRate] Using legacy per-person pricing. Consider switching to team rates.');
   const legacyRate = (config.hourlyRate || 60) * recommendedCrew;
   
   if (debug) {
-    console.log('[getTeamHourlyRate] LEGACY MODE:', { hourlyRate: config.hourlyRate, crew: recommendedCrew, total: legacyRate });
+    devLog('[getTeamHourlyRate] LEGACY MODE:', { hourlyRate: config.hourlyRate, crew: recommendedCrew, total: legacyRate });
   }
   
   return legacyRate;
@@ -327,13 +328,13 @@ export function calculateCostBreakdown(
   
   // Debug logging for pricing investigation
   if (debug || (typeof window !== 'undefined' && (window as unknown as { DEBUG_PRICING?: boolean }).DEBUG_PRICING)) {
-    console.log('=== PRICING CALCULATION DEBUG ===');
-    console.log('Team Configuration:', { truckCount, recommendedCrew });
-    console.log('Team Hourly Rate:', teamHourlyRate, 'CHF');
-    console.log('Raw Hours:', rawHours.toFixed(2));
-    console.log('Minimum Hours:', minimumHours);
-    console.log('Hours Used:', totalHours.toFixed(2));
-    console.log('Labor Cost:', laborCost, 'CHF');
+    devLog('=== PRICING CALCULATION DEBUG ===');
+    devLog('Team Configuration:', { truckCount, recommendedCrew });
+    devLog('Team Hourly Rate:', teamHourlyRate, 'CHF');
+    devLog('Raw Hours:', rawHours.toFixed(2));
+    devLog('Minimum Hours:', minimumHours);
+    devLog('Hours Used:', totalHours.toFixed(2));
+    devLog('Labor Cost:', laborCost, 'CHF');
   }
 
   // Vehicle cost is now INCLUDED in team rate (set to 0 to avoid double-counting)
@@ -434,19 +435,19 @@ export function calculateCostBreakdown(
   
   // Debug logging continuation
   if (debug || (typeof window !== 'undefined' && (window as unknown as { DEBUG_PRICING?: boolean }).DEBUG_PRICING)) {
-    console.log('Vehicle Cost (legacy):', vehicleCost, 'CHF');
-    console.log('Distance Surcharge:', distanceSurcharge, 'CHF');
-    console.log('Floor Surcharge:', floorSurcharge, 'CHF');
-    console.log('Extra Services:', extraServicesCost, 'CHF');
-    console.log('Subtotal (before minimum):', subtotal, 'CHF');
-    console.log('Minimum Charge:', minimumCharge, 'CHF');
-    console.log('Multipliers Applied:', appliedMultipliers.length > 0 ? appliedMultipliers.join(', ') : 'None');
-    console.log('Total Multiplier:', totalMultiplier.toFixed(2) + 'x');
-    console.log('Adjusted Subtotal (after multipliers):', adjustedSubtotal, 'CHF');
-    console.log('VAT Rate:', vatRate, '%');
-    console.log('VAT Amount:', vat, 'CHF');
-    console.log('TOTAL:', total, 'CHF');
-    console.log('================================');
+    devLog('Vehicle Cost (legacy):', vehicleCost, 'CHF');
+    devLog('Distance Surcharge:', distanceSurcharge, 'CHF');
+    devLog('Floor Surcharge:', floorSurcharge, 'CHF');
+    devLog('Extra Services:', extraServicesCost, 'CHF');
+    devLog('Subtotal (before minimum):', subtotal, 'CHF');
+    devLog('Minimum Charge:', minimumCharge, 'CHF');
+    devLog('Multipliers Applied:', appliedMultipliers.length > 0 ? appliedMultipliers.join(', ') : 'None');
+    devLog('Total Multiplier:', totalMultiplier.toFixed(2) + 'x');
+    devLog('Adjusted Subtotal (after multipliers):', adjustedSubtotal, 'CHF');
+    devLog('VAT Rate:', vatRate, '%');
+    devLog('VAT Amount:', vat, 'CHF');
+    devLog('TOTAL:', total, 'CHF');
+    devLog('================================');
   }
 
   return {
@@ -720,13 +721,13 @@ export function quickPriceCheck(
   const vat = subtotal * ((config.vatRate || 8.1) / 100);
   const total = subtotal + vat;
   
-  console.log('=== QUICK PRICE CHECK ===');
-  console.log(`Team: ${trucks} truck(s) + ${workers} worker(s)`);
-  console.log(`Hourly Rate: ${hourlyRate} CHF`);
-  console.log(`Hours: ${hours}h (effective: ${effectiveHours}h)`);
-  console.log(`Labor Cost: ${laborCost} CHF`);
-  console.log(`Subtotal: ${subtotal.toFixed(2)} CHF${isWeekend ? ' (weekend rate)' : ''}`);
-  console.log(`VAT (${config.vatRate || 8.1}%): ${vat.toFixed(2)} CHF`);
-  console.log(`TOTAL: ${total.toFixed(2)} CHF`);
-  console.log('=========================');
+  devLog('=== QUICK PRICE CHECK ===');
+  devLog(`Team: ${trucks} truck(s) + ${workers} worker(s)`);
+  devLog(`Hourly Rate: ${hourlyRate} CHF`);
+  devLog(`Hours: ${hours}h (effective: ${effectiveHours}h)`);
+  devLog(`Labor Cost: ${laborCost} CHF`);
+  devLog(`Subtotal: ${subtotal.toFixed(2)} CHF${isWeekend ? ' (weekend rate)' : ''}`);
+  devLog(`VAT (${config.vatRate || 8.1}%): ${vat.toFixed(2)} CHF`);
+  devLog(`TOTAL: ${total.toFixed(2)} CHF`);
+  devLog('=========================');
 }

@@ -6,7 +6,7 @@ import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useNotificationHistory } from "@/hooks/useNotificationHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { firmaImports } from "@/App";
-import { MODULES, type ModuleKey } from "@/config/modules";
+import { getModuleForPath, isModuleEnabled } from "@/config/moduleRoutes";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -59,11 +59,20 @@ type MenuItem = {
   titleKey: MessageKey;
   url: string;
   emoji: string;
-  moduleKey: ModuleKey;
   badge?: number;
 };
 
 type MenuGroup = { id: string; labelKey: MessageKey; items: MenuItem[] };
+
+/**
+ * A nav item is shown when its route's module is enabled. Ungated urls (the dashboard)
+ * resolve to `null` → always shown. Same central map that guards the routes, so menu
+ * visibility and route enforcement can never drift.
+ */
+const isMenuItemVisible = (item: MenuItem): boolean => {
+  const module = getModuleForPath(item.url);
+  return module === null || isModuleEnabled(module);
+};
 
 // =============================================================================
 // Sidebar
@@ -394,42 +403,42 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
 
   // Folk-style menu: emoji + label, organized in sections
   const quickLinksRaw: MenuItem[] = useMemo(() => [
-    { titleKey: "nav.overview", url: "/firma", emoji: "🏠", moduleKey: "reports" },
-    { titleKey: "nav.anfragen", url: "/firma/anfragen", emoji: "📥", moduleKey: "manualImport" },
-    { titleKey: "nav.kalender", url: "/firma/kalender", emoji: "📅", moduleKey: "calendar" },
+    { titleKey: "nav.overview", url: "/firma", emoji: "🏠" },
+    { titleKey: "nav.anfragen", url: "/firma/anfragen", emoji: "📥" },
+    { titleKey: "nav.kalender", url: "/firma/kalender", emoji: "📅" },
   ], []);
 
   const menuGroups: MenuGroup[] = useMemo(() => [
     {
       id: "hauptbereich", labelKey: "nav.group.hauptbereich", items: [
-        { titleKey: "nav.offerten", url: "/firma/offerten", emoji: "📄", moduleKey: "offers" },
-        { titleKey: "nav.auftraege", url: "/firma/auftraege", emoji: "✅", moduleKey: "orders" },
-        { titleKey: "nav.quittungen", url: "/firma/quittungen", emoji: "🧾", moduleKey: "receipts" },
-        { titleKey: "nav.rechnungen", url: "/firma/rechnungen", emoji: "💳", moduleKey: "invoices" },
+        { titleKey: "nav.offerten", url: "/firma/offerten", emoji: "📄" },
+        { titleKey: "nav.auftraege", url: "/firma/auftraege", emoji: "✅" },
+        { titleKey: "nav.quittungen", url: "/firma/quittungen", emoji: "🧾" },
+        { titleKey: "nav.rechnungen", url: "/firma/rechnungen", emoji: "💳" },
       ],
     },
     {
       id: "betrieb", labelKey: "nav.group.betrieb", items: [
-        { titleKey: "nav.besichtigungen", url: "/firma/besichtigungen", emoji: "🔎", moduleKey: "inspections", badge: besichtigungUploadedCount > 0 ? besichtigungUploadedCount : undefined },
-        { titleKey: "nav.umzugsboxen", url: "/firma/umzugsboxen", emoji: "📦", moduleKey: "movingBoxes" },
-        { titleKey: "nav.team", url: "/firma/team", emoji: "👥", moduleKey: "team" },
-        { titleKey: "nav.checkliste", url: "/firma/checkliste", emoji: "☑️", moduleKey: "checklist" },
+        { titleKey: "nav.besichtigungen", url: "/firma/besichtigungen", emoji: "🔎", badge: besichtigungUploadedCount > 0 ? besichtigungUploadedCount : undefined },
+        { titleKey: "nav.umzugsboxen", url: "/firma/umzugsboxen", emoji: "📦" },
+        { titleKey: "nav.team", url: "/firma/team", emoji: "👥" },
+        { titleKey: "nav.checkliste", url: "/firma/checkliste", emoji: "☑️" },
       ],
     },
     {
       id: "verwaltung", labelKey: "nav.group.verwaltung", items: [
-        { titleKey: "nav.leistungskatalog", url: "/firma/leistungskatalog", emoji: "🛠️", moduleKey: "serviceCatalog" },
-        { titleKey: "nav.preisgestaltung", url: "/firma/preisgestaltung", emoji: "💰", moduleKey: "pricing" },
-        { titleKey: "nav.archiv", url: "/firma/datenarchiv", emoji: "🗂️", moduleKey: "archive" },
-        { titleKey: "nav.einstellungen", url: "/firma/einstellungen", emoji: "⚙️", moduleKey: "settings" },
+        { titleKey: "nav.leistungskatalog", url: "/firma/leistungskatalog", emoji: "🛠️" },
+        { titleKey: "nav.preisgestaltung", url: "/firma/preisgestaltung", emoji: "💰" },
+        { titleKey: "nav.archiv", url: "/firma/datenarchiv", emoji: "🗂️" },
+        { titleKey: "nav.einstellungen", url: "/firma/einstellungen", emoji: "⚙️" },
       ],
     },
   ], [besichtigungUploadedCount]);
 
-  // Apply module flag filtering
-  const quickLinks = useMemo(() => quickLinksRaw.filter(i => MODULES[i.moduleKey]), [quickLinksRaw]);
+  // Module-flag filtering — see isMenuItemVisible (module scope).
+  const quickLinks = useMemo(() => quickLinksRaw.filter(isMenuItemVisible), [quickLinksRaw]);
   const filteredGroups = useMemo(() => menuGroups
-    .map(g => ({ ...g, items: g.items.filter(i => MODULES[i.moduleKey]) }))
+    .map(g => ({ ...g, items: g.items.filter(isMenuItemVisible) }))
     .filter(g => g.items.length > 0), [menuGroups]);
 
   // Prefetch on hover (attach via wrapping the sidebar links is complex with the new structure;

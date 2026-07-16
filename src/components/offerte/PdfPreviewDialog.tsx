@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Send, Download, FileText, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
 import * as pdfjsLib from "pdfjs-dist";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 // Bundle the worker locally (Vite ?url) instead of a pinned CDN URL. The CDN was locked to
 // 4.0.379 while the installed pdfjs-dist is 4.10.x (version drift that can break rendering),
 // and a third-party CDN fails offline / under a strict CSP.
@@ -95,8 +96,7 @@ export const PdfPreviewDialog = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [pdfDocument, setPdfDocument] = useState<any>(null);
+  const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 

@@ -19,7 +19,11 @@ export default tseslint.config(
       "*.config.js",
       "*.config.ts",
       "supabase/functions/**", // Deno runtime - different lint rules
-    ] 
+      // Independent vendored dev-tool package (own repo vibeeval/vibecosystem, own
+      // toolchain). Not part of the CRM runtime/build/test — 0 imports from src/.
+      // Its quality control belongs upstream, not this CRM lint gate.
+      "vibecosystem/**",
+    ]
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { devLog } from "@/lib/devLog";
 
 const NOTIFICATION_SOUND_KEY = "notification_sound_enabled";
 const PUSH_NOTIFICATION_KEY = "push_notification_enabled";
@@ -56,7 +57,7 @@ const isTabHidden = () => {
 // Request notification permission
 const requestNotificationPermission = async (): Promise<boolean> => {
   if (!isNotificationSupported()) {
-    console.log("Browser does not support notifications");
+    devLog("Browser does not support notifications");
     return false;
   }
   
@@ -65,7 +66,7 @@ const requestNotificationPermission = async (): Promise<boolean> => {
   }
   
   if (Notification.permission === "denied") {
-    console.log("Notification permission was denied");
+    devLog("Notification permission was denied");
     return false;
   }
   
@@ -153,7 +154,7 @@ export const useNotificationSound = () => {
     } else {
       const granted = await enablePushNotifications();
       if (!granted) {
-        console.log("Push notification permission not granted");
+        devLog("Push notification permission not granted");
       }
     }
   }, [isPushEnabled, enablePushNotifications]);

@@ -16,11 +16,13 @@ varsayılan davranışlar yanıltıcı olabilir.
 Tek müşteriye (single-tenant) hizmet eden, ayakta duran bir **CRM uygulaması**.
 **Offerio** isimli çok-kiracılı (multi-tenant) bir SaaS'tan fork edilmiştir; portal,
 marketplace, Stripe ve token mantığı çıkarılmıştır. Kalan tek amaç: lead → offer →
-auftrag → quittung akışını yöneten dahili dashboard.
+auftrag → quittung ve/veya rechnung (İsviçre QR-fatura) akışını yöneten dahili dashboard.
 
 - Frontend: Vite 7 + React 18 + TypeScript (strict)
 - UI: Tailwind CSS + shadcn/ui + Radix
-- State / data: TanStack React Query, react-hook-form + zod
+- State / data: **Doğrudan Supabase client + `useState`/`useEffect`** (React Query provider
+  mount edilmiş ama `/firma/*` sayfalarında `useQuery` kullanılmıyor — 0 kullanım);
+  form validation react-hook-form + zod
 - Backend: Supabase (Postgres + Auth + Storage + Edge Functions, Deno)
 - Email: Resend (Edge Functions üzerinden, server-side)
 - PDF: `@react-pdf/renderer` + `jspdf`
@@ -107,6 +109,7 @@ src/
 │   │   ├── Besichtigungen.tsx, Kalender.tsx, Offerten.tsx,
 │   │   ├── OfferteErstellen/Detail/Bearbeiten.tsx,
 │   │   ├── Quittungen.tsx, QuittungDetail.tsx,
+│   │   ├── Rechnungen.tsx, RechnungDetail.tsx,   # İsviçre QR-fatura
 │   │   ├── Checkliste.tsx, Leistungskatalog.tsx, Preisgestaltung.tsx,
 │   │   ├── Team.tsx, Umzugsboxen.tsx, ManualImport.tsx,
 │   │   ├── Datenarchiv.tsx, Einstellungen.tsx
@@ -117,10 +120,12 @@ src/
 │   └── (umzug, reinigung, malerarbeit, ...)/  # Servis-spesifik form bileşenleri
 ├── lib/
 │   ├── authUtils.ts           # Saf auth util — TESTLİ
-│   ├── adminPermissions.ts    # Rol/permission hiyerarşisi — TESTLİ
 │   ├── crmAccess.ts           # Standalone modda no-op
 │   ├── fetchSingleCompanyForUser.ts / fetchCompaniesForUser.ts
 │   ├── generateOfferPdf.tsx / generateAuftragPdf.ts / generateChecklistPdf.ts
+│   ├── erstelleRechnung.ts / generateRechnungPdf.ts / rechnungStatus.ts  # QR-fatura — TESTLİ
+│   ├── swiss-qr/core.ts       # İsviçre QR-IBAN / QRR referans — TESTLİ
+│   ├── auftragStatus.ts       # Auftrag state machine — TESTLİ
 │   └── (validations, plzLookup, recaptchaVerify, audit, spell-check, ...)
 ├── integrations/supabase/
 │   ├── client.ts              # `import { supabase } from "@/integrations/supabase/client"`
@@ -129,8 +134,8 @@ src/
 
 supabase/
 ├── config.toml                # Local dev port'ları (db:54322, studio:54323)
-├── migrations/                # 25+ SQL migration, ISO tarih prefixli
-└── functions/                 # 45+ Edge Function (Deno)
+├── migrations/                # ~275 SQL migration, ISO tarih prefixli (ROLLBACK_* dosyaları geri-alma, normal migration değil)
+└── functions/                 # ~47 Edge Function (Deno) — repo'da mevcut ≠ prod'da deployed
     ├── _shared/               # Ortak helpers
     ├── accept-lead, send-offer, send-quittung, send-purchase-confirmation,
     ├── notify-*, admin-*, validate-*, calculate-*, ...
@@ -155,7 +160,7 @@ docs/                          # Bug raporları, code-review notları, session l
 | `npm run build` | sitemap → vite build → prerender |
 | `npm run build:vite` | Sadece sitemap + vite (prerender atlanır) |
 | `npm run type-check` | `tsc --noEmit` — TS hatalarını yakalar, output yok |
-| `npm run lint` / `lint:fix` | ESLint 9 (flat config: [eslint.config.js](eslint.config.js)) |
+| `npm run lint` / `lint:fix` | ESLint 9 (flat config: [eslint.config.js](eslint.config.js)) — **kapsam yalnızca CRM** (`src/**` `.ts/.tsx`). `vibecosystem/**`, `supabase/functions/**` (Deno), `dist`, `public`, config dosyaları config'in `ignores`'unda hariç |
 | `npm test` | Vitest (tek seferlik) |
 | `npm run test:watch` | Vitest watch |
 | `npm run test:coverage` | HTML coverage → `./coverage/` |
@@ -172,17 +177,15 @@ PR/commit öncesi en azından `type-check` + `lint` + `test` koştur.
 |---|---|
 | `user`, `session` | Supabase auth state |
 | `isLoading` | İlk session resolve oluyor mu |
-| `isAdmin`, `adminRole` | `user_roles` tablosundan türev |
 | `signIn/signOut/resetPassword/updatePassword` | Action'lar |
 
-Rol hiyerarşisi (`src/lib/adminPermissions.ts`):
+> ⚠️ **`useAuth` yalnızca yukarıdaki alanları döndürür.** `isAdmin` / `adminRole` **YOK**
+> (koddan doğrulandı — [src/hooks/useAuth.tsx](src/hooks/useAuth.tsx)). `src/lib/adminPermissions.ts`
+> dosyası da **artık YOK** (`src/` içinde tek referans bile yok).
 
-```
-super_admin (100)  — tam erişim
-admin       (50)   — user mgmt hariç tam erişim
-moderator   (10)   — leads, verification, blog
-(rolsüz)           — normal şirket kullanıcısı → /firma
-```
+**Yetkilendirme:** CRM UI erişimi yalnızca **authenticated + company membership (RLS)**
+üzerinden. Frontend rol-hiyerarşisi tüketmez. (`app_role` enum'u ve `has_role()` / `is_admin()`
+RPC'leri DB'de kalabilir ama standalone CRM sayfaları bunları okumaz.)
 
 Login akışı: `Auth.tsx` → `fetchSingleCompanyForUser` →
 - Şirket yok → "Keine Firma verknüpft"
@@ -233,7 +236,8 @@ Login akışı: `Auth.tsx` → `fetchSingleCompanyForUser` →
     cerrahi olarak sadece ilgili `Row/Insert/Update` satırlarını ekle (sürüm-uyumlu regen'in üreteceği
     tam delta). Prensip: types.ts manuel-edit, gürültülü regen yok.
 - Önemli tablolar: `companies`, `company_members`, `user_roles`, `leads`, `offers`,
-  `offer_items`, `auftraege`, `appointments`, `quittungen`, `checklist_templates`,
+  `offer_items`, `auftraege`, `appointments`, `quittungen`, `rechnungen` (QR-fatura),
+  `checklist_templates`,
   `company_service_items`, `leistungsuebersicht_templates`, `firma_resources`,
   `umzugsboxen` (box rentals), `manual_imported_leads`, `archive_*`,
   `email_logs`, `notifications`.
@@ -249,14 +253,21 @@ Login akışı: `Auth.tsx` → `fetchSingleCompanyForUser` →
 
 ## 7. Edge Functions
 
-`supabase/functions/` altında 45+ Deno fonksiyonu. Public olanlar
+`supabase/functions/` altında ~47 Deno fonksiyonu. Public olanlar
 (`verify_jwt = false`) [supabase/config.toml](supabase/config.toml)'da işaretli — bunlar `x-internal-secret`
 veya RPC token doğrulaması yapar.
 
+> ⚠️ **Repo'da mevcut ≠ prod'da deployed.** Self-hosted stack fonksiyonları tek tek deploy
+> eder; deployed küme sunucuda doğrulanmalıdır ([docs/SISTEM_PRD.md](docs/SISTEM_PRD.md) §5).
+> Bir fonksiyonun burada listelenmesi "canlıda çalışıyor" anlamına gelmez.
+
 Sık dokunulanlar:
-- `accept-lead`, `confirm-lead-by-token`, `validate-lead-quality` — lead lifecycle
+- `confirm-lead-by-token`, `import-manual-lead`, `validate-lead-quality` — lead lifecycle
+  (`accept-lead` fork/multi-tenant kalıntısıdır — çağrılmaz)
 - `send-offer`, `notify-offer-response`, `handle-proposal-response` — teklif akışı
-- `send-quittung`, `send-purchase-confirmation` — fatura/makbuz
+- `send-quittung` — makbuz; `send-rechnung-email` — İsviçre QR-fatura (prepare/send modları:
+  service_role signed upload URL → Storage → gönder → sil)
+- `translate-content` — firma içeriği (katalog/AGB/checklist) DE→FR/EN çeviri önerisi (DB'ye YAZMAZ)
 - `notify-appointment-*`, `notify-team-reminder`, `notify-auftrag-reminder` — bildirimler
 - `analyze-besichtigung`, `complete-besichtigung`, `confirm-besichtigung`,
   `create-besichtigung-session`, `validate-besichtigung-token` — virtual besichtigung
@@ -291,10 +302,23 @@ Deploy: `npx supabase functions deploy <name>`. Secret: `npx supabase secrets se
 Sadece **saf fonksiyonlar** test edilir. React component'leri ve Supabase çağrıları
 test edilmez (entegrasyon testi yok).
 
-| Dosya | Kapsam |
+Güncel test alanları (kesin liste ve sayı için `npm test` koştur — zaman içinde değişir):
+
+| Alan | Dosya |
 |---|---|
-| `src/lib/__tests__/authUtils.test.ts` | `resolveAdminRole`, `getResetPasswordUrl`, `validateAuthForm`, `validateResetPasswordForm` |
-| `src/lib/__tests__/adminPermissions.test.ts` | Rol hiyerarşisi, `hasPermission`, `canModifyRole`, menu erişimi |
+| Auftrag state machine | `src/lib/__tests__/auftragStatus.test.ts` |
+| Randevu çakışması | `src/lib/__tests__/appointmentConflicts.test.ts` |
+| Rechnung oluşturma (Auftrag→Rechnung) | `src/lib/__tests__/erstelleRechnung.test.ts` |
+| Rechnung PDF builder | `src/lib/__tests__/generateRechnungPdf.test.ts` |
+| Rechnung status | `src/lib/__tests__/rechnungStatus.test.ts` |
+| İsviçre QR | `src/lib/swiss-qr/__tests__/core.test.ts` |
+| Offer pricing / surcharge / item meta / service type | `src/lib/__tests__/offer*.test.ts` |
+| Service type normalizasyon | `src/lib/__tests__/normalizeServiceType.test.ts` |
+| Floor util | `src/lib/__tests__/floorUtils.test.ts` |
+| Lead detailed-form sync | `src/lib/__tests__/leadDetailedFormSync.test.ts` |
+| i18n | `src/i18n/__tests__/i18n.test.ts`, `.../moving-calculator/__tests__/inventory-i18n.test.ts` |
+
+> Not: eski `authUtils.test.ts` ve `adminPermissions.test.ts` **artık yok**.
 
 Yeni saf fonksiyon eklediğinde test de ekle. UI component test edilmez — bunun
 yerine browser'da elle doğrula.
@@ -303,10 +327,22 @@ yerine browser'da elle doğrula.
 
 ## 10. Feature Flags
 
-`src/config/modules.ts`. Bir bayrağı `false` yapmak **sadece sidebar linkini gizler**
-— route hâlâ erişilebilir kalır. Tamamen kaldırmak için route'u da `App.tsx`'ten sil.
+`src/config/modules.ts` (flag'ler) + `src/config/moduleRoutes.ts` (route↔module tek kaynağı).
+Bir bayrağı `false` yapmak **hem sidebar/quick-action linkini gizler hem de ilgili `/firma`
+route grubunu kapatır** (doğrudan URL, alt rotalar dahil → `/firma` dashboard'una redirect).
+Zorlama [FirmaModuleGuard](src/components/firma/FirmaModuleGuard.tsx) ile `<Outlet/>` seviyesinde;
+menü aynı `getModuleForPath()`'i kullanır → ikisi asla drift etmez.
 
-Şu an `integrations: false` (henüz yok); diğer hepsi `true`.
+> ⚠️ **Feature flag ≠ yetkilendirme.** Sadece navigasyon/UX; **veri güvenliği Supabase Auth +
+> RLS ile**. Guard'ı auth/rol kontrolü yerine kullanma; RLS'yi flag uğruna gevşetme.
+
+- `/firma` (dashboard) **guard'lanmaz** — güvenli redirect hedefi (loop yok). `reports` bir
+  **içerik** flag'i (dashboard istatistikleri), route flag'i değil.
+- Public token rotaları (`/offerte/:token`, `/termin/*`, `/besichtigung/*`) wrapper dışında →
+  flag'lerden **etkilenmez**.
+- Yeni `/firma` rotası eklerken `moduleRoutes.ts`'e de ekle (completeness testi yakalar).
+- `contacts` / `integrations`: route'u olmayan gelecek modülleri (`integrations: false`); `leads`
+  → `/firma/anfragen`, `manualImport` → `/firma/manual-import`. Diğer hepsi `true`.
 
 ---
 

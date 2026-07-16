@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { maskEmail, sanitizeLogData } from "../_shared/logger.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
@@ -60,7 +61,9 @@ const handler = async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: RescheduleRequest = await req.json();
-    console.log("[notify-appointment-reschedule] Request body:", body);
+    // Never log the raw request body — it carries customer PII. sanitizeLogData masks
+    // e-mails and drops secret-ish keys while keeping the shape diagnosable.
+    console.log("[notify-appointment-reschedule] Request received:", sanitizeLogData(body));
 
     const {
       appointmentId,
@@ -222,7 +225,7 @@ const handler = async (req: Request): Promise<Response> => {
       html: companyEmailHtml,
     });
     if (companyEmailError) console.error("[notify-appointment-reschedule] company email failed:", companyEmailError);
-    else console.log(`[notify-appointment-reschedule] Sent notification to company: ${companyEmail}`);
+    else console.log(`[notify-appointment-reschedule] Sent notification to company: ${maskEmail(companyEmail)}`);
 
     // Send confirmation email to customer — CUSTOMER language
     const customerEmailHtml = `
@@ -285,7 +288,7 @@ const handler = async (req: Request): Promise<Response> => {
       html: customerEmailHtml,
     });
     if (customerEmailError) console.error("[notify-appointment-reschedule] customer email failed:", customerEmailError);
-    else console.log(`[notify-appointment-reschedule] Sent confirmation to customer: ${customerEmail}`);
+    else console.log(`[notify-appointment-reschedule] Sent confirmation to customer: ${maskEmail(customerEmail)}`);
 
     // Create notification for dashboard
     const { companyId } = body;

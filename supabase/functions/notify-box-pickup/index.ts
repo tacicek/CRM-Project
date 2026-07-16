@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
+import { maskEmail } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -277,9 +278,9 @@ serve(async (req: Request) => {
           });
           if (sendError) throw sendError; // resend returns { error } instead of throwing
           emailsSent++;
-          console.log(`[notify-box-pickup] Email sent to ${company.email}`);
+          console.log(`[notify-box-pickup] Email sent to ${maskEmail(company.email)}`);
         } catch (emailError) {
-          console.error(`[notify-box-pickup] Failed to send email to ${company.email}:`, emailError);
+          console.error(`[notify-box-pickup] Failed to send email to ${maskEmail(company.email)}:`, emailError);
         }
       }
 
@@ -342,7 +343,7 @@ serve(async (req: Request) => {
               });
               if (sendError) throw sendError; // resend returns { error } instead of throwing
               emailsSent++;
-              console.log(`[notify-box-pickup] Email sent to team member ${teamMember.email}`);
+              console.log(`[notify-box-pickup] Email sent to team member ${maskEmail(teamMember.email)}`);
             } catch (emailError) {
               console.error(`[notify-box-pickup] Failed to send email to team member:`, emailError);
             }

@@ -530,8 +530,7 @@ const FirmaOfferteErstellen = () => {
           console.error("Lead fetch error:", directError);
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let leadData: any = directLead ?? null;
+        let leadData = directLead ?? null;
 
         if (!leadData && distributionId) {
           // Fallback: fetch lead via distribution join (ensures company has access to this lead)
