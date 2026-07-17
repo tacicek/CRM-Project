@@ -1,0 +1,6 @@
+# Never commit a raw (unsanitized) schema dump — sensitive.
+*.raw.sql
+
+# Dedicated test-stack CLI runtime state (the config.toml itself IS committed).
+runtime/supabase/.temp/
+runtime/supabase/.branches/

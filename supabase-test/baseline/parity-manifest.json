@@ -1,0 +1,221 @@
+{
+    "enums": {
+        "action": [
+            "INSERT",
+            "UPDATE",
+            "DELETE",
+            "TRUNCATE",
+            "ERROR"
+        ],
+        "app_role": [
+            "super_admin",
+            "admin",
+            "moderator",
+            "user"
+        ],
+        "aal_level": [
+            "aal1",
+            "aal2",
+            "aal3"
+        ],
+        "buckettype": [
+            "STANDARD",
+            "ANALYTICS",
+            "VECTOR"
+        ],
+        "equality_op": [
+            "eq",
+            "neq",
+            "lt",
+            "lte",
+            "gt",
+            "gte",
+            "in"
+        ],
+        "factor_type": [
+            "totp",
+            "webauthn",
+            "phone"
+        ],
+        "factor_status": [
+            "unverified",
+            "verified"
+        ],
+        "raeumungs_art": [
+            "household_dissolution",
+            "apartment_clearance",
+            "house_clearance",
+            "decluttering",
+            "death_clearance",
+            "estate_clearance",
+            "hoarder_clearance",
+            "forced_eviction",
+            "cellar_clearance",
+            "attic_clearance",
+            "garage_clearance",
+            "office_clearance",
+            "company_dissolution",
+            "storage_clearance"
+        ],
+        "urgency_level": [
+            "normal",
+            "urgent",
+            "very_urgent",
+            "emergency"
+        ],
+        "auftrag_status": [
+            "geplant",
+            "bestaetigt",
+            "in_bearbeitung",
+            "abgeschlossen",
+            "storniert"
+        ],
+        "request_status": [
+            "PENDING",
+            "SUCCESS",
+            "ERROR"
+        ],
+        "requester_role": [
+            "owner",
+            "tenant",
+            "property_manager",
+            "heir",
+            "landlord",
+            "authority",
+            "other"
+        ],
+        "umzugsbox_type": [
+            "standard",
+            "wardrobe",
+            "book",
+            "fragile",
+            "archive",
+            "other"
+        ],
+        "clearance_scope": [
+            "complete",
+            "partial"
+        ],
+        "condition_level": [
+            "normal",
+            "dirty",
+            "very_dirty",
+            "extreme"
+        ],
+        "appointment_type": [
+            "besichtigung",
+            "service",
+            "follow_up",
+            "meeting",
+            "blocked"
+        ],
+        "box_rental_status": [
+            "reserved",
+            "delivered",
+            "in_use",
+            "pickup_requested",
+            "pickup_scheduled",
+            "returned",
+            "lost",
+            "damaged"
+        ],
+        "oauth_client_type": [
+            "public",
+            "confidential"
+        ],
+        "appointment_status": [
+            "pending",
+            "confirmed",
+            "completed",
+            "cancelled",
+            "rescheduled",
+            "no_show"
+        ],
+        "oauth_response_type": [
+            "code"
+        ],
+        "one_time_token_type": [
+            "confirmation_token",
+            "reauthentication_token",
+            "recovery_token",
+            "email_change_token_new",
+            "email_change_token_current",
+            "phone_change_token"
+        ],
+        "code_challenge_method": [
+            "s256",
+            "plain"
+        ],
+        "support_ticket_status": [
+            "open",
+            "in_progress",
+            "answered",
+            "closed"
+        ],
+        "lead_sharing_preference": [
+            "only_1",
+            "only_3",
+            "only_5",
+            "both",
+            "only_4"
+        ],
+        "oauth_registration_type": [
+            "dynamic",
+            "manual"
+        ],
+        "support_ticket_category": [
+            "technical",
+            "billing",
+            "feature_request",
+            "bug_report",
+            "general",
+            "account"
+        ],
+        "support_ticket_priority": [
+            "low",
+            "medium",
+            "high",
+            "urgent"
+        ],
+        "oauth_authorization_status": [
+            "pending",
+            "approved",
+            "denied",
+            "expired"
+        ]
+    },
+    "counts": {
+        "enums": 28,
+        "tables": 72,
+        "indexes": 276,
+        "policies": 179,
+        "triggers": 49,
+        "functions": 124,
+        "foreign_keys": 97,
+        "check_constraints": 388,
+        "rls_enabled_tables": 72
+    },
+    "generated_from": "read-only prod --schema-only dump, sanitized (see README)",
+    "column_fingerprint_md5": "58fb34e2a96884974da9983378d69d31",
+    "policy_fingerprint_md5": "30683a75ddee5106dd37a4474c92ae31",
+    "function_fingerprint_md5": "f139b6c23bd14bed0297cebdde906b09",
+    "deliberate_test_differences": {
+        "grants": "standard Supabase default grants re-added (dump used --no-privileges); RLS NOT changed",
+        "reason_stubs": "no-op bodies: these made external HTTP/vault/cron calls; signatures preserved so dependents resolve",
+        "cron_schedules": "no cron jobs (public-only dump excludes cron schema); notification fns are no-op stubs",
+        "excluded_schemas": [
+            "auth",
+            "storage",
+            "vault",
+            "cron",
+            "extensions — provided by local Supabase, not the baseline"
+        ],
+        "stubbed_functions": [
+            "invoke_edge_function",
+            "trigger_notify_admin_high_spam",
+            "trigger_subscription_manager",
+            "trigger_team_reminder_for_appointment"
+        ],
+        "neutralized_literals": "quoted URL/email/JWT literals replaced with test placeholders"
+    }
+}

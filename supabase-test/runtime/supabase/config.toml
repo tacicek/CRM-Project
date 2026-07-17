@@ -1,0 +1,52 @@
+# Dedicated, isolated Supabase stack for CRM integration tests ONLY.
+#
+# This is a SEPARATE project from the app's supabase/config.toml (project_id
+# "qzmyqkolzrckgaxaypxc", db 54322). Its whole purpose is to give scripts/test-db.sh a
+# uniquely-named, uniquely-ported target so the destructive `DROP SCHEMA public CASCADE`
+# can NEVER land on another project's stack (the old guard trusted "whatever sits on 54322",
+# the Supabase default port — a foot-gun for any default-configured project).
+#
+# Identity that the guard pins on:
+#   - project_id "crm-test"  -> container name  supabase_db_crm-test  (globally unique)
+#   - db port 54342          -> not 54322/54320 and not the umzungcheck-next 553xx range
+#
+# Run it from this workdir, never the repo root:
+#   supabase --workdir supabase-test/runtime start
+#   supabase --workdir supabase-test/runtime stop
+project_id = "crm-test"
+
+[api]
+enabled = false
+
+[db]
+port = 54342
+shadow_port = 54340
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = false
+
+[inbucket]
+enabled = false
+
+[storage]
+enabled = false
+
+# Auth (gotrue) stays OFF to keep the stack lean and avoid a gotrue<->supplement ownership
+# conflict on auth.jwt(). The db image already provides auth.uid()/auth.role() and the
+# auth.users table; auth-supplement.sql adds the few pieces the baseline/fixtures need
+# (auth.jwt(), and the newer auth.users columns) as the auth-schema owner.
+[auth]
+enabled = false
+
+[analytics]
+enabled = false
+
+[edge_runtime]
+enabled = false
