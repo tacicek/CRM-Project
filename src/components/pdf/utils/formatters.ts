@@ -22,7 +22,18 @@ import { createTranslator } from "@/i18n/translator";
  * part of the document layer). Every PDF renderer passes the customer's locale explicitly.
  */
 export const formatCurrency = (amount: number, locale: Locale = DEFAULT_LOCALE): string =>
-  formatCurrencyForLocale(Number.isFinite(amount) ? amount : 0, locale);
+  normalizePdfNumber(formatCurrencyForLocale(Number.isFinite(amount) ? amount : 0, locale));
+
+/**
+ * Intl uses narrow/no-break spaces for French CHF values and a curly apostrophe for
+ * Swiss German. Helvetica's PDF encoding can render those glyphs as `/`. Normalize all
+ * grouping separators to the Swiss ASCII apostrophe and other special spaces to normal
+ * spaces before text reaches react-pdf.
+ */
+export const normalizePdfNumber = (value: string): string =>
+  value
+    .replace(/(\d)[\u00a0\u2007\u2009\u202f,\u2019](?=\d{3}(?:[.,\s\u00a0\u202f]|$))/g, "$1'")
+    .replace(/[\u00a0\u2007\u2009\u202f]/g, " ");
 
 /**
  * Swiss round-franc notation: whole amounts print as "CHF 280.–" instead of "CHF 280.00";
@@ -31,12 +42,12 @@ export const formatCurrency = (amount: number, locale: Locale = DEFAULT_LOCALE):
 export const formatRoundedCurrency = (value: number, locale: Locale): string => {
   const n = Number(value);
   if (!Number.isFinite(n)) return formatCurrency(0, locale);
-  return Number.isInteger(n) ? `CHF ${formatNumber(n, locale)}.–` : formatCurrency(n, locale);
+  return Number.isInteger(n) ? `CHF ${normalizePdfNumber(formatNumber(n, locale))}.–` : formatCurrency(n, locale);
 };
 
 /** Bare number for m²/m³ measures and hour counts — no currency, locale grouping. */
 export const formatMeasure = (value: number, locale: Locale): string =>
-  formatNumber(Number(value), locale);
+  normalizePdfNumber(formatNumber(Number(value), locale));
 
 export const formatDate = (dateString: string | undefined, locale: Locale): string => {
   if (!dateString) return "-";

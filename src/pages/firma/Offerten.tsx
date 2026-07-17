@@ -63,6 +63,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { getOfferStatusLabel, getServiceLabel } from "@/i18n/domain";
 import { useI18n, useT } from "@/i18n/useI18n";
+import { LOCALES, LOCALE_NAMES, toLocale, type Locale } from "@/i18n/locale";
 import { formatCurrency, formatDate } from "@/i18n/format";
 import { sendOffer } from "@/lib/sendOffer";
 
@@ -85,9 +86,16 @@ interface Offer {
   viewed_at: string | null;
   accepted_at: string | null;
   rejected_at: string | null;
-  price_model?: 'pauschal' | 'stundenansatz' | 'kostendach' | null;
+  /** Customer-facing document language frozen when the offer is created. */
+  language: string;
+  // Query/list view-model: this is the raw `offers.Row` shape (select("*")), so these
+  // columns are the DB `string`, not the narrow domain union. Both columns are NOT NULL
+  // in the schema and this is a direct select (no null-producing join), so they are
+  // `string`, not `string | null`. The list only branches on them for display; the
+  // validated PriceModel is applied at the edit/PDF boundary.
+  price_model?: string;
   kostendach_max?: number | null;
-  offerte_type?: 'normal' | 'blind' | null;
+  offerte_type?: string;
 }
 
 interface LeadInfo {
@@ -257,6 +265,7 @@ const FirmaOfferten = () => {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<'all' | 'normal' | 'blind'>('all');
+  const [languageFilter, setLanguageFilter] = useState<'all' | Locale>('all');
   const [pageSize, setPageSize] = useState<PageSizeOption>(() => {
     if (typeof window !== "undefined") {
       const s = parseInt(localStorage.getItem("offerten_pageSize") || "10", 10);
@@ -266,7 +275,7 @@ const FirmaOfferten = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => { setCurrentPage(1); }, [activeFilter, pageSize, searchQuery, typeFilter]);
+  useEffect(() => { setCurrentPage(1); }, [activeFilter, pageSize, searchQuery, typeFilter, languageFilter]);
 
   const handleResendOffer = async (offerId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -427,12 +436,16 @@ const FirmaOfferten = () => {
         const sentOffers = (offersData || []).filter((o: Offer) => o.sent_at);
         if (sentOffers.length > 0) {
           const offerIds = sentOffers.map((o: Offer) => o.id);
-          const { data: emailLogsData } = await supabase
+          // The JSON-path `.in(...)` filter makes the chained builder's return type
+          // excessively deep (TS2589). Stopping the inferred chain at a plain `.select()` and
+          // handing the JSON filter to an untyped-column helper keeps the server-side filter
+          // identical while cutting the generic depth.
+          const emailLogsBase = supabase
             .from("email_logs")
             .select("metadata")
             .eq("email_type", "offer_sent")
-            .eq("company_id", companyId)
-            .in("metadata->>offer_id" as string, offerIds);
+            .eq("company_id", companyId);
+          const { data: emailLogsData } = await emailLogsBase.in("metadata->>offer_id", offerIds);
 
           if (!isMounted) return;
           if (emailLogsData) {
@@ -577,6 +590,9 @@ const FirmaOfferten = () => {
             <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold ${status.bg} ${status.color}`}>
               <span>{status.emoji}</span>
               {getOfferStatusLabel(offer.status, locale)}
+            </span>
+            <span className="inline-flex items-center rounded-md border border-folk-line bg-folk-card px-2 py-0.5 text-[13px] font-medium text-folk-ink2">
+              {LOCALE_NAMES[toLocale(offer.language)]}
             </span>
             {offer.offerte_type === 'blind' && (
               <span className="inline-flex items-center rounded-md bg-folk-lemon-bg px-2 py-0.5 text-[13px] font-semibold text-folk-lemon">
@@ -758,8 +774,8 @@ const FirmaOfferten = () => {
               )}
             </div>
 
-            {/* Search + type filter */}
-            <div className="mb-4 flex items-center gap-2">
+            {/* Search + offer type + customer language filters */}
+            <div className="mb-4 flex flex-wrap items-center gap-2">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-folk-ink3" />
                 <Input
@@ -789,6 +805,18 @@ const FirmaOfferten = () => {
                   <SelectItem value="blind">{t("offer.list.typeFilter.blind")}</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Select value={languageFilter} onValueChange={(v) => setLanguageFilter(v === 'all' ? 'all' : toLocale(v))}>
+                <SelectTrigger className="h-9 w-32 shrink-0 rounded-lg border-folk-line bg-folk-card text-[12.5px] text-folk-ink2 sm:w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("offer.list.languageFilter.all")}</SelectItem>
+                  {LOCALES.map((language) => (
+                    <SelectItem key={language} value={language}>{LOCALE_NAMES[language]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {isLoading ? (
@@ -812,8 +840,12 @@ const FirmaOfferten = () => {
                     ? statusFiltered
                     : statusFiltered.filter((o) => (o.offerte_type ?? 'normal') === typeFilter);
 
+                  const languageFiltered = languageFilter === 'all'
+                    ? typeFiltered
+                    : typeFiltered.filter((o) => toLocale(o.language) === languageFilter);
+
                   const filteredOffers = q
-                    ? typeFiltered.filter((o) => {
+                    ? languageFiltered.filter((o) => {
                         const fullName = `${o.customer_first_name} ${o.customer_last_name}`.toLowerCase();
                         const nr = o.offer_number ? String(o.offer_number) : o.id.slice(0, 8).toUpperCase().toLowerCase();
                         return (
@@ -823,7 +855,7 @@ const FirmaOfferten = () => {
                           o.customer_email.toLowerCase().includes(q)
                         );
                       })
-                    : typeFiltered;
+                    : languageFiltered;
 
                   const pagedOffers = filteredOffers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
@@ -833,15 +865,21 @@ const FirmaOfferten = () => {
                         <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">🔍</div>
                         <p className="font-semibold text-folk-ink">{t("offer.list.noMatch.title")}</p>
                         <p className="mt-1 text-[14px] text-folk-ink3">
-                          {t("offer.list.noMatch.description", { query: searchQuery })}
+                          {q
+                            ? t("offer.list.noMatch.description", { query: searchQuery })
+                            : t("offer.list.noMatch.filteredDescription")}
                         </p>
                         <Button
                           variant="outline"
                           size="sm"
                           className="mt-3 h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm"
-                          onClick={() => setSearchQuery("")}
+                          onClick={() => {
+                            setSearchQuery("");
+                            setTypeFilter('all');
+                            setLanguageFilter('all');
+                          }}
                         >
-                          {t("offer.list.resetSearch")}
+                          {t("offer.list.resetFilters")}
                         </Button>
                       </div>
                     );
@@ -863,6 +901,7 @@ const FirmaOfferten = () => {
                               <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("offer.list.column.date")}</TableHead>
                               <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("offer.list.column.subject")}</TableHead>
                               <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("offer.list.column.customer")}</TableHead>
+                              <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("offer.list.column.language")}</TableHead>
                               <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("offer.list.column.details")}</TableHead>
                               <TableHead className="text-right text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("offer.list.column.amount")}</TableHead>
                               <TableHead className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{t("common.status")}</TableHead>
@@ -901,6 +940,11 @@ const FirmaOfferten = () => {
                                   </TableCell>
                                   <TableCell className="text-[15px] text-folk-ink2">
                                     {offer.customer_first_name} {offer.customer_last_name}
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="inline-flex items-center rounded-md border border-folk-line bg-folk-card px-2 py-0.5 text-[12.5px] font-medium text-folk-ink2">
+                                      {LOCALE_NAMES[toLocale(offer.language)]}
+                                    </span>
                                   </TableCell>
                                   <TableCell className="text-[12.5px]">
                                     {leadInfo && (
