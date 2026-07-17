@@ -29,3 +29,6 @@ yarn-error.log*
 # Supabase local dev (contains secrets)
 supabase/.branches/
 supabase/.temp/
+
+# TypeScript build-mode cache (tsc -b, used by npm run type-check)
+*.tsbuildinfo
