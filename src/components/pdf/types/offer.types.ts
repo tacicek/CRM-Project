@@ -1,5 +1,20 @@
 import type { Locale } from "@/i18n/locale";
 
+/**
+ * A single AGB (Allgemeine Geschäftsbedingungen) section, ALREADY resolved to the
+ * document (customer) language before it reaches the PDF model. `content` is plain text
+ * with significant line breaks — rendered pre-wrap, matching the standalone AGB.pdf
+ * contract (src/lib/generateAgbPdf.tsx). This is the single canonical AGB shape shared by
+ * the offer templates, the mapper and the standalone attachment.
+ */
+export interface OfferAgbSection {
+  id: string;
+  title: string;
+  content: string;
+  /** null = no explicit order; callers already query ORDER BY display_order. */
+  display_order: number | null;
+}
+
 export interface OfferData {
   /**
    * The CUSTOMER's language (offers.language, frozen from the lead) — never the
@@ -140,6 +155,11 @@ export interface OfferData {
   // ── Data-bridge P1b (Katman 3/4, offer-level) — carried, NOT yet rendered ──
   customerNumber?: string | null;
   discountPercent?: number | null;
+  /**
+   * AGB sections, resolved to the document language, rendered as a trailing page by every
+   * template. undefined / null / [] → no AGB page (PDF output unchanged).
+   */
+  agbSections?: OfferAgbSection[] | null;
 }
 
 export interface AddressDetails {

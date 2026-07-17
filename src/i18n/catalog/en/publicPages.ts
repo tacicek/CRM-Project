@@ -150,6 +150,7 @@ export const publicPages: Record<keyof typeof de, string> = {
   "public.offer.toast.viewingRequestedBody":
     "The company has been informed of the date you would like.",
   "public.offer.toast.requestFailed": "Your request could not be saved.",
+  "public.offer.toast.downloadFailed": "The PDF could not be created.",
 
   // --- Appointment cancellation (/termin/:id/absagen) ---------------------------------
   "public.cancel.title": "Cancel appointment",

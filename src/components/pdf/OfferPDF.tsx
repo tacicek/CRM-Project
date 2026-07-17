@@ -9,6 +9,7 @@ import { BlindOfferteDisclaimer } from "./components/BlindOfferteDisclaimer";
 import { TimeEstimateBlock } from "./components/TimeEstimateBlock";
 import { OfferPDFBrief } from "./OfferPDFBrief";
 import { OfferPDFModern } from "./OfferPDFModern";
+import { AgbPdfSection } from "./AgbPdfSection";
 import { OfferData } from "./types/offer.types";
 import { COLORS, FONT_SIZES, SPACING } from "./styles/constants";
 import { lightenHex } from "./utils/colors";
@@ -243,6 +244,14 @@ export const OfferPDF = ({ data }: OfferPDFProps) => {
           </Page>
         );
       })}
+
+      {data.agbSections && data.agbSections.length > 0 ? (
+        <AgbPdfSection
+          sections={data.agbSections}
+          locale={data.locale}
+          companyName={data.company.name}
+        />
+      ) : null}
     </Document>
   );
 };

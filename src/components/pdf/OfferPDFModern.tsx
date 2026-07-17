@@ -2,6 +2,7 @@ import { Document, Image, Link, Page, Path, Polyline, StyleSheet, Svg, Text, Vie
 import { Footer, PDF_FOOTER_RESERVE_PT } from "./components/Footer";
 import { BlindOfferteDisclaimer } from "./components/BlindOfferteDisclaimer";
 import { TimeEstimateBlock } from "./components/TimeEstimateBlock";
+import { AgbPdfSection } from "./AgbPdfSection";
 import { AddressDetails, OfferData } from "./types/offer.types";
 import { FONT_SIZES } from "./styles/constants";
 import { formatCurrency, formatDate, formatMeasure, formatRoundedCurrency } from "./utils/formatters";
@@ -1033,6 +1034,14 @@ export const OfferPDFModern = ({ data }: OfferPDFModernProps) => {
 
         <Footer data={data} />
       </Page>
+
+      {data.agbSections && data.agbSections.length > 0 ? (
+        <AgbPdfSection
+          sections={data.agbSections}
+          locale={data.locale}
+          companyName={data.company.name}
+        />
+      ) : null}
     </Document>
   );
 };

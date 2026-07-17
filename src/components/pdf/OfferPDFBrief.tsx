@@ -17,6 +17,7 @@ import { ServiceTable } from "./components/ServiceTable";
 import { SignaturePage } from "./components/SignaturePage";
 import { TimeEstimateBlock } from "./components/TimeEstimateBlock";
 import { TitleSection } from "./components/TitleSection";
+import { AgbPdfSection } from "./AgbPdfSection";
 import { COLORS, FONT_SIZES } from "./styles/constants";
 import { OfferData } from "./types/offer.types";
 import { chunkOfferTableItems } from "./utils/chunkOfferItems";
@@ -367,6 +368,14 @@ export const OfferPDFBrief = ({ data }: OfferPDFBriefProps) => {
         <SignaturePage data={data} />
         <Footer data={data} />
       </Page>
+
+      {data.agbSections && data.agbSections.length > 0 ? (
+        <AgbPdfSection
+          sections={data.agbSections}
+          locale={locale}
+          companyName={company.name}
+        />
+      ) : null}
     </Document>
   );
 };

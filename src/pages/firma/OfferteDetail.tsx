@@ -68,7 +68,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
-import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
+import { parseSurcharges, sumSurchargeAmounts, validateSurcharges } from "@/lib/offerSurcharges";
+import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
+import { parsePriceModel } from "@/lib/offerPriceModel";
+import { parseOfferAgbSections } from "@/lib/offerAgbSections";
+import { resolveDocumentLocale } from "@/i18n/documentLocale";
+import { localizedField } from "@/i18n/localizedField";
+import type { OfferAgbSection } from "@/components/pdf/types/offer.types";
 import { computeDisplayTotals, hourlyRange, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
@@ -146,7 +152,10 @@ interface Offer {
   agb_accepted_at: string | null;
   agb_version: string | null;
   payment_terms: string | null;
-  price_model: 'pauschal' | 'stundenansatz' | 'kostendach' | null;
+  // DB row layer: `offers.price_model` is `text NOT NULL` and this is a direct
+  // select("*"), so it is `string` here (not the narrow domain union). The validated
+  // PriceModel is derived at the PDF-payload boundary via parsePriceModel.
+  price_model: string;
   discount_percent?: number | null;
   surcharges?: unknown;
   hourly_rate: number | null;
@@ -155,7 +164,9 @@ interface Offer {
   service_end_time: string | null;
   brief_layout?: boolean | null;
   customer_salutation?: string | null;
-  offerte_type?: "normal" | "blind" | null;
+  // Row layer `string` (NOT NULL); only ever compared to the literal "blind" for
+  // display, so no closed union is asserted here.
+  offerte_type?: string;
   time_estimate?: { minHours: number; maxHours: number; hourlyRate: number } | null;
   // Layer 2a: frozen address (preserved even if the lead is deleted). Read priority frozen > lead.
   frozen_from_street?: string | null;
@@ -286,12 +297,9 @@ const FirmaOfferteDetail = () => {
     excluded_services: string[];
     special_notes?: string;
   } | null>(null);
-  const [agbSections, setAgbSections] = useState<Array<{
-    id: string;
-    title: string;
-    content: string;
-    display_order: number;
-  }>>([]);
+  // AGB sections held already resolved to the DOCUMENT (customer) language — the firma query
+  // returns the German base + `translations`, resolved once at fetch via localizedField.
+  const [agbSections, setAgbSections] = useState<OfferAgbSection[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [leadAddress, setLeadAddress] = useState<LeadAddress | null>(null);
 
@@ -333,7 +341,8 @@ const FirmaOfferteDetail = () => {
           navigate("/firma/offerten");
           return;
         }
-        setOffer(offerData);
+        // time_estimate is Json in the row; narrow it at this read boundary.
+        setOffer({ ...offerData, time_estimate: parseTimeEstimate(offerData.time_estimate) });
 
         // Check if an auftrag already exists for this offer
         if (offerData.status === "accepted") {
@@ -386,9 +395,27 @@ const FirmaOfferteDetail = () => {
             .order("display_order", { ascending: true }) : Promise.resolve({ data: null }),
         ]);
 
-        setItems(itemsResult.data || []);
+        setItems(
+          (itemsResult.data || []).map((row) => ({
+            ...row,
+            time_estimate: parseTimeEstimate(row.time_estimate),
+          }))
+        );
         setEmailLogs((emailLogsResult.data || []) as EmailLog[]);
-        setAgbSections(agbResult.data || []);
+        // Resolve AGB title/content to the customer's document language ONCE, here — the
+        // same locale the PDF mapper uses (resolveDocumentLocale(offer, company)). The firma
+        // path queries raw rows (German base + `translations`); the public path gets these
+        // already resolved from the RPC. `localizedField` falls back to the German base, so a
+        // missing translation never renders empty.
+        const agbDocLocale = resolveDocumentLocale(offerData, companyData);
+        setAgbSections(
+          (agbResult.data || []).map((row) => ({
+            id: row.id,
+            title: localizedField(row, "title", agbDocLocale),
+            content: localizedField(row, "content", agbDocLocale),
+            display_order: row.display_order,
+          }))
+        );
 
         if (leistungResult.data) {
           // Parse included_services from JSON
@@ -502,7 +529,18 @@ const FirmaOfferteDetail = () => {
 
   const handleDownloadPdf = async () => {
     const payload = buildOfferPayload();
-    if (!payload) return;
+    if (!payload) {
+      // Once the offer is loaded, buildOfferPayload returns null only on a data-integrity
+      // failure (invalid price model or malformed surcharges) — surface it, never generate.
+      if (offer && company) {
+        toast({
+          title: t("common.error"),
+          description: t("offer.edit.toast.loadFailed"),
+          variant: "destructive",
+        });
+      }
+      return;
+    }
 
     const { generateOfferPdf } = await import("@/lib/generateOfferPdf");
     await generateOfferPdf(payload);
@@ -531,10 +569,32 @@ const FirmaOfferteDetail = () => {
   };
 
   /** Build the LegacyOfferData payload used by both download and send flows */
+  // offerte_type is DB `string`, but the document view only distinguishes "blind" from
+  // everything-else ("normal"). Map it once to the LegacyOfferData literal set (not a new
+  // union — this mirrors the PDF type's existing contract).
+  const pdfOfferteType: "normal" | "blind" = offer?.offerte_type === "blind" ? "blind" : "normal";
+
   const buildOfferPayload = () => {
     if (!offer || !company) return null;
+    // Fail closed: never hand the PDF generator a payload whose price model or surcharges
+    // fail validation. The DB constraints make this a should-never-happen guard against
+    // schema drift / unexpected query results — not a silent null/pauschal/[] fallback.
+    const pm = parsePriceModel(offer.price_model);
+    if (!pm.ok) return null;
+    const sc = validateSurcharges(offer.surcharges);
+    if (!sc.ok) return null;
+    // AGB is legal content the customer accepts — fail closed on a malformed section rather
+    // than printing wrong/partial terms. Sections are already document-language-resolved.
+    const agb = parseOfferAgbSections(agbSections);
+    if (!agb.ok) return null;
+    const validatedSurcharges: { label: string; amount: number }[] = sc.value.map((s) => ({
+      label: s.label,
+      amount: s.amount,
+    }));
     return {
       ...offer,
+      price_model: pm.value,
+      surcharges: validatedSurcharges,
       description: offer.description || undefined,
       customer_phone: offer.customer_phone || undefined,
       service_date: offer.service_date || undefined,
@@ -583,10 +643,10 @@ const FirmaOfferteDetail = () => {
       access_token: offer.access_token,
       baseUrl: window.location.origin,
       leistungsuebersicht: leistungsuebersicht || undefined,
-      agbSections: agbSections.length > 0 ? agbSections : undefined,
+      agbSections: agb.value.length > 0 ? agb.value : undefined,
       brief_layout: offer.brief_layout ?? false,
       customer_salutation: offer.customer_salutation ?? null,
-      offerte_type: offer.offerte_type === "blind" ? "blind" : "normal",
+      offerte_type: pdfOfferteType,
     };
   };
 
@@ -617,7 +677,23 @@ const FirmaOfferteDetail = () => {
     }
   };
 
+  // ONE validated payload for BOTH preview and download → identical data, no duplicate/
+  // lenient builder. buildOfferPayload fails closed on invalid price_model / malformed
+  // surcharges (returns null); the preview then never opens.
+  const previewPayload = buildOfferPayload();
+
   const handleOpenPreview = () => {
+    if (!previewPayload) {
+      // Once the offer is loaded, null means a data-integrity failure — surface it, don't open.
+      if (offer && company) {
+        toast({
+          title: t("common.error"),
+          description: t("offer.edit.toast.loadFailed"),
+          variant: "destructive",
+        });
+      }
+      return;
+    }
     setShowPreview(true);
   };
 
@@ -743,7 +819,7 @@ const FirmaOfferteDetail = () => {
         .single();
 
       if (updatedOffer) {
-        setOffer(updatedOffer);
+        setOffer({ ...updatedOffer, time_estimate: parseTimeEstimate(updatedOffer.time_estimate) });
       }
 
       setShowBesichtigungDialog(false);
@@ -1631,63 +1707,12 @@ const FirmaOfferteDetail = () => {
         </div>
 
         {/* PDF Preview Dialog */}
-        {offer && company && (
+        {previewPayload && (
           <Suspense fallback={null}>
             <PdfPreviewDialog
               open={showPreview}
               onOpenChange={setShowPreview}
-              offer={{
-                id: offer.id,
-                title: offer.title,
-                description: offer.description || undefined,
-                customer_first_name: offer.customer_first_name,
-                customer_last_name: offer.customer_last_name,
-                customer_email: offer.customer_email,
-                customer_phone: offer.customer_phone || undefined,
-                service_date: offer.service_date || undefined,
-                valid_until: offer.valid_until || undefined,
-                subtotal: offer.subtotal,
-                vat_rate: offer.vat_rate,
-                vat_amount: offer.vat_amount,
-                total: offer.total,
-                surcharges: parseSurcharges(offer.surcharges).map((s) => ({ label: s.label, amount: s.amount })),
-                created_at: offer.created_at,
-                // Spread the full item (incl. time_estimate + price_type) so the preview PDF
-                // matches the downloaded/sent PDF — the old explicit field list dropped
-                // time_estimate, hiding the blind min–max range in the preview only.
-                items: items.map((item) => ({
-                  ...item,
-                  total: Number(item.total),
-                })),
-                company: {
-                  company_name: company.company_name,
-                  street: company.street || undefined,
-                  house_number: company.house_number || undefined,
-                  plz: company.plz,
-                  city: company.city,
-                  phone: company.phone || undefined,
-                  email: company.email,
-                  website: company.website || undefined,
-                  mwst_number: company.mwst_number || undefined,
-                  logo_url: company.logo_url || undefined,
-                  primary_color: company.primary_color || undefined,
-                  pdf_template: company.pdf_template,
-                  default_language: company.default_language,
-                },
-                access_token: offer.access_token,
-                baseUrl: window.location.origin,
-                leistungsuebersicht: leistungsuebersicht || undefined,
-                payment_terms: offer.payment_terms ?? null,
-                price_model: offer.price_model ?? null,
-                hourly_rate: offer.hourly_rate ?? null,
-                kostendach_max: offer.kostendach_max ?? null,
-                service_start_time: offer.service_start_time ?? null,
-                service_end_time: offer.service_end_time ?? null,
-                brief_layout: offer.brief_layout ?? false,
-                customer_salutation: offer.customer_salutation ?? null,
-                offerte_type: offer.offerte_type === "blind" ? "blind" : "normal",
-                time_estimate: offer.time_estimate ?? null,
-              }}
+              offer={previewPayload}
               onSend={handleSendOffer}
               isSending={isSending}
             />
