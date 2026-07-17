@@ -1,0 +1,11 @@
+{
+  "//": "Scoped, REAL TypeScript gate for the integration test infrastructure only.",
+  "//2": "Inherits compilerOptions from the app config (same strictness/paths) but narrows",
+  "//3": "the checked file set to src/test/**. It transitively type-checks the generated",
+  "//4": "Supabase types (imported by the fixtures/contract tests) but NOT the 108-error",
+  "//5": "production surface — those files are never imported by src/test. This proves the",
+  "//6": "new test infra has zero TS errors WITHOUT artificially excluding production code",
+  "//7": "from the canonical `type-check` (tsc -b), which stays red on the real baseline.",
+  "extends": "./tsconfig.app.json",
+  "include": ["src/test"]
+}

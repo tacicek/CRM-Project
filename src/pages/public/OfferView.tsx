@@ -49,7 +49,8 @@ import { useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { downloadChecklistPdf } from "@/lib/generateChecklistPdf";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
-import { parseSurcharges, sumSurchargeAmounts } from "@/lib/offerSurcharges";
+import { parseSurcharges, sumSurchargeAmounts, validateSurcharges } from "@/lib/offerSurcharges";
+import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import {
   computeDisplayTotals,
   isFreeItem,
@@ -59,6 +60,8 @@ import {
   type SubtotalItem,
 } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
+import { parseOfferAgbSections } from "@/lib/offerAgbSections";
+import type { OfferAgbSection } from "@/components/pdf/types/offer.types";
 import { documentI18nFor, resolveDocumentLocale } from "@/i18n/documentLocale";
 import { toLocale } from "@/i18n/locale";
 import { getAppointmentLabel, getServiceLabel } from "@/i18n/domain";
@@ -174,7 +177,6 @@ interface Company {
   mwst_number?: string | null;
   iban?: string | null;
   primary_color: string | null;
-  signature_url?: string | null;
   slogan?: string | null;
   pdf_template?: string | null;
   // Fallback for offers that predate offers.language; also the language of the notes
@@ -220,12 +222,8 @@ const PublicOfferView = () => {
   const [besichtigungTime, setBesichtigungTime] = useState("");
   const [checklist, setChecklist] = useState<ChecklistTemplate | null>(null);
   const [showChecklist, setShowChecklist] = useState(true);
-  const [agbSections, setAgbSections] = useState<Array<{
-    id: string;
-    title: string;
-    content: string;
-    display_order: number;
-  }>>([]);
+  // Public path: the RPC returns title/content already resolved to the document language.
+  const [agbSections, setAgbSections] = useState<OfferAgbSection[]>([]);
   const [leadAddress, setLeadAddress] = useState<LeadAddress | null>(null);
 
   // DOCUMENT locale: the offer's own `language`, with the company default as the
@@ -302,9 +300,14 @@ const PublicOfferView = () => {
         const { data: itemsData } = await supabase
           .rpc("get_offer_items_by_token", { p_access_token: token });
 
-        // RPC time_estimate: returns Json; cast because OfferItem expects a structural type.
-        // hourlyRange is defensive (malformed shape → null), safe at render runtime.
-        setItems((itemsData as OfferItem[]) || []);
+        // RPC returns time_estimate as Json; narrow it at this read boundary instead of
+        // casting the whole row. A malformed estimate degrades to null (no estimate shown).
+        setItems(
+          (itemsData || []).map((row) => ({
+            ...row,
+            time_estimate: parseTimeEstimate(row.time_estimate),
+          }))
+        );
 
         // Get lead to determine service type and address
         if (offerData.lead_id && companyData && companyData.length > 0) {
@@ -647,9 +650,27 @@ const PublicOfferView = () => {
   const handleDownloadPdf = async () => {
     if (!offer || !company) return;
 
+    // Fail closed on the customer document boundary: AGB are legal terms the customer accepts,
+    // and surcharges are a financial input taxed before VAT — a malformed value aborts the
+    // download rather than producing a PDF with wrong/partial terms or an understated price.
+    // (surcharges was previously spread raw via `...offer`; this narrows it the same way the
+    // firma download and the e-mail attachment already do — validateSurcharges.) []/none → ok.
+    const parsedAgb = parseOfferAgbSections(agbSections);
+    const validatedSurcharges = validateSurcharges(offer.surcharges);
+    if (!parsedAgb.ok || !validatedSurcharges.ok) {
+      toast({
+        title: t("common.error"),
+        description: t("public.offer.toast.downloadFailed"),
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { generateOfferPdf } = await import("@/lib/generateOfferPdf");
     await generateOfferPdf({
       ...offer,
+      // Narrowed above (fail-closed) — overrides the raw `unknown` surcharges from `...offer`.
+      surcharges: validatedSurcharges.value,
       description: offer.description || undefined,
       customer_phone: offer.customer_phone || undefined,
       service_date: offer.service_date || undefined,
@@ -671,7 +692,9 @@ const PublicOfferView = () => {
         iban: company.iban || undefined,
         logo_url: company.logo_url || undefined,
         primary_color: company.primary_color || undefined,
-        signature_url: company.signature_url || undefined,
+        // No signature on the public path: get_public_company_info's allowlist omits
+        // signature_url, so it was always undefined here — the company signature asset stays
+        // off the public token route. (Authenticated firma PDF paths are unaffected.)
         pdf_template: company.pdf_template ?? null,
         // Fallback der Dokumentsprache; die Offerte selbst hat Vorrang (offer.language).
         default_language: company.default_language ?? null,
@@ -695,7 +718,7 @@ const PublicOfferView = () => {
         has_lift: leadAddress.to_has_lift ?? undefined,
       } : undefined,
       service_type: leadAddress?.service_type || undefined,
-      agbSections: agbSections.length > 0 ? agbSections : undefined,
+      agbSections: parsedAgb.value.length > 0 ? parsedAgb.value : undefined,
     });
   };
 

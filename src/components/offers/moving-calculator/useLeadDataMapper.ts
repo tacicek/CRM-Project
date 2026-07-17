@@ -9,6 +9,12 @@ import {
   ExtraServices,
 } from './types';
 import { INVENTORY_CATEGORIES } from './inventory-data';
+import {
+  parseInventoryItems,
+  parseDetailedFormData,
+  type LeadInventoryItem,
+  type DetailedFormData,
+} from '@/lib/leadCalculatorData';
 
 // Lead data structure from database
 interface LeadData {
@@ -50,14 +56,6 @@ interface LeadData {
   estimated_duration_minutes: number | null;
 }
 
-interface LeadInventoryItem {
-  kategorie: string;
-  name: string;
-  anzahl: number;
-  gewicht_kg?: number;
-  spezial?: boolean;
-  aufpreis_chf?: number;
-}
 
 interface AnalysisDetectedItem {
   name: string;
@@ -77,61 +75,6 @@ interface BesichtigungAnalysisData {
   from_parking_distance?: 'direkt' | 'nah' | 'weit' | null;
 }
 
-interface DetailedFormData {
-  auszug?: {
-    adresse?: {
-      strasse?: string;
-      hausnummer?: string;
-      plz?: string;
-      ort?: string;
-      kanton?: string;
-    };
-    stockwerk?: number;
-    aufzug?: {
-      vorhanden?: boolean;
-      groesse?: 'klein' | 'mittel' | 'gross';
-    };
-    parkplatz?: {
-      distanz_meter?: number;
-    };
-    treppenhaus?: {
-      breite?: 'eng' | 'normal' | 'breit';
-      enge_kurven?: boolean;
-    };
-  };
-  einzug?: {
-    adresse?: {
-      strasse?: string;
-      hausnummer?: string;
-      plz?: string;
-      ort?: string;
-      kanton?: string;
-    };
-    stockwerk?: number;
-    aufzug?: {
-      vorhanden?: boolean;
-      groesse?: 'klein' | 'mittel' | 'gross';
-    };
-    parkplatz?: {
-      distanz_meter?: number;
-    };
-    treppenhaus?: {
-      breite?: 'eng' | 'normal' | 'breit';
-      enge_kurven?: boolean;
-    };
-  };
-  inventar?: {
-    items?: LeadInventoryItem[];
-    geschaetzte_kartons?: number;
-    schwere_gegenstaende?: LeadInventoryItem[];
-  };
-  zusatzleistungen?: {
-    verpackung?: { aktiv?: boolean };
-    entsorgung?: { aktiv?: boolean };
-    moebellift?: { aktiv?: boolean };
-    zwischenlagerung?: { aktiv?: boolean };
-  };
-}
 
 // Mapping from Umzug form item names to Moving Calculator item IDs
 // Uses partial matching - keys can be substrings to match
@@ -274,8 +217,15 @@ export function useLeadDataMapper(): UseLeadDataMapperReturn {
         .single();
 
       if (fetchError) throw fetchError;
-      
-      setLeadData(data as LeadData);
+
+      // Narrow the two JSON columns fail-closed before they drive a price estimate. A malformed
+      // value throws → the shared catch surfaces the error and no wrong calculator data is set.
+      const inventory = parseInventoryItems(data.inventory_items);
+      if (!inventory.ok) throw new Error("Lead inventory data is malformed.");
+      const detailed = parseDetailedFormData(data.detailed_form_data);
+      if (!detailed.ok) throw new Error("Lead detailed form data is malformed.");
+
+      setLeadData({ ...data, inventory_items: inventory.value, detailed_form_data: detailed.value });
 
       // Also load latest KI-Besichtigung analysis for this lead (if company available)
       if (companyId) {

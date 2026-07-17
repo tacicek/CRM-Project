@@ -72,11 +72,12 @@ import { sendOffer } from "@/lib/sendOffer";
 import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
 import { OfferteItemRow, type OfferItem, type ItemTimeEstimate } from "@/components/offerte/OfferteItemRow";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
-import { metaKindForService, buildMetaPayload, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
+import { metaKindForService, buildMetaPayload, metaPayloadToJson, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
 import { ItemChip } from "@/components/offerte/ItemChip";
 import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
-import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge } from "@/lib/offerSurcharges";
+import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, surchargesToJson, type OfferSurcharge } from "@/lib/offerSurcharges";
+import type { Json } from "@/integrations/supabase/types";
 import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerHasRateItem, type SubtotalItem } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
@@ -133,6 +134,8 @@ interface Lead {
   from_city: string;
   from_floor?: number | null;
   from_has_lift?: boolean | null;
+  from_has_estrich?: boolean | null;
+  from_has_keller?: boolean | null;
   from_rooms?: number | null;
   from_living_space_m2?: number | null;
   to_street?: string | null;
@@ -736,8 +739,10 @@ const FirmaOfferteErstellen = () => {
       priceType: "pauschale" as const,
       highlighted: false,
       details: ai.note ? [ai.note] : [],
-      // D-B: if there is an AI category, reduce to the clean base; if unrecognized, use primary.
-      serviceType: ai.category ? (normalizeToCatalogBase(ai.category) ?? primaryBase) : primaryBase,
+      // The AI detected-item category (moebel/elektronik/karton/sonstiges) is an INVENTORY
+      // class, not a service-catalog base — the added position stays in the offer's primary
+      // service group.
+      serviceType: primaryBase,
     }));
     setItems(prev => [...prev, ...newItems]);
   }, [items.length, primaryBase]);
@@ -1314,7 +1319,7 @@ const FirmaOfferteErstellen = () => {
         // H1: persist the distance so OfferteBearbeiten can recompute per-km surcharges.
         // Without it, editing an offer recomputes per_km amounts against a null distance → 0.
         moving_distance_km: distanceKm,
-        surcharges: computedSurcharges,
+        surcharges: surchargesToJson(computedSurcharges),
         vat_rate: mwstEnabled ? vatRate : 0,
         // F1a: Kundennummer + Offerten-Rabatt (P3b-1: fliesst in subtotal via applyDiscount).
         customer_number: offerDetails.customerNumber?.trim() || null,
@@ -1376,12 +1381,12 @@ const FirmaOfferteErstellen = () => {
         if (!firstBillableIdByGroup.has(gk)) firstBillableIdByGroup.set(gk, it.id);
       }
 
-      const itemsPayload = items.map((item) => {
+      const itemsPayload = items.map((item): Json => {
         const te = item.timeEstimate;
         const teValid = te && te.minHours && te.maxHours && te.hourlyRate;
         const gk = serviceGroupKey(item.serviceType);
         const metaPayload = firstBillableIdByGroup.get(gk) === item.id
-          ? buildMetaPayload(metaKindForService(item.serviceType), groupMeta[gk])
+          ? metaPayloadToJson(buildMetaPayload(metaKindForService(item.serviceType), groupMeta[gk]))
           : {};
         return {
           position: item.position,
@@ -1856,7 +1861,7 @@ const FirmaOfferteErstellen = () => {
                           <span className="font-medium">{t("offer.create.calculator.lastResult")}</span>
                           <span>{calculatorResult.netVolume.toFixed(1)} m³</span>
                           <span>•</span>
-                          <span>{formatTime(calculatorResult.timeBreakdown.totalTime)}</span>
+                          <span>{formatTime(calculatorResult.timeBreakdown.totalTime, locale)}</span>
                           <span>•</span>
                           <span className="font-semibold">{formatCurrency(calculatorResult.costBreakdown.total)}</span>
                         </div>

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   metaKindForService,
   buildMetaPayload,
+  metaPayloadToJson,
   seedMetaDraft,
   isMetaDraftFilled,
   EMPTY_META_DRAFT,
@@ -111,5 +112,33 @@ describe("isMetaDraftFilled", () => {
     expect(isMetaDraftFilled("effort", draft({ crew: "4" }))).toBe(true);
     expect(isMetaDraftFilled("effort", draft({ vehicleType: "LKW" }))).toBe(false);
     expect(isMetaDraftFilled(null, draft({ crew: "4" }))).toBe(false);
+  });
+});
+
+describe("metaPayloadToJson", () => {
+  it("effort meta → fresh JSON with only persisted keys", () => {
+    expect(metaPayloadToJson({ effort_meta: { crew: 4, vehicles: 2, vehicle_type: "LKW", hourly_rate: 60 } }))
+      .toEqual({ effort_meta: { crew: 4, vehicles: 2, vehicle_type: "LKW", hourly_rate: 60 } });
+  });
+  it("area meta preserved; null values kept", () => {
+    expect(metaPayloadToJson({ area_meta: { object_type: "Wohnung", area_m2: 88, abnahmegarantie: null } }))
+      .toEqual({ area_meta: { object_type: "Wohnung", area_m2: 88, abnahmegarantie: null } });
+  });
+  it("volume meta preserved", () => {
+    expect(metaPayloadToJson({ volume_meta: { rate: 60, rate_unit: "m3", volume_m3: 30 } }))
+      .toEqual({ volume_meta: { rate: 60, rate_unit: "m3", volume_m3: 30 } });
+  });
+  it("empty payload → empty object; absent metas omitted", () => {
+    expect(metaPayloadToJson({})).toEqual({});
+  });
+  it("undefined optional field → null (never a fabricated value)", () => {
+    expect(metaPayloadToJson({ effort_meta: { crew: 3 } }))
+      .toEqual({ effort_meta: { crew: 3, vehicles: null, vehicle_type: null, hourly_rate: null } });
+  });
+  it("does not mutate input", () => {
+    const input = { effort_meta: { crew: 4, vehicles: 2, vehicle_type: "LKW", hourly_rate: 60 } };
+    const snap = structuredClone(input);
+    metaPayloadToJson(input);
+    expect(input).toEqual(snap);
   });
 });

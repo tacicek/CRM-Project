@@ -159,7 +159,7 @@ export function TiptapEditor({
     if (isHtmlMode) {
       const { styles, body } = extractStyleTags(htmlSource);
       styleTagsRef.current = styles;
-      editor.commands.setContent(body, false);
+      editor.commands.setContent(body, { emitUpdate: false });
       onChange(htmlSource);
     } else {
       const editorHtml = editor.getHTML();

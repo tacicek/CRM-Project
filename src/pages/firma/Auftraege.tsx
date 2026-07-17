@@ -55,7 +55,12 @@ import { generateAuftragPdf } from "@/lib/generateAuftragPdf";
 import { resolveDocumentLocale } from "@/i18n/documentLocale";
 import { getAuftragStatusLabel } from "@/i18n/domain";
 import { useI18n, useT } from "@/i18n/useI18n";
-import { canTransitionAuftrag } from "@/lib/auftragStatus";
+import { canTransitionAuftrag, type AuftragStatus } from "@/lib/auftragStatus";
+import {
+  mapAuftragRow,
+  toAuftragPricingType,
+  type AuftragListEntry,
+} from "@/lib/auftragSnapshot";
 import { erstelleRechnungAusAuftrag, type OfferItemInput } from "@/lib/erstelleRechnung";
 import {
   AlertDialog,
@@ -135,6 +140,25 @@ interface Auftrag {
   };
 }
 
+/**
+ * Build the modal/dialog input shape from a mapped list entry. Scalar/relation columns come
+ * from `entry.row`; the validated JSON snapshot is attached only for a valid entry (an
+ * invalid entry's Edit is disabled, so those fields stay undefined). `pricing_type` is
+ * narrowed at this UI edge; every other field passes through untouched.
+ */
+const toListAuftrag = (entry: AuftragListEntry): Auftrag => {
+  const base: Auftrag = {
+    ...entry.row,
+    pricing_type: toAuftragPricingType(entry.row.pricing_type),
+  };
+  if (entry.kind === "valid") {
+    base.items = entry.items;
+    base.extra_services = entry.extraServices;
+    base.service_details = entry.serviceDetails;
+  }
+  return base;
+};
+
 interface Stats {
   total: number;
   geplant: number;
@@ -164,7 +188,7 @@ const FirmaAuftraege = () => {
   const t = useT();
   const { locale, dateLocale } = useI18n();
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [auftraege, setAuftraege] = useState<Auftrag[]>([]);
+  const [auftraege, setAuftraege] = useState<AuftragListEntry[]>([]);
   const [docsForAuftrag, setDocsForAuftrag] = useState<Record<string, { quittung: boolean; rechnung: boolean }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -190,7 +214,11 @@ const FirmaAuftraege = () => {
   const [extrasAuftragId, setExtrasAuftragId] = useState<string | null>(null);
   const [completionAuftrag, setCompletionAuftrag] = useState<Auftrag | null>(null);
 
-  const handleDownloadPdf = async (auftrag: Auftrag) => {
+  const handleDownloadPdf = async (entry: AuftragListEntry) => {
+    // Handler-level fail-closed: the PDF prints the JSON snapshot, so a malformed record
+    // must not generate a document even if the menu guard is bypassed programmatically.
+    if (entry.kind !== "valid") return;
+    const auftrag = entry.row;
     setIsDownloadingPdf(auftrag.id);
 
     try {
@@ -245,15 +273,15 @@ const FirmaAuftraege = () => {
         special_instructions: auftrag.special_instructions,
         status: auftrag.status,
         service_type: auftrag.service_type,
-        pricing_type: auftrag.pricing_type,
+        pricing_type: toAuftragPricingType(auftrag.pricing_type),
         hourly_rate: auftrag.hourly_rate,
         subtotal: auftrag.subtotal,
         vat_rate: auftrag.vat_rate,
         vat_amount: auftrag.vat_amount,
         total: auftrag.total,
-        items: auftrag.items,
-        extra_services: auftrag.extra_services,
-        service_details: auftrag.service_details,
+        items: entry.items,
+        extra_services: entry.extraServices,
+        service_details: entry.serviceDetails,
         team_leader: auftrag.team_leader,
         assigned_team_members_data: teamMembersData,
         // Work order language = the customer's language (the customer signs it on site).
@@ -303,8 +331,11 @@ const FirmaAuftraege = () => {
 
       if (error) throw error;
 
-      const auftraegeData = (data || []) as Auftrag[];
-      setAuftraege(auftraegeData);
+      // Validate each row through the snapshot mapper — no more `as Auftrag[]`. A record with
+      // a malformed JSON snapshot becomes an `invalid_snapshot` entry (still visible; its
+      // JSON-dependent actions are disabled downstream), never dropped or silently repaired.
+      const entries = (data ?? []).map(mapAuftragRow);
+      setAuftraege(entries);
 
       // B: which Aufträge already have a Quittung/Rechnung (by auftrag_id OR shared offer_id,
       // so pre-M3 documents linked only via offer are caught too). Surfaces the double-count
@@ -314,10 +345,10 @@ const FirmaAuftraege = () => {
         supabase.from("rechnungen").select("auftrag_id, offer_id").eq("company_id", company.id),
       ]);
       const docMap: Record<string, { quittung: boolean; rechnung: boolean }> = {};
-      for (const a of auftraegeData) {
-        const hasQ = (qRes.data ?? []).some((q) => q.auftrag_id === a.id || (!!a.offer_id && q.offer_id === a.offer_id));
-        const hasR = (rRes.data ?? []).some((r) => r.auftrag_id === a.id || (!!a.offer_id && r.offer_id === a.offer_id));
-        docMap[a.id] = { quittung: hasQ, rechnung: hasR };
+      for (const { row } of entries) {
+        const hasQ = (qRes.data ?? []).some((q) => q.auftrag_id === row.id || (!!row.offer_id && q.offer_id === row.offer_id));
+        const hasR = (rRes.data ?? []).some((r) => r.auftrag_id === row.id || (!!row.offer_id && r.offer_id === row.offer_id));
+        docMap[row.id] = { quittung: hasQ, rechnung: hasR };
       }
       setDocsForAuftrag(docMap);
 
@@ -328,19 +359,22 @@ const FirmaAuftraege = () => {
       today.setHours(0, 0, 0, 0);
       const weekEnd = addDays(today, 7);
 
+      // Stats read only scalar status/date columns, so valid AND invalid_snapshot entries
+      // both count — an unvalidated JSON snapshot never removes a job from the totals.
+      const rows = entries.map((e) => e.row);
       const newStats: Stats = {
-        total: auftraegeData.length,
-        geplant: auftraegeData.filter((a) => a.status === "geplant").length,
-        bestaetigt: auftraegeData.filter((a) => a.status === "bestaetigt").length,
-        in_bearbeitung: auftraegeData.filter((a) => a.status === "in_bearbeitung").length,
-        abgeschlossen: auftraegeData.filter((a) => a.status === "abgeschlossen").length,
-        today: auftraegeData.filter((a) => isToday(new Date(a.scheduled_date))).length,
-        tomorrow: auftraegeData.filter((a) => isTomorrow(new Date(a.scheduled_date))).length,
-        this_week: auftraegeData.filter((a) => {
+        total: rows.length,
+        geplant: rows.filter((a) => a.status === "geplant").length,
+        bestaetigt: rows.filter((a) => a.status === "bestaetigt").length,
+        in_bearbeitung: rows.filter((a) => a.status === "in_bearbeitung").length,
+        abgeschlossen: rows.filter((a) => a.status === "abgeschlossen").length,
+        today: rows.filter((a) => isToday(new Date(a.scheduled_date))).length,
+        tomorrow: rows.filter((a) => isTomorrow(new Date(a.scheduled_date))).length,
+        this_week: rows.filter((a) => {
           const date = new Date(a.scheduled_date);
           return date >= today && date <= weekEnd;
         }).length,
-        overdue: auftraegeData.filter((a) => {
+        overdue: rows.filter((a) => {
           const date = new Date(a.scheduled_date);
           return isPast(date) && !isToday(date) && a.status !== "abgeschlossen" && a.status !== "storniert";
         }).length,
@@ -375,7 +409,7 @@ const FirmaAuftraege = () => {
 
       if (error) throw error;
 
-      setAuftraege((prev) => prev.filter((a) => a.id !== deleteAuftrag.id));
+      setAuftraege((prev) => prev.filter((e) => e.row.id !== deleteAuftrag.id));
       setStats((prev) => ({
         ...prev,
         total: prev.total - 1,
@@ -400,21 +434,21 @@ const FirmaAuftraege = () => {
     }
   };
 
-  const handleStatusChange = async (auftragId: string, newStatus: string) => {
+  const handleStatusChange = async (auftragId: string, newStatus: AuftragStatus) => {
     if (updatingIds.has(auftragId)) return;
 
-    const original = auftraege.find((a) => a.id === auftragId);
+    const original = auftraege.find((e) => e.row.id === auftragId);
     if (!original) return;
 
     // C3 defense-in-depth: the dropdown already hides invalid transitions via
     // canTransitionAuftrag, but guard the handler too so a stale/programmatic call
     // can't push an illegal status straight to the DB (no DB-level state machine).
-    if (!canTransitionAuftrag(original.status, newStatus)) {
+    if (!canTransitionAuftrag(original.row.status, newStatus)) {
       // `toast` from useToast() is a plain function (no `.error` member) — the previous
       // `toast.error(...)` call threw a TypeError instead of showing the message.
       toast({
         title: t("auftrag.toast.invalidTransition", {
-          from: getAuftragStatusLabel(original.status, locale),
+          from: getAuftragStatusLabel(original.row.status, locale),
           to: getAuftragStatusLabel(newStatus, locale),
         }),
         variant: "destructive",
@@ -425,7 +459,7 @@ const FirmaAuftraege = () => {
     setUpdatingIds((prev) => new Set(prev).add(auftragId));
 
     setAuftraege((prev) =>
-      prev.map((a) => (a.id === auftragId ? { ...a, status: newStatus } : a))
+      prev.map((e) => (e.row.id === auftragId ? { ...e, row: { ...e.row, status: newStatus } } : e))
     );
 
     try {
@@ -442,10 +476,11 @@ const FirmaAuftraege = () => {
       if (error) throw error;
 
       const statusKeys: (keyof Stats)[] = ["geplant", "bestaetigt", "in_bearbeitung", "abgeschlossen"];
+      const prevStatus = original.row.status;
       setStats((prev) => {
         const next = { ...prev };
-        if (statusKeys.includes(original.status as keyof Stats)) {
-          next[original.status as keyof Stats] = Math.max(0, (next[original.status as keyof Stats] || 0) - 1);
+        if (prevStatus && statusKeys.includes(prevStatus as keyof Stats)) {
+          next[prevStatus as keyof Stats] = Math.max(0, (next[prevStatus as keyof Stats] || 0) - 1);
         }
         if (statusKeys.includes(newStatus as keyof Stats)) {
           next[newStatus as keyof Stats] = (next[newStatus as keyof Stats] || 0) + 1;
@@ -460,7 +495,7 @@ const FirmaAuftraege = () => {
     } catch (error) {
       console.error("Error updating status:", error);
       setAuftraege((prev) =>
-        prev.map((a) => (a.id === auftragId ? original : a))
+        prev.map((e) => (e.row.id === auftragId ? original : e))
       );
       toast({
         title: t("common.error"),
@@ -476,7 +511,10 @@ const FirmaAuftraege = () => {
     }
   };
 
-  const handleCreateQuittung = (auftrag: Auftrag) => {
+  const handleCreateQuittung = (entry: AuftragListEntry) => {
+    // Fail-closed: the receipt is seeded from the JSON snapshot line items.
+    if (entry.kind !== "valid") return;
+    const auftrag = entry.row;
     navigate("/firma/quittungen/neu", {
       state: {
         fromAuftrag: {
@@ -487,8 +525,8 @@ const FirmaAuftraege = () => {
           customerDestination: auftrag.to_address ?? "",
           customerEmail: auftrag.customer_email ?? "",
           customerPhone: auftrag.customer_phone ?? "",
-          items: auftrag.items ?? [],
-          extraServices: auftrag.extra_services ?? [],
+          items: entry.items,
+          extraServices: entry.extraServices,
         },
       },
     });
@@ -496,7 +534,10 @@ const FirmaAuftraege = () => {
 
   // Auftrag → Rechnung: erstelleRechnungAusAuftrag (saf map) → /firma/rechnungen/neu (state.fromRechnung).
   // Line-item source is auftrag.items + extra_services (order snapshot — same as the Quittung flow).
-  const handleCreateRechnung = async (auftrag: Auftrag) => {
+  const handleCreateRechnung = async (entry: AuftragListEntry) => {
+    // Fail-closed: the invoice line items come from the JSON snapshot.
+    if (entry.kind !== "valid") return;
+    const auftrag = entry.row;
     if (!companyId) return;
     const { data: comp } = await supabase
       .from("companies").select("iban").eq("id", companyId).single();
@@ -517,8 +558,8 @@ const FirmaAuftraege = () => {
       "price_type" in it && typeof it.price_type === "string" ? it.price_type : null;
 
     const offerItems: OfferItemInput[] = [
-      ...(auftrag.items ?? []),
-      ...(auftrag.extra_services ?? []),
+      ...entry.items,
+      ...entry.extraServices,
     ].map((it) => ({
       description: it.description,
       quantity: it.quantity ?? 1,
@@ -583,7 +624,8 @@ const FirmaAuftraege = () => {
     return null;
   };
 
-  const filteredAuftraege = auftraege.filter((a) => {
+  const filteredAuftraege = auftraege.filter((entry) => {
+    const a = entry.row;
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch =
       !searchQuery ||
@@ -747,12 +789,23 @@ const FirmaAuftraege = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAuftraege.map((auftrag) => (
+                    {filteredAuftraege.map((entry) => {
+                      const auftrag = entry.row;
+                      // A malformed JSON snapshot disables only the actions that read that JSON;
+                      // the record itself stays fully visible with its scalar columns.
+                      const snapshotInvalid = entry.kind !== "valid";
+                      return (
                       <TableRow key={auftrag.id} className="group cursor-pointer border-folk-line-soft transition-colors hover:bg-folk-bg-warm">
                         <TableCell>
                           <div>
                             <p className="text-[15px] font-semibold tracking-tight text-folk-ink">{auftrag.title}</p>
                             <p className="font-mono text-[13px] text-folk-ink4">{auftrag.auftrag_nummer}</p>
+                            {snapshotInvalid && (
+                              <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-1.5 py-0.5 text-[11px] font-semibold text-folk-coral">
+                                <AlertTriangle className="h-2.5 w-2.5" />
+                                {t("auftrag.badge.invalidData")}
+                              </span>
+                            )}
                             <div className="mt-1 flex flex-wrap items-center gap-1.5 md:hidden">
                               <Calendar className="h-3 w-3 shrink-0 text-folk-ink4" />
                               <p className="font-mono text-[13px] text-folk-ink3">
@@ -837,23 +890,28 @@ const FirmaAuftraege = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => {
-                                setSelectedAuftrag(auftrag);
-                                setIsModalOpen(true);
-                              }}>
+                              <DropdownMenuItem
+                                disabled={snapshotInvalid}
+                                onClick={() => {
+                                  if (entry.kind !== "valid") return;
+                                  setSelectedAuftrag(toListAuftrag(entry));
+                                  setIsModalOpen(true);
+                                }}
+                              >
                                 <Edit className="mr-2 h-4 w-4" />
                                 {t("common.edit")}
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => setExtrasAuftragId(auftrag.id)}
+                                disabled={snapshotInvalid}
+                                onClick={() => { if (entry.kind === "valid") setExtrasAuftragId(auftrag.id); }}
                                 className="text-folk-violet"
                               >
                                 <Package className="mr-2 h-4 w-4" />
                                 {t("auftrag.menu.sahaExtras")}
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleDownloadPdf(auftrag)}
-                                disabled={isDownloadingPdf === auftrag.id}
+                                onClick={() => handleDownloadPdf(entry)}
+                                disabled={snapshotInvalid || isDownloadingPdf === auftrag.id}
                               >
                                 {isDownloadingPdf === auftrag.id ? (
                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -869,7 +927,8 @@ const FirmaAuftraege = () => {
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
-                                onClick={() => handleCreateQuittung(auftrag)}
+                                onClick={() => handleCreateQuittung(entry)}
+                                disabled={snapshotInvalid}
                                 className="text-folk-mint"
                               >
                                 <FileText className="mr-2 h-4 w-4" />
@@ -879,8 +938,8 @@ const FirmaAuftraege = () => {
                               </DropdownMenuItem>
                               {auftrag.status === "abgeschlossen" && (
                                 <DropdownMenuItem
-                                  onClick={() => handleCreateRechnung(auftrag)}
-                                  disabled={docsForAuftrag[auftrag.id]?.rechnung}
+                                  onClick={() => handleCreateRechnung(entry)}
+                                  disabled={snapshotInvalid || docsForAuftrag[auftrag.id]?.rechnung}
                                   className="text-folk-coral"
                                 >
                                   <Receipt className="mr-2 h-4 w-4" />
@@ -903,7 +962,7 @@ const FirmaAuftraege = () => {
                                 </DropdownMenuItem>
                               )}
                               {canTransitionAuftrag(auftrag.status, "abgeschlossen") && (
-                                <DropdownMenuItem onClick={() => setCompletionAuftrag(auftrag)}>
+                                <DropdownMenuItem onClick={() => setCompletionAuftrag(toListAuftrag(entry))}>
                                   <CheckCircle className="mr-2 h-4 w-4 text-folk-mint" />
                                   {t("auftrag.menu.complete")}
                                 </DropdownMenuItem>
@@ -926,7 +985,7 @@ const FirmaAuftraege = () => {
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-folk-coral"
-                                onClick={() => setDeleteAuftrag(auftrag)}
+                                onClick={() => setDeleteAuftrag(toListAuftrag(entry))}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 {t("auftrag.menu.archive")}
@@ -935,7 +994,8 @@ const FirmaAuftraege = () => {
                           </DropdownMenu>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

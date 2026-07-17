@@ -24,55 +24,14 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Package, Truck, Calendar, User, AlertTriangle, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n/useI18n";
+// UmzugsboxRental is now the canonical, generated-row-derived type (single source of truth);
+// imported for local prop typing and re-exported so existing consumers keep their import path.
+import type { BoxItem, UmzugsboxRental } from "@/lib/umzugsboxItems";
+import type { Database } from "@/integrations/supabase/types";
+export type { UmzugsboxRental };
 
-export interface BoxItem {
-  type: string;
-  quantity: number;
-}
-
-export interface UmzugsboxRental {
-  id: string;
-  company_id: string;
-  lead_id: string | null;
-  offer_id: string | null;
-  appointment_id: string | null;
-  customer_first_name: string;
-  customer_last_name: string;
-  customer_email: string | null;
-  customer_phone: string | null;
-  // Delivery address - where boxes are delivered TO (old home)
-  delivery_address: string | null;
-  delivery_plz: string | null;
-  delivery_city: string | null;
-  // Pickup address - where boxes will be collected FROM (new home)
-  pickup_address: string | null;
-  pickup_plz: string | null;
-  pickup_city: string | null;
-  box_type?: string; // Legacy field, kept for backward compatibility
-  box_quantity?: number; // Legacy field, kept for backward compatibility
-  box_items: BoxItem[] | null; // New field: array of box items
-  box_description: string | null;
-  is_rental: boolean;
-  rental_price_per_day: number | null;
-  deposit_amount: number | null;
-  deposit_paid: boolean;
-  delivery_date: string;
-  expected_return_date: string | null;
-  actual_return_date: string | null;
-  pickup_scheduled_date: string | null;
-  pickup_scheduled_time: string | null;
-  status: string;
-  assigned_team_member_id: string | null;
-  delivered_by_team_member_id: string | null;
-  picked_up_by_team_member_id: string | null;
-  reminder_days_before: number;
-  reminder_sent: boolean;
-  customer_notified: boolean;
-  internal_notes: string | null;
-  customer_notes: string | null;
-  archived_at: string | null;
-  created_at: string;
-}
+type BoxRentalStatus = Database["public"]["Enums"]["box_rental_status"];
+type UmzugsboxRentalInsert = Database["public"]["Tables"]["umzugsbox_rentals"]["Insert"];
 
 interface TeamMember {
   id: string;
@@ -120,6 +79,7 @@ type BoxType = (typeof BOX_TYPES)[number];
 
 const REMINDER_DAY_OPTIONS = [1, 2, 3, 5, 7] as const;
 
+// `satisfies` compile-time proves every option value is a real box_rental_status enum member.
 const STATUS_OPTIONS = [
   { value: "reserved", color: "bg-blue-500" },
   { value: "delivered", color: "bg-green-500" },
@@ -129,7 +89,12 @@ const STATUS_OPTIONS = [
   { value: "returned", color: "bg-gray-500" },
   { value: "lost", color: "bg-red-500" },
   { value: "damaged", color: "bg-red-300" },
-] as const;
+] as const satisfies readonly { value: BoxRentalStatus; color: string }[];
+
+/** Fail-closed guard: the status Select can only emit these values, but a malformed form
+ * state must never reach the DB with an out-of-range status (never coerced to a fallback). */
+const isBoxRentalStatus = (value: string): value is BoxRentalStatus =>
+  STATUS_OPTIONS.some((o) => o.value === value);
 
 export const UmzugsboxModal = ({
   isOpen,
@@ -346,9 +311,21 @@ export const UmzugsboxModal = ({
       return;
     }
 
+    // Fail-closed status boundary: narrow the form's free string to the DB enum. The Select
+    // only produces valid values, so this only trips on a corrupt form state — no fallback.
+    const status = formData.status;
+    if (!isBoxRentalStatus(status)) {
+      toast.error(t("boxModal.toast.saveFailed"));
+      return;
+    }
+
+    // JSON-safe snapshot: fresh literals with only the canonical keys (satisfies the `Json`
+    // column type without a cast; values/order unchanged).
+    const boxItemsPayload = validBoxItems.map((item) => ({ type: item.type, quantity: item.quantity }));
+
     setLoading(true);
     try {
-      const payload = {
+      const payload: UmzugsboxRentalInsert = {
         company_id: companyId,
         lead_id: selectedLeadId || null,
         customer_first_name: formData.customer_first_name,
@@ -361,7 +338,7 @@ export const UmzugsboxModal = ({
         pickup_address: formData.pickup_address || null,
         pickup_plz: formData.pickup_plz || null,
         pickup_city: formData.pickup_city || null,
-        box_items: validBoxItems, // JSONB array
+        box_items: boxItemsPayload, // JSONB array
         box_description: formData.box_description || null,
         is_rental: formData.is_rental,
         rental_price_per_day: formData.rental_price_per_day || null,
@@ -371,7 +348,7 @@ export const UmzugsboxModal = ({
         expected_return_date: formData.expected_return_date || null,
         pickup_scheduled_date: formData.pickup_scheduled_date || null,
         pickup_scheduled_time: formData.pickup_scheduled_time || null,
-        status: formData.status,
+        status,
         assigned_team_member_id: formData.assigned_team_member_id || null,
         delivered_by_team_member_id: formData.delivered_by_team_member_id || null,
         reminder_days_before: formData.reminder_days_before,

@@ -1326,8 +1326,8 @@ export default function FirmaLeistungskatalog() {
                   </SelectTrigger>
                   <SelectContent>
                     {UNITS.map((unit) => (
-                      <SelectItem key={unit.value} value={unit.value}>
-                        {unit.label}
+                      <SelectItem key={unit} value={unit}>
+                        {getUnitLabel(unit, locale)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1468,7 +1468,7 @@ export default function FirmaLeistungskatalog() {
                   <SelectContent>
                     {SERVICE_TYPES.map((type) => (
                       <SelectItem key={type.value} value={type.value}>
-                        {type.label}
+                        {getServiceTypeLabel(type.value, locale)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1513,7 +1513,7 @@ export default function FirmaLeistungskatalog() {
                         </div>
                         <span className="flex-1 text-sm font-medium">{service.name}</span>
                         <Badge variant="outline" className="text-xs">
-                          {getCategoryLabel(service.category)}
+                          {getCategoryLabel(service.category, locale)}
                         </Badge>
                       </div>
                     );

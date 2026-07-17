@@ -151,6 +151,7 @@ export const publicPages = {
   "public.offer.toast.viewingRequestedBody":
     "Die Firma wurde über Ihren Terminwunsch informiert.",
   "public.offer.toast.requestFailed": "Die Anfrage konnte nicht gespeichert werden.",
+  "public.offer.toast.downloadFailed": "Das PDF konnte nicht erstellt werden.",
 
   // --- Appointment cancel (/termin/:id/absagen) ---------------------------------------
   "public.cancel.title": "Termin absagen",

@@ -43,6 +43,7 @@ export const auftrag = {
   "auftrag.badge.today": "Heute",
   "auftrag.badge.tomorrow": "Morgen",
   "auftrag.badge.overdue": "Überfällig",
+  "auftrag.badge.invalidData": "Daten konnten nicht validiert werden",
   "auftrag.time.oclock": "Uhr",
   "auftrag.team.notified": "Benachrichtigt",
   "auftrag.team.unassigned": "Nicht zugewiesen",

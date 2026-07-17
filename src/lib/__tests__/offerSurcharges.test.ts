@@ -4,6 +4,8 @@ import {
   surchargesTotal,
   withComputedAmounts,
   computeOfferTotals,
+  validateSurcharges,
+  surchargesToJson,
   type OfferSurcharge,
 } from "@/lib/offerSurcharges";
 
@@ -78,3 +80,62 @@ describe("computeOfferTotals", () => {
 });
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+
+describe("validateSurcharges — fail-closed document boundary", () => {
+  const valid: OfferSurcharge = { label: "Wochenende", type: "fixed", value: 120, amount: 120 };
+
+  it("treats null/undefined as the valid 'no surcharges' state (distinct from malformed)", () => {
+    expect(validateSurcharges(null)).toEqual({ ok: true, value: [] });
+    expect(validateSurcharges(undefined)).toEqual({ ok: true, value: [] });
+  });
+
+  it("accepts an array of fully-valid surcharges and preserves label/amount", () => {
+    const res = validateSurcharges([valid]);
+    expect(res).toEqual({ ok: true, value: [valid] });
+    if (res.ok) {
+      expect(res.value[0].label).toBe("Wochenende");
+      expect(res.value[0].amount).toBe(120);
+    }
+  });
+
+  it("fails closed on a non-array (never coerced to [])", () => {
+    expect(validateSurcharges("[]")).toEqual({ ok: false });
+    expect(validateSurcharges({})).toEqual({ ok: false });
+    expect(validateSurcharges(42)).toEqual({ ok: false });
+  });
+
+  it("fails closed when ANY item is malformed — does not silently drop it", () => {
+    expect(validateSurcharges([valid, { label: "x" }])).toEqual({ ok: false });
+    expect(validateSurcharges([{ label: 1, type: "fixed", value: 1, amount: 1 }])).toEqual({ ok: false });
+    expect(validateSurcharges([{ ...valid, amount: NaN }])).toEqual({ ok: false });
+    expect(validateSurcharges([{ ...valid, type: "bogus" }])).toEqual({ ok: false });
+  });
+
+  it("does not mutate its input and does not change label/amount values", () => {
+    const input = [{ label: "A", type: "percent" as const, value: 10, amount: 55.5 }];
+    const res = validateSurcharges(input);
+    expect(input).toEqual([{ label: "A", type: "percent", value: 10, amount: 55.5 }]);
+    if (res.ok) expect(res.value[0].amount).toBe(55.5);
+  });
+});
+
+describe("surchargesToJson", () => {
+  const s = { label: "Wochenende", type: "percent" as const, value: 15, amount: 45 };
+  it("re-materializes surcharges as fresh JSON, values/order preserved", () => {
+    const out = surchargesToJson([s, { label: "Anfahrt", type: "fixed" as const, value: 120, amount: 120 }]);
+    expect(out).toEqual([
+      { label: "Wochenende", type: "percent", value: 15, amount: 45 },
+      { label: "Anfahrt", type: "fixed", value: 120, amount: 120 },
+    ]);
+  });
+  it("empty → empty array", () => {
+    expect(surchargesToJson([])).toEqual([]);
+  });
+  it("does not mutate input and returns fresh objects", () => {
+    const input = [{ ...s }];
+    const snap = structuredClone(input);
+    const out = surchargesToJson(input);
+    expect(input).toEqual(snap);
+    if (Array.isArray(out)) expect(out[0]).not.toBe(input[0]);
+  });
+});

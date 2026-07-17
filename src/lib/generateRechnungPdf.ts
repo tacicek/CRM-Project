@@ -97,7 +97,9 @@ const hexToRgb = (hex: string | null | undefined, fallback: Rgb): Rgb => {
   if (!/^[0-9a-fA-F]{6}$/.test(h)) return fallback;
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 };
-const setText = (doc: jsPDF, [r, g, b]: Rgb): void => doc.setTextColor(r, g, b);
+const setText = (doc: jsPDF, [r, g, b]: Rgb): void => {
+  doc.setTextColor(r, g, b);
+};
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 

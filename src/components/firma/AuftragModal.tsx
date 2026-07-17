@@ -57,6 +57,14 @@ import { getAuftragStatusLabel, getServiceLabel } from "@/i18n/domain";
 import { formatCurrency } from "@/i18n/format";
 import { useI18n, useT } from "@/i18n/useI18n";
 import { allowedAuftragTargets } from "@/lib/auftragStatus";
+import { buildServiceDetails, type AuftragLead } from "@/lib/auftragLead";
+import {
+  buildAuftragInsertPayload,
+  buildAuftragUpdatePayload,
+  applyAuftragRescheduleReset,
+  stripAuftragSchedule,
+  type AuftragPayloadSource,
+} from "@/lib/auftragPayload";
 import { toLocale } from "@/i18n/locale";
 
 // =============================================================================
@@ -100,65 +108,6 @@ interface FullOffer {
   status: string;
   /** DOCUMENT locale, frozen on the offer — the Auftrag inherits it. */
   language?: string | null;
-}
-
-interface Lead {
-  id: string;
-  service_type: string;
-  /** DOCUMENT locale — only used when the Auftrag is created without an offer. */
-  language?: string | null;
-  // Customer
-  customer_first_name: string;
-  customer_last_name: string;
-  customer_email: string;
-  customer_phone: string;
-  // Origin address
-  from_street: string | null;
-  from_house_number: string | null;
-  from_plz: string;
-  from_city: string;
-  from_floor: number | null;
-  from_has_lift: boolean | null;
-  from_rooms: number | null;
-  from_living_space_m2: number | null;
-  // Destination address
-  to_street: string | null;
-  to_house_number: string | null;
-  to_plz: string | null;
-  to_city: string | null;
-  to_floor: number | null;
-  to_has_lift: boolean | null;
-  // Property
-  property_type: string | null;
-  // Services
-  packing_service_needed: boolean | null;
-  cleaning_service_needed: boolean | null;
-  storage_needed: boolean | null;
-  piano_transport_needed: boolean | null;
-  // Distance
-  distance_km: number | null;
-  estimated_duration_minutes: number | null;
-  // Description
-  description: string | null;
-  // Reinigung fields
-  bathroom_count: number | null;
-  kitchen_type: string | null;
-  has_balcony: boolean | null;
-  has_garage: boolean | null;
-  has_basement: boolean | null;
-  has_attic: boolean | null;
-  cleaning_windows: boolean | null;
-  // Räumung fields
-  clearing_type: string | null;
-  estimated_volume: string | null;
-  has_heavy_items: boolean | null;
-  heavy_items_description: string | null;
-  // Klaviertransport fields
-  piano_type: string | null;
-  piano_weight_kg: number | null;
-  // Storage fields
-  storage_duration: string | null;
-  storage_volume: string | null;
 }
 
 interface ExtraService {
@@ -261,7 +210,7 @@ export function AuftragModal({
   const [offer, setOffer] = useState<FullOffer | null>(null);
   const [_offerItems, setOfferItems] = useState<OfferItem[]>([]);
   // No longer unused: the lead is the language source when an Auftrag is created without an offer.
-  const [lead, setLead] = useState<Lead | null>(null);
+  const [lead, setLead] = useState<AuftragLead | null>(null);
   
   // UI state
   const [showOfferDetails, setShowOfferDetails] = useState(true);
@@ -427,7 +376,7 @@ export function AuftragModal({
             .single();
           
           if (!leadError && leadData) {
-            setLead(leadData as Lead);
+            setLead(leadData);
             
             // Build addresses from lead
             const fromAddress = buildAddress(
@@ -449,7 +398,7 @@ export function AuftragModal({
             );
             
             // Build service details based on service type
-            const serviceDetails = buildServiceDetails(leadData as Lead);
+            const serviceDetails = buildServiceDetails(leadData);
             
             // Pre-populate form with all data
             setFormData({
@@ -596,63 +545,6 @@ export function AuftragModal({
     return parts.join("\n");
   };
 
-  const buildServiceDetails = (leadData: Lead): Record<string, unknown> => {
-    const details: Record<string, unknown> = {};
-    
-    switch (leadData.service_type) {
-      case "umzug":
-        details.from_rooms = leadData.from_rooms;
-        details.from_living_space_m2 = leadData.from_living_space_m2;
-        details.from_floor = leadData.from_floor;
-        details.from_has_lift = leadData.from_has_lift;
-        details.to_floor = leadData.to_floor;
-        details.to_has_lift = leadData.to_has_lift;
-        details.property_type = leadData.property_type;
-        details.distance_km = leadData.distance_km;
-        details.packing_service_needed = leadData.packing_service_needed;
-        details.cleaning_service_needed = leadData.cleaning_service_needed;
-        details.storage_needed = leadData.storage_needed;
-        details.piano_transport_needed = leadData.piano_transport_needed;
-        break;
-        
-      case "reinigung":
-        details.from_rooms = leadData.from_rooms;
-        details.from_living_space_m2 = leadData.from_living_space_m2;
-        details.bathroom_count = leadData.bathroom_count;
-        details.kitchen_type = leadData.kitchen_type;
-        details.has_balcony = leadData.has_balcony;
-        details.has_garage = leadData.has_garage;
-        details.has_basement = leadData.has_basement;
-        details.has_attic = leadData.has_attic;
-        details.cleaning_windows = leadData.cleaning_windows;
-        break;
-        
-      case "klaviertransport":
-        details.piano_type = leadData.piano_type;
-        details.piano_weight_kg = leadData.piano_weight_kg;
-        details.from_floor = leadData.from_floor;
-        details.from_has_lift = leadData.from_has_lift;
-        details.to_floor = leadData.to_floor;
-        details.to_has_lift = leadData.to_has_lift;
-        details.distance_km = leadData.distance_km;
-        break;
-        
-      case "raeumung":
-        details.clearing_type = leadData.clearing_type;
-        details.estimated_volume = leadData.estimated_volume;
-        details.has_heavy_items = leadData.has_heavy_items;
-        details.heavy_items_description = leadData.heavy_items_description;
-        break;
-        
-      case "lagerung":
-        details.storage_duration = leadData.storage_duration;
-        details.storage_volume = leadData.storage_volume;
-        break;
-    }
-    
-    return details;
-  };
-
   // "HH:MM" + Minuten → "HH:MM:SS" (für appointment end_time)
   const addMinutesToTime = (time: string, minutes: number): string => {
     const [h, m] = time.split(":").map((n) => parseInt(n, 10));
@@ -765,75 +657,75 @@ export function AuftragModal({
     setIsSaving(true);
 
     try {
-      const auftragData = {
-        company_id: companyId,
-        auftrag_nummer: "", // Will be auto-generated by database trigger
-        offer_id: selectedOfferId || offerId || auftrag?.offer_id || null,
-        lead_id: offer?.lead_id || auftrag?.lead_id || null,
+      // Explicit payload source — no form-draft spread reaches Supabase. The factories parse
+      // status to the enum, serialize the three JSON columns, and drop any non-column field.
+      const source: AuftragPayloadSource = {
+        companyId,
+        offerId: selectedOfferId || offerId || auftrag?.offer_id || null,
+        leadId: offer?.lead_id || auftrag?.lead_id || null,
         title: formData.title,
-        customer_name: formData.customer_name,
-        customer_email: formData.customer_email || null,
-        customer_phone: formData.customer_phone || null,
-        from_address: formData.from_address || null,
-        to_address: formData.to_address || null,
-        scheduled_date: format(formData.scheduled_date, "yyyy-MM-dd"),
-        scheduled_time: formData.scheduled_time || null,
-        estimated_duration_minutes: formData.estimated_duration_minutes,
+        customerName: formData.customer_name,
+        customerEmail: formData.customer_email || null,
+        customerPhone: formData.customer_phone || null,
+        fromAddress: formData.from_address || null,
+        toAddress: formData.to_address || null,
+        scheduledDate: format(formData.scheduled_date, "yyyy-MM-dd"),
+        scheduledTime: formData.scheduled_time || null,
+        estimatedDurationMinutes: formData.estimated_duration_minutes,
         description: formData.description || null,
-        special_instructions: formData.special_instructions || null,
-        internal_notes: formData.internal_notes || null,
-        team_leader_id: formData.team_leader_id || null,
-        assigned_team_members: formData.assigned_team_members,
-        reminder_days_before: formData.reminder_days_before,
+        specialInstructions: formData.special_instructions || null,
+        internalNotes: formData.internal_notes || null,
+        teamLeaderId: formData.team_leader_id || null,
+        assignedTeamMembers: formData.assigned_team_members,
+        reminderDaysBefore: formData.reminder_days_before,
         status: formData.status,
-        // Pricing & service data
-        service_type: formData.service_type || null,
-        pricing_type: formData.pricing_type,
-        hourly_rate: formData.pricing_type === "hourly" ? formData.hourly_rate : null,
+        serviceType: formData.service_type || null,
+        pricingType: formData.pricing_type,
+        hourlyRate: formData.pricing_type === "hourly" ? formData.hourly_rate : null,
         subtotal: formData.pricing_type === "hourly" ? null : formData.subtotal,
-        vat_rate: formData.vat_rate,
-        vat_amount: formData.pricing_type === "hourly" ? null : formData.vat_amount,
+        vatRate: formData.vat_rate,
+        vatAmount: formData.pricing_type === "hourly" ? null : formData.vat_amount,
         total: formData.pricing_type === "hourly" ? null : formData.total,
+        completedAt: formData.status === "abgeschlossen" ? new Date().toISOString() : null,
         items: formData.items,
-        extra_services: formData.extra_services,
-        service_details: formData.service_details,
-        completed_at: formData.status === "abgeschlossen" ? new Date().toISOString() : null,
+        extraServices: formData.extra_services,
+        serviceDetails: formData.service_details,
       };
 
+      const showPayloadError = () =>
+        toast({
+          title: t("auftrag.toast.saveFailed"),
+          description: t("auftrag.toast.saveFailedDefault"),
+          variant: "destructive",
+        });
+
       if (auftrag) {
-        // Update existing — auftrag_nummer and company_id must NOT be updated.
-        const { auftrag_nummer: _nr, company_id: _cid, ...updateData } = auftragData;
+        // Update existing. Validate BEFORE touching the linked appointment or the Auftrag.
+        const result = buildAuftragUpdatePayload(source);
+        if (!result.ok) {
+          showPayloadError();
+          return;
+        }
 
-        const dateChanged = auftrag.scheduled_date !== auftragData.scheduled_date;
+        // Reschedule: reset the reminder flags only when the date actually changed
+        // (unchanged behaviour — the comparison stays date-only).
+        const dateChanged = auftrag.scheduled_date !== source.scheduledDate;
+        const merged = applyAuftragRescheduleReset(result.value, dateChanged);
 
-        // Reschedule: if the date changed, reset the reminder flags.
-        const rescheduleReset = dateChanged
-          ? {
-              team_reminder_sent: false,
-              reminder_sent_at: null,
-              customer_reminder_sent: false,
-              customer_reminder_sent_at: null,
-            }
-          : {};
-
-        // #7 Single source: time (Datum/Zeit/Dauer) lives canonically in appointments.
-        // If a linked appointment exists, write the time THERE — a trigger mirrors auftrag.scheduled_*.
-        // That is why we strip the schedule fields out of the auftrag update.
+        // #7 Single source: time lives canonically in appointments. With a linked appointment
+        // the schedule is written THERE (a trigger mirrors auftrag.scheduled_*), so it is
+        // stripped from the Auftrag update.
         if (auftrag.appointment_id) {
           const { error: apptError } = await supabase
             .from("appointments")
             .update(buildAppointmentSchedule())
             .eq("id", auftrag.appointment_id);
           if (apptError) throw apptError;
-
-          delete (updateData as Record<string, unknown>).scheduled_date;
-          delete (updateData as Record<string, unknown>).scheduled_time;
-          delete (updateData as Record<string, unknown>).estimated_duration_minutes;
         }
 
         const { error } = await supabase
           .from("auftraege")
-          .update({ ...updateData, ...rescheduleReset })
+          .update(auftrag.appointment_id ? stripAuftragSchedule(merged) : merged)
           .eq("id", auftrag.id);
 
         if (error) throw error;
@@ -844,7 +736,7 @@ export function AuftragModal({
         });
       } else {
         // Create new — jeder aktive Auftrag bekommt einen kanonischen service-Termin.
-        const linkedOfferId = auftragData.offer_id;
+        const linkedOfferId = source.offerId;
         let appointmentId: string | null = null;
 
         // DOCUMENT locale: inherited from the offer (which froze it from the lead), or
@@ -852,6 +744,15 @@ export function AuftragModal({
         // CREATION only — like the offer's frozen fields, it must not silently flip on a
         // later edit (where offer/lead are not even loaded).
         const documentLanguage = toLocale(offer?.language ?? lead?.language);
+
+        // Validate the full payload BEFORE any appointment side-effect — an invalid payload
+        // must never create an orphan appointment. appointment_id is not known yet, so
+        // pre-check with null; the same factory runs again below with the real id.
+        const precheck = buildAuftragInsertPayload(source, { appointmentId: null, language: documentLanguage });
+        if (!precheck.ok) {
+          showPayloadError();
+          return;
+        }
 
         // Vorhandenen service-Termin der Offerte wiederverwenden (vom Accept-Flow)
         if (linkedOfferId) {
@@ -875,7 +776,7 @@ export function AuftragModal({
             .insert({
               company_id: companyId,
               offer_id: linkedOfferId,
-              lead_id: auftragData.lead_id,
+              lead_id: source.leadId,
               appointment_type: "service",
               status: "pending",
               ...schedule,
@@ -895,9 +796,16 @@ export function AuftragModal({
           appointmentId = newAppt.id;
         }
 
+        // Finalize with the real appointment id (validation already passed above).
+        const insertPayload = buildAuftragInsertPayload(source, { appointmentId, language: documentLanguage });
+        if (!insertPayload.ok) {
+          showPayloadError();
+          return;
+        }
+
         const { error } = await supabase
           .from("auftraege")
-          .insert({ ...auftragData, appointment_id: appointmentId, language: documentLanguage });
+          .insert(insertPayload.value);
 
         if (error) throw error;
 

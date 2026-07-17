@@ -3,6 +3,7 @@
 // ============================================================
 import { documentI18nFor } from "@/i18n/documentLocale";
 import type { Locale } from "@/i18n/locale";
+import type { Database } from "@/integrations/supabase/types";
 
 export interface QuittungPosition {
   id: string;
@@ -17,6 +18,39 @@ export interface QuittungPosition {
   /** false = predefined from offer, true = custom row added on-site */
   is_custom: boolean;
 }
+
+export type QuittungPositionenResult =
+  | { ok: true; value: QuittungPosition[] }
+  | { ok: false };
+
+const isPositionRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+const isFinitePositionNumber = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+
+const isQuittungPosition = (p: unknown): p is QuittungPosition =>
+  isPositionRecord(p) &&
+  typeof p.id === "string" &&
+  typeof p.beschreibung === "string" &&
+  typeof p.satz === "string" &&
+  isFinitePositionNumber(p.betrag) &&
+  typeof p.checked === "boolean" &&
+  typeof p.is_custom === "boolean" &&
+  (p.menge === null || p.menge === undefined || isFinitePositionNumber(p.menge)) &&
+  (p.einheit === null || p.einheit === undefined || typeof p.einheit === "string");
+
+/**
+ * Fail-closed validation of the `quittungen.positionen` JSON column.
+ * null/undefined → valid empty list; non-array or ANY malformed row → failure (never
+ * silently coerced to [] or filtered). Pure; no mutation; amounts unchanged.
+ */
+export const validateQuittungPositionen = (raw: unknown): QuittungPositionenResult => {
+  if (raw === null || raw === undefined) return { ok: true, value: [] };
+  if (!Array.isArray(raw)) return { ok: false };
+  const valid = raw.filter(isQuittungPosition);
+  return valid.length === raw.length ? { ok: true, value: valid } : { ok: false };
+};
 
 export type QuittungStatus = 'draft' | 'signed' | 'sent' | 'paid';
 
@@ -148,4 +182,33 @@ export const STATUS_CONFIG: Record<QuittungStatus, {
   signed: { color: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200' },
   sent:   { color: 'text-indigo-700',  bg: 'bg-indigo-50',   border: 'border-indigo-200' },
   paid:   { color: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200' },
+};
+
+type QuittungRow = Database["public"]["Tables"]["quittungen"]["Row"];
+
+export type QuittungMapResult =
+  | { ok: true; value: Quittung }
+  | { ok: false; reason: "invalid_status" | "invalid_positionen" };
+
+/**
+ * Type guard for the receipt status. The DB enforces exactly these four values
+ * (`quittungen_status_check`), so an out-of-range value is a data-integrity signal —
+ * never coerced to 'draft'.
+ */
+export const isQuittungStatus = (value: unknown): value is QuittungStatus =>
+  value === "draft" || value === "signed" || value === "sent" || value === "paid";
+
+/**
+ * Narrow a raw `quittungen` DB row into the validated Quittung view-model. Fails closed
+ * on an out-of-range status or malformed positionen (both DB-impossible under the CHECK /
+ * NOT NULL constraints, so this guards against schema drift / corruption). Financial
+ * snapshot fields, nullable `auftrag_id`/`offer_id`, and `quittung_nr` pass through
+ * unchanged — no zeroing, no fake document number. Pure; does not mutate the row.
+ */
+export const mapQuittungRow = (row: QuittungRow): QuittungMapResult => {
+  if (!isQuittungStatus(row.status)) return { ok: false, reason: "invalid_status" };
+  const positionen = validateQuittungPositionen(row.positionen);
+  if (!positionen.ok) return { ok: false, reason: "invalid_positionen" };
+  const status: QuittungStatus = row.status;
+  return { ok: true, value: { ...row, status, positionen: positionen.value } };
 };

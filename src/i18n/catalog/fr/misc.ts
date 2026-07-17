@@ -187,6 +187,7 @@ export const misc: Record<keyof typeof de, string> = {
   "boxes.table.returned": "Restitué",
 
   "boxes.count": "cartons",
+  "boxes.snapshot.invalid": "Données de caisses invalides",
   "boxes.count#one": "carton",
   "boxes.count#other": "cartons",
   "boxes.overdueDays": "{count} jours de retard",

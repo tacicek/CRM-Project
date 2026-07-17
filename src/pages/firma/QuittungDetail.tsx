@@ -255,7 +255,9 @@ export default function QuittungDetail() {
     if (data) {
       setOfferOptions(data.map(o => ({
         id: o.id,
-        offer_number: o.offer_number || o.id.substring(0, 8),
+        // offers.offer_number is `number | null`; this select-option label is a display
+        // string, so convert at the view boundary (same fallback branching as before).
+        offer_number: o.offer_number ? String(o.offer_number) : o.id.substring(0, 8),
         customer_first_name: o.customer_first_name,
         customer_last_name: o.customer_last_name,
         customer_email: o.customer_email,

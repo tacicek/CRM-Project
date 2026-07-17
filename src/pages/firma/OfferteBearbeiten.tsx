@@ -35,13 +35,16 @@ import type { MessageKey } from "@/i18n/translator";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import {
-  computeSurchargeAmount, surchargesTotal, withComputedAmounts, type OfferSurcharge,
+  computeSurchargeAmount, surchargesTotal, withComputedAmounts, surchargesToJson, type OfferSurcharge,
 } from "@/lib/offerSurcharges";
+import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
+import type { Json } from "@/integrations/supabase/types";
 import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
+import { parsePriceModel, type PriceModel } from "@/lib/offerPriceModel";
 import { cn } from "@/lib/utils";
 import { getServiceOptions, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
-import { metaKindForService, buildMetaPayload, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
+import { metaKindForService, buildMetaPayload, metaPayloadToJson, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
@@ -104,7 +107,7 @@ const inferPriceType = (unit: string, unitPrice: number): string => {
   return "per_unit";
 };
 
-type PriceModel = 'pauschal' | 'stundenansatz' | 'kostendach';
+// PriceModel is the canonical union from @/lib/offerPriceModel (imported above).
 
 interface Offer {
   id: string;
@@ -313,7 +316,24 @@ const FirmaOfferteBearbeiten = () => {
           return;
         }
 
-        setOffer(offerData);
+        // Price model — narrow the DB `string` at this A→D boundary. The DB CHECK
+        // constraint guarantees validity; parse defensively instead of casting or
+        // silently defaulting to 'pauschal'. An out-of-range value is a data-integrity
+        // problem, so fail closed rather than edit an offer under the wrong model.
+        const parsedPriceModel = parsePriceModel(offerData.price_model);
+        if (!parsedPriceModel.ok) {
+          toast({
+            title: t("common.error"),
+            description: t("offer.edit.toast.loadFailed"),
+            variant: "destructive",
+          });
+          navigate("/firma/offerten");
+          return;
+        }
+
+        // Narrow the only view-model-incompatible column: price_model (Row string → PriceModel),
+        // validated fail-closed just above. Every other Row column is compatible with Offer.
+        setOffer({ ...offerData, price_model: parsedPriceModel.value });
         setTitle(offerData.title || "");
         setDescription(offerData.description || "");
         setServiceDate(offerData.service_date || "");
@@ -333,9 +353,7 @@ const FirmaOfferteBearbeiten = () => {
             ? String(offerData.payment_terms)
             : documentI18nFor(offerLocale).t("offer.doc.payment.cash"),
         );
-        // Price model
-        const pm = (offerData.price_model as PriceModel | null | undefined) ?? 'pauschal';
-        setPriceModel(pm);
+        setPriceModel(parsedPriceModel.value);
         setDiscountPercent(offerData.discount_percent !== null && offerData.discount_percent !== undefined ? String(offerData.discount_percent) : '');
         if (offerData.hourly_rate !== null && offerData.hourly_rate !== undefined) setHourlyRate(String(offerData.hourly_rate));
         if (offerData.kostendach_max !== null && offerData.kostendach_max !== undefined) setKostendachMax(String(offerData.kostendach_max));
@@ -365,9 +383,12 @@ const FirmaOfferteBearbeiten = () => {
               price_type: item.price_type || inferPriceType(item.unit, item.unit_price),
               is_highlighted: item.is_highlighted || false,
               is_optional: item.is_optional || false,
-              timeEstimate: item.time_estimate
-                ? { minHours: String(item.time_estimate.minHours), maxHours: String(item.time_estimate.maxHours), hourlyRate: String(item.time_estimate.hourlyRate) }
-                : null,
+              // time_estimate is a raw Json column → narrow with the canonical parser before
+              // reading its numeric fields (the form keeps them as strings).
+              timeEstimate: (() => {
+                const te = parseTimeEstimate(item.time_estimate);
+                return te ? { minHours: String(te.minHours), maxHours: String(te.maxHours), hourlyRate: String(te.hourlyRate) } : null;
+              })(),
               // PRESERVE: the loaded item keeps its own stamp (old/null items stay Allgemein)
               serviceType: item.service_type ?? null,
               // PRESERVE (delete+insert RPC trap): ohne Mitschicken wuerde amount_basis auf
@@ -733,7 +754,7 @@ const FirmaOfferteBearbeiten = () => {
           service_date: serviceDate || null,
           valid_until: validUntil || null,
           subtotal,
-          surcharges: computedSurcharges,
+          surcharges: surchargesToJson(computedSurcharges),
           vat_rate: mwstEnabled ? vatRate : 0,
           // status/sent_at NICHT hier setzen — die "sent"-Transition gehört
           // ausschliesslich der send-offer Edge Function (nur bei erfolgreichem Versand).
@@ -767,12 +788,12 @@ const FirmaOfferteBearbeiten = () => {
         if (!firstBillableIdByGroup.has(gk)) firstBillableIdByGroup.set(gk, it.id);
       }
 
-      const itemsPayload = items.map((item) => {
+      const itemsPayload = items.map((item): Json => {
         const te = item.timeEstimate;
         const teValid = te && te.minHours && te.maxHours && te.hourlyRate;
         const gk = serviceGroupKey(item.serviceType);
         const metaPayload = firstBillableIdByGroup.get(gk) === item.id
-          ? buildMetaPayload(metaKindForService(item.serviceType), groupMeta[gk])
+          ? metaPayloadToJson(buildMetaPayload(metaKindForService(item.serviceType), groupMeta[gk]))
           : {};
         return {
           position: item.position,

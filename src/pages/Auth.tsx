@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
-import { validateAuthForm, type AuthMode } from "@/lib/authUtils";
+import { validateAuthForm, type AuthMode, type AuthFormErrors } from "@/lib/authUtils";
 import {
   Mail,
   Lock,
@@ -30,7 +30,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<AuthFormErrors>({});
   const [isCheckingRole, setIsCheckingRole] = useState(false);
   const [noCompanyAccess, setNoCompanyAccess] = useState(false);
   const [pendingVerification, setPendingVerification] = useState(false);

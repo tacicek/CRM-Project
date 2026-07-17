@@ -5,6 +5,11 @@ import { getChecklistPdfBase64 } from "@/lib/generateChecklistPdf";
 import { resolveDocumentLocale } from "@/i18n/documentLocale";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
+import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
+import { validateSurcharges } from "@/lib/offerSurcharges";
+import { parseChecklistSections } from "@/lib/checklistTemplates";
+import { parseIncludedServices } from "@/lib/offerLeistungsuebersicht";
+import { localizeOfferAgbSections, parseOfferAgbSections } from "@/lib/offerAgbSections";
 
 type LeadRow = {
   service_type?: string | null;
@@ -64,8 +69,22 @@ export const buildOfferEmailAttachments = async (
     leadData = data as LeadRow | null;
   }
 
+  // Surcharges are a financial input to the offer PDF (the norm taxes them before VAT). Narrow
+  // the raw Json fail-closed, exactly like the download-PDF path (OfferteDetail): malformed data
+  // aborts the whole attachment build rather than emailing a wrong document. null/[] → no
+  // surcharges (valid). Values/order preserved (label + amount snapshot).
+  const surchargesResult = validateSurcharges(offerData.surcharges);
+  if (!surchargesResult.ok) {
+    throw new Error("Offer surcharges for email attachment are malformed.");
+  }
+  const validatedSurcharges = surchargesResult.value.map((s) => ({ label: s.label, amount: s.amount }));
+
   const offerPdfBase64 = await generateOfferPdfBase64({
     ...offerData,
+    surcharges: validatedSurcharges,
+    // offer-level time_estimate is a raw Json column (legacy, effectively unused) — narrow it
+    // the same way as OfferteDetail so the spread type matches LegacyOfferData.
+    time_estimate: parseTimeEstimate(offerData.time_estimate),
     description: offerData.description || undefined,
     customer_phone: offerData.customer_phone || undefined,
     service_date: offerData.service_date || undefined,
@@ -85,6 +104,9 @@ export const buildOfferEmailAttachments = async (
       ...item,
       unit: item.unit ?? "",
       total: Number(item.total),
+      // time_estimate is a raw Json column — narrow it at this read boundary with the same
+      // canonical parser the download-PDF path (OfferteDetail) uses, so both PDFs agree.
+      time_estimate: parseTimeEstimate(item.time_estimate),
     })),
     company: {
       company_name: companyData.company_name,
@@ -132,13 +154,13 @@ export const buildOfferEmailAttachments = async (
     offerte_type: (offerData.offerte_type as 'normal' | 'blind' | null) ?? 'normal',
     access_token: offerData.access_token,
     baseUrl: window.location.origin,
-    leistungsuebersicht: leistungRes.data
-      ? {
-          included_services: Array.isArray(leistungRes.data.included_services)
-            ? leistungRes.data.included_services
-            : [],
-        }
-      : undefined,
+    // Optional, decorative content: only attach a Leistungsübersicht when its included_services
+    // parse cleanly. A malformed value is omitted (never shown as an empty list) and never
+    // affects the financial offer PDF.
+    leistungsuebersicht: (() => {
+      const services = leistungRes.data ? parseIncludedServices(leistungRes.data.included_services) : null;
+      return services ? { included_services: services } : undefined;
+    })(),
   });
 
   let agbPdfBase64: string | null = null;
@@ -146,11 +168,15 @@ export const buildOfferEmailAttachments = async (
 
   if (leadData?.service_type) {
     const normalizedType = normalizeServiceTypeForAgb(leadData.service_type);
+    // Document (customer) language, derived once — the AGB and checklist attachments both
+    // render their chrome (and, for AGB, their section text) in it.
+    const documentLocale = resolveDocumentLocale(offerData, companyData);
 
     const [agbRes, checklistRes] = await Promise.all([
       supabase
         .from("agb_sections")
-        .select("id, title, content, display_order")
+        // `translations` is needed to resolve title/content to the document language below.
+        .select("id, title, content, display_order, translations")
         .eq("company_id", companyId)
         .eq("service_type", normalizedType)
         .eq("is_active", true)
@@ -166,24 +192,35 @@ export const buildOfferEmailAttachments = async (
     ]);
 
     if (agbRes.data && agbRes.data.length > 0) {
-      // AGB-Chrome (Titel/Untertitel) in der Kundensprache. Die Abschnittstexte selbst
-      // kommen aus agb_sections und sind DB-Inhalt — sie folgen der `translations`-Spalte,
-      // nicht diesem Argument.
+      // AGB is legal content the customer accepts — resolve title AND content to the document
+      // language (German base fallback), exactly like the public RPC and firma download, so the
+      // FR/EN customer never receives a German AGB. Fail closed on malformed sections rather than
+      // e-mailing wrong/partial terms; raw data is not logged. Chrome (title/subtitle) follows
+      // the same locale inside generateAgbPdfBase64.
+      const localizedAgb = localizeOfferAgbSections(agbRes.data, documentLocale);
+      const parsedAgb = parseOfferAgbSections(localizedAgb);
+      if (!parsedAgb.ok) {
+        throw new Error("Offer AGB sections for email attachment are malformed.");
+      }
       agbPdfBase64 = await generateAgbPdfBase64(
-        agbRes.data,
+        parsedAgb.value,
         companyData.company_name,
-        resolveDocumentLocale(offerData, companyData)
+        documentLocale
       );
     }
 
-    if (checklistRes.data?.sections && Array.isArray(checklistRes.data.sections) && checklistRes.data.sections.length > 0) {
+    // Optional attachment: only build the checklist PDF when its stored sections parse into
+    // valid ChecklistSection[]. null/empty/malformed → no attachment; the offer email proceeds.
+    const checklistData = checklistRes.data;
+    const parsedSections = checklistData ? parseChecklistSections(checklistData.sections) : null;
+    if (checklistData && parsedSections) {
       try {
         checklistPdfBase64 = await getChecklistPdfBase64({
-          title: checklistRes.data.title,
-          subtitle: checklistRes.data.subtitle ?? undefined,
-          sections: checklistRes.data.sections as Parameters<typeof getChecklistPdfBase64>[0]["sections"],
+          title: checklistData.title,
+          subtitle: checklistData.subtitle ?? undefined,
+          sections: parsedSections,
           // Chrome of the checklist PDF follows the customer's language (the offer's).
-          locale: resolveDocumentLocale(offerData, companyData),
+          locale: documentLocale,
           company: {
             company_name: companyData.company_name,
             street: companyData.street ?? undefined,

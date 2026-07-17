@@ -42,6 +42,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatCHF } from '@/lib/utils';
+import { validateExtraServices } from '@/lib/auftragSnapshot';
 
 // =============================================================================
 // Types
@@ -182,10 +183,22 @@ export function SahaExtrasModal({
 
       if (error) throw error;
 
-      setAuftrag(data);
-      const loadedExtras = data.extra_services || [];
-      setExtras(loadedExtras);
-      setInitialExtras(JSON.parse(JSON.stringify(loadedExtras))); // Deep clone for comparison
+      // Fail closed: validate the extra_services JSON at the load boundary. Malformed
+      // data must not open the modal with a wrong/empty list the user could then save
+      // over the real (corrupt) data. null/undefined is a valid "no extras" → [].
+      const parsedExtras = validateExtraServices(data.extra_services);
+      if (!parsedExtras.ok) {
+        toast({
+          title: 'Fehler',
+          description: 'Die Saha-Extras enthalten ungültige Daten und wurden nicht geladen.',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+      setAuftrag({ ...data, extra_services: parsedExtras.value });
+      setExtras(parsedExtras.value);
+      setInitialExtras(structuredClone(parsedExtras.value)); // Deep clone for comparison
       setHasUnsavedChanges(false);
     } catch (error) {
       if (signal.aborted) return;

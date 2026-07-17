@@ -1,10 +1,49 @@
 // Pre-built checklist templates for different service types
+import type { Json } from "@/integrations/supabase/types";
 
 export interface ChecklistSection {
   id: string;
   timeline: string;
   items: string[];
   order: number;
+}
+
+const isChecklistRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Read boundary — the inverse of `checklistSectionsToJson`. Narrows a raw `Json` sections
+ * value into `ChecklistSection[]`, or `null` when it is absent/empty OR malformed (both mean
+ * "no checklist attachment"). Fail-closed: a non-array, or ANY malformed section, yields null
+ * — never a silent `[]` or a partially-filtered list. Fresh objects; input not mutated.
+ */
+export function parseChecklistSections(raw: unknown): ChecklistSection[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out: ChecklistSection[] = [];
+  for (const s of raw) {
+    if (!isChecklistRecord(s)) return null;
+    if (typeof s.id !== "string" || typeof s.timeline !== "string") return null;
+    if (!Array.isArray(s.items) || !s.items.every((i): i is string => typeof i === "string")) return null;
+    if (typeof s.order !== "number" || !Number.isFinite(s.order)) return null;
+    out.push({ id: s.id, timeline: s.timeline, items: [...s.items], order: s.order });
+  }
+  return out;
+}
+
+/**
+ * Serialize the domain `ChecklistSection[]` into the `checklist_templates.sections` JSONB
+ * column shape without a cast. Each section becomes a fresh anonymous literal carrying only
+ * the canonical keys (id, timeline, items, order); `items` is a fresh copy. Section and item
+ * order are preserved, values are unchanged, and the input is not mutated. `order` is always
+ * an internal finite index (see getEmptySection / reorder), so no per-value guard is needed.
+ */
+export function checklistSectionsToJson(sections: ChecklistSection[]): Json {
+  return sections.map((section): Json => ({
+    id: section.id,
+    timeline: section.timeline,
+    items: [...section.items],
+    order: section.order,
+  }));
 }
 
 export interface ChecklistTemplate {

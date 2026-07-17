@@ -1,5 +1,6 @@
 import {
   OfferData as PdfOfferData,
+  OfferAgbSection,
   OfferItemEffortMeta,
   OfferItemVolumeMeta,
   OfferItemAreaMeta,
@@ -9,6 +10,7 @@ import {
 import { computeDisplayTotals, offerHasRateItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
 import { resolveDocumentLocale } from "@/i18n/documentLocale";
 import { normalizeServiceKey } from "@/i18n/domain";
+import { localizeStandardPaymentTerms } from "@/lib/offerPaymentTerms";
 
 export interface LegacyOfferData {
   id: string;
@@ -56,6 +58,11 @@ export interface LegacyOfferData {
   // ── Data-bridge P1a (Katman 3/4, offer-level) — carried, not yet mapped/rendered ──
   customer_number?: string | null;
   discount_percent?: number | null;
+  /**
+   * AGB sections, already validated (parseOfferAgbSections) AND resolved to the document
+   * language by the caller. Carried verbatim into PdfOfferData. undefined/null/[] → no AGB.
+   */
+  agbSections?: OfferAgbSection[] | null;
 }
 
 export interface LegacyOfferItem {
@@ -245,6 +252,7 @@ const mapAddress = (addr?: LegacyAddress): PdfOfferData["addresses"]["from"] | u
 };
 
 export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): PdfOfferData => {
+  const documentLocale = resolveDocumentLocale(offer, offer.company);
   // Use the real sequential offer_number from DB if available, fallback to UUID prefix
   const offerNumber = offer.offer_number
     ? String(offer.offer_number)
@@ -290,7 +298,7 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
 
   return {
     // The customer's language — offers.language, else companies.default_language, else 'de'.
-    locale: resolveDocumentLocale(offer, offer.company),
+    locale: documentLocale,
     company: {
       name: offer.company.company_name,
       logo: offer.company.logo_url,
@@ -395,7 +403,8 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       const resources = extractResourcesFromItems(offer.items);
       return applyResourcestoIncludedServices(rawServices, resources);
     })(),
-    paymentTerms: offer.payment_terms ?? null,
+    // Translate only known system defaults. Bespoke company wording remains verbatim.
+    paymentTerms: localizeStandardPaymentTerms(offer.payment_terms, documentLocale),
     acceptanceUrl,
     qrCodeUrl,
     briefLayout: offer.brief_layout ?? false,
@@ -406,5 +415,7 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
     // ── Data-bridge P1b (offer-level) — carried, NOT yet rendered ──
     customerNumber: offer.customer_number ?? null,
     discountPercent: offer.discount_percent ?? null,
+    // Valid AGB sections preserved 1:1 (already validated + language-resolved upstream).
+    agbSections: offer.agbSections ?? null,
   };
 };

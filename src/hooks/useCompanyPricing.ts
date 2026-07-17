@@ -22,8 +22,13 @@ import {
   DEFAULT_PRICING_CONFIG,
   PRICING_TEMPLATES,
   validatePricingConfig,
-  compareToMarketStandard 
+  compareToMarketStandard
 } from '@/components/offers/moving-calculator';
+import {
+  mergePricingConfig,
+  type PricingConfigPatch,
+} from '@/components/offers/moving-calculator/pricingMerge';
+import { serializePricingConfig } from '@/components/offers/moving-calculator/pricingSerialize';
 
 // =============================================================================
 // Constants
@@ -42,6 +47,19 @@ const TeamRateSchema = z.object({
   workers: z.number().int().min(1).max(20),
   hourlyRate: z.number().min(0).max(10000),
   label: z.string().optional(),
+});
+
+/**
+ * Rebuild a validated zod result into the domain `TeamRate`. `TeamRateSchema` validates
+ * the values (ints, ranges), but under this project's tsconfig `strict:false` zod's
+ * inferred output types every field as optional. This copies the already-validated
+ * values into an explicit TeamRate — no cast, no defaulting, no revalidation loss.
+ */
+const toTeamRate = (r: z.infer<typeof TeamRateSchema>): TeamRate => ({
+  trucks: r.trucks,
+  workers: r.workers,
+  hourlyRate: r.hourlyRate,
+  label: r.label,
 });
 
 const DbPricingConfigSchema = z.object({
@@ -109,7 +127,7 @@ interface UseCompanyPricingReturn {
   updateTeamRate: (index: number, rate: Partial<TeamRate>) => void;
   addTeamRate: () => void;
   removeTeamRate: (index: number) => void;
-  updateConfig: (partial: Partial<PricingConfig>) => void;
+  updateConfig: (patch: PricingConfigPatch) => void;
   
   // Track changes
   hasUnsavedChanges: boolean;
@@ -550,17 +568,31 @@ export function useCompanyPricing(): UseCompanyPricingReturn {
       return true;
     }
     
+    // Fail closed: serialize BEFORE touching the DB. A config with a non-finite value
+    // (NaN/Infinity) never reaches the RPC — no upsert, no audit-log row, draft/original
+    // config untouched. Valid configs serialize to exactly the same field/value payload.
+    const serialized = serializePricingConfig(config);
+    if (!serialized.ok) {
+      setError('Ungültige Preiskonfiguration – nicht gespeichert.');
+      toast({
+        title: 'Fehler',
+        description: 'Die Preiskonfiguration enthält ungültige Werte und wurde nicht gespeichert.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
     setIsSaving(true);
     setError(null);
     setLastSaveTime(now);
     setSaveCountdown(SAVE_RATE_LIMIT_MS);
-    
+
     try {
       const { data: user } = await supabase.auth.getUser();
-      
+
       const { error: rpcError } = await supabase.rpc('upsert_company_pricing_config', {
         p_company_id: companyId,
-        p_config: mapConfigToDb(config),
+        p_config: serialized.value,
         p_user_id: user?.user?.id || null
       });
       
@@ -644,11 +676,10 @@ export function useCompanyPricing(): UseCompanyPricingReturn {
         return prev;
       }
       
+      const validated = toTeamRate(parseResult.data);
       return {
         ...prev,
-        teamRates: prev.teamRates.map((r, i) => 
-          i === index ? parseResult.data : r
-        ),
+        teamRates: prev.teamRates.map((r, i) => (i === index ? validated : r)),
       };
     });
   }, []);
@@ -711,30 +742,11 @@ export function useCompanyPricing(): UseCompanyPricingReturn {
   /**
    * Update config with partial values (with safe merging)
    */
-  const updateConfig = useCallback((partial: Partial<PricingConfig>) => {
-    setPricingConfig(prev => {
-      const merged = { ...prev };
-      
-      for (const [key, value] of Object.entries(partial)) {
-        if (value === undefined) continue;
-        
-        if (key === 'surcharges' && typeof value === 'object') {
-          merged.surcharges = { ...DEFAULT_PRICING_CONFIG.surcharges, ...prev.surcharges, ...value };
-        } else if (key === 'floorSurcharges' && typeof value === 'object') {
-          merged.floorSurcharges = { ...DEFAULT_PRICING_CONFIG.floorSurcharges, ...prev.floorSurcharges, ...value };
-        } else if (key === 'equipment' && typeof value === 'object') {
-          merged.equipment = { ...DEFAULT_PRICING_CONFIG.equipment, ...prev.equipment, ...value };
-        } else if (key === 'multipliers' && typeof value === 'object') {
-          merged.multipliers = { ...DEFAULT_PRICING_CONFIG.multipliers, ...prev.multipliers, ...value };
-        } else if (key === 'vehiclePrices' && typeof value === 'object') {
-          merged.vehiclePrices = { ...DEFAULT_PRICING_CONFIG.vehiclePrices, ...prev.vehiclePrices, ...value };
-        } else {
-          (merged as Record<string, unknown>)[key] = value;
-        }
-      }
-      
-      return merged;
-    });
+  const updateConfig = useCallback((patch: PricingConfigPatch) => {
+    // Same functional-setState + deep-merge behaviour as before, now in a pure, tested
+    // helper. Precedence (DEFAULT → previous → patch) and the deep-merged group allowlist
+    // are unchanged, so sibling fields are preserved exactly as before.
+    setPricingConfig(prev => mergePricingConfig(prev, patch));
   }, []);
   
   return {
@@ -776,7 +788,7 @@ function mapDbToConfig(db: DbPricingConfig): PricingConfig {
     vatRate: db.vatRate ?? 8.1,
     minimumHours: db.minimumHours ?? 4,
     minimumCharge: db.minimumCharge ?? 480,
-    teamRates: db.teamRates || DEFAULT_PRICING_CONFIG.teamRates,
+    teamRates: (db.teamRates || DEFAULT_PRICING_CONFIG.teamRates).map(toTeamRate),
     hourlyRate: db.hourlyRate ?? 60,
     vehiclePrices: {
       transporter: db.vehiclePrices?.transporter ?? 80,
@@ -816,29 +828,6 @@ function mapDbToConfig(db: DbPricingConfig): PricingConfig {
       holiday: db.multipliers?.holiday ?? 1.50,
       express: db.multipliers?.express ?? 1.30,
     },
-  };
-}
-
-function mapConfigToDb(config: PricingConfig): Record<string, unknown> {
-  return {
-    currency: config.currency,
-    vatRate: config.vatRate,
-    minimumHours: config.minimumHours,
-    minimumCharge: config.minimumCharge,
-    teamRates: config.teamRates,
-    hourlyRate: config.hourlyRate,
-    vehiclePrices: config.vehiclePrices,
-    distanceSurchargeRate: config.distanceSurchargeRate,
-    distanceSurchargeThreshold: config.distanceSurchargeThreshold,
-    surcharges: config.surcharges,
-    floorSurcharges: config.floorSurcharges,
-    equipment: config.equipment,
-    packingServiceRate: config.packingServiceRate,
-    externalLiftCost: config.externalLiftCost,
-    disposalCost: config.disposalCost,
-    pianoTransportCost: config.pianoTransportCost,
-    storageCostPerM3: config.storageCostPerM3,
-    multipliers: config.multipliers,
   };
 }
 
