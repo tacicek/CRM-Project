@@ -18,6 +18,7 @@ import type {
   OfferItemVolumeMeta,
   OfferItemAreaMeta,
 } from "@/components/pdf/types/offer.types";
+import type { Json } from "@/integrations/supabase/types";
 
 export type ServiceMetaKind = "effort" | "area" | "volume";
 
@@ -115,6 +116,26 @@ export const buildMetaPayload = (
   return {
     volume_meta: { rate, rate_unit: draft.rateUnit, volume_m3 },
   };
+};
+
+/**
+ * Re-materialize a `buildMetaPayload` result as JSON-safe values for the `replace_offer_items`
+ * payload. The meta objects are named interfaces (not assignable to `Json`); this rebuilds each
+ * present meta with fresh literals carrying only the persisted keys buildMetaPayload emits.
+ * `?? null` only removes the interface's optional `undefined` (buildMetaPayload never emits it),
+ * so no real value is changed. Pure; no cast; input not mutated.
+ */
+export const metaPayloadToJson = (
+  payload: { effort_meta?: OfferItemEffortMeta; area_meta?: OfferItemAreaMeta; volume_meta?: OfferItemVolumeMeta },
+): { effort_meta?: Json; area_meta?: Json; volume_meta?: Json } => {
+  const out: { effort_meta?: Json; area_meta?: Json; volume_meta?: Json } = {};
+  const e = payload.effort_meta;
+  if (e) out.effort_meta = { crew: e.crew ?? null, vehicles: e.vehicles ?? null, vehicle_type: e.vehicle_type ?? null, hourly_rate: e.hourly_rate ?? null };
+  const a = payload.area_meta;
+  if (a) out.area_meta = { object_type: a.object_type ?? null, area_m2: a.area_m2 ?? null, abnahmegarantie: a.abnahmegarantie ?? null };
+  const v = payload.volume_meta;
+  if (v) out.volume_meta = { rate: v.rate ?? null, rate_unit: v.rate_unit ?? null, volume_m3: v.volume_m3 ?? null };
+  return out;
 };
 
 /** Seed a form draft from the loaded (embedded) meta rows — for the edit page. */

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Building2, Lock, Loader2, Eye, EyeOff, CheckCircle } from "lucide-react";
-import { validateResetPasswordForm } from "@/lib/authUtils";
+import { validateResetPasswordForm, type ResetPasswordErrors } from "@/lib/authUtils";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -15,7 +15,7 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<ResetPasswordErrors>({});
 
   const { toast } = useToast();
   const navigate = useNavigate();

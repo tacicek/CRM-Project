@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
-import type { Quittung } from "@/types/quittung.types";
+import { mapQuittungRow, type Quittung } from "@/types/quittung.types";
 
 export type QuittungUpdate = Database["public"]["Tables"]["quittungen"]["Update"];
 
@@ -34,8 +34,27 @@ export const useQuittungen = (companyId: string | undefined) => {
       setError(error.message);
       toast({ title: "Fehler beim Laden", description: error.message, variant: "destructive" });
     } else {
+      // Fail closed: map each DB row through the validated view-model. `status` is
+      // CHECK-constrained and `positionen` is NOT NULL, so an unmappable row signals data
+      // corruption / schema drift — surface it rather than render a wrong list. No silent
+      // filtering (rule) and no empty-list coercion.
+      const mapped: Quittung[] = [];
+      for (const row of data ?? []) {
+        const result = mapQuittungRow(row);
+        if (!result.ok) {
+          setError("Quittungsdaten konnten nicht validiert werden.");
+          toast({
+            title: "Fehler beim Laden",
+            description: "Ein Quittungs-Datensatz ist ungültig und wurde nicht geladen.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+        mapped.push(result.value);
+      }
       setError(null);
-      setQuittungen(data ?? []);
+      setQuittungen(mapped);
     }
     setLoading(false);
   }, [companyId, toast]);
@@ -56,8 +75,13 @@ export const useQuittungen = (companyId: string | undefined) => {
         toast({ title: "Fehler", description: error?.message, variant: "destructive" });
         return null;
       }
-      setQuittungen((prev) => prev.map((q) => (q.id === id ? data : q)));
-      return data;
+      const result = mapQuittungRow(data);
+      if (!result.ok) {
+        toast({ title: "Fehler", description: "Die gespeicherte Quittung ist ungültig.", variant: "destructive" });
+        return null;
+      }
+      setQuittungen((prev) => prev.map((q) => (q.id === id ? result.value : q)));
+      return result.value;
     },
     [toast],
   );

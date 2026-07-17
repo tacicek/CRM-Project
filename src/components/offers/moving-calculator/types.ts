@@ -143,7 +143,8 @@ export interface TimeMultipliers {
 // Complete pricing configuration
 export interface PricingConfig {
   // Basic settings
-  currency: 'CHF';
+  // DB CHECK + Zod both accept CHF|EUR; the type reflects that honestly (default stays CHF).
+  currency: "CHF" | "EUR";
   vatRate: number; // Swiss VAT (e.g., 8.1)
   minimumHours: number; // Minimum billable hours (e.g., 4)
   minimumCharge: number; // Minimum total charge

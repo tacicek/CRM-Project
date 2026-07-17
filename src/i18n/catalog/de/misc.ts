@@ -200,6 +200,7 @@ export const misc = {
   "boxes.table.returned": "Zurückgegeben",
 
   "boxes.count": "Boxen",
+  "boxes.snapshot.invalid": "Ungültige Boxdaten",
   "boxes.count#one": "Box",
   "boxes.count#other": "Boxen",
   "boxes.overdueDays": "{count} Tage überfällig",

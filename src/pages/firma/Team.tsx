@@ -486,7 +486,7 @@ const TeamPage = () => {
                                       borderColor: `${member.color_code}20`
                                     }}
                                   >
-                                    {getRoleLabel(member.role)}
+                                    {getRoleLabel(member.role, locale)}
                                   </Badge>
                                 </div>
                               )}

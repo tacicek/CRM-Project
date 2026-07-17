@@ -1,5 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/** A JSON object — lets the email match read `email`/`notification_email` off a generic row
+ * without casting `T` to an index-signature type. */
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
 /**
  * Returns all companies a user belongs to via the company_members table.
  * Replaces the old "one company per user" assumption.
@@ -45,12 +50,13 @@ export async function fetchFirstCompanyForUser<T>(params: {
 
   if (!companies.length) return null;
 
-  // If user has an email, prefer the one whose email matches
+  // If user has an email, prefer the one whose email matches. The guard narrows the generic
+  // row to an object so we can read the optional email fields without casting.
   if (params.userEmail) {
-    const match = companies.find((c: Record<string, unknown>) =>
-      c.email === params.userEmail || c.notification_email === params.userEmail
+    const match = companies.find(
+      (c) => isRecord(c) && (c.email === params.userEmail || c.notification_email === params.userEmail),
     );
-    if (match) return match as T;
+    if (match) return match;
   }
 
   return companies[0];

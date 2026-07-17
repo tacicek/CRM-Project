@@ -16,7 +16,10 @@ import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useRechnungen, rechnungToPdfData, type Rechnung } from "@/hooks/useRechnungen";
-import { downloadRechnungPdf, type RechnungCompany } from "@/lib/generateRechnungPdf";
+// downloadRechnungPdf is loaded on demand (see handler) so the @react-pdf + QR engine
+// (~1 MB) is not pulled into the Rechnungen list route just to view invoices. The type
+// import is erased at build time and costs nothing.
+import { type RechnungCompany } from "@/lib/generateRechnungPdf";
 import { logoToBase64 } from "@/lib/logoToBase64";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -106,6 +109,7 @@ export default function FirmaRechnungen() {
     setDownloadingId(r.id);
     try {
       const logo = c?.logo_url ? await logoToBase64(c.logo_url) : null;
+      const { downloadRechnungPdf } = await import("@/lib/generateRechnungPdf");
       await downloadRechnungPdf(rechnungToPdfData(r, pdfCompany), logo);
     } catch (e) {
       toast({ title: "PDF-Fehler", description: (e as Error).message, variant: "destructive" });

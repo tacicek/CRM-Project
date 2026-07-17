@@ -8,6 +8,9 @@ import { de, fr, enGB } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type AppointmentUpdate = Database["public"]["Tables"]["appointments"]["Update"];
 import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { Button } from "@/components/ui/button";
 import {
@@ -504,7 +507,7 @@ const KalenderPage = () => {
 
   const handleCancelAppointment = async (id: string, scope: "single" | "series" = "single") => {
     try {
-      const patch = {
+      const patch: AppointmentUpdate = {
         status: "cancelled",
         cancelled_by: "firma",
         cancelled_at: new Date().toISOString(),

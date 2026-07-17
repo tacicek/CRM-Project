@@ -60,7 +60,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
-import { UmzugsboxModal, UmzugsboxRental } from "@/components/firma/UmzugsboxModal";
+import { UmzugsboxModal } from "@/components/firma/UmzugsboxModal";
+import {
+  mapUmzugsboxRentalRow,
+  type UmzugsboxRental,
+  type UmzugsboxRentalBase,
+  type UmzugsboxRentalEntry,
+} from "@/lib/umzugsboxItems";
 import { generateBoxRentalPdf } from "@/lib/generateBoxRentalPdf";
 import { resolveDocumentLocale } from "@/i18n/documentLocale";
 import { useI18n, useT } from "@/i18n/useI18n";
@@ -90,6 +96,10 @@ interface TeamMember {
 }
 
 // Helper function to calculate total box quantity from box_items
+/** The safe scalar/relation row present on BOTH entry variants (box_items excluded). */
+const rentalRow = (entry: UmzugsboxRentalEntry): UmzugsboxRentalBase =>
+  entry.kind === "valid" ? entry.rental : entry.row;
+
 const getTotalBoxQuantity = (rental: UmzugsboxRental): number => {
   if (rental.box_items && Array.isArray(rental.box_items)) {
     return rental.box_items.reduce((sum, item) => sum + (item.quantity || 0), 0);
@@ -158,12 +168,21 @@ const statusOptions: StatusOption[] = [
   { value: "damaged", color: "bg-red-300", textColor: "text-red-700" },
 ];
 
+// The status Select carries real box statuses plus two UI-only sentinels (not DB values).
+type BoxStatusFilter = BoxStatus | "active" | "all";
+
+const isBoxStatus = (value: string): value is BoxStatus =>
+  statusOptions.some((o) => o.value === value);
+
+const isBoxStatusFilter = (value: string): value is BoxStatusFilter =>
+  value === "active" || value === "all" || isBoxStatus(value);
+
 export default function Umzugsboxen() {
   const { company } = useCachedCompany();
   const t = useT();
   const { dateLocale } = useI18n();
-  const [rentals, setRentals] = useState<UmzugsboxRental[]>([]);
-  const [historyRentals, setHistoryRentals] = useState<UmzugsboxRental[]>([]); // FIX: Separate state for history
+  const [rentals, setRentals] = useState<UmzugsboxRentalEntry[]>([]);
+  const [historyRentals, setHistoryRentals] = useState<UmzugsboxRentalEntry[]>([]); // FIX: Separate state for history
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [stats, setStats] = useState<BoxStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -174,7 +193,7 @@ export default function Umzugsboxen() {
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [statusFilter, setStatusFilter] = useState<BoxStatusFilter>("active");
   const [activeTab, setActiveTab] = useState("overview");
 
   const fetchData = useCallback(async () => {
@@ -200,7 +219,9 @@ export default function Umzugsboxen() {
       const { data: rentalsData, error: rentalsError } = await query;
 
       if (rentalsError) throw rentalsError;
-      setRentals(rentalsData as UmzugsboxRental[] || []);
+      // Validate each row through the snapshot mapper (no cast). A malformed box_items snapshot
+      // becomes an invalid_snapshot entry — still listed, but its JSON-dependent actions gate off.
+      setRentals((rentalsData ?? []).map(mapUmzugsboxRentalRow));
 
       // FIX: Fetch history rentals separately (returned, lost, damaged)
       const { data: historyData, error: historyError } = await supabase
@@ -213,7 +234,7 @@ export default function Umzugsboxen() {
         .limit(50); // Limit history to recent 50 entries
 
       if (!historyError && historyData) {
-        setHistoryRentals(historyData as UmzugsboxRental[]);
+        setHistoryRentals(historyData.map(mapUmzugsboxRentalRow));
       }
 
       // Fetch team members
@@ -248,18 +269,21 @@ export default function Umzugsboxen() {
   const filteredRentals = useMemo(() => {
     if (!searchTerm) return rentals;
     const term = searchTerm.toLowerCase();
-    return rentals.filter(
-      (r) =>
+    return rentals.filter((entry) => {
+      const r = rentalRow(entry);
+      return (
         r.customer_first_name.toLowerCase().includes(term) ||
         r.customer_last_name.toLowerCase().includes(term) ||
         r.delivery_city?.toLowerCase().includes(term) ||
         r.customer_phone?.includes(term)
-    );
+      );
+    });
   }, [rentals, searchTerm]);
 
   // Urgent rentals (overdue or due today)
   const urgentRentals = useMemo(() => {
-    return rentals.filter((r) => {
+    return rentals.filter((entry) => {
+      const r = rentalRow(entry);
       if (!r.expected_return_date) return false;
       if (["returned", "lost", "damaged"].includes(r.status)) return false;
       const daysUntil = differenceInDays(new Date(r.expected_return_date), new Date());
@@ -269,7 +293,8 @@ export default function Umzugsboxen() {
 
   // Due this week
   const dueThisWeek = useMemo(() => {
-    return rentals.filter((r) => {
+    return rentals.filter((entry) => {
+      const r = rentalRow(entry);
       if (!r.expected_return_date) return false;
       if (["returned", "lost", "damaged"].includes(r.status)) return false;
       const daysUntil = differenceInDays(new Date(r.expected_return_date), new Date());
@@ -287,7 +312,7 @@ export default function Umzugsboxen() {
     );
   };
 
-  const getUrgencyIndicator = (rental: UmzugsboxRental) => {
+  const getUrgencyIndicator = (rental: UmzugsboxRentalBase) => {
     if (!rental.expected_return_date) return null;
     if (["returned", "lost", "damaged"].includes(rental.status)) return null;
 
@@ -523,7 +548,10 @@ export default function Umzugsboxen() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {urgentRentals.slice(0, 5).map((rental) => (
+                {urgentRentals.slice(0, 5).map((entry) => {
+                  const rental = rentalRow(entry);
+                  const valid = entry.kind === "valid" ? entry.rental : null;
+                  return (
                   <div
                     key={rental.id}
                     className="flex flex-col gap-3 p-3 bg-white rounded-lg border border-red-200 sm:flex-row sm:items-center sm:justify-between"
@@ -534,9 +562,14 @@ export default function Umzugsboxen() {
                           {rental.customer_first_name} {rental.customer_last_name}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {getTotalBoxQuantity(rental)}{" "}
-                          {t("boxes.count", { count: getTotalBoxQuantity(rental) })} •{" "}
-                          {rental.delivery_city}
+                          {valid ? (
+                            <>{getTotalBoxQuantity(valid)} {t("boxes.count", { count: getTotalBoxQuantity(valid) })}</>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-red-600 font-medium">
+                              <AlertTriangle className="w-3 h-3" />{t("boxes.snapshot.invalid")}
+                            </span>
+                          )}{" "}
+                          • {rental.delivery_city}
                         </p>
                         <div className="mt-1">{getUrgencyIndicator(rental)}</div>
                       </div>
@@ -549,7 +582,7 @@ export default function Umzugsboxen() {
                           </a>
                         </Button>
                       )}
-                      <Button variant="outline" size="sm" onClick={() => handleEdit(rental)}>
+                      <Button variant="outline" size="sm" disabled={!valid} onClick={() => valid && handleEdit(valid)}>
                         {t("common.edit")}
                       </Button>
                       <Button
@@ -560,7 +593,8 @@ export default function Umzugsboxen() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -597,7 +631,7 @@ export default function Umzugsboxen() {
                       />
                     </div>
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <Select value={statusFilter} onValueChange={(v) => { if (isBoxStatusFilter(v)) setStatusFilter(v); }}>
                     <SelectTrigger className="w-48">
                       <Filter className="w-4 h-4 mr-2" />
                       <SelectValue />
@@ -650,7 +684,10 @@ export default function Umzugsboxen() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredRentals.map((rental) => (
+                      filteredRentals.map((entry) => {
+                        const rental = rentalRow(entry);
+                        const valid = entry.kind === "valid" ? entry.rental : null;
+                        return (
                         <TableRow key={rental.id} className="hover:bg-muted/50">
                           <TableCell>
                             <div>
@@ -668,15 +705,21 @@ export default function Umzugsboxen() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <Package className="w-4 h-4 text-muted-foreground" />
-                                <span className="font-medium">{getTotalBoxQuantity(rental)}</span>
+                            {valid ? (
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                  <Package className="w-4 h-4 text-muted-foreground" />
+                                  <span className="font-medium">{getTotalBoxQuantity(valid)}</span>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatBoxItems(valid, t)}
+                                </span>
                               </div>
-                              <span className="text-xs text-muted-foreground">
-                                {formatBoxItems(rental, t)}
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-red-600 text-xs font-medium">
+                                <AlertTriangle className="w-4 h-4" />{t("boxes.snapshot.invalid")}
                               </span>
-                            </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 text-sm">
@@ -709,11 +752,11 @@ export default function Umzugsboxen() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleEdit(rental)}>
+                                <DropdownMenuItem disabled={!valid} onClick={() => valid && handleEdit(valid)}>
                                   <Edit className="w-4 h-4 mr-2" />
                                   {t("common.edit")}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDownloadPdf(rental)}>
+                                <DropdownMenuItem disabled={!valid} onClick={() => valid && handleDownloadPdf(valid)}>
                                   <FileDown className="w-4 h-4 mr-2" />
                                   {t("boxes.action.downloadPdf")}
                                 </DropdownMenuItem>
@@ -741,7 +784,8 @@ export default function Umzugsboxen() {
                             </DropdownMenu>
                           </TableCell>
                         </TableRow>
-                      ))
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -765,7 +809,10 @@ export default function Umzugsboxen() {
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {dueThisWeek.map((rental) => (
+                    {dueThisWeek.map((entry) => {
+                      const rental = rentalRow(entry);
+                      const valid = entry.kind === "valid" ? entry.rental : null;
+                      return (
                       <div
                         key={rental.id}
                         className="flex flex-col gap-3 p-4 bg-muted/50 rounded-lg sm:flex-row sm:items-center sm:justify-between"
@@ -779,9 +826,14 @@ export default function Umzugsboxen() {
                               {rental.customer_first_name} {rental.customer_last_name}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {getTotalBoxQuantity(rental)}{" "}
-                              {t("boxes.count", { count: getTotalBoxQuantity(rental) })} •{" "}
-                              {rental.delivery_city}
+                              {valid ? (
+                                <>{getTotalBoxQuantity(valid)} {t("boxes.count", { count: getTotalBoxQuantity(valid) })}</>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-red-600 font-medium">
+                                  <AlertTriangle className="w-3 h-3" />{t("boxes.snapshot.invalid")}
+                                </span>
+                              )}{" "}
+                              • {rental.delivery_city}
                             </p>
                           </div>
                         </div>
@@ -813,13 +865,14 @@ export default function Umzugsboxen() {
                                 </a>
                               </Button>
                             )}
-                            <Button onClick={() => handleEdit(rental)}>
+                            <Button disabled={!valid} onClick={() => valid && handleEdit(valid)}>
                               {t("common.edit")}
                             </Button>
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -854,16 +907,25 @@ export default function Umzugsboxen() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      historyRentals.map((rental) => (
+                      historyRentals.map((entry) => {
+                        const rental = rentalRow(entry);
+                        const valid = entry.kind === "valid" ? entry.rental : null;
+                        return (
                         <TableRow key={rental.id}>
                           <TableCell>
                             {rental.customer_first_name} {rental.customer_last_name}
                           </TableCell>
                           <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{getTotalBoxQuantity(rental)}</span>
-                              <span className="text-xs text-muted-foreground">{formatBoxItems(rental, t)}</span>
-                            </div>
+                            {valid ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium">{getTotalBoxQuantity(valid)}</span>
+                                <span className="text-xs text-muted-foreground">{formatBoxItems(valid, t)}</span>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-red-600 text-xs font-medium">
+                                <AlertTriangle className="w-4 h-4" />{t("boxes.snapshot.invalid")}
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell>
                             {format(new Date(rental.delivery_date), "dd.MM.yyyy", { locale: dateLocale })}
@@ -875,7 +937,8 @@ export default function Umzugsboxen() {
                           </TableCell>
                           <TableCell>{getStatusBadge(rental.status)}</TableCell>
                         </TableRow>
-                      ))
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>

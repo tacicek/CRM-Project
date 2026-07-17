@@ -9,6 +9,8 @@
  * so the GENERATED vat_amount (= subtotal*vat_rate/100) and total stay correct.
  */
 
+import type { Json } from "@/integrations/supabase/types";
+
 export type SurchargeType = "percent" | "fixed" | "per_km";
 
 export interface OfferSurcharge {
@@ -73,6 +75,19 @@ export const withComputedAmounts = (
     amount: computeSurchargeAmount(s, itemsSubtotal, distanceKm),
   }));
 
+/**
+ * OfferSurcharge[] → DB jsonb `Json` (write boundary). Fresh anonymous literals carrying only
+ * the persisted keys; values/order unchanged, input not mutated, no cast. The named
+ * `OfferSurcharge[]` is not itself assignable to `Json`, so this re-materialises it.
+ */
+export const surchargesToJson = (surcharges: OfferSurcharge[]): Json =>
+  surcharges.map((s): Json => ({
+    label: s.label,
+    type: s.type,
+    value: s.value,
+    amount: s.amount,
+  }));
+
 /** DB jsonb → OfferSurcharge[] (safe boundary conversion, for read surfaces). */
 export const parseSurcharges = (raw: unknown): OfferSurcharge[] => {
   if (!Array.isArray(raw)) return [];
@@ -80,6 +95,39 @@ export const parseSurcharges = (raw: unknown): OfferSurcharge[] => {
     (s): s is OfferSurcharge =>
       !!s && typeof s === "object" && typeof (s as OfferSurcharge).label === "string",
   );
+};
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+const isValidSurcharge = (s: unknown): s is OfferSurcharge =>
+  isRecord(s) &&
+  typeof s.label === "string" &&
+  (s.type === "percent" || s.type === "fixed" || s.type === "per_km") &&
+  typeof s.value === "number" &&
+  Number.isFinite(s.value) &&
+  typeof s.amount === "number" &&
+  Number.isFinite(s.amount);
+
+export type SurchargesResult = { ok: true; value: OfferSurcharge[] } | { ok: false };
+
+/**
+ * Fail-closed validation for a DB `surcharges` value at a document (PDF/e-mail) boundary.
+ *
+ *   null / undefined  → { ok: true, value: [] }   valid "no surcharges" (distinct from bad data)
+ *   array, all valid  → { ok: true, value }
+ *   non-array OR any malformed item → { ok: false }
+ *
+ * Unlike `parseSurcharges` — which degrades EVERYTHING (null, garbage, malformed items) to
+ * `[]` for lenient read surfaces — this keeps the malformed-vs-empty distinction so a caller
+ * can refuse to produce a customer document rather than silently drop surcharges (which would
+ * understate the price). Amounts must be finite; no coercion, no mutation.
+ */
+export const validateSurcharges = (raw: unknown): SurchargesResult => {
+  if (raw === null || raw === undefined) return { ok: true, value: [] };
+  if (!Array.isArray(raw)) return { ok: false };
+  const valid = raw.filter(isValidSurcharge);
+  return valid.length === raw.length ? { ok: true, value: valid } : { ok: false };
 };
 
 /** Sum of the stored (snapshot) surcharge amounts. */

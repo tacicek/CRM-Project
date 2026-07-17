@@ -188,7 +188,7 @@ export const BesichtigungAIPanel = ({
                   special_requirements: parsed.special_requirements || [],
                 });
                 // Pre-select all items
-                const allIdxs = new Set(
+                const allIdxs = new Set<number>(
                   (typeof parsed.detected_items === "string"
                     ? JSON.parse(parsed.detected_items)
                     : (parsed.detected_items || [])
@@ -243,7 +243,7 @@ export const BesichtigungAIPanel = ({
           special_items: data.analysis.special_items || [],
           special_requirements: data.analysis.special_requirements || [],
         });
-        const allIdxs = new Set((data.analysis.detected_items || []).map((_: DetectedItem, i: number) => i));
+        const allIdxs = new Set<number>((data.analysis.detected_items || []).map((_: DetectedItem, i: number) => i));
         setSelectedItems(allIdxs);
         setSession(prev => prev ? { ...prev, status: "analyzed" } : null);
         toast.success(t("offer.ai.toast.analysisComplete"));

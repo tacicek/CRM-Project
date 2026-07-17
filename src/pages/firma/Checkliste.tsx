@@ -43,8 +43,12 @@ import {
   CHECKLIST_TEMPLATES,
   getEmptySection,
   cleanSections,
+  checklistSectionsToJson,
   type ChecklistSection,
 } from "@/lib/checklistTemplates";
+import type { Database } from "@/integrations/supabase/types";
+
+type ChecklistTemplateInsert = Database["public"]["Tables"]["checklist_templates"]["Insert"];
 import { downloadChecklistPdf, generateChecklistPdf } from "@/lib/generateChecklistPdf";
 import { resolveDocumentLocale } from "@/i18n/documentLocale";
 import { useI18n, useT } from "@/i18n/useI18n";
@@ -330,12 +334,12 @@ const FirmaCheckliste = () => {
     setPendingOperation("save");
 
     try {
-      const templateData = {
+      const templateData: ChecklistTemplateInsert = {
         company_id: company.id,
         title: title.trim(),
         subtitle: subtitle.trim() || null,
         service_type: selectedServiceType,
-        sections: cleaned,
+        sections: checklistSectionsToJson(cleaned),
         is_active: isActive,
         include_in_offerte: includeInOfferte,
       };
@@ -348,8 +352,9 @@ const FirmaCheckliste = () => {
 
         if (error) throw error;
 
+        // Local state keeps the DOMAIN sections (cleaned), not the serialized JSON payload.
         setExistingTemplates(prev =>
-          prev.map(t => t.id === templateId ? { ...t, ...templateData } as DbChecklistTemplate : t)
+          prev.map(t => t.id === templateId ? { ...t, ...templateData, sections: cleaned } as DbChecklistTemplate : t)
         );
       } else {
         const { data, error } = await supabase
@@ -466,12 +471,12 @@ const FirmaCheckliste = () => {
     setPendingOperation("copy");
 
     try {
-      const templateData = {
+      const templateData: ChecklistTemplateInsert = {
         company_id: company.id,
         title: title.trim(),
         subtitle: subtitle.trim() || null,
         service_type: copyTargetServiceType,
-        sections: cleaned,
+        sections: checklistSectionsToJson(cleaned),
         is_active: isActive,
         include_in_offerte: includeInOfferte,
       };
@@ -488,7 +493,7 @@ const FirmaCheckliste = () => {
 
       toast({
         title: "Kopiert",
-        description: `Die Checkliste wurde für ${SERVICE_TYPES.find(s => s.value === copyTargetServiceType)?.label} kopiert.`,
+        description: `Die Checkliste wurde für ${getServiceTypeLabel(copyTargetServiceType, locale)} kopiert.`,
       });
 
       setShowCopyDialog(false);
@@ -673,7 +678,7 @@ const FirmaCheckliste = () => {
                               <SelectItem key={type.value} value={type.value}>
                                 <div className="flex items-center gap-2">
                                   <Icon className="w-4 h-4" />
-                                  {type.label}
+                                  {getServiceTypeLabel(type.value, locale)}
                                   {hasTemplate && (
                                     <Badge variant="secondary" className="ml-2 text-xs">Vorhanden</Badge>
                                   )}
@@ -1045,7 +1050,7 @@ const FirmaCheckliste = () => {
                               <div>
                                 <p className="font-medium text-sm">{template.title}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {typeConfig.label}
+                                  {getServiceTypeLabel(template.service_type, locale)}
                                 </p>
                               </div>
                             </div>
@@ -1133,7 +1138,7 @@ const FirmaCheckliste = () => {
                         <div className={`p-2 rounded-lg bg-gradient-to-br ${type.color}`}>
                           <Icon className="w-4 h-4 text-white" />
                         </div>
-                        <span className="font-medium">{type.label}</span>
+                        <span className="font-medium">{getServiceTypeLabel(type.value, locale)}</span>
                       </div>
                       {hasTemplate && (
                         <Badge variant="secondary">Vorhanden</Badge>

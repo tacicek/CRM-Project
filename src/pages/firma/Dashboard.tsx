@@ -204,8 +204,13 @@ const FirmaDashboard = () => {
             .order("appointment_date", { ascending: true })
             .limit(8),
 
-          supabase
-            .rpc("get_box_rental_stats", { p_company_id: company.id })
+          // Promise.resolve adopts the Supabase thenable into a real Promise so
+          // .catch is available (PostgrestBuilder.then returns a PromiseLike). Behaviour
+          // is unchanged: the query still runs in this Promise.all and errors still map
+          // to { data: null, error } instead of rejecting the whole batch.
+          Promise.resolve(
+            supabase.rpc("get_box_rental_stats", { p_company_id: company.id })
+          )
             .then(({ data, error }) => ({ data, error }))
             .catch((error) => ({ data: null, error })),
         ]);

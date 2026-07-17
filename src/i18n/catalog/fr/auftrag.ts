@@ -34,6 +34,7 @@ export const auftrag: Record<keyof typeof de, string> = {
   "auftrag.badge.today": "Aujourd'hui",
   "auftrag.badge.tomorrow": "Demain",
   "auftrag.badge.overdue": "En retard",
+  "auftrag.badge.invalidData": "Les données n'ont pas pu être validées",
   "auftrag.time.oclock": "h",
   "auftrag.team.notified": "Informé",
   "auftrag.team.unassigned": "Non attribué",
