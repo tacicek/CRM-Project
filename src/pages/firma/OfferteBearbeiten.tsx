@@ -4,6 +4,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInputCH } from "@/components/ui/date-input-ch";
+import { TimeInputCH } from "@/components/ui/time-input-ch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -120,6 +121,8 @@ interface Offer {
   title: string;
   description: string | null;
   service_date: string | null;
+  service_start_time: string | null;
+  service_end_time: string | null;
   valid_until: string | null;
   subtotal: number;
   vat_rate: number;
@@ -156,6 +159,8 @@ const FirmaOfferteBearbeiten = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [serviceDate, setServiceDate] = useState("");
+  const [serviceStartTime, setServiceStartTime] = useState("");
+  const [serviceEndTime, setServiceEndTime] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [vatRate, setVatRate] = useState(8.1);
   const [mwstEnabled, setMwstEnabled] = useState(true);
@@ -337,6 +342,8 @@ const FirmaOfferteBearbeiten = () => {
         setTitle(offerData.title || "");
         setDescription(offerData.description || "");
         setServiceDate(offerData.service_date || "");
+        setServiceStartTime((offerData.service_start_time || "").slice(0, 5));
+        setServiceEndTime((offerData.service_end_time || "").slice(0, 5));
         setValidUntil(offerData.valid_until || "");
         setVatRate(offerData.vat_rate || 8.1);
         setMwstEnabled(offerData.vat_rate > 0);
@@ -752,6 +759,8 @@ const FirmaOfferteBearbeiten = () => {
           title,
           description: description || null,
           service_date: serviceDate || null,
+          service_start_time: serviceStartTime || null,
+          service_end_time: serviceEndTime || null,
           valid_until: validUntil || null,
           subtotal,
           surcharges: surchargesToJson(computedSurcharges),
@@ -1079,6 +1088,24 @@ const FirmaOfferteBearbeiten = () => {
                           {t("offer.form.validUntil.add")}
                         </button>
                       )}
+                    </div>
+                  </div>
+                  {/* Startzeit/Endzeit — customer-facing, rendered on the PDF next to the
+                      Ausführungsdatum (offers.service_start_time / service_end_time). */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs sm:text-sm">{t("offer.details.field.startTime")}</Label>
+                      <TimeInputCH
+                        value={serviceStartTime}
+                        onChange={setServiceStartTime}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs sm:text-sm">{t("offer.details.field.endTime")}</Label>
+                      <TimeInputCH
+                        value={serviceEndTime}
+                        onChange={setServiceEndTime}
+                      />
                     </div>
                   </div>
                 </CardContent>
