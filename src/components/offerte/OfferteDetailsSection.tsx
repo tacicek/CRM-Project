@@ -20,9 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  User, 
-  Clock, 
+import {
+  User,
   Sparkles,
   Plus,
   X,
@@ -333,33 +332,10 @@ export function OfferteDetailsSection({
             </div>
           </div>
 
-          {/* ── Row 2: Time ── */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium flex items-center gap-1.5 text-foreground">
-              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-              {t("offer.details.field.serviceTime")}
-            </Label>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">{t("offer.details.field.startTime")}</span>
-                <Input
-                  type="time"
-                  value={details.serviceStartTime}
-                  onChange={(e) => updateDetails("serviceStartTime", e.target.value)}
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">{t("offer.details.field.endTime")}</span>
-                <Input
-                  type="time"
-                  value={details.serviceEndTime}
-                  onChange={(e) => updateDetails("serviceEndTime", e.target.value)}
-                  className="h-10"
-                />
-              </div>
-            </div>
-          </div>
+          {/* Startzeit/Endzeit relocated to the always-visible "Offerten-Details" card
+              (OfferteErstellen/Bearbeiten) so operators reliably see them — buried inside
+              this collapsed "Erweiterte Details" panel they were routinely missed and never
+              reached the PDF. Same service_start_time/service_end_time source of truth. */}
 
           {/* Row 3 (Zusatztermin) retired: superseded by per-service dates on the
               item groups (offer_items.scheduled_*) — N services instead of max 2, and the

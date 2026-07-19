@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInputCH } from "@/components/ui/date-input-ch";
+import { TimeInputCH } from "@/components/ui/time-input-ch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -1999,6 +2000,27 @@ const FirmaOfferteErstellen = () => {
                       </AlertDescription>
                     </Alert>
                   )}
+                  {/* Startzeit/Endzeit — customer-facing, rendered on the PDF next to the
+                      Ausführungsdatum. Bound to offerDetails.service*Time (single source of
+                      truth). Kept visible here rather than in the collapsed advanced panel. */}
+                  <div className="grid gap-3 sm:gap-4 grid-cols-2">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label htmlFor="serviceStartTime" className="text-xs sm:text-sm">{t("offer.details.field.startTime")}</Label>
+                      <TimeInputCH
+                        id="serviceStartTime"
+                        value={offerDetails.serviceStartTime}
+                        onChange={(v) => setOfferDetails((prev) => ({ ...prev, serviceStartTime: v }))}
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label htmlFor="serviceEndTime" className="text-xs sm:text-sm">{t("offer.details.field.endTime")}</Label>
+                      <TimeInputCH
+                        id="serviceEndTime"
+                        value={offerDetails.serviceEndTime}
+                        onChange={(v) => setOfferDetails((prev) => ({ ...prev, serviceEndTime: v }))}
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-1.5 sm:space-y-2">
                     <Label htmlFor="description" className="text-xs sm:text-sm">{t("offer.form.field.description")}</Label>
                     <Textarea
