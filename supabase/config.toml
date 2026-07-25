@@ -197,3 +197,11 @@ entrypoint = "./functions/cleanup-besichtigung/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-appointment-confirmation/index.ts"
+
+# Resend Inbound-Webhook. verify_jwt = false, weil Resend keinen Supabase-JWT
+# mitschickt — die Zugangskontrolle ist die Svix-Signatur in der Funktion selbst
+# (RESEND_WEBHOOK_SECRET). Ohne gesetztes Secret wird jede Anfrage abgewiesen.
+[functions.inbound-email-lead]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/inbound-email-lead/index.ts"

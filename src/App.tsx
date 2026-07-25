@@ -54,6 +54,7 @@ const firmaImports = {
   Auftraege: () => import("./pages/firma/Auftraege"),
   Team: () => import("./pages/firma/Team"),
   ManualImport: () => import("./pages/firma/ManualImport"),
+  EmailImport: () => import("./pages/firma/EmailImport"),
   Anfragen: () => import("./pages/firma/Anfragen"),
   Besichtigungen: () => import("./pages/firma/Besichtigungen"),
   Datenarchiv: () => import("./pages/firma/Datenarchiv"),
@@ -77,6 +78,7 @@ const FirmaUmzugsboxen = lazy(firmaImports.Umzugsboxen);
 const FirmaAuftraege = lazy(firmaImports.Auftraege);
 const FirmaTeam = lazy(firmaImports.Team);
 const FirmaManualImport = lazy(firmaImports.ManualImport);
+const FirmaEmailImport = lazy(firmaImports.EmailImport);
 const FirmaAnfragen = lazy(firmaImports.Anfragen);
 const FirmaBesichtigungen = lazy(firmaImports.Besichtigungen);
 const FirmaDatenarchiv = lazy(firmaImports.Datenarchiv);
@@ -162,6 +164,7 @@ const App = () => (
                   <Route path="/firma/besichtigungen" element={<FirmaBesichtigungen />} />
                   <Route path="/firma/umzugsboxen" element={<FirmaUmzugsboxen />} />
                   <Route path="/firma/team" element={<FirmaTeam />} />
+                  <Route path="/firma/email-import" element={<FirmaEmailImport />} />
                   <Route path="/firma/checkliste" element={<FirmaCheckliste />} />
                   <Route path="/firma/leistungskatalog" element={<FirmaLeistungskatalog />} />
                   <Route path="/firma/preisgestaltung" element={<FirmaPreisgestaltung />} />

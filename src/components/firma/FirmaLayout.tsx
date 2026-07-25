@@ -227,6 +227,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
 
   const company = activeCompany as Company | null;
   const [besichtigungUploadedCount, setBesichtigungUploadedCount] = useState(0);
+  const [inboundReviewCount, setInboundReviewCount] = useState(0);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const notifyWithHistory = useCallback((title: string, body?: string, route?: string, type?: string, id?: string, metadata?: Record<string, unknown>) => {
@@ -266,6 +267,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
           else if (n.type === 'appointment' || n.type === 'appointment_reschedule') route = '/firma/kalender';
           else if (n.type === 'besichtigung_confirmed' || n.type === 'besichtigung_rejected') route = '/firma/kalender';
           else if (n.type === 'besichtigung_request' || n.type === 'besichtigung_uploaded') route = '/firma/besichtigungen';
+          else if (n.type === 'inbound_email') route = '/firma/email-import';
           return { id: n.id, title: n.title, body: n.body || undefined, timestamp: new Date(n.created_at || Date.now()), read: n.read || false, route, type: n.type, metadata: m || undefined };
         }));
       }
@@ -284,6 +286,12 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     supabase.from("virtual_besichtigung_sessions").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "uploaded").then(({ count }) => setBesichtigungUploadedCount(count || 0));
   }, [companyId]);
 
+  // Zu prüfende E-Mails
+  useEffect(() => {
+    if (!companyId) return;
+    supabase.from("inbound_emails").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("processing_status", "needs_review").then(({ count }) => setInboundReviewCount(count || 0));
+  }, [companyId]);
+
   // Real-time: notifications
   useEffect(() => {
     if (!user || !companyId) return;
@@ -294,6 +302,12 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
       else if (n.type === 'appointment_reschedule') route = '/firma/kalender';
       else if (n.type === 'besichtigung_confirmed' || n.type === 'besichtigung_rejected') route = '/firma/kalender';
       else if (n.type === 'besichtigung_request' || n.type === 'besichtigung_uploaded') route = '/firma/besichtigungen';
+      else if (n.type === 'inbound_email') route = '/firma/email-import';
+      // Der Zähler neben "E-Mail-Eingang" hängt an derselben Meldung: die
+      // Pipeline schreibt die Zeile, sobald eine Mail verarbeitet ist.
+      if (n.type === 'inbound_email' && companyId) {
+        supabase.from("inbound_emails").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("processing_status", "needs_review").then(({ count }) => setInboundReviewCount(count || 0));
+      }
       if (n.type === 'besichtigung_uploaded' && companyId) {
         supabase.from("virtual_besichtigung_sessions").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "uploaded").then(({ count }) => setBesichtigungUploadedCount(count || 0));
       }
@@ -396,8 +410,9 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   const quickLinksRaw: MenuItem[] = useMemo(() => [
     { titleKey: "nav.overview", url: "/firma", emoji: "🏠", moduleKey: "reports" },
     { titleKey: "nav.anfragen", url: "/firma/anfragen", emoji: "📥", moduleKey: "manualImport" },
+    { titleKey: "nav.emailImport", url: "/firma/email-import", emoji: "📧", moduleKey: "inboundEmail", badge: inboundReviewCount > 0 ? inboundReviewCount : undefined },
     { titleKey: "nav.kalender", url: "/firma/kalender", emoji: "📅", moduleKey: "calendar" },
-  ], []);
+  ], [inboundReviewCount]);
 
   const menuGroups: MenuGroup[] = useMemo(() => [
     {
