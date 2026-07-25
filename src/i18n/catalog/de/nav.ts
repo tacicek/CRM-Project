@@ -6,6 +6,7 @@ export const nav = {
 
   "nav.overview": "Übersicht",
   "nav.anfragen": "Anfragen",
+  "nav.emailImport": "E-Mail-Eingang",
   "nav.kalender": "Kalender",
   "nav.offerten": "Offerten",
   "nav.auftraege": "Aufträge",

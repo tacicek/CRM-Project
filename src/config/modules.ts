@@ -19,6 +19,7 @@ export const MODULES = {
   receipts: true,      // Quittungen
   invoices: true,      // Rechnungen (QR-Bill)
   manualImport: true,
+  inboundEmail: true,   // E-Mail-Eingang (Review-Queue)
   archive: true,
   settings: true,
   integrations: false, // not yet implemented

@@ -1878,6 +1878,102 @@ export type Database = {
           },
         ]
       }
+      inbound_emails: {
+        Row: {
+          attachments: Json
+          body_preview: string | null
+          classification: string | null
+          company_id: string
+          confidence_score: number | null
+          created_at: string
+          extracted_data: Json | null
+          from_email: string
+          from_name: string | null
+          id: string
+          last_error: string | null
+          lead_id: string | null
+          missing_critical_fields: Json
+          opened_at: string | null
+          processed_at: string | null
+          processing_attempts: number
+          processing_status: string
+          provider: string
+          provider_message_id: string
+          received_at: string
+          rejection_reason: string | null
+          subject: string
+          to_emails: string[]
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json
+          body_preview?: string | null
+          classification?: string | null
+          company_id: string
+          confidence_score?: number | null
+          created_at?: string
+          extracted_data?: Json | null
+          from_email: string
+          from_name?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          missing_critical_fields?: Json
+          opened_at?: string | null
+          processed_at?: string | null
+          processing_attempts?: number
+          processing_status?: string
+          provider?: string
+          provider_message_id: string
+          received_at: string
+          rejection_reason?: string | null
+          subject?: string
+          to_emails?: string[]
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json
+          body_preview?: string | null
+          classification?: string | null
+          company_id?: string
+          confidence_score?: number | null
+          created_at?: string
+          extracted_data?: Json | null
+          from_email?: string
+          from_name?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          missing_critical_fields?: Json
+          opened_at?: string | null
+          processed_at?: string | null
+          processing_attempts?: number
+          processing_status?: string
+          provider?: string
+          provider_message_id?: string
+          received_at?: string
+          rejection_reason?: string | null
+          subject?: string
+          to_emails?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbound_emails_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_emails_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ip_blacklist: {
         Row: {
           added_by: string | null

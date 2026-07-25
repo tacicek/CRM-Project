@@ -7,6 +7,7 @@ export const nav: Record<keyof typeof de, string> = {
 
   "nav.overview": "Vue d'ensemble",
   "nav.anfragen": "Demandes",
+  "nav.emailImport": "Boîte e-mail",
   "nav.kalender": "Calendrier",
   "nav.offerten": "Devis",
   "nav.auftraege": "Mandats",

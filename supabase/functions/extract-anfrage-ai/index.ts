@@ -3,10 +3,31 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createExtractLeadPrompt } from "../_shared/prompts.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 import { isLocale, toLocale, type Locale } from "../_shared/i18n/locale.ts";
+import {
+  AI_KEY_NAMES,
+  callAiProvider,
+  resolveProvider,
+  toSettingsMap,
+  type AiProviderName,
+} from "../_shared/aiProvider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// Wording of the two error messages is preserved from the previous inline
+// dispatch — the import UI shows them to the operator verbatim.
+const API_KEY_LABELS: Record<AiProviderName, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  gemini: "Gemini",
+};
+
+const FAILURE_LABELS: Record<AiProviderName, string> = {
+  anthropic: "Claude",
+  openai: "OpenAI",
+  gemini: "Gemini",
 };
 
 // Base fields for all service types
@@ -284,7 +305,9 @@ serve(async (req) => {
 
     logStep("Access granted", { company_id });
 
-    // Load company AI settings from DB (provider + keys)
+    // Load company AI settings from DB (provider + keys).
+    // Provider dispatch itself lives in _shared/aiProvider.ts — the inbound-email
+    // pipeline needs the identical call, and two copies would drift.
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -293,122 +316,46 @@ serve(async (req) => {
       .from("api_keys")
       .select("key_name, key_value")
       .eq("company_id", company_id)
-      .in("key_name", [
-        "ai_provider",
-        "anthropic_api_key", "anthropic_model",
-        "openai_api_key",    "openai_model",
-        "gemini_api_key",    "gemini_model",
-      ]);
+      .in("key_name", [...AI_KEY_NAMES]);
 
-    const settingsMap: Record<string, string> = {};
-    for (const row of (aiSettings ?? [])) {
-      settingsMap[row.key_name] = row.key_value;
-    }
-
-    const provider = settingsMap["ai_provider"] || "anthropic";
+    const settings = toSettingsMap(aiSettings);
+    const provider = resolveProvider(settings);
     logStep("AI provider resolved", { provider });
 
     // Use the shared prompt template
     const prompt = createExtractLeadPrompt(raw_text);
-    let responseText: string;
 
-    if (provider === "openai") {
-      const apiKey = settingsMap["openai_api_key"] || Deno.env.get("OPENAI_API_KEY");
-      if (!apiKey) {
-        return new Response(
-          JSON.stringify({ error: "OpenAI API-Schlüssel nicht konfiguriert." }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      logStep("Calling OpenAI API");
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: settingsMap["openai_model"] || "gpt-4o-mini",
-          max_tokens: 4096,
-          messages: [{ role: "user", content: prompt }]
-        })
-      });
-      if (!res.ok) {
-        const err = await res.text();
-        logStep("OpenAI API error", { status: res.status, error: err });
-        return new Response(
-          JSON.stringify({ error: "AI-Verarbeitung fehlgeschlagen (OpenAI)" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const data = await res.json();
-      logStep("OpenAI API response received");
-      responseText = data.choices?.[0]?.message?.content ?? "";
+    logStep("Calling AI provider", { provider });
+    const call = await callAiProvider({
+      settings,
+      env: (key) => Deno.env.get(key),
+      prompt,
+    });
 
-    } else if (provider === "gemini") {
-      const apiKey = settingsMap["gemini_api_key"] || Deno.env.get("GEMINI_API_KEY");
-      if (!apiKey) {
+    if (!call.ok) {
+      if (call.error === "missing_api_key") {
+        logStep("API key missing", { provider });
         return new Response(
-          JSON.stringify({ error: "Gemini API-Schlüssel nicht konfiguriert." }),
+          JSON.stringify({ error: `${API_KEY_LABELS[provider]} API-Schlüssel nicht konfiguriert.` }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      logStep("Calling Gemini API");
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${settingsMap["gemini_model"] || "gemini-2.0-flash"}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 4096 }
-          })
-        }
+      if (call.error === "empty_response") {
+        logStep("Empty AI response", { provider });
+        return new Response(
+          JSON.stringify({ error: "AI-Antwort konnte nicht verarbeitet werden" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      logStep("AI provider error", { provider, status: call.status, error: call.detail });
+      return new Response(
+        JSON.stringify({ error: `AI-Verarbeitung fehlgeschlagen (${FAILURE_LABELS[provider]})` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-      if (!res.ok) {
-        const err = await res.text();
-        logStep("Gemini API error", { status: res.status, error: err });
-        return new Response(
-          JSON.stringify({ error: "AI-Verarbeitung fehlgeschlagen (Gemini)" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const data = await res.json();
-      logStep("Gemini API response received");
-      responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-
-    } else {
-      // Default: Anthropic Claude
-      const apiKey = settingsMap["anthropic_api_key"] || Deno.env.get("ANTHROPIC_API_KEY");
-      if (!apiKey) {
-        return new Response(
-          JSON.stringify({ error: "Anthropic API-Schlüssel nicht konfiguriert." }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      logStep("Calling Claude API");
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01"
-        },
-        body: JSON.stringify({
-          model: settingsMap["anthropic_model"] || "claude-haiku-4-5",
-          max_tokens: 4096,
-          messages: [{ role: "user", content: prompt }]
-        })
-      });
-      if (!res.ok) {
-        const err = await res.text();
-        logStep("Claude API error", { status: res.status, error: err });
-        return new Response(
-          JSON.stringify({ error: "AI-Verarbeitung fehlgeschlagen (Claude)" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const data = await res.json();
-      logStep("Claude API response received", { contentLength: data.content?.[0]?.text?.length });
-      responseText = data.content?.[0]?.text ?? "";
     }
+
+    logStep("AI response received", { provider, contentLength: call.text.length });
+    const responseText = call.text;
 
     // Parse JSON response (all providers return same JSON format via prompt)
     let extractedData: ExtractedData;
