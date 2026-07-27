@@ -51,3 +51,35 @@ export async function assertCompanyMembership(
     );
   }
 }
+
+/**
+ * Wie verifyCompanyMembership, prüft aber zusätzlich die ROLLE.
+ *
+ * `company_members.role` (owner | admin | member) existiert seit langem, wurde
+ * bisher aber von keiner einzigen Autorisierungsentscheidung gelesen — weder in
+ * SQL noch hier. Wer Mitglied war, durfte alles. Diese Funktion ist die
+ * serverseitige Hälfte der Rechtematrix; das Gegenstück in der Datenbank heisst
+ * `is_company_role()`.
+ *
+ * Rolle unbekannt oder Zeile fehlt → false. Fail closed.
+ */
+export async function verifyCompanyRole(
+  supabase: SupabaseClient,
+  userId: string,
+  companyId: string,
+  allowedRoles: string[]
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("company_members")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[verifyCompanyRole] DB error:", error.message);
+    return false;
+  }
+
+  return data !== null && allowedRoles.includes(data.role);
+}

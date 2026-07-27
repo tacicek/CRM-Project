@@ -11,6 +11,7 @@ import {
   type Translator,
 } from "../_shared/i18n/index.ts";
 import { isCronRequest, unauthorizedResponse } from "../_shared/cronAuth.ts";
+import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -294,7 +295,7 @@ const handler = async (req: Request): Promise<Response> => {
         customer_phone,
         reminder_sent_firma,
         reminder_sent_customer,
-        company_id
+        company_id,
         language
       `)
       .eq("appointment_date", todayStr)
@@ -325,7 +326,7 @@ const handler = async (req: Request): Promise<Response> => {
         customer_phone,
         reminder_sent_firma,
         reminder_sent_customer,
-        company_id
+        company_id,
         language
       `)
       .eq("appointment_date", tomorrowStr)
@@ -357,9 +358,13 @@ const handler = async (req: Request): Promise<Response> => {
       // Get company info
       const { data: company } = await supabase
         .from("companies")
-        .select("id, company_name, email, notification_email, default_language, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+        .select("id, company_name, email, notification_email, default_language, twilio_enabled, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_from_email, resend_from_name")
         .eq("id", appointment.company_id)
         .maybeSingle();
+      // Zugangsdaten liegen nicht mehr in `companies` (Browser-Leck), sondern in
+      // `company_secrets`. Ueberlagern statt umschreiben: alle Verwendungsstellen
+      // unten lesen weiterhin company.resend_api_key & Co.
+      if (company) Object.assign(company, await loadCompanySecrets(supabase, appointment.company_id));
 
       if (!company) {
         console.error(`[notify-appointment-reminder] Company not found for appointment ${appointment.id}`);
@@ -652,9 +657,13 @@ const handler = async (req: Request): Promise<Response> => {
       // Get company info
       const { data: company } = await supabase
         .from("companies")
-        .select("id, company_name, email, notification_email, default_language, twilio_enabled, twilio_account_sid, twilio_auth_token, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+        .select("id, company_name, email, notification_email, default_language, twilio_enabled, twilio_phone_number, sms_reminders_enabled, resend_enabled, resend_from_email, resend_from_name")
         .eq("id", appointment.company_id)
         .single();
+      // Zugangsdaten liegen nicht mehr in `companies` (Browser-Leck), sondern in
+      // `company_secrets`. Ueberlagern statt umschreiben: alle Verwendungsstellen
+      // unten lesen weiterhin company.resend_api_key & Co.
+      if (company) Object.assign(company, await loadCompanySecrets(supabase, appointment.company_id));
 
       if (!company) {
         console.error(`[notify-appointment-reminder] Company not found for appointment ${appointment.id}`);

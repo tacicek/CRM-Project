@@ -374,6 +374,7 @@ export const misc = {
     "Ich verstehe, dass diese Daten unwiderruflich gelöscht werden und habe bei Bedarf einen Export erstellt.",
   "archive.delete.running": "Wird gelöscht…",
   "archive.delete.submit": "Endgültig löschen",
+  "archive.delete.skipped": "{count} Offerte(n) übersprungen: sie gehören zu einer Rechnung, Quittung oder einem Auftrag.",
   "archive.delete.success": "Alte Daten wurden erfolgreich gelöscht",
   "archive.delete.failed": "Fehler beim Löschen der Daten",
   "archive.stats.loadFailed": "Fehler beim Laden der Statistiken",

@@ -86,17 +86,39 @@ export const useQuittungen = (companyId: string | undefined) => {
     [toast],
   );
 
+  /**
+   * Nur Entwürfe sind löschbar; durchgesetzt wird das von einem Trigger in der
+   * Datenbank. Die Prüfung hier dient allein der verständlichen Meldung.
+   */
   const deleteQuittung = useCallback(
     async (id: string): Promise<boolean> => {
+      const target = quittungen.find((q) => q.id === id);
+      if (target && target.status !== "draft") {
+        toast({
+          title: "Nicht möglich",
+          description:
+            `Quittung ${target.quittung_nr} ist bereits ${target.status} und kann nicht gelöscht werden.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+
       const { error } = await supabase.from("quittungen").delete().eq("id", id);
       if (error) {
-        toast({ title: "Fehler", description: error.message, variant: "destructive" });
+        const blocked = error.code === "42501";
+        toast({
+          title: blocked ? "Nicht möglich" : "Fehler",
+          description: blocked
+            ? "Unterschriebene und versendete Quittungen können nicht gelöscht werden."
+            : error.message,
+          variant: "destructive",
+        });
         return false;
       }
       setQuittungen((prev) => prev.filter((q) => q.id !== id));
       return true;
     },
-    [toast],
+    [quittungen, toast],
   );
 
   return { quittungen, loading, error, fetchQuittungen, updateQuittung, deleteQuittung };

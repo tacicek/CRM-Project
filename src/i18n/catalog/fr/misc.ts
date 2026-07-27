@@ -362,6 +362,7 @@ export const misc: Record<keyof typeof de, string> = {
     "Je comprends que ces données seront supprimées de manière irréversible et j'ai effectué un export si nécessaire.",
   "archive.delete.running": "Suppression en cours…",
   "archive.delete.submit": "Supprimer définitivement",
+  "archive.delete.skipped": "{count} devis ignoré(s) : ils sont liés à une facture, un reçu ou une commande.",
   "archive.delete.success": "Les anciennes données ont été supprimées",
   "archive.delete.failed": "Erreur lors de la suppression des données",
   "archive.stats.loadFailed": "Erreur lors du chargement des statistiques",

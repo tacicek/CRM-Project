@@ -6,6 +6,7 @@ import { logEmail } from "../_shared/logEmail.ts";
 import { EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
 import { buildInvoiceEmailHtml, buildInvoiceEmailSubject, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
 import { createTranslator, toLocale, type Locale } from "../_shared/i18n/index.ts";
+import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -172,7 +173,7 @@ serve(async (req) => {
         companies (
           id, company_name, email, notification_email, primary_color,
           phone, mwst_number, iban, bank_name,
-          resend_enabled, resend_api_key, resend_from_email, resend_from_name
+          resend_enabled, resend_from_email, resend_from_name
         )
       `)
       .eq("id", rechnungId)
@@ -183,6 +184,11 @@ serve(async (req) => {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Zugangsdaten stehen nicht mehr in `companies` (Browser-Leck), sondern in
+    // `company_secrets`. Ueberlagern statt umschreiben: die Verwendungsstellen
+    // unten lesen weiterhin rechnung.companies.resend_api_key.
+    if (rechnung.companies) Object.assign(rechnung.companies, await loadCompanySecrets(supabase, rechnung.companies?.id));
 
     // Ownership check — user must own or be member of the rechnung's company
     const { data: ownerInfo } = await supabase

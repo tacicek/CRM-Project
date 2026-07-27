@@ -110,17 +110,43 @@ export const useRechnungen = (companyId: string | undefined) => {
     [toast],
   );
 
+  /**
+   * Löschen ist nur im Entwurf erlaubt — durchgesetzt von einem Trigger in der
+   * Datenbank, nicht hier: die Regel muss auch dann greifen, wenn jemand direkt
+   * gegen die API arbeitet. Diese Prüfung davor existiert nur, damit der
+   * Benutzer einen verständlichen Satz liest statt einer Postgres-Meldung.
+   */
   const deleteRechnung = useCallback(
     async (id: string): Promise<boolean> => {
+      const target = rechnungen.find((r) => r.id === id);
+      if (target && target.status !== "entwurf") {
+        toast({
+          title: "Nicht möglich",
+          description:
+            `Rechnung ${target.rechnung_nr} ist bereits ${target.status}. ` +
+            "Gebuchte Belege werden storniert, nicht gelöscht.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       const { error } = await supabase.from("rechnungen").delete().eq("id", id);
       if (error) {
-        toast({ title: "Fehler", description: error.message, variant: "destructive" });
+        // Der Trigger meldet sich mit 'insufficient_privilege' (42501).
+        const blocked = error.code === "42501";
+        toast({
+          title: blocked ? "Nicht möglich" : "Fehler",
+          description: blocked
+            ? "Gebuchte Belege werden storniert, nicht gelöscht."
+            : error.message,
+          variant: "destructive",
+        });
         return false;
       }
       setRechnungen((prev) => prev.filter((r) => r.id !== id));
       return true;
     },
-    [toast],
+    [rechnungen, toast],
   );
 
   return {

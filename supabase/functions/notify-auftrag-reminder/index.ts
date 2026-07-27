@@ -16,6 +16,7 @@ import {
   type Locale,
 } from "../_shared/i18n/index.ts";
 import { isCronRequest, unauthorizedResponse } from "../_shared/cronAuth.ts";
+import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,9 +113,13 @@ serve(async (req) => {
         // Fetch company Resend settings for per-company key support
         const { data: companySettings } = await supabase
           .from("companies")
-          .select("resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+          .select("resend_enabled, resend_from_email, resend_from_name")
           .eq("id", auftrag.company_id)
           .maybeSingle();
+        // Zugangsdaten liegen nicht mehr in `companies` (Browser-Leck), sondern in
+        // `company_secrets`. Ueberlagern statt umschreiben: alle Verwendungsstellen
+        // unten lesen weiterhin companySettings.resend_api_key & Co.
+        if (companySettings) Object.assign(companySettings, await loadCompanySecrets(supabase, auftrag.company_id));
 
         const activeResendKey = (companySettings?.resend_enabled && companySettings?.resend_api_key)
           ? companySettings.resend_api_key
@@ -247,9 +252,13 @@ serve(async (req) => {
 
           const { data: companySettings } = await supabase
             .from("companies")
-            .select("resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+            .select("resend_enabled, resend_from_email, resend_from_name")
             .eq("id", auftrag.company_id)
             .maybeSingle();
+          // Zugangsdaten liegen nicht mehr in `companies` (Browser-Leck), sondern in
+          // `company_secrets`. Ueberlagern statt umschreiben: alle Verwendungsstellen
+          // unten lesen weiterhin companySettings.resend_api_key & Co.
+          if (companySettings) Object.assign(companySettings, await loadCompanySecrets(supabase, auftrag.company_id));
 
           const activeResendKey = (companySettings?.resend_enabled && companySettings?.resend_api_key)
             ? companySettings.resend_api_key

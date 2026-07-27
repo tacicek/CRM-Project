@@ -431,19 +431,15 @@ const PublicOfferView = () => {
 
     setIsResponding(true);
     try {
-      // Create AGB version hash from section IDs and titles
-      const agbVersion = agbSections.length > 0
-        ? agbSections.map(s => `${s.id}:${s.title}`).join('|')
-        : null;
-
-      // Use secure RPC function to update offer
+      // Zeitpunkt und AGB-Fassung setzt die Datenbank selbst (Trigger
+      // set_offer_acceptance_evidence): now() statt der Uhr des Besuchers, und
+      // ein SHA-256 über den tatsächlichen AGB-Wortlaut statt einer Kennung aus
+      // IDs und Titeln, die sich bei Textänderungen nicht bewegt. Beides hier
+      // mitzuschicken hiesse, dem Browser ein Beweismittel zu überlassen.
       const { data: success, error } = await supabase.rpc("update_offer_by_token", {
         offer_access_token: token,
         new_status: "accepted",
-        new_accepted_at: new Date().toISOString(),
         new_customer_response_note: responseNote || null,
-        new_agb_accepted_at: agbSections.length > 0 ? new Date().toISOString() : null,
-        new_agb_version: agbVersion,
       });
 
       if (error || !success) {

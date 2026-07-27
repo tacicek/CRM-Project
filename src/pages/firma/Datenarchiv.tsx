@@ -288,67 +288,38 @@ export default function FirmaDatenarchiv() {
     }
   };
 
+  /**
+   * Archivieren und Löschen liegt vollständig in der Datenbank
+   * (archive_and_purge_company_data): eine Transaktion, die zuerst eine
+   * Sicherung mit SHA-256-Prüfsumme schreibt und erst danach löscht. Bricht ein
+   * Schritt ab, ist nichts geschehen.
+   *
+   * Vorher setzte diese Stelle vier bis sechs einzelne DELETEs aus dem Browser
+   * ab — ohne Transaktion und ohne vorherige Sicherung. Darunter Offerten im
+   * Status 'accepted', deren Fremdschlüssel auf SET NULL stehen: eine Rechnung
+   * verlor damit die Verbindung zu ihrer Offerte. Solche Offerten überspringt
+   * die Funktion jetzt und meldet sie als `uebersprungen` zurück.
+   */
   const handleDeleteOldData = async () => {
     if (!companyId || !deleteConfirmed) return;
 
     setIsDeleting(true);
     try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+      const { data, error } = await supabase.rpc("archive_and_purge_company_data", {
+        p_company_id: companyId,
+        p_retention_days: retentionDays,
+      });
 
-      // Delete old lead distributions
-      const { error: leadsError } = await supabase
-        .from("lead_distributions")
-        .delete()
-        .eq("company_id", companyId)
-        .lt("created_at", cutoffDate.toISOString())
-        .in("status", ["accepted", "rejected", "expired"]);
+      if (error) throw error;
 
-      if (leadsError) throw leadsError;
+      const result = (data ?? {}) as {
+        offerten?: number;
+        termine?: number;
+        uebersprungen?: number;
+      };
 
-      // Delete old offers (first delete offer_items)
-      const { data: oldOffers } = await supabase
-        .from("offers")
-        .select("id")
-        .eq("company_id", companyId)
-        .lt("created_at", cutoffDate.toISOString())
-        .in("status", ["sent", "accepted", "rejected", "expired"]);
-
-      if (oldOffers && oldOffers.length > 0) {
-        const offerIds = oldOffers.map(o => o.id);
-        
-        await supabase
-          .from("offer_items")
-          .delete()
-          .in("offer_id", offerIds);
-
-        await supabase
-          .from("offers")
-          .delete()
-          .in("id", offerIds);
-      }
-
-      // Delete old appointments
-      const { data: oldAppointments } = await supabase
-        .from("appointments")
-        .select("id")
-        .eq("company_id", companyId)
-        .lt("created_at", cutoffDate.toISOString())
-        .in("status", ["completed", "cancelled"]);
-
-      if (oldAppointments && oldAppointments.length > 0) {
-        const appointmentIds = oldAppointments.map(a => a.id);
-        
-        // Delete appointment history first
-        await supabase
-          .from("appointment_history")
-          .delete()
-          .in("appointment_id", appointmentIds);
-
-        await supabase
-          .from("appointments")
-          .delete()
-          .in("id", appointmentIds);
+      if (result.uebersprungen && result.uebersprungen > 0) {
+        toast.info(t("archive.delete.skipped", { count: result.uebersprungen }));
       }
 
       toast.success(t("archive.delete.success"));

@@ -353,6 +353,7 @@ export const misc: Record<keyof typeof de, string> = {
     "I understand that this data will be deleted irreversibly and I have exported it if required.",
   "archive.delete.running": "Deleting…",
   "archive.delete.submit": "Delete permanently",
+  "archive.delete.skipped": "{count} offer(s) skipped: they belong to an invoice, receipt or order.",
   "archive.delete.success": "The old data has been deleted",
   "archive.delete.failed": "Could not delete the data",
   "archive.stats.loadFailed": "Could not load the statistics",

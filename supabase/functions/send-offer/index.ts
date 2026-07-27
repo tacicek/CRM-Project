@@ -5,6 +5,7 @@ import { logEmail } from "../_shared/logEmail.ts";
 import { getDefaultFrom, getDashAppUrl, getAppName } from "../_shared/envConfig.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
+import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 import {
   createTranslator,
   formatCurrency,
@@ -252,7 +253,7 @@ const handler = async (req: Request): Promise<Response> => {
       .from("offers")
       .select(`
         *,
-        company:companies(id, company_name, email, phone, street, house_number, plz, city, website, logo_url, mwst_number, iban, primary_color, signature_url, default_payment_terms, default_terms_and_conditions, default_language, resend_enabled, resend_api_key, resend_from_email, resend_from_name),
+        company:companies(id, company_name, email, phone, street, house_number, plz, city, website, logo_url, mwst_number, iban, primary_color, signature_url, default_payment_terms, default_terms_and_conditions, default_language, resend_enabled, resend_from_email, resend_from_name),
         lead:leads(
           service_type,
           from_street,
@@ -965,6 +966,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Determine which Resend API to use - company's own or system default
     const companyInfo = offer.company as CompanyInfo | null;
+
+    // Zugangsdaten stehen nicht mehr in `companies` (Browser-Leck), sondern in
+    // `company_secrets`. Ueberlagern statt umschreiben: die Verwendungsstellen
+    // unten lesen weiterhin companyInfo.resend_api_key.
+    if (companyInfo) {
+      Object.assign(companyInfo, await loadCompanySecrets(supabase, companyInfo.id));
+    }
     let resendApiKey = systemResendApiKey;
     let fromAddress = getDefaultFrom();
     let fromEmail = fromAddress.match(/<(.+)>/)?.[1] ?? fromAddress;
