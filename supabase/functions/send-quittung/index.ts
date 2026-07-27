@@ -6,6 +6,7 @@ import { logEmail } from "../_shared/logEmail.ts";
 import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
 import { buildInvoiceEmailHtml, buildInvoiceEmailSubject, fmtChf, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
 import { createTranslator, toLocale, type Locale } from "../_shared/i18n/index.ts";
+import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -180,7 +181,7 @@ serve(async (req) => {
         companies (
           id, company_name, email, notification_email, logo_url, primary_color,
           phone, street, plz, city, mwst_number, iban, bank_name, default_language,
-          resend_enabled, resend_api_key, resend_from_email, resend_from_name
+          resend_enabled, resend_from_email, resend_from_name
         )
       `)
       .eq("id", quittungId)
@@ -191,6 +192,11 @@ serve(async (req) => {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Zugangsdaten stehen nicht mehr in `companies` (Browser-Leck), sondern in
+    // `company_secrets`. Ueberlagern statt umschreiben: die Verwendungsstellen
+    // unten lesen weiterhin quittung.companies.resend_api_key.
+    if (quittung.companies) Object.assign(quittung.companies, await loadCompanySecrets(supabase, quittung.companies?.id));
 
     // Ownership check — user must belong to the quittung's company
     const { data: quittungCompany } = await supabase

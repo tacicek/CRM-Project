@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,9 +76,13 @@ serve(async (req) => {
     // 5. Read Resend settings from DB — never from the client request
     const { data: company, error: companyErr } = await supabase
       .from("companies")
-      .select("company_name, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+      .select("company_name, resend_enabled, resend_from_email, resend_from_name")
       .eq("id", company_id)
       .single();
+    // Zugangsdaten liegen nicht mehr in `companies` (Browser-Leck), sondern in
+    // `company_secrets`. Ueberlagern statt umschreiben: alle Verwendungsstellen
+    // unten lesen weiterhin company.resend_api_key & Co.
+    if (company) Object.assign(company, await loadCompanySecrets(supabase, company_id));
 
     if (companyErr || !company) {
       return new Response(

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getSenderEmail, getAppName } from "../_shared/envConfig.ts";
 import { isCronRequest, unauthorizedResponse } from "../_shared/cronAuth.ts";
+import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -688,6 +689,11 @@ const handler = async (req: Request): Promise<Response> => {
           logStep("Company not found", { companyId: appointment.company_id });
           continue;
         }
+
+        // Zugangsdaten stehen nicht mehr in `companies` (Browser-Leck), sondern in
+        // `company_secrets`. Ueberlagern statt umschreiben: die Verwendungsstellen
+        // unten lesen weiterhin company.resend_api_key.
+        if (company) Object.assign(company, await loadCompanySecrets(supabase, appointment.company_id));
 
         const activeResendKey = (company.resend_enabled && company.resend_api_key)
           ? company.resend_api_key

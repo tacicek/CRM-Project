@@ -11,6 +11,7 @@ import {
   type Locale,
 } from "../_shared/i18n/index.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
+import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,9 +64,13 @@ const handler = async (req: Request): Promise<Response> => {
     if (request.companyId) {
       const { data, error } = await supabase
         .from("companies")
-        .select("id, company_name, resend_enabled, resend_api_key, resend_from_email, resend_from_name")
+        .select("id, company_name, resend_enabled, resend_from_email, resend_from_name")
         .eq("id", request.companyId)
         .single();
+      // Zugangsdaten liegen nicht mehr in `companies` (Browser-Leck), sondern in
+      // `company_secrets`. Ueberlagern statt umschreiben: alle Verwendungsstellen
+      // unten lesen weiterhin data.resend_api_key & Co.
+      if (data) Object.assign(data, await loadCompanySecrets(supabase, request.companyId));
 
       if (error) {
         logStep("Error fetching company", { error });

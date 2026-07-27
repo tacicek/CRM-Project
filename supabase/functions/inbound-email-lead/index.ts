@@ -62,6 +62,7 @@ import {
 } from "../_shared/inboundEmail/idempotency.ts";
 import { matchCompanyByRecipient } from "../_shared/inboundEmail/alias.ts";
 import type { ParsedInquiryResult } from "../_shared/inboundEmail/types.ts";
+import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -426,13 +427,15 @@ const processInbound = async (ctx: {
   const company = await supabase
     .from("companies")
     .select(
-      "id, default_language, resend_enabled, resend_api_key, email, notification_email, resend_from_email",
+      "id, default_language, resend_enabled, email, notification_email, resend_from_email",
     )
     .eq("id", companyId)
     .single();
 
-  const resendKey = company.data?.resend_enabled && company.data?.resend_api_key
-    ? company.data.resend_api_key
+  // Zugangsdaten aus company_secrets (nicht mehr aus `companies`, siehe dort).
+  const secrets = await loadCompanySecrets(supabase, companyId);
+  const resendKey = company.data?.resend_enabled && secrets.resend_api_key
+    ? secrets.resend_api_key
     : env("RESEND_API_KEY");
 
   const fetched = await fetchReceivedEmail(emailId, resendKey);
