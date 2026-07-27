@@ -295,7 +295,7 @@ const handler = async (req: Request): Promise<Response> => {
         customer_phone,
         reminder_sent_firma,
         reminder_sent_customer,
-        company_id
+        company_id,
         language
       `)
       .eq("appointment_date", todayStr)
@@ -326,7 +326,7 @@ const handler = async (req: Request): Promise<Response> => {
         customer_phone,
         reminder_sent_firma,
         reminder_sent_customer,
-        company_id
+        company_id,
         language
       `)
       .eq("appointment_date", tomorrowStr)
