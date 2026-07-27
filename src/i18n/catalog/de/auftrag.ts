@@ -137,6 +137,8 @@ export const auftrag = {
   "auftrag.field.titlePlaceholder": "z.B. Umzug Familie Müller",
   "auftrag.field.customerData": "Kundendaten",
   "auftrag.field.namePlaceholder": "Name *",
+  "auftrag.field.firstNamePlaceholder": "Vorname",
+  "auftrag.field.lastNamePlaceholder": "Nachname *",
   "auftrag.field.fromAddress": "Von-Adresse",
   "auftrag.field.toAddress": "Nach-Adresse",
   "auftrag.field.addressPlaceholder": "Strasse Nr.\nPLZ Ort\nStock (Lift)",

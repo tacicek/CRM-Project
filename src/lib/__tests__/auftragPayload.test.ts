@@ -26,6 +26,8 @@ const makeSource = (overrides: Partial<AuftragPayloadSource> = {}): AuftragPaylo
   leadId: "l1",
   title: "Umzug Mustermann",
   customerName: "Max Mustermann",
+  customerFirstName: "Max",
+  customerLastName: "Mustermann",
   customerEmail: "kunde@example.com",
   customerPhone: null,
   fromAddress: "Bahnhofstrasse 1",

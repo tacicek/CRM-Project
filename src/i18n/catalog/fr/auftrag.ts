@@ -128,6 +128,8 @@ export const auftrag: Record<keyof typeof de, string> = {
   "auftrag.field.titlePlaceholder": "p. ex. déménagement famille Müller",
   "auftrag.field.customerData": "Données du client",
   "auftrag.field.namePlaceholder": "Nom *",
+  "auftrag.field.firstNamePlaceholder": "Prénom",
+  "auftrag.field.lastNamePlaceholder": "Nom *",
   "auftrag.field.fromAddress": "Adresse de départ",
   "auftrag.field.toAddress": "Adresse d'arrivée",
   "auftrag.field.addressPlaceholder": "Rue n°\nNPA localité\nÉtage (ascenseur)",
