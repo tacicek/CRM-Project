@@ -112,14 +112,26 @@ Damit die Tabelle nicht wächst, löscht ein nächtlicher Job:
 
 ## Abschalten
 
-Ein Schalter, sofort wirksam:
+Eine Zeile in der Datenbank, sofort wirksam, ohne Deployment:
 
-```
-INBOUND_EMAIL_ENABLED=false
+```sql
+insert into api_keys (company_id, key_name, key_value)
+values ('<firma-id>', 'inbound_email_enabled', 'false')
+on conflict (company_id, key_name) do update set key_value = 'false';
 ```
 
-Dann nimmt das System keine Mails mehr an. Alles andere im CRM läuft unverändert weiter — bestehende
-Anfragen, Offerten, Aufträge sind davon nicht betroffen.
+Danach werden Mails dieser Firma nicht mehr verarbeitet. Wieder einschalten: Wert auf `true` setzen oder
+die Zeile löschen.
+
+Warum nicht über eine Umgebungsvariable: der Edge-Container bekommt seine Variablen aus einer festen
+Liste im Compose-File. Neue Variablen erreichen ihn nur über eine Änderung an dieser Datei — ein Schalter,
+den man im Ernstfall nicht umlegen kann, ist keiner. Aus demselben Grund liegt auch das Webhook-Secret in
+der Datenbank. (`INBOUND_EMAIL_ENABLED` wird zusätzlich gelesen, falls die Umgebung eines Tages doch
+erreichbar ist.)
+
+Firmenbezogen ist ausserdem das feinere Werkzeug: eine Firma lässt sich abschalten, ohne die andere zu
+treffen. Alles übrige im CRM läuft unverändert weiter — bestehende Anfragen, Offerten und Aufträge sind
+davon nicht betroffen.
 
 ---
 
