@@ -124,7 +124,8 @@ const FirmaDashboard = () => {
         const monthEnd = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 0, 23, 59, 59, 999);
 
         const [
-          { count: pendingCount },
+          { data: alleLeads },
+          { data: offertenLeadIds },
           { count: openOffersCount },
           { count: jobsThisMonthCount },
           { data: distributions },
@@ -133,12 +134,17 @@ const FirmaDashboard = () => {
           { data: todayAppts },
           boxStatsResult,
         ] = await Promise.all([
+          // "Offene Anfragen" = Anfragen, zu denen es noch keine Offerte gibt.
+          // Bis 2026-07-28 zaehlte hier lead_distributions — eine Tabelle aus dem
+          // Marktplatz-Fork, die im Einzelmandanten 0 Zeilen hat. Die Kachel stand
+          // deshalb strukturell auf null.
+          supabase.from("leads").select("id").eq("company_id", company.id),
+
           supabase
-            .from("lead_distributions")
-            .select("*", { count: "exact", head: true })
+            .from("offers")
+            .select("lead_id")
             .eq("company_id", company.id)
-            .eq("status", "sent")
-            .gt("expires_at", new Date().toISOString()),
+            .not("lead_id", "is", null),
 
           supabase
             .from("offers")
@@ -159,24 +165,10 @@ const FirmaDashboard = () => {
             .neq("status", "cancelled"),
 
           supabase
-            .from("lead_distributions")
-            .select(`
-              id,
-              status,
-              sent_at,
-              lead_id,
-              leads:lead_id (
-                id,
-                service_type,
-                from_city,
-                to_city,
-                distance_km,
-                estimated_duration_minutes,
-                created_at
-              )
-            `)
+            .from("leads")
+            .select("id, service_type, from_city, to_city, distance_km, estimated_duration_minutes, created_at")
             .eq("company_id", company.id)
-            .order("sent_at", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(5),
 
           supabase
@@ -215,21 +207,25 @@ const FirmaDashboard = () => {
             .catch((error) => ({ data: null, error })),
         ]);
 
+        // Anfragen, zu denen bereits eine Offerte existiert — dieselbe Zuordnung,
+        // die Anfragen.tsx fuer seine Gruppierung benutzt.
+        const mitOfferte = new Set(
+          (offertenLeadIds ?? []).map((o: { lead_id: string | null }) => o.lead_id).filter(Boolean),
+        );
+
         if (distributions && distributions.length > 0) {
-          const recentWithDetails = distributions.map((d: { id: string; status: string; sent_at: string; leads: { service_type?: string; from_city?: string; to_city?: string; distance_km?: number; estimated_duration_minutes?: number; created_at?: string } | null }) => {
-            const lead = d.leads;
-            return {
-              id: d.id,
-              // Raw DB value — the label is resolved per render via getServiceLabel(…, locale).
-              service_type: lead?.service_type || "",
-              from_city: lead?.from_city || "",
-              to_city: lead?.to_city || null,
-              distance_km: lead?.distance_km ? Number(lead.distance_km) : null,
-              estimated_duration_minutes: lead?.estimated_duration_minutes || null,
-              created_at: d.sent_at || "",
-              status: d.status || "pending",
-            };
-          });
+          const recentWithDetails = distributions.map((lead: { id: string; service_type?: string; from_city?: string; to_city?: string; distance_km?: number; estimated_duration_minutes?: number; created_at?: string }) => ({
+            id: lead.id,
+            // Raw DB value — the label is resolved per render via getServiceLabel(…, locale).
+            service_type: lead.service_type || "",
+            from_city: lead.from_city || "",
+            to_city: lead.to_city || null,
+            distance_km: lead.distance_km ? Number(lead.distance_km) : null,
+            estimated_duration_minutes: lead.estimated_duration_minutes || null,
+            created_at: lead.created_at || "",
+            // Kein Verteilungsstatus mehr: entweder es gibt eine Offerte oder nicht.
+            status: mitOfferte.has(lead.id) ? "offer_created" : "new",
+          }));
           setRecentLeads(recentWithDetails);
         }
 
@@ -274,7 +270,9 @@ const FirmaDashboard = () => {
 
         setStats({
           tokenBalance: 0,
-          pendingLeads: pendingCount || 0,
+          pendingLeads: (alleLeads ?? []).filter(
+            (l: { id: string }) => !mitOfferte.has(l.id),
+          ).length,
           openOffers: openOffersCount || 0,
           jobsThisMonth: jobsThisMonthCount || 0,
           besichtigungCount: pendingBesichtigungen.length,
@@ -295,6 +293,22 @@ const FirmaDashboard = () => {
   // Folk-style status chip
   const getStatusChip = (status: string) => {
     switch (status) {
+      // Seit 2026-07-28 kommen hier nur noch zwei Werte an: "new" (noch keine
+      // Offerte) und "offer_created". Die alten Verteilungsstatus bleiben
+      // vorerst stehen, damit ein zwischengespeicherter Zustand nichts bricht.
+      case "new":
+        return (
+          <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-folk-coral" />
+            {t("dashboard.leadStatus.new")}
+          </span>
+        );
+      case "offer_created":
+        return (
+          <span className="inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-2 py-0.5 text-[13px] font-semibold text-folk-mint">
+            ✓ {t("dashboard.leadStatus.offerCreated")}
+          </span>
+        );
       case "sent":
         return (
           <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">

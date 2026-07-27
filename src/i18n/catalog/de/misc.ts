@@ -33,7 +33,7 @@ export const misc = {
   "dashboard.action.newLead": "Anfrage erfassen",
 
   "dashboard.kpi.newLeads": "Neue Anfragen",
-  "dashboard.kpi.newLeadsHint": "Heute eingegangen",
+  "dashboard.kpi.newLeadsHint": "Noch ohne Offerte",
   "dashboard.kpi.openOffers": "Offene Offerten",
   "dashboard.kpi.openOffersHint": "Warten auf Antwort",
   "dashboard.kpi.jobsThisMonth": "Aufträge diesen Monat",
@@ -61,6 +61,8 @@ export const misc = {
   "dashboard.minutesShort": "Min.",
 
   "dashboard.leadStatus.sent": "Neu",
+  "dashboard.leadStatus.new": "Neu",
+  "dashboard.leadStatus.offerCreated": "Offerte erstellt",
   "dashboard.leadStatus.accepted": "Akzeptiert",
   "dashboard.leadStatus.rejected": "Abgelehnt",
 
@@ -335,6 +337,7 @@ export const misc = {
     "Sie haben das Recht, Ihre Daten zu exportieren (Datenportabilität) und zu löschen (Recht auf Vergessenwerden). Alle Aktionen werden protokolliert.",
 
   "archive.stats.leads": "Leads",
+  "archive.stats.leadsKept": "Anfragen werden nicht gelöscht",
   "archive.stats.offers": "Offerten",
   "archive.stats.appointments": "Termine",
   "archive.stats.team": "Team",
@@ -367,7 +370,6 @@ export const misc = {
     "Diese Aktion kann nicht rückgängig gemacht werden!",
   "archive.delete.warning": "Warnung",
   "archive.delete.warningIntro": "Folgende Daten werden permanent gelöscht:",
-  "archive.delete.leadsDetail": "{count} Leads (abgeschlossen/abgelehnt)",
   "archive.delete.offersDetail": "{count} Offerten (gesendet/akzeptiert/abgelehnt)",
   "archive.delete.appointmentsDetail": "{count} Termine (abgeschlossen/abgesagt)",
   "archive.delete.confirmCheckbox":

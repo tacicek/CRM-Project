@@ -85,7 +85,7 @@ aktif CRM akışında kullanılmayan yapı. **Bunlara dokunmadan önce kullanıc
 
 | Yapı | Kanıt | Not |
 |---|---|---|
-| `lead_distributions` | 0 satır | Multi-tenant lead-dağıtım. `offers.lead_distribution_id` FK'si hâlâ var ama tek-kiracıda anlamsız. |
+| ~~`lead_distributions`~~ | **KALDIRILDI 2026-07-28** | Multi-tenant lead-dağıtım kalıntısıydı (0 satır). Tablo, `offers.lead_distribution_id` kolonu ve `atomic_accept_lead` fonksiyonu düşürüldü (`20260728160000`). `leads`'in tek SELECT policy'si o tabloyu okuyan ölü bir dal taşıyordu — CASCADE ile silinmesin diye önce ölü dalsız yeniden kuruldu. |
 | `subscription_payments`, `subscription_reminders` | 0 satır | Stripe/abonelik. Fork'ta kaldırıldı. |
 | Stripe edge fn'leri (`import-stripe-subscriptions`, `sync-stripe-subscriptions`, `subscription-manager`, `create-token-checkout`*) | — | `src/` içinde Stripe **yalnızca** auto-generated `types.ts`'de geçer → frontend kullanmıyor. |
 | `landing_pages` (125 satır), `blog_posts` (3), `landing_page_analytics`, `blog_*` | leftover | Offerio marketing/SEO katmanı. CRM dashboard'ı bunları yönetmez. |
@@ -114,8 +114,10 @@ aktif CRM akışında kullanılmayan yapı. **Bunlara dokunmadan önce kullanıc
 ### 3.2 Tablolar arası gerçek FK ilişkileri (doğrulandı)
 
 ```
+customers ──< leads, offers, auftraege, appointments, rechnungen, quittungen, inbound_emails
+        (her biri customer_id; BİLEŞİK FK (customer_id, company_id) → customers(id, company_id),
+         böylece Firma A'nın müşterisi Firma B'nin kaydına yazılamaz — şema düzeyinde)
 leads ──< offers          (offers.lead_id → leads.id)
-        └─ offers.lead_distribution_id → lead_distributions   [KALINTI FK, tek-kiracıda boş]
 offers ──< offer_items     (offer_items.offer_id → offers.id)
 offers ──< auftraege       (auftraege.offer_id → offers.id;  ayrıca lead_id, team_leader_id)
 offers ──< quittungen      (quittungen.offer_id → offers.id)   ⚠️ quittungen AUFTRAG'a değil OFFER'a bağlı
