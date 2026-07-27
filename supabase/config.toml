@@ -205,3 +205,11 @@ entrypoint = "./functions/send-appointment-confirmation/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/inbound-email-lead/index.ts"
+
+# Aufräum-Funktion: löscht mit Service-Role über ALLE Firmen hinweg. Sie prüft
+# ihren Aufrufer selbst (_shared/cronAuth.ts, Bearer = Service-Role-Key), denn
+# Kong stellt /functions/v1/* ohne Auth-Plugin bereit.
+[functions.auto-archive]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/auto-archive/index.ts"

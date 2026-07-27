@@ -1,10 +1,22 @@
 // =============================================================================
 // AUTO-ARCHIVE EDGE FUNCTION
 // Automatische Archivierung von alten Daten
-// Wird monatlich per Cron ausgeführt
+//
+// ⚠️ Diese Funktion LÖSCHT Daten mit dem Service-Role-Key und ist dabei NICHT
+//    firmenbezogen — sie räumt über alle Firmen hinweg auf. Sie lief bis jetzt
+//    ohne jede Prüfung des Aufrufers: `verify_jwt` ist per Default aus und Kong
+//    stellt /functions/v1/* ohne Auth-Plugin bereit, also konnte sie jeder im
+//    Internet auslösen. Kein Cron-Job ruft sie auf (es gibt keinen), der
+//    Kommentar "monatlich per Cron" hatte nie eine Entsprechung.
+//
+//    Ab hier gilt derselbe Aufrufer-Nachweis wie bei den anderen
+//    Cron-Funktionen (_shared/cronAuth.ts): nur wer den Service-Role-Key als
+//    Bearer-Token mitschickt, kommt durch. Fehlt der Key in der Umgebung, wird
+//    nichts akzeptiert — fail closed.
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isCronRequest, unauthorizedResponse } from "../_shared/cronAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +46,12 @@ Deno.serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Vor allem anderen: wer ruft hier an? Diese Funktion löscht.
+  if (!isCronRequest(req)) {
+    console.warn("[auto-archive] Unauthorized call rejected");
+    return unauthorizedResponse(corsHeaders);
   }
 
   try {
