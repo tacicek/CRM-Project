@@ -102,6 +102,10 @@ interface Auftrag {
   appointment_id?: string | null;
   title: string;
   customer_name: string;
+  customer_first_name: string | null;
+  customer_last_name: string | null;
+  /** Kanonischer Kunde (20260728110000). NULL bei Zeilen, die der Backfill nicht zuordnen konnte. */
+  customer_id: string | null;
   customer_email: string | null;
   customer_phone: string | null;
   from_address: string | null;
@@ -901,6 +905,14 @@ const FirmaAuftraege = () => {
                                 <Edit className="mr-2 h-4 w-4" />
                                 {t("common.edit")}
                               </DropdownMenuItem>
+                              {auftrag.customer_id && (
+                                <DropdownMenuItem
+                                  onClick={() => navigate(`/firma/kunden/${auftrag.customer_id}`)}
+                                >
+                                  <span className="mr-2" aria-hidden>🧑</span>
+                                  {t("kunde.link.open")}
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 disabled={snapshotInvalid}
                                 onClick={() => { if (entry.kind === "valid") setExtrasAuftragId(auftrag.id); }}

@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
+import { KundeLink } from "@/components/firma/KundeLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
@@ -112,6 +113,9 @@ export default function RechnungDetail() {
   // Did the user change faellig manually? If false, faellig follows datum+30 whenever datum changes.
   const [faelligTouched, setFaelligTouched] = useState(false);
   const [customerName, setCustomerName] = useState("");
+  // Kanonischer Kunde des Belegs — nur fuer den Verweis auf die Kundenkarte.
+  // Der Beleg selbst bleibt bei seinen eingefrorenen customer_*-Feldern.
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerDestination, setCustomerDestination] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -176,6 +180,7 @@ export default function RechnungDetail() {
     setFaelligAm(data.faellig_am);
     setFaelligTouched(true); // the saved value is preserved (not overridden even if datum changes)
     setCustomerName(data.customer_name || "");
+    setCustomerId(data.customer_id ?? null);
     setCustomerAddress(data.customer_address || "");
     setCustomerDestination(data.customer_destination || "");
     setCustomerEmail(data.customer_email || "");
@@ -511,7 +516,10 @@ export default function RechnungDetail() {
             {/* Kunde + Meta */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-3">
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Kundendaten</h3>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Kundendaten</h3>
+                  <KundeLink customerId={customerId} />
+                </div>
                 <div>
                   <Label className="text-xs">Anrede</Label>
                   <Select value={anrede || "none"} onValueChange={(v) => setAnrede(v === "none" ? "" : v)}>

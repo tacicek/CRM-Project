@@ -2,6 +2,7 @@ import { Helmet } from "react-helmet-async";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { KundeLink } from "@/components/firma/KundeLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,8 @@ import { format, parseISO, type Locale as DateFnsLocale } from "date-fns";
 
 interface Lead {
   id: string;
+  /** Kanonischer Kunde (20260728110000). NULL, wo der Backfill nichts zuordnen konnte. */
+  customer_id: string | null;
   customer_first_name: string | null;
   customer_last_name: string | null;
   customer_email: string | null;
@@ -517,6 +520,7 @@ const FirmaAnfragen = () => {
                           Offerte erstellen
                         </Button>
                       )}
+                      <KundeLink customerId={lead.customer_id} className="self-center px-1" />
                       <Button
                         variant="outline"
                         size="sm"

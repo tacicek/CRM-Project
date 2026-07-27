@@ -5,6 +5,8 @@ import { common as de } from "@/i18n/catalog/de/common";
  * Used across the whole dashboard — page-specific copy lives in `ui.ts`.
  */
 export const common: Record<keyof typeof de, string> = {
+  "common.pagination.range": "{from}–{to} of {total}",
+  "common.pagination.perPage": "{count} per page",
   // --- Actions ---------------------------------------------------------------
   "common.save": "Save",
   "common.saving": "Saving…",

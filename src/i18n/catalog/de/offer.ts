@@ -63,8 +63,6 @@ export const offer = {
   "offer.list.sender.systemTooltip": "System-E-Mail",
   "offer.list.badge.blind": "Blind",
   "offer.list.badge.kostendachMax": "Kostendach {amount}",
-  "offer.list.pagination.range": "{from}–{to} von {total}",
-  "offer.list.pagination.perPage": "{count} pro Seite",
   "offer.list.moreOptions": "Mehr Optionen",
   "offer.list.action.view": "Anzeigen",
   "offer.list.action.addToCalendar": "Zum Kalender hinzufügen",

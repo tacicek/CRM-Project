@@ -22,6 +22,9 @@ const makeRow = (overrides: Partial<QuittungRow> = {}): QuittungRow => ({
   customer_destination: null,
   customer_email: null,
   customer_phone: null,
+  // Kanonischer Kunde (20260728110000). Der Beleg behaelt daneben seinen
+  // eingefrorenen customer_name — die Zuordnung ersetzt den Snapshot nicht.
+  customer_id: null,
   positionen: [],
   zwischensumme: 100,
   mwst_satz: 8.1,

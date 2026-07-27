@@ -5,6 +5,8 @@ import { common as de } from "@/i18n/catalog/de/common";
  * Utilisé dans tout le tableau de bord — les textes propres à une page sont dans `ui.ts`.
  */
 export const common: Record<keyof typeof de, string> = {
+  "common.pagination.range": "{from}–{to} sur {total}",
+  "common.pagination.perPage": "{count} par page",
   // --- Actions ---------------------------------------------------------------
   "common.save": "Enregistrer",
   "common.saving": "Enregistrement…",

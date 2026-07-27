@@ -68,6 +68,9 @@ export interface Quittung {
   customer_destination?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
+  /** Kanonischer Kunde (20260728110000). Nur fuer den Verweis auf die Kundenkarte —
+   *  die customer_*-Felder daneben bleiben der eingefrorene Stand des Belegs. */
+  customer_id?: string | null;
   positionen: QuittungPosition[];
   zwischensumme: number;
   mwst_satz: number;

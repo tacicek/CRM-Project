@@ -65,6 +65,7 @@ import { groupItemsByService } from "@/lib/offerServiceType";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { KundeLink } from "@/components/firma/KundeLink";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
@@ -130,6 +131,8 @@ interface Offer {
   language: string | null;
   title: string;
   description: string | null;
+  /** Kanonischer Kunde (20260728110000). NULL, wo der Backfill nichts zuordnen konnte. */
+  customer_id: string | null;
   customer_first_name: string;
   customer_last_name: string;
   customer_email: string;
@@ -1352,10 +1355,11 @@ const FirmaOfferteDetail = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 sm:space-y-3">
-                  <div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <p className="font-medium text-sm sm:text-base">
                       {offer.customer_first_name} {offer.customer_last_name}
                     </p>
+                    <KundeLink customerId={offer.customer_id} />
                   </div>
                   <div className="flex items-center gap-2 text-xs sm:text-sm">
                     <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground shrink-0" />
