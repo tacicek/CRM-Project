@@ -5899,6 +5899,10 @@ export type Database = {
       }
       activate_self_trial: { Args: { p_days?: number }; Returns: Json }
       archive_returned_boxes: { Args: never; Returns: number }
+      archive_and_purge_company_data: {
+        Args: { p_company_id: string; p_retention_days: number }
+        Returns: Json
+      }
       atomic_accept_lead: {
         Args: {
           p_company_id: string
