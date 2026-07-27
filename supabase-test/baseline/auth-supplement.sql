@@ -17,6 +17,43 @@ CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb
 
 GRANT EXECUTE ON FUNCTION auth.jwt() TO postgres, anon, authenticated, service_role;
 
+-- auth.uid() / auth.role() / auth.email(): dieses Image kennt sie, liest aber NUR die alte
+-- Einzahl-GUC `request.jwt.claim.sub`. Die Produktion (dasselbe Image-Tag, aber mit
+-- gotrue-Migrationen) liest beide Formen, und Fixtures wie Zusicherungen setzen die
+-- Mehrzahl-Form `request.jwt.claims`. Ohne diese Ergaenzung liefert auth.uid() im Test
+-- NULL, jede firmenbezogene Policy ist damit falsch und die Testaussage waere wertlos.
+-- Die Rumpfe sind woertlich aus der Produktion uebernommen.
+CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
+  LANGUAGE sql STABLE
+  AS $$
+    select coalesce(
+      nullif(current_setting('request.jwt.claim.sub', true), ''),
+      (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
+    )::uuid
+  $$;
+
+CREATE OR REPLACE FUNCTION auth.role() RETURNS text
+  LANGUAGE sql STABLE
+  AS $$
+    select coalesce(
+      nullif(current_setting('request.jwt.claim.role', true), ''),
+      (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+    )::text
+  $$;
+
+CREATE OR REPLACE FUNCTION auth.email() RETURNS text
+  LANGUAGE sql STABLE
+  AS $$
+    select coalesce(
+      nullif(current_setting('request.jwt.claim.email', true), ''),
+      (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'email')
+    )::text
+  $$;
+
+GRANT EXECUTE ON FUNCTION auth.uid()   TO postgres, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION auth.role()  TO postgres, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION auth.email() TO postgres, anon, authenticated, service_role;
+
 -- With gotrue disabled, this db image's auth.users predates a couple of columns the
 -- synthetic fixtures set (they exist on the real, gotrue-migrated auth.users). Add them —
 -- standard Supabase auth.users columns, transcribed from the fixtures' own INSERT, not

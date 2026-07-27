@@ -21,7 +21,7 @@ enabled = false
 [db]
 port = 54342
 shadow_port = 54340
-major_version = 17
+major_version = 15
 
 [db.pooler]
 enabled = false

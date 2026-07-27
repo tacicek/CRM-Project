@@ -5,12 +5,33 @@ directory (it only reads `supabase/migrations/`), so the baseline can never reac
 
 ## Why a baseline instead of the migration chain
 
-The 276-file `supabase/migrations/` chain **does not boot from scratch**: migration
-`20260326100000_admin_update_lead_distributions.sql` runs `CREATE POLICY "Admins can
-update lead distributions"` with no `DROP ... IF EXISTS`, and the same policy was already
-created in `20251220141207_*.sql` → `SQLSTATE 42710` on a clean apply (178 of 276 applied,
-then halt). Editing migrations is forbidden (they are prod history), so local integration
-tests run against a **schema baseline** captured from the live DB instead.
+The `supabase/migrations/` chain hielt bis 2026-07-28 bei
+`20260326100000_admin_update_lead_distributions.sql` an: die Datei legte eine Policy an,
+die `20251220141207_*.sql` bereits erzeugt hatte, ohne `DROP ... IF EXISTS` → `42710`
+nach 178 von 276 Dateien. Der fehlende DROP ist inzwischen ergänzt (der Fehler entsteht,
+*während* diese Datei läuft — keine spätere Migration kommt je an die Reihe, "neue Datei
+statt Bearbeitung" ist hier mechanisch unmöglich).
+
+**Damit ist NICHT behauptet, dass die Kette jetzt durchläuft.** Das war der bekannte
+*erste* Bruch; ob dahinter weitere liegen, ist ungemessen. Bis das jemand misst, bleibt
+der Baseline der Weg für lokale Integrationstests.
+
+## PostgreSQL-Version
+
+Der Teststack läuft auf **derselben Version wie die Produktion**: `postgres:15.8.1.085`
+(`major_version = 15` in `runtime/supabase/config.toml`). Bis 2026-07-28 stand dort 17 —
+ein Test konnte lokal grün sein und in der Produktion scheitern.
+
+Beim Angleichen kam heraus, dass das schlanke lokale Image ein **älteres `auth.uid()`**
+mitbringt, das nur die Einzahl-GUC `request.jwt.claim.sub` liest, während Fixtures und
+Zusicherungen die Mehrzahl-Form `request.jwt.claims` setzen. `auth.uid()` lieferte damit
+NULL, jede firmenbezogene Policy war falsch, und die Tests hätten das Gegenteil dessen
+bewiesen, wofür sie da sind. `auth-supplement.sql` ergänzt deshalb `auth.uid()`,
+`auth.role()` und `auth.email()` wörtlich aus der Produktion.
+
+Wer die Version wieder ändert: das PG-Datenverzeichnis ist nicht abwärtskompatibel. Erst
+`supabase --workdir supabase-test/runtime stop --no-backup`, dann das Volume entfernen,
+dann neu starten. Der Stack ist ohnehin Wegwerfware.
 
 ## How the baseline was produced
 
@@ -78,7 +99,13 @@ baseline completeness.
 The baseline is a snapshot. Re-generate after schema-affecting migrations:
 re-run the read-only dump → sanitize → re-run `npm run test:db`. Compare the manifest
 fingerprints (`column_fingerprint_md5`, `policy_fingerprint_md5`, `function_fingerprint_md5`)
-against a fresh capture to detect drift. The manifest's `deliberate_test_differences` is
+against a fresh capture to detect drift.
+
+**Die Abfragen hinter jeder Zahl stehen seit 2026-07-28 im Manifest selbst**
+(`counting_recipe`). Vorher war das nicht festgehalten, und die Werte liessen sich nicht
+reproduzieren: `enums` stand auf 28 — weder die 15 Enum-*Typen* noch die 84 Enum-*Werte* —,
+`check_constraints` auf 388, weder die 68 echten CHECKs noch die 437 inklusive NOT NULL.
+Zahlen aus Manifesten vor diesem Datum sind mit den heutigen **nicht vergleichbar**. The manifest's `deliberate_test_differences` is
 the **only** allowed divergence from prod; anything else is drift to investigate.
 
 ## What this is NOT
