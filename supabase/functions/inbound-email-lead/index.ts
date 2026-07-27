@@ -90,6 +90,18 @@ const ALIAS_KEY_NAME = "inbound_email_alias";
  */
 const WEBHOOK_SECRET_KEY_NAME = "inbound_webhook_secret";
 
+/**
+ * Not-Aus je Firma: `api_keys`-Zeile mit dem Wert 'false'.
+ *
+ * INBOUND_EMAIL_ENABLED aus der Umgebung bleibt bestehen, ist auf diesem Server
+ * aber NICHT setzbar — der Edge-Container bekommt eine feste `environment:`-Liste
+ * aus dem Compose-File, in der die Variable nicht vorkommt. Ein Schalter, den man
+ * im Ernstfall nicht umlegen kann, ist keiner; deshalb liegt er dort, wo er ohne
+ * Deployment erreichbar ist. Firmenbezogen ist ausserdem das feinere Werkzeug:
+ * eine Firma kann abgeschaltet werden, ohne die andere zu treffen.
+ */
+const ENABLED_KEY_NAME = "inbound_email_enabled";
+
 const env = (key: string): string | undefined => Deno.env.get(key);
 
 type ServiceClient = ReturnType<typeof createClient>;
@@ -226,6 +238,14 @@ const handleWebhook = async (ctx: {
     // Adresse wird durch Wiederholung nicht zustellbarer.
     log.warn("No company for recipients", { recipients });
     return json({ ignored: true, reason: "unroutable_recipient" });
+  }
+
+  // Not-Aus je Firma. Bewusst NACH der Auflösung: vorher ist nicht bekannt, wen
+  // die Mail betrifft. Bewusst 200 — Resend soll nicht wiederholen, die
+  // Nachricht bleibt dort ohnehin abrufbar.
+  if (!(await isInboundEnabledForCompany(supabase, companyId))) {
+    log.logStep("Inbound disabled for company — ignored", { companyId });
+    return json({ ignored: true, reason: "disabled_for_company" });
   }
 
   // Idempotenz: die Zeile wird per Unique-Constraint beansprucht, nicht per
@@ -627,6 +647,27 @@ const unverifiedRecipientForDiagnostics = (rawBody: string): string => {
   } catch {
     return "unparsable";
   }
+};
+
+/**
+ * Ist der Eingang für diese Firma eingeschaltet?
+ *
+ * Fehlt die Zeile, gilt "an" — sonst müsste man den Schalter erst anlegen, damit
+ * etwas funktioniert. Er existiert zum Abschalten, nicht zum Scharfmachen.
+ */
+const isInboundEnabledForCompany = async (
+  supabase: ServiceClient,
+  companyId: string,
+): Promise<boolean> => {
+  const { data } = await supabase
+    .from("api_keys")
+    .select("key_value")
+    .eq("company_id", companyId)
+    .eq("key_name", ENABLED_KEY_NAME)
+    .maybeSingle();
+
+  const raw = (data?.key_value ?? "").trim().toLowerCase();
+  return raw !== "false" && raw !== "0" && raw !== "off";
 };
 
 const fetchReceivedEmail = async (
