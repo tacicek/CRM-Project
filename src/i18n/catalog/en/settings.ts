@@ -2,6 +2,12 @@ import { settings as de } from "@/i18n/catalog/de/settings";
 
 export const settings: Record<keyof typeof de, string> = {
   "settings.title": "Settings",
+  "settings.secret.configured": "Configured",
+  "settings.secret.change": "Change",
+  "settings.secret.notConfigured": "Not configured",
+  "settings.secret.saved": "Key saved",
+  "settings.secret.removed": "Key removed",
+  "settings.secret.saveFailed": "Key could not be saved",
   "settings.tab.profile": "Profile",
   "settings.tab.notifications": "Notifications",
   "settings.tab.email": "Email",

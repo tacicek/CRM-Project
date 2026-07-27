@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Building2, Bell, FileText, MessageSquare, Eye, EyeOff, CheckCircle, Mail, Bot, Languages } from "lucide-react";
+import { Loader2, Save, Building2, Bell, FileText, MessageSquare, CheckCircle, Mail, Bot, Languages } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { SecretKeyField, type SecretStatus } from "@/components/firma/SecretKeyField";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
@@ -46,12 +47,9 @@ interface Company {
   /** Dashboard-Sprache der Firma (de | fr | en) — NICHT die Sprache der Kundendokumente. */
   default_language: string | null;
   twilio_enabled: boolean | null;
-  twilio_account_sid: string | null;
-  twilio_auth_token: string | null;
   twilio_phone_number: string | null;
   sms_reminders_enabled: boolean | null;
   resend_enabled: boolean | null;
-  resend_api_key: string | null;
   resend_from_email: string | null;
   resend_from_name: string | null;
   lead_sharing_preference: 'only_1' | 'only_3' | 'only_5' | 'both' | null;
@@ -84,20 +82,14 @@ const FirmaEinstellungen = () => {
   const [isSavingTwilio, setIsSavingTwilio] = useState(false);
   const [isSavingResend, setIsSavingResend] = useState(false);
   const [isTestingEmail, setIsTestingEmail] = useState(false);
-  const [showTwilioToken, setShowTwilioToken] = useState(false);
-  const [showResendKey, setShowResendKey] = useState(false);
   const [aiProvider, setAiProvider] = useState<"anthropic" | "openai" | "gemini">("anthropic");
-  const [anthropicKey, setAnthropicKey] = useState("");
-  const [anthropicKeyMasked, setAnthropicKeyMasked] = useState(false);
-  const [showAnthropicKey, setShowAnthropicKey] = useState(false);
+  /**
+   * Zustand der hinterlegten Schluessel — NUR "gesetzt" und die letzten vier
+   * Zeichen. Die Werte selbst verlassen den Server nicht mehr.
+   */
+  const [secretStatus, setSecretStatus] = useState<Record<string, SecretStatus>>({});
   const [anthropicModel, setAnthropicModel] = useState("");
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [openaiKeyMasked, setOpenaiKeyMasked] = useState(false);
-  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [openaiModel, setOpenaiModel] = useState("");
-  const [geminiKey, setGeminiKey] = useState("");
-  const [geminiKeyMasked, setGeminiKeyMasked] = useState(false);
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [geminiModel, setGeminiModel] = useState("");
   const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
 
@@ -130,6 +122,22 @@ const FirmaEinstellungen = () => {
   // Category labels for service catalog
 
 
+  /**
+   * Zustand der Zugangsschluessel holen. Antwortet mit "gesetzt" und den letzten
+   * vier Zeichen — nie mit dem Wert. Deshalb gibt es hier auch keinen State,
+   * in dem ein Klartext-Schluessel liegen koennte.
+   */
+  const loadSecretStatus = useCallback(async (companyId: string) => {
+    const { data, error } = await supabase.functions.invoke("company-secrets", {
+      body: { company_id: companyId, action: "status" },
+    });
+    if (error || !data?.status) return;
+    setSecretStatus(data.status as Record<string, SecretStatus>);
+    if (typeof data.ai_provider === "string") {
+      setAiProvider(data.ai_provider as "anthropic" | "openai" | "gemini");
+    }
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
@@ -144,25 +152,25 @@ const FirmaEinstellungen = () => {
 
         if (!companyData) return;
 
+        // Zustand der Schluessel getrennt holen (Werte bleiben serverseitig).
+        void loadSecretStatus(companyData.id);
+
         // Load existing AI settings
         const { data: aiRows } = await supabase
           .from("api_keys")
           .select("key_name, key_value")
           .eq("company_id", companyData.id)
           .in("key_name", [
-            "ai_provider",
-            "anthropic_api_key", "anthropic_model",
-            "openai_api_key",    "openai_model",
-            "gemini_api_key",    "gemini_model",
+            "ai_provider", "anthropic_model", "openai_model", "gemini_model",
           ]);
+        // Nur noch die NICHT geheimen Einstellungen. Die Schluessel selbst
+        // werden bewusst nicht mehr geladen — ihr Zustand kommt aus
+        // loadSecretStatus() als "gesetzt + letzte vier Zeichen".
         for (const row of (aiRows ?? [])) {
           if (row.key_name === "ai_provider")     setAiProvider(row.key_value as "anthropic" | "openai" | "gemini");
-          if (row.key_name === "anthropic_api_key") { setAnthropicKey(row.key_value); setAnthropicKeyMasked(true); }
-          if (row.key_name === "anthropic_model")   setAnthropicModel(row.key_value);
-          if (row.key_name === "openai_api_key")    { setOpenaiKey(row.key_value); setOpenaiKeyMasked(true); }
-          if (row.key_name === "openai_model")      setOpenaiModel(row.key_value);
-          if (row.key_name === "gemini_api_key")    { setGeminiKey(row.key_value); setGeminiKeyMasked(true); }
-          if (row.key_name === "gemini_model")      setGeminiModel(row.key_value);
+          if (row.key_name === "anthropic_model") setAnthropicModel(row.key_value);
+          if (row.key_name === "openai_model")    setOpenaiModel(row.key_value);
+          if (row.key_name === "gemini_model")    setGeminiModel(row.key_value);
         }
 
         // Restore unsaved draft if user navigated away before saving
@@ -186,7 +194,7 @@ const FirmaEinstellungen = () => {
     };
 
     fetchData();
-  }, [user]);
+  }, [user, loadSecretStatus]);
 
   const handleSaveProfile = async () => {
     if (!company) return;
@@ -256,8 +264,6 @@ const FirmaEinstellungen = () => {
         .from("companies")
         .update({
           twilio_enabled: company.twilio_enabled,
-          twilio_account_sid: company.twilio_account_sid,
-          twilio_auth_token: company.twilio_auth_token,
           twilio_phone_number: company.twilio_phone_number,
           sms_reminders_enabled: company.sms_reminders_enabled,
         })
@@ -281,6 +287,27 @@ const FirmaEinstellungen = () => {
     }
   };
 
+
+  /** Einen Schluessel setzen oder (bei null) entfernen. */
+  const saveSecret = useCallback(async (field: string, value: string | null) => {
+    if (!company) return;
+    const { error } = await supabase.functions.invoke("company-secrets", {
+      body: { company_id: company.id, action: "set", values: { [field]: value } },
+    });
+    if (error) {
+      toast({
+        title: t("common.error"),
+        description: t("settings.secret.saveFailed"),
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: value === null ? t("settings.secret.removed") : t("settings.secret.saved"),
+    });
+    await loadSecretStatus(company.id);
+  }, [company, toast, t, loadSecretStatus]);
+
   const upsertApiKey = async (keyName: string, keyValue: string) => {
     if (!company) return;
     const { error } = await supabase
@@ -289,26 +316,15 @@ const FirmaEinstellungen = () => {
     if (error) throw error;
   };
 
-  const deleteApiKey = async (keyName: string) => {
-    if (!company) return;
-    await supabase.from("api_keys").delete().eq("company_id", company.id).eq("key_name", keyName);
-  };
 
   const handleSaveAiSettings = async () => {
     if (!company) return;
     setIsSavingAiSettings(true);
     try {
       await upsertApiKey("ai_provider", aiProvider);
-      if (anthropicKey.trim() && !anthropicKeyMasked) await upsertApiKey("anthropic_api_key", anthropicKey.trim());
       if (anthropicModel.trim()) await upsertApiKey("anthropic_model", anthropicModel.trim());
-      if (openaiKey.trim() && !openaiKeyMasked) await upsertApiKey("openai_api_key", openaiKey.trim());
       if (openaiModel.trim()) await upsertApiKey("openai_model", openaiModel.trim());
-      if (geminiKey.trim() && !geminiKeyMasked) await upsertApiKey("gemini_api_key", geminiKey.trim());
       if (geminiModel.trim()) await upsertApiKey("gemini_model", geminiModel.trim());
-      setAnthropicKeyMasked(!!anthropicKey.trim());
-      setOpenaiKeyMasked(!!openaiKey.trim());
-      setGeminiKeyMasked(!!geminiKey.trim());
-      setShowAnthropicKey(false); setShowOpenaiKey(false); setShowGeminiKey(false);
       toast({ title: t("common.success"), description: t("settings.ki.saved") });
     } catch (err) {
       console.error("Error saving AI settings:", err);
@@ -327,7 +343,6 @@ const FirmaEinstellungen = () => {
         .from("companies")
         .update({
           resend_enabled: company.resend_enabled,
-          resend_api_key: company.resend_api_key,
           resend_from_email: company.resend_from_email,
           resend_from_name: company.resend_from_name,
         })
@@ -352,7 +367,7 @@ const FirmaEinstellungen = () => {
   };
 
   const handleTestResendEmail = async () => {
-    if (!company || !company.resend_api_key || !company.resend_from_email) {
+    if (!company || !secretStatus.resend_api_key?.configured || !company.resend_from_email) {
       toast({
         title: t("common.error"),
         description: t("settings.email.testMissingConfig"),
@@ -856,27 +871,12 @@ const FirmaEinstellungen = () => {
                   {company.resend_enabled && (
                     <>
                       <div className="space-y-4">
-                        <div>
-                          <Label>{t("settings.email.apiKey")}</Label>
-                          <div className="relative">
-                            <Input
-                              type={showResendKey ? "text" : "password"}
-                              value={company.resend_api_key || ""}
-                              onChange={(e) =>
-                                setCompany({ ...company, resend_api_key: e.target.value })
-                              }
-                              placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx"
-                              className="pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowResendKey(!showResendKey)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                              {showResendKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </div>
-                        </div>
+                        <SecretKeyField
+                          label={t("settings.email.apiKey")}
+                          status={secretStatus.resend_api_key}
+                          placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx"
+                          onSave={(value) => saveSecret("resend_api_key", value)}
+                        />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <Label>{t("settings.email.fromName")}</Label>
@@ -905,7 +905,7 @@ const FirmaEinstellungen = () => {
                         </div>
                       </div>
 
-                      {company.resend_api_key && company.resend_from_email && (
+                      {secretStatus.resend_api_key?.configured && company.resend_from_email && (
                         <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-600">
                           <CheckCircle className="w-5 h-5" />
                           <span className="text-sm">{t("settings.email.configComplete")}</span>
@@ -913,7 +913,7 @@ const FirmaEinstellungen = () => {
                       )}
 
                       {/* Test Email Button */}
-                      {company.resend_api_key && company.resend_from_email && (
+                      {secretStatus.resend_api_key?.configured && company.resend_from_email && (
                         <div className="p-4 border rounded-lg bg-muted/30">
                           <div className="flex items-center justify-between">
                             <div>
@@ -1002,37 +1002,18 @@ const FirmaEinstellungen = () => {
                   {company.twilio_enabled && (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label>{t("settings.sms.accountSidLabel")}</Label>
-                          <Input
-                            value={company.twilio_account_sid || ""}
-                            onChange={(e) =>
-                              setCompany({ ...company, twilio_account_sid: e.target.value })
-                            }
-                            placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                          />
-                        </div>
-                        <div>
-                          <Label>{t("settings.sms.authTokenLabel")}</Label>
-                          <div className="relative">
-                            <Input
-                              type={showTwilioToken ? "text" : "password"}
-                              value={company.twilio_auth_token || ""}
-                              onChange={(e) =>
-                                setCompany({ ...company, twilio_auth_token: e.target.value })
-                              }
-                              placeholder={t("settings.sms.authTokenPlaceholder")}
-                              className="pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowTwilioToken(!showTwilioToken)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                              {showTwilioToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </div>
-                        </div>
+                        <SecretKeyField
+                          label={t("settings.sms.accountSidLabel")}
+                          status={secretStatus.twilio_account_sid}
+                          placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                          onSave={(value) => saveSecret("twilio_account_sid", value)}
+                        />
+                        <SecretKeyField
+                          label={t("settings.sms.authTokenLabel")}
+                          status={secretStatus.twilio_auth_token}
+                          placeholder={t("settings.sms.authTokenPlaceholder")}
+                          onSave={(value) => saveSecret("twilio_auth_token", value)}
+                        />
                         <div className="md:col-span-2">
                           <Label>{t("settings.sms.phoneNumber")}</Label>
                           <Input
@@ -1065,7 +1046,7 @@ const FirmaEinstellungen = () => {
                         />
                       </div>
 
-                      {company.twilio_account_sid && company.twilio_auth_token && company.twilio_phone_number && (
+                      {secretStatus.twilio_account_sid?.configured && secretStatus.twilio_auth_token?.configured && company.twilio_phone_number && (
                         <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-600">
                           <CheckCircle className="w-5 h-5" />
                           <span className="text-sm">{t("settings.sms.configComplete")}</span>
@@ -1177,25 +1158,13 @@ const FirmaEinstellungen = () => {
                       {t("settings.ki.apiKeyFor", { provider: "Anthropic" })}
                       {aiProvider === "anthropic" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{t("settings.ki.active")}</span>}
                     </Label>
-                    <div className="relative">
-                      <Input
-                        type={showAnthropicKey ? "text" : "password"}
-                        value={anthropicKeyMasked && !showAnthropicKey ? "sk-ant-••••••••••••••••••••••••••••••" : anthropicKey}
-                        onChange={(e) => { setAnthropicKey(e.target.value); setAnthropicKeyMasked(false); }}
-                        placeholder="sk-ant-api03-..."
-                        className="pr-10 font-mono text-sm"
-                      />
-                      <button type="button" onClick={() => setShowAnthropicKey(!showAnthropicKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                        {showAnthropicKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {anthropicKeyMasked ? `✓ ${t("settings.ki.keySet")}` : t("settings.ki.keyMissingFallback")}{" "}
-                      <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">console.anthropic.com</a>
-                    </p>
-                    {anthropicKeyMasked && (
-                      <button type="button" onClick={() => { deleteApiKey("anthropic_api_key"); setAnthropicKey(""); setAnthropicKeyMasked(false); }} className="text-xs text-destructive underline">{t("common.remove")}</button>
-                    )}
+                    <SecretKeyField
+                      label={t("settings.ki.apiKeyFor", { provider: "Anthropic" })}
+                      status={secretStatus.anthropic_api_key}
+                      placeholder="sk-ant-api03-..."
+                      hint={t("settings.ki.keyMissingFallback")}
+                      onSave={(value) => saveSecret("anthropic_api_key", value)}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-sm">{t("settings.ki.model")} <span className="text-muted-foreground font-normal">({t("common.optional")})</span></Label>
@@ -1214,25 +1183,13 @@ const FirmaEinstellungen = () => {
                       {t("settings.ki.apiKeyFor", { provider: "OpenAI" })}
                       {aiProvider === "openai" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{t("settings.ki.active")}</span>}
                     </Label>
-                    <div className="relative">
-                      <Input
-                        type={showOpenaiKey ? "text" : "password"}
-                        value={openaiKeyMasked && !showOpenaiKey ? "sk-••••••••••••••••••••••••••••••••••" : openaiKey}
-                        onChange={(e) => { setOpenaiKey(e.target.value); setOpenaiKeyMasked(false); }}
-                        placeholder="sk-proj-..."
-                        className="pr-10 font-mono text-sm"
-                      />
-                      <button type="button" onClick={() => setShowOpenaiKey(!showOpenaiKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                        {showOpenaiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {openaiKeyMasked ? `✓ ${t("settings.ki.keySet")}` : t("settings.ki.keyMissing")}{" "}
-                      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">platform.openai.com</a>
-                    </p>
-                    {openaiKeyMasked && (
-                      <button type="button" onClick={() => { deleteApiKey("openai_api_key"); setOpenaiKey(""); setOpenaiKeyMasked(false); }} className="text-xs text-destructive underline">{t("common.remove")}</button>
-                    )}
+                    <SecretKeyField
+                      label={t("settings.ki.apiKeyFor", { provider: "OpenAI" })}
+                      status={secretStatus.openai_api_key}
+                      placeholder="sk-proj-..."
+                      hint={t("settings.ki.keyMissing")}
+                      onSave={(value) => saveSecret("openai_api_key", value)}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-sm">{t("settings.ki.model")} <span className="text-muted-foreground font-normal">({t("common.optional")})</span></Label>
@@ -1251,25 +1208,13 @@ const FirmaEinstellungen = () => {
                       {t("settings.ki.apiKeyFor", { provider: "Google Gemini" })}
                       {aiProvider === "gemini" && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{t("settings.ki.active")}</span>}
                     </Label>
-                    <div className="relative">
-                      <Input
-                        type={showGeminiKey ? "text" : "password"}
-                        value={geminiKeyMasked && !showGeminiKey ? "AIza••••••••••••••••••••••••••••••••••" : geminiKey}
-                        onChange={(e) => { setGeminiKey(e.target.value); setGeminiKeyMasked(false); }}
-                        placeholder="AIzaSy..."
-                        className="pr-10 font-mono text-sm"
-                      />
-                      <button type="button" onClick={() => setShowGeminiKey(!showGeminiKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                        {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {geminiKeyMasked ? `✓ ${t("settings.ki.keySet")}` : t("settings.ki.keyMissing")}{" "}
-                      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">aistudio.google.com</a>
-                    </p>
-                    {geminiKeyMasked && (
-                      <button type="button" onClick={() => { deleteApiKey("gemini_api_key"); setGeminiKey(""); setGeminiKeyMasked(false); }} className="text-xs text-destructive underline">{t("common.remove")}</button>
-                    )}
+                    <SecretKeyField
+                      label={t("settings.ki.apiKeyFor", { provider: "Gemini" })}
+                      status={secretStatus.gemini_api_key}
+                      placeholder="AIza..."
+                      hint={t("settings.ki.keyMissing")}
+                      onSave={(value) => saveSecret("gemini_api_key", value)}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-sm">{t("settings.ki.model")} <span className="text-muted-foreground font-normal">({t("common.optional")})</span></Label>

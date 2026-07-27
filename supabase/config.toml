@@ -213,3 +213,10 @@ entrypoint = "./functions/inbound-email-lead/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/auto-archive/index.ts"
+
+# Liest und schreibt Zugangsdaten Dritter, ohne sie je auszuliefern. Prueft
+# JWT + Rolle (owner|admin) selbst.
+[functions.company-secrets]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/company-secrets/index.ts"

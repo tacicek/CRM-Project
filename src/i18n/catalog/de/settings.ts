@@ -1,6 +1,12 @@
 /** Einstellungen page. German is the source of truth for the key set. */
 export const settings = {
   "settings.title": "Einstellungen",
+  "settings.secret.configured": "Hinterlegt",
+  "settings.secret.change": "Ändern",
+  "settings.secret.notConfigured": "Nicht hinterlegt",
+  "settings.secret.saved": "Schlüssel gespeichert",
+  "settings.secret.removed": "Schlüssel entfernt",
+  "settings.secret.saveFailed": "Schlüssel konnte nicht gespeichert werden",
   "settings.tab.profile": "Profil",
   "settings.tab.notifications": "Benachrichtigungen",
   "settings.tab.email": "E-Mail",
