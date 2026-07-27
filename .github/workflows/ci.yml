@@ -1,0 +1,55 @@
+name: CI
+
+# Gate fuer den Anwendungscode. Bis 2026-07 lief hier nur der Edge-Function-Parse-Check
+# (siehe edge-functions-parse.yml) — Typfehler, Lint-Fehler und kaputte Builds kamen
+# ungebremst in main.
+#
+# BEWUSST NICHT hier: `npm run test:db`. Der Lauf braucht einen laufenden Supabase-Stack
+# (Docker) und setzt CRM_TEST_ENV=1 voraus; scripts/test-db.sh haelt dafuer fuenf
+# Sicherungen bereit. Das gehoert in einen separaten, manuell ausgeloesten Workflow —
+# nicht in das Gate, das bei jedem Push laufen muss.
+#
+# BEWUSST OHNE Supabase-Env: scripts/generate-sitemap.mjs warnt bei fehlenden Variablen
+# und erzeugt nur die statischen Seiten. Eine Platzhalter-URL waere schlechter — das
+# Skript wuerde sie tatsaechlich anfragen und der Build bricht ab.
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Nicht `npm run type-check`: das ruft `tsc -b` ueber die Projektreferenzen auf.
+      # Der App-Code haengt an tsconfig.app.json — den pruefen wir direkt.
+      - name: Type-Check (App)
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Type-Check (Test-Infrastruktur)
+        run: npm run type-check:test-infra
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit-Tests
+        run: npm test
+
+      # build:vite statt build: `npm run build` haengt scripts/prerender.mjs an, und das
+      # bricht ohne Supabase-Zugangsdaten ab. Der Bundle-Build ist das, was hier zaehlt.
+      - name: Build
+        run: npm run build:vite
