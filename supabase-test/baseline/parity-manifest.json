@@ -1,7 +1,7 @@
 {
   "generated_from": "read-only prod --schema-only --schema=public dump (PostgreSQL 15.8), sanitized (siehe README)",
   "generated_at": "2026-07-28",
-  "covers_migrations_through": "20260728210000_offerte_version_public",
+  "covers_migrations_through": "20260728230000_nachtrag_rpc",
   "counting_recipe": {
     "hinweis": "Bis 2026-07-28 war nicht festgehalten, WIE die Zahlen entstanden — enums stand auf 28, was weder den 15 Enum-Typen noch den 84 Enum-Werten entspricht, und check_constraints auf 388, was weder den 68 echten CHECKs noch den 437 inkl. NOT NULL entspricht. Die alten Werte sind deshalb NICHT mit diesen vergleichbar. Ab hier stehen die Abfragen dabei, damit die naechste Auffrischung nichts raten muss.",
     "enums": "SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typtype='e'  -- Typen, nicht Werte",
@@ -20,15 +20,15 @@
   },
   "counts": {
     "enums": 15,
-    "tables": 76,
+    "tables": 78,
     "views": 6,
-    "indexes": 296,
-    "policies": 187,
-    "triggers": 69,
-    "functions": 161,
-    "foreign_keys": 109,
-    "check_constraints": 68,
-    "rls_enabled_tables": 76
+    "indexes": 304,
+    "policies": 192,
+    "triggers": 72,
+    "functions": 166,
+    "foreign_keys": 114,
+    "check_constraints": 71,
+    "rls_enabled_tables": 78
   },
   "enums": {
     "app_role": [
@@ -146,9 +146,9 @@
       "emergency"
     ]
   },
-  "column_fingerprint_md5": "d9ad9ee80a4f9977e2ed14f8774d42a6",
-  "policy_fingerprint_md5": "cbf21e006c47082b45196303cf7cd1c0",
-  "function_fingerprint_md5": "59692fd6f7e5f7a09f4dd90bb95a1b6d",
+  "column_fingerprint_md5": "feb2532136a7a6cbb7959b5acf25871b",
+  "policy_fingerprint_md5": "db106bb7c426ab657994c2c3c19431cf",
+  "function_fingerprint_md5": "8b92ae5da9e03c1fb8b3091e67634546",
   "deliberate_test_differences": {
     "grants": "standard Supabase default grants re-added (dump used --no-privileges); RLS NOT changed",
     "reason_stubs": "no-op bodies: these made external HTTP/vault/cron calls; signatures preserved so dependents resolve",

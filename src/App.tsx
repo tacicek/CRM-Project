@@ -31,6 +31,7 @@ const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
 
 // Public views kept (shareable offer link, appointment actions)
 const PublicOfferView = lazy(() => import("./pages/public/OfferView"));
+const PublicNachtragView = lazy(() => import("./pages/public/NachtragView"));
 const AppointmentCancel = lazy(() => import("./pages/public/AppointmentCancel"));
 const AppointmentReschedule = lazy(() => import("./pages/public/AppointmentReschedule"));
 const RescheduleResponse = lazy(() => import("./pages/public/RescheduleResponse"));
@@ -64,6 +65,7 @@ const firmaImports = {
   Rechnungen: () => import("./pages/firma/Rechnungen"),
   Kunden: () => import("./pages/firma/Kunden"),
   KundeDetail: () => import("./pages/firma/KundeDetail"),
+  Nachtrag: () => import("./pages/firma/Nachtrag"),
   RechnungDetail: () => import("./pages/firma/RechnungDetail"),
 };
 
@@ -90,6 +92,7 @@ const FirmaQuittungDetail = lazy(firmaImports.QuittungDetail);
 const FirmaRechnungen = lazy(firmaImports.Rechnungen);
 const FirmaKunden = lazy(firmaImports.Kunden);
 const FirmaKundeDetail = lazy(firmaImports.KundeDetail);
+const FirmaNachtrag = lazy(firmaImports.Nachtrag);
 const FirmaRechnungDetail = lazy(firmaImports.RechnungDetail);
 
 // Layout wrapper
@@ -142,6 +145,7 @@ const App = () => (
 
                 {/* Public shareable views */}
                 <Route path="/offerte/:token" element={<PublicOfferView />} />
+                <Route path="/nachtrag/:token" element={<PublicNachtragView />} />
                 <Route path="/termin/:appointmentId/absagen" element={<AppointmentCancel />} />
                 <Route path="/termin/:appointmentId/verschieben" element={<AppointmentReschedule />} />
                 <Route path="/termin/:appointmentId/antwort" element={<RescheduleResponse />} />
@@ -162,6 +166,7 @@ const App = () => (
                   <Route path="/firma/quittungen/:id/bearbeiten" element={<FirmaQuittungDetail />} />
                   <Route path="/firma/kunden" element={<FirmaKunden />} />
                   <Route path="/firma/kunden/:id" element={<FirmaKundeDetail />} />
+                  <Route path="/firma/nachtrag/:id" element={<FirmaNachtrag />} />
                   <Route path="/firma/rechnungen" element={<FirmaRechnungen />} />
                   <Route path="/firma/rechnungen/neu" element={<FirmaRechnungDetail />} />
                   <Route path="/firma/rechnungen/:id" element={<FirmaRechnungDetail />} />
