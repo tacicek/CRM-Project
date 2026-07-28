@@ -574,6 +574,26 @@ aus. Was bleibt, ist benannt und wird nicht stillschweigend liegengelassen:
 Diese beiden sind `ui/`-Primitive und damit breiter wirksam als eine einzelne Seite —
 sie werden im Durchgang zuerst angefasst.
 
+### 7.0 Eine Kategorie, die diese Liste zunächst übersah
+
+Die erste Messung suchte nach `bg-white`, `text-black`, `text-gray-*` und ähnlichem —
+Farben, die im Dunkeln **hell bleiben**. Sie enthielt `text-white` nicht, und genau das
+war die schädlichste Paarung:
+
+`bg-folk-ink text-white` — der Hintergrund kippt mit dem Theme, die Schrift nicht.
+Hell 17:1, dunkel **1.2:1**. Die Schaltfläche verschwindet. Das ist das Muster der
+**primären Aktion** dieses Projekts und stand an 41 Stellen in 26 Dateien, darunter die
+Hauptschaltfläche der Anfragenliste.
+
+Diese Stellen sind bereits in Durchgang 1 behoben (`text-white` → `text-folk-bg`,
+dunkel 15.8:1), sobald der Fehler auffiel. Ein Test in
+[`src/lib/__tests__/themeGuard.test.ts`](../../../src/lib/__tests__/themeGuard.test.ts)
+prüft die Paarung nun über den gesamten Quelltext — die Fehlerart ist im Hellen
+unsichtbar und wäre bei jedem neuen Bauteil zurückgekommen.
+
+**Merksatz für Durchgang 5:** „bleibt hell" und „wird unlesbar" sind zwei verschiedene
+Probleme. Das zweite hat Vorrang.
+
 ### 7.1 Gemessene Arbeitsliste (Stand nach Durchgang 1, 2026-07-28)
 
 Erhoben über `src/pages/firma`, `src/components/firma`, `src/components/ui` und

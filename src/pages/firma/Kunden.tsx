@@ -159,7 +159,7 @@ export default function FirmaKunden() {
                   }}
                   className={`h-9 rounded-lg border px-3 text-[14px] font-medium transition-colors ${
                     filter === f.wert
-                      ? "border-folk-ink bg-folk-ink text-white"
+                      ? "border-folk-ink bg-folk-ink text-folk-bg"
                       : "border-folk-line bg-folk-card text-folk-ink2 hover:bg-folk-bg-warm"
                   }`}
                 >

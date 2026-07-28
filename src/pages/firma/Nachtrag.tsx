@@ -202,7 +202,7 @@ export default function FirmaNachtrag() {
             <Button
               onClick={() => setSendeDialog(true)}
               disabled={positionen.length === 0 || !titel.trim()}
-              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
             >
               <Send className="h-3.5 w-3.5" />
               {t("nachtrag.send")}

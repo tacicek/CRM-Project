@@ -434,7 +434,7 @@ const FirmaDashboard = () => {
           </div>
           <div className="flex gap-2">
             <Link to="/firma/anfragen">
-              <Button className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2">
+              <Button className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2">
                 <span className="text-[14px] leading-none">+</span> {t("dashboard.action.newLead")}
               </Button>
             </Link>
@@ -573,7 +573,7 @@ const FirmaDashboard = () => {
                     <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-white hover:bg-folk-ink2"
+                        className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-folk-bg hover:bg-folk-ink2"
                         onClick={() => handleOpenAcceptDialog(request)}
                       >
                         <CalendarCheck className="h-3.5 w-3.5" />

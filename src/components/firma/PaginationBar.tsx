@@ -75,7 +75,7 @@ const PaginationBar = ({ total, page, pageSize, onPageChange, onPageSizeChange }
                 key={p}
                 className={`flex h-8 w-8 items-center justify-center rounded-md border font-mono text-[14px] transition-colors ${
                   p === page
-                    ? "border-folk-ink bg-folk-ink text-white"
+                    ? "border-folk-ink bg-folk-ink text-folk-bg"
                     : "border-folk-line bg-folk-card text-folk-ink2 hover:bg-folk-bg-warm"
                 }`}
                 onClick={() => onPageChange(p as number)}

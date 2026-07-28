@@ -594,7 +594,7 @@ const FirmaOfferten = () => {
           </div>
           <Button
             onClick={() => navigate("/firma/anfragen")}
-            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
           >
             <Plus className="h-3.5 w-3.5" />
             {t("offer.list.new")}
@@ -1012,7 +1012,7 @@ const FirmaOfferten = () => {
                 </p>
                 <Button
                   onClick={() => navigate("/firma/anfragen")}
-                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                   {t("offer.list.empty.action")}

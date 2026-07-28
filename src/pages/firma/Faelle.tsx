@@ -207,7 +207,7 @@ export default function FirmaFaelle() {
               {t("fall.count", { count: offen })} · {t("fall.subtitle")}
             </span>
           </div>
-          <Button onClick={() => setNeu(true)} className="bg-folk-ink text-white hover:bg-folk-ink2">
+          <Button onClick={() => setNeu(true)} className="bg-folk-ink text-folk-bg hover:bg-folk-ink2">
             {t("fall.new")}
           </Button>
         </header>
@@ -221,7 +221,7 @@ export default function FirmaFaelle() {
                 onClick={() => setFilter(f)}
                 className={`h-9 rounded-lg border px-3 text-[14px] font-medium transition-colors ${
                   filter === f
-                    ? "border-folk-ink bg-folk-ink text-white"
+                    ? "border-folk-ink bg-folk-ink text-folk-bg"
                     : "border-folk-line bg-folk-card text-folk-ink2 hover:bg-folk-bg-warm"
                 }`}
               >

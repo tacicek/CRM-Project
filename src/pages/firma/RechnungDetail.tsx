@@ -709,7 +709,7 @@ export default function RechnungDetail() {
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2 pb-6">
-          <Button onClick={handleSave} disabled={isSaving} className="bg-folk-ink text-white hover:bg-folk-ink2">
+          <Button onClick={handleSave} disabled={isSaving} className="bg-folk-ink text-folk-bg hover:bg-folk-ink2">
             {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Speichern
           </Button>

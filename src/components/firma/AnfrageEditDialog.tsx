@@ -792,7 +792,7 @@ export default function AnfrageEditDialog({ lead, onClose, onSaved }: AnfrageEdi
             <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-4 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-4 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
             >
               {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
               {t("common.save")}

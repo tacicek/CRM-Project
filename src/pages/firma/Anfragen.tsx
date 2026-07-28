@@ -330,7 +330,7 @@ const FirmaAnfragen = () => {
             </Button>
             <Button
               onClick={() => navigate("/firma/manual-import")}
-              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
             >
               <Plus className="h-3.5 w-3.5" />
               {t("lead.new")}
@@ -401,7 +401,7 @@ const FirmaAnfragen = () => {
                 <p className="px-4 text-[14px] text-folk-ink3">{t("lead.empty.description")}</p>
                 <Button
                   onClick={() => navigate("/firma/manual-import")}
-                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {t("lead.empty.action")}
@@ -528,7 +528,7 @@ const FirmaAnfragen = () => {
                           <Button
                             size="sm"
                             onClick={() => navigate(`/firma/offerten/${offer.id}`)}
-                            className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-white hover:bg-folk-ink2"
+                            className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-folk-bg hover:bg-folk-ink2"
                           >
                             <FileText className="h-3.5 w-3.5" />
                             Offerte ansehen
@@ -547,7 +547,7 @@ const FirmaAnfragen = () => {
                         <Button
                           size="sm"
                           onClick={() => handleCreateOffer(lead)}
-                          className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-white hover:bg-folk-ink2"
+                          className="h-8 gap-1.5 rounded-lg bg-folk-ink px-3 text-[14px] font-semibold text-folk-bg hover:bg-folk-ink2"
                         >
                           <FileText className="h-3.5 w-3.5" />
                           Offerte erstellen
@@ -735,7 +735,7 @@ const FirmaAnfragen = () => {
 
               <div className="flex gap-2 pt-2">
                 <Button
-                  className="h-9 flex-1 gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-white hover:bg-folk-ink2"
+                  className="h-9 flex-1 gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
                   onClick={() => handleCreateOffer(selectedLead)}
                 >
                   <FileText className="h-4 w-4" />

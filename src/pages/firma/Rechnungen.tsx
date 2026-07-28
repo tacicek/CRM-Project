@@ -183,7 +183,7 @@ export default function FirmaRechnungen() {
           </div>
           <Button
             onClick={() => navigate("/firma/rechnungen/neu")}
-            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+            className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
           >
             <Plus className="h-3.5 w-3.5" />
             Neue Rechnung
@@ -233,7 +233,7 @@ export default function FirmaRechnungen() {
                     onClick={() => setStatusFilter(tab.value)}
                     className={`h-9 shrink-0 rounded-lg border px-3 text-[12.5px] font-medium transition-colors ${
                       statusFilter === tab.value
-                        ? "border-folk-ink bg-folk-ink text-white"
+                        ? "border-folk-ink bg-folk-ink text-folk-bg"
                         : "border-folk-line bg-folk-card text-folk-ink2 hover:bg-folk-bg-warm"
                     }`}
                   >
@@ -257,7 +257,7 @@ export default function FirmaRechnungen() {
                 {rechnungen.length === 0 && (
                   <Button
                     size="sm"
-                    className="mt-3 h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+                    className="mt-3 h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
                     onClick={() => navigate("/firma/rechnungen/neu")}
                   >
                     <Plus className="h-3.5 w-3.5" /> Erste Rechnung erstellen

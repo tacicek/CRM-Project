@@ -998,7 +998,7 @@ const FirmaOfferteDetail = () => {
                 ) : (
                   <Button
                     onClick={() => setShowAuftragModal(true)}
-                    className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+                    className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
                   >
                     <ClipboardList className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">{t("offer.detail.createAuftrag")}</span>
@@ -1010,7 +1010,7 @@ const FirmaOfferteDetail = () => {
                 <Button
                   onClick={handleOpenPreview}
                   disabled={isSending}
-                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
                 >
                   {isSending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

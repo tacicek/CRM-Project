@@ -659,7 +659,7 @@ const KalenderPage = () => {
             </div>
             <Button
               onClick={handleNewAppointment}
-              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-white hover:bg-folk-ink2"
+              className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
             >
               <Plus className="h-3.5 w-3.5" />
               {t("calendar.newAppointment")}
@@ -1033,7 +1033,7 @@ const KalenderPage = () => {
                           setModalInitialDate(selectedDate);
                           setIsModalOpen(true);
                         }}
-                        className="mb-4 h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-white hover:bg-folk-ink2"
+                        className="mb-4 h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
                         size="sm"
                       >
                         <Plus className="w-4 h-4 mr-2" />
@@ -1386,7 +1386,7 @@ const AppointmentDetailCard = ({
           {appointment.status === "confirmed" && (
             <Button
               onClick={onComplete}
-              className="h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-white hover:bg-folk-ink2"
+              className="h-9 w-full gap-1.5 rounded-lg bg-folk-ink text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
             >
               <CheckCircle className="h-4 w-4 shrink-0" />
               <span className="truncate">{t("calendar.detail.complete")}</span>
