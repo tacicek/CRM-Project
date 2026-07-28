@@ -71,7 +71,12 @@ interface Resource {
   capacity_m3: number | null;
 }
 
-interface AcceptedLead {
+/**
+ * Anfrage in der Auswahlliste des Termindialogs. Hiess bis 2026-07-28
+ * SelectableLead — der Begriff stammte aus dem Marktplatz, wo eine Firma einen
+ * verteilten Lead "annahm". Im Einzelmandanten gibt es keine Annahme.
+ */
+interface SelectableLead {
   lead_id: string;
   customer_first_name: string | null;
   customer_last_name: string | null;
@@ -131,7 +136,7 @@ export const AppointmentModal = ({
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [_leadLoading, setLeadLoading] = useState(false);
-  const [acceptedLeads, setAcceptedLeads] = useState<AcceptedLead[]>([]);
+  const [acceptedLeads, setSelectableLeads] = useState<SelectableLead[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
   // DOCUMENT locale for a NEW appointment: the linked lead's language, else the company
@@ -232,28 +237,28 @@ export const AppointmentModal = ({
           .select("id, name, resource_type, capacity_m3")
           .eq("company_id", companyId)
           .eq("is_available", true),
-        // Fetch accepted leads for this company
+        // Anfragen zur Auswahl. Bis 2026-07-28 kamen sie aus lead_distributions
+        // mit status='accepted' — einer Tabelle mit 0 Zeilen. Die Auswahlliste war
+        // deshalb IMMER leer, ein Termin liess sich an keine Anfrage haengen und
+        // appointments.lead_id blieb durchgehend null.
         supabase
-          .from("lead_distributions")
+          .from("leads")
           .select(`
-            lead_id,
-            leads (
-              customer_first_name,
-              customer_last_name,
-              customer_email,
-              customer_phone,
-              from_street,
-              from_house_number,
-              from_plz,
-              from_city,
-              service_type,
-              preferred_date,
-              language
-            )
+            id,
+            customer_first_name,
+            customer_last_name,
+            customer_email,
+            customer_phone,
+            from_street,
+            from_house_number,
+            from_plz,
+            from_city,
+            service_type,
+            preferred_date,
+            language
           `)
           .eq("company_id", companyId)
-          .eq("status", "accepted")
-          .order("accepted_at", { ascending: false })
+          .order("created_at", { ascending: false })
           .limit(50),
         supabase
           .from("companies")
@@ -266,15 +271,12 @@ export const AppointmentModal = ({
       if (resourceRes.data) setResources(resourceRes.data);
       setCompanyLanguage(toLocale(companyRes.data?.default_language));
       if (leadsRes.data) {
-        // Transform the nested data structure
-        const leads: AcceptedLead[] = leadsRes.data
-          .filter(d => d.leads)
-          .map(d => ({
-            lead_id: d.lead_id,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ...(d.leads as any),
-          }));
-        setAcceptedLeads(leads);
+        // Keine Verschachtelung mehr: die Zeilen kommen direkt aus `leads`.
+        const leads: SelectableLead[] = leadsRes.data.map(({ id, ...rest }) => ({
+          lead_id: id,
+          ...rest,
+        }));
+        setSelectableLeads(leads);
       }
     };
 
@@ -619,7 +621,7 @@ export const AppointmentModal = ({
   };
 
   // Get display name for lead in dropdown
-  const getLeadDisplayName = (lead: AcceptedLead) => {
+  const getLeadDisplayName = (lead: SelectableLead) => {
     const name = [lead.customer_first_name, lead.customer_last_name].filter(Boolean).join(" ");
     const location = lead.from_city || "";
     if (name) return `${name}${location ? ` - ${location}` : ""}`;

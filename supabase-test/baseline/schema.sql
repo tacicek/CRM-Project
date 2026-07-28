@@ -1,5 +1,3 @@
--- CRM TEST BASELINE — SANITIZED, LOCAL INTEGRATION TESTS ONLY (not a prod migration).
--- From read-only prod --schema-only dump; 4 external-call fn bodies stubbed, URL/email/JWT literals neutralized.
 --
 -- PostgreSQL database dump
 --
@@ -380,6 +378,191 @@ COMMENT ON FUNCTION public.activate_self_trial(p_days integer) IS 'Company owner
 
 
 --
+-- Name: agb_content_hash(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.agb_content_hash(p_access_token text) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT CASE
+    WHEN COUNT(*) = 0 THEN NULL
+    -- Reihenfolge und Trennzeichen gehören zum Hash: sonst ergäben zwei
+    -- unterschiedliche Klauselfolgen denselben Wert.
+    ELSE encode(
+      sha256(convert_to(string_agg(s.title || E'\n' || s.content, E'\n---\n' ORDER BY s.display_order), 'UTF8')),
+      'hex'
+    )
+  END
+  FROM public.get_agb_sections_by_offer_token(p_access_token, NULL) s;
+$$;
+
+
+--
+-- Name: FUNCTION agb_content_hash(p_access_token text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.agb_content_hash(p_access_token text) IS 'SHA-256 ueber den Wortlaut aller aktiven AGB-Klauseln der Firma zu dieser Offerte. Beweismittel: aendert sich der Text, aendert sich der Hash.';
+
+
+--
+-- Name: appointments_set_customer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_set_customer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE v_res JSONB;
+BEGIN
+  IF NEW.customer_id IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.offer_id IS NOT NULL THEN
+    SELECT o.customer_id INTO NEW.customer_id
+    FROM public.offers o WHERE o.id = NEW.offer_id AND o.company_id = NEW.company_id;
+  END IF;
+
+  IF NEW.customer_id IS NULL AND NEW.lead_id IS NOT NULL THEN
+    SELECT l.customer_id INTO NEW.customer_id
+    FROM public.leads l WHERE l.id = NEW.lead_id AND l.company_id = NEW.company_id;
+  END IF;
+
+  IF NEW.customer_id IS NULL THEN
+    v_res := public.resolve_or_create_customer(
+      NEW.company_id, NEW.customer_email, NEW.customer_phone,
+      NEW.customer_first_name, NEW.customer_last_name, NULL,
+      NULL, NEW.language, 'termin', COALESCE(NEW.created_at, NOW()));
+    NEW.customer_id := NULLIF(v_res ->> 'customer_id', '')::UUID;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'appointments_set_customer: % (Termin wird trotzdem gespeichert)', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: archive_and_purge_company_data(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.archive_and_purge_company_data(p_company_id uuid, p_retention_days integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_cutoff        TIMESTAMPTZ;
+  v_log_id        UUID;
+  v_offer_ids     UUID[];
+  v_appt_ids      UUID[];
+  v_skipped       INTEGER := 0;
+  v_offers_data   JSONB;
+  v_appts_data    JSONB;
+  v_offers_count  INTEGER := 0;
+  v_appts_count   INTEGER := 0;
+BEGIN
+  IF NOT public.is_company_role(p_company_id, ARRAY['owner']) THEN
+    RAISE EXCEPTION 'Nur der Eigentuemer darf archivieren'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  IF p_retention_days IS NULL OR p_retention_days < 30 THEN
+    RAISE EXCEPTION 'Aufbewahrung muss mindestens 30 Tage betragen'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  v_cutoff := NOW() - (p_retention_days || ' days')::INTERVAL;
+
+  -- Offerten OHNE Buchhaltungsbezug. Die uebrigen bleiben stehen: ein
+  -- SET-NULL-Fremdschluessel wuerde die Rechnung von ihrer Offerte trennen.
+  SELECT array_agg(o.id) INTO v_offer_ids
+  FROM public.offers o
+  WHERE o.company_id = p_company_id
+    AND o.created_at < v_cutoff
+    AND o.status IN ('sent', 'rejected', 'expired')
+    AND NOT EXISTS (SELECT 1 FROM public.rechnungen r WHERE r.offer_id = o.id)
+    AND NOT EXISTS (SELECT 1 FROM public.quittungen q WHERE q.offer_id = o.id)
+    AND NOT EXISTS (SELECT 1 FROM public.auftraege a WHERE a.offer_id = o.id);
+
+  SELECT COUNT(*) INTO v_skipped
+  FROM public.offers o
+  WHERE o.company_id = p_company_id
+    AND o.created_at < v_cutoff
+    AND o.status IN ('sent', 'rejected', 'expired', 'accepted')
+    AND NOT (o.id = ANY(COALESCE(v_offer_ids, ARRAY[]::UUID[])));
+
+  SELECT array_agg(a.id) INTO v_appt_ids
+  FROM public.appointments a
+  WHERE a.company_id = p_company_id
+    AND a.created_at < v_cutoff
+    AND a.status IN ('completed', 'cancelled');
+
+  IF v_offer_ids IS NULL AND v_appt_ids IS NULL THEN
+    RETURN jsonb_build_object('offerten', 0, 'termine', 0, 'uebersprungen', v_skipped, 'log_id', NULL);
+  END IF;
+
+  -- Werte aus den CHECK-Constraints der Tabelle: archive_type ∈ {…, custom},
+  -- triggered_by ∈ {manual, auto, scheduled}, storage_type ist NOT NULL.
+  -- Die Sicherung liegt als JSONB in archive_snapshots, also 'local'.
+  INSERT INTO public.archive_logs (
+    archive_name, archive_type, storage_type, status, triggered_by,
+    triggered_by_user_id, data_to_date, source_data_deleted, deleted_at
+  )
+  VALUES (
+    'Manuelle Archivierung ' || to_char(NOW(), 'YYYY-MM-DD HH24:MI'),
+    'custom', 'local', 'in_progress', 'manual',
+    auth.uid(), v_cutoff, true, NOW()
+  )
+  RETURNING id INTO v_log_id;
+
+  -- Sicherung VOR dem Loeschen, mit Bezug zum Log und kryptografischer Summe.
+  IF v_offer_ids IS NOT NULL THEN
+    SELECT jsonb_agg(to_jsonb(o)), COUNT(*) INTO v_offers_data, v_offers_count
+    FROM public.offers o WHERE o.id = ANY(v_offer_ids);
+
+    INSERT INTO public.archive_snapshots (archive_log_id, chunk_number, total_chunks, data, record_count, checksum)
+    VALUES (v_log_id, 1, 1, v_offers_data, v_offers_count,
+            encode(sha256(convert_to(v_offers_data::text, 'UTF8')), 'hex'));
+
+    DELETE FROM public.offers WHERE id = ANY(v_offer_ids);
+  END IF;
+
+  IF v_appt_ids IS NOT NULL THEN
+    SELECT jsonb_agg(to_jsonb(a)), COUNT(*) INTO v_appts_data, v_appts_count
+    FROM public.appointments a WHERE a.id = ANY(v_appt_ids);
+
+    INSERT INTO public.archive_snapshots (archive_log_id, chunk_number, total_chunks, data, record_count, checksum)
+    VALUES (v_log_id, 2, 2, v_appts_data, v_appts_count,
+            encode(sha256(convert_to(v_appts_data::text, 'UTF8')), 'hex'));
+
+    DELETE FROM public.appointments WHERE id = ANY(v_appt_ids);
+  END IF;
+
+  UPDATE public.archive_logs
+  SET status = 'completed', records_archived = v_offers_count + v_appts_count
+  WHERE id = v_log_id;
+
+  RETURN jsonb_build_object(
+    'offerten',      v_offers_count,
+    'termine',       v_appts_count,
+    'uebersprungen', v_skipped,
+    'log_id',        v_log_id
+  );
+END;
+$$;
+
+
+--
+-- Name: FUNCTION archive_and_purge_company_data(p_company_id uuid, p_retention_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.archive_and_purge_company_data(p_company_id uuid, p_retention_days integer) IS 'Sichert und loescht alte Offerten und Termine EINER Firma in einer Transaktion. Offerten mit Rechnung, Quittung oder Auftrag bleiben stehen. Nur fuer die Rolle owner.';
+
+
+--
 -- Name: archive_returned_boxes(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -409,151 +592,6 @@ $$;
 --
 
 COMMENT ON FUNCTION public.archive_returned_boxes() IS 'Archives returned boxes older than 3 months. Should be run daily via cron.';
-
-
---
--- Name: atomic_accept_lead(uuid, uuid, uuid, numeric, numeric, integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.atomic_accept_lead(p_lead_id uuid, p_distribution_id uuid, p_company_id uuid, p_token_cost numeric, p_current_balance numeric, p_max_companies integer) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    AS $$
-DECLARE
-  v_lead RECORD;
-  v_distribution RECORD;
-  v_company RECORD;
-  v_new_accepted_count INTEGER;
-  v_new_balance DECIMAL;
-  v_quota_full BOOLEAN := FALSE;
-BEGIN
-  -- Lock the lead row to prevent concurrent quota modifications
-  SELECT id, accepted_count, max_companies, service_type, from_city, from_plz, status
-  INTO v_lead
-  FROM public.leads
-  WHERE id = p_lead_id
-  FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Lead nicht gefunden');
-  END IF;
-
-  -- Check if quota is already full
-  IF COALESCE(v_lead.accepted_count, 0) >= COALESCE(v_lead.max_companies, p_max_companies) THEN
-    UPDATE public.lead_distributions
-    SET status = 'quota_full', responded_at = NOW()
-    WHERE id = p_distribution_id;
-
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', 'Das Kontingent für diese Anfrage ist bereits voll',
-      'quota_full', true
-    );
-  END IF;
-
-  -- Lock and check distribution
-  SELECT id, status
-  INTO v_distribution
-  FROM public.lead_distributions
-  WHERE id = p_distribution_id AND company_id = p_company_id
-  FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Verteilung nicht gefunden');
-  END IF;
-
-  IF v_distribution.status != 'sent' THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', 'Diese Anfrage wurde bereits bearbeitet',
-      'status', v_distribution.status
-    );
-  END IF;
-
-  -- Re-fetch actual token balance from DB with row lock (prevents double-spend)
-  SELECT id, token_balance
-  INTO v_company
-  FROM public.companies
-  WHERE id = p_company_id
-  FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('success', false, 'error', 'Firma nicht gefunden');
-  END IF;
-
-  IF COALESCE(v_company.token_balance, 0) < p_token_cost THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', 'Nicht genügend Tokens',
-      'required', p_token_cost,
-      'current', v_company.token_balance
-    );
-  END IF;
-
-  -- All checks passed — atomically update everything
-
-  -- 1. Increment accepted_count on lead
-  v_new_accepted_count := COALESCE(v_lead.accepted_count, 0) + 1;
-  v_quota_full := v_new_accepted_count >= COALESCE(v_lead.max_companies, p_max_companies);
-
-  UPDATE public.leads
-  SET
-    accepted_count = v_new_accepted_count,
-    status = CASE WHEN v_quota_full THEN 'completed' ELSE status END
-  WHERE id = p_lead_id;
-
-  -- 2. Mark this distribution as accepted
-  UPDATE public.lead_distributions
-  SET
-    status = 'accepted',
-    responded_at = NOW(),
-    token_charged = true
-  WHERE id = p_distribution_id;
-
-  -- 3. Deduct tokens (using live balance from DB)
-  v_new_balance := COALESCE(v_company.token_balance, 0) - p_token_cost;
-
-  UPDATE public.companies
-  SET token_balance = v_new_balance
-  WHERE id = p_company_id;
-
-  -- 4. Record token transaction
-  INSERT INTO public.token_transactions (
-    company_id,
-    type,
-    amount,
-    balance_before,
-    balance_after,
-    reference_type,
-    reference_id,
-    description
-  ) VALUES (
-    p_company_id,
-    'charge',
-    -p_token_cost,
-    v_company.token_balance,
-    v_new_balance,
-    'lead',
-    p_lead_id,
-    'Lead angenommen: ' || v_lead.service_type || ' in ' || v_lead.from_city
-  );
-
-  -- 5. If quota is now full, mark remaining sent distributions as quota_full
-  IF v_quota_full THEN
-    UPDATE public.lead_distributions
-    SET status = 'quota_full', responded_at = NOW()
-    WHERE lead_id = p_lead_id
-      AND status = 'sent'
-      AND id != p_distribution_id;
-  END IF;
-
-  RETURN jsonb_build_object(
-    'success', true,
-    'new_accepted_count', v_new_accepted_count,
-    'new_balance', v_new_balance,
-    'quota_full', v_quota_full
-  );
-END;
-$$;
 
 
 --
@@ -653,6 +691,99 @@ BEGIN
          updated_at = now()
    WHERE id = p_lead_id
      AND status = 'awaiting_customer_confirmation';
+END;
+$$;
+
+
+--
+-- Name: auftraege_set_customer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.auftraege_set_customer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE v_res JSONB;
+BEGIN
+  IF NEW.customer_id IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.offer_id IS NOT NULL THEN
+    SELECT o.customer_id INTO NEW.customer_id
+    FROM public.offers o WHERE o.id = NEW.offer_id AND o.company_id = NEW.company_id;
+  END IF;
+
+  IF NEW.customer_id IS NULL AND NEW.lead_id IS NOT NULL THEN
+    SELECT l.customer_id INTO NEW.customer_id
+    FROM public.leads l WHERE l.id = NEW.lead_id AND l.company_id = NEW.company_id;
+  END IF;
+
+  IF NEW.customer_id IS NULL THEN
+    v_res := public.resolve_or_create_customer(
+      NEW.company_id, NEW.customer_email, NEW.customer_phone,
+      -- Seit 20260728120000 traegt der Auftrag die Trennung selbst.
+      NEW.customer_first_name, NEW.customer_last_name, NULL,
+      NULL, NEW.language, 'auftrag', COALESCE(NEW.created_at, NOW()));
+    NEW.customer_id := NULLIF(v_res ->> 'customer_id', '')::UUID;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'auftraege_set_customer: % (Auftrag wird trotzdem gespeichert)', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: beleg_set_customer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.beleg_set_customer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_res   JSONB;
+  v_first TEXT;
+  v_last  TEXT;
+  v_head  TEXT;
+BEGIN
+  IF NEW.customer_id IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.auftrag_id IS NOT NULL THEN
+    SELECT a.customer_id INTO NEW.customer_id
+    FROM public.auftraege a WHERE a.id = NEW.auftrag_id AND a.company_id = NEW.company_id;
+  END IF;
+
+  IF NEW.customer_id IS NULL AND NEW.offer_id IS NOT NULL THEN
+    SELECT o.customer_id INTO NEW.customer_id
+    FROM public.offers o WHERE o.id = NEW.offer_id AND o.company_id = NEW.company_id;
+  END IF;
+
+  IF NEW.customer_id IS NULL THEN
+    -- Beleg fuehrt nur einen zusammengesetzten Namen. Er wird NICHT zerlegt —
+    -- das waere genau der Fehler, den 20260728120000 abgestellt hat. Ohne Beleg
+    -- fuer die Trennung geht der ganze Name als Nachname in die Identitaet; die
+    -- Anzeige entsteht daraus unveraendert.
+    v_head  := NULLIF(TRIM(COALESCE(NEW.customer_name, '')), '');
+    v_first := NULL;
+    v_last  := v_head;
+
+    v_res := public.resolve_or_create_customer(
+      NEW.company_id, NEW.customer_email, NEW.customer_phone,
+      v_first, v_last, NULL, NULL, NEW.language, TG_TABLE_NAME,
+      COALESCE(NEW.created_at, NOW()));
+    NEW.customer_id := NULLIF(v_res ->> 'customer_id', '')::UUID;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'beleg_set_customer (%): % (Beleg wird trotzdem gespeichert)', TG_TABLE_NAME, SQLERRM;
+  RETURN NEW;
 END;
 $$;
 
@@ -1005,6 +1136,38 @@ $$;
 
 
 --
+-- Name: cleanup_inbound_emails(integer, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cleanup_inbound_emails(p_rejected_days integer DEFAULT 14, p_failed_days integer DEFAULT 30, p_converted_days integer DEFAULT 90) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  DELETE FROM public.inbound_emails
+  WHERE (processing_status = 'rejected'
+         AND created_at < NOW() - (p_rejected_days  || ' days')::INTERVAL)
+     OR (processing_status = 'failed'
+         AND created_at < NOW() - (p_failed_days    || ' days')::INTERVAL)
+     OR (processing_status = 'lead_created'
+         AND created_at < NOW() - (p_converted_days || ' days')::INTERVAL);
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION cleanup_inbound_emails(p_rejected_days integer, p_failed_days integer, p_converted_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.cleanup_inbound_emails(p_rejected_days integer, p_failed_days integer, p_converted_days integer) IS 'Aufbewahrung: rejected 14 Tage, failed 30 Tage, lead_created 90 Tage. needs_review bleibt unangetastet — der erzeugte Lead selbst wird nie gelöscht.';
+
+
+--
 -- Name: consume_rate_limit(text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1169,6 +1332,7 @@ DECLARE
   v_label        text;
   v_first        text;
   v_last         text;
+  v_rest         text;
   v_appt_id      uuid;
   v_primary_appt uuid := NULL;
 BEGIN
@@ -1187,8 +1351,17 @@ BEGIN
   FROM public.offer_items
   WHERE offer_id = NEW.offer_id AND service_type IS NOT NULL;
 
-  v_first := split_part(COALESCE(NEW.customer_name, ''), ' ', 1);
-  v_last  := NULLIF(TRIM(substr(COALESCE(NEW.customer_name, ''), length(v_first) + 1)), '');
+  -- Getrennte Felder haben Vorrang. Der split_part darunter ist der Rueckfall
+  -- fuer Auftraege von vor 2026-07-28 und fuer direkt per SQL geschriebene
+  -- Zeilen — dort gibt es nichts Getrenntes zu lesen.
+  v_first := NULLIF(TRIM(COALESCE(NEW.customer_first_name, '')), '');
+  v_last  := NULLIF(TRIM(COALESCE(NEW.customer_last_name, '')), '');
+
+  IF v_first IS NULL AND v_last IS NULL THEN
+    v_rest  := split_part(COALESCE(NEW.customer_name, ''), ' ', 1);
+    v_first := NULLIF(v_rest, '');
+    v_last  := NULLIF(TRIM(substr(COALESCE(NEW.customer_name, ''), length(v_rest) + 1)), '');
+  END IF;
 
   IF v_group_count >= 2 THEN
     FOR v_group IN
@@ -1222,7 +1395,7 @@ BEGIN
       ) VALUES (
         NEW.company_id, NEW.offer_id, NEW.lead_id, 'service', 'pending',
         v_date, v_start, v_end, false,
-        NEW.from_address, NULLIF(v_first, ''), v_last,
+        NEW.from_address, v_first, v_last,
         NEW.customer_email, NEW.customer_phone,
         v_label || ' - ' || COALESCE(NULLIF(NEW.title, ''), 'Auftrag'), NEW.description
       ) RETURNING id INTO v_appt_id;
@@ -1243,7 +1416,7 @@ BEGIN
     ) VALUES (
       NEW.company_id, NEW.offer_id, NEW.lead_id, 'service', 'pending',
       NEW.scheduled_date, v_start, v_end, false,
-      NEW.from_address, NULLIF(v_first, ''), v_last,
+      NEW.from_address, v_first, v_last,
       NEW.customer_email, NEW.customer_phone,
       COALESCE(NULLIF(NEW.title, ''), 'Auftrag'), NEW.description
     ) RETURNING id INTO v_primary_appt;
@@ -1463,6 +1636,421 @@ $$;
 
 
 --
+-- Name: create_lead_from_inbound_email(uuid, uuid, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_lead_from_inbound_email(p_inbound_id uuid, p_company_id uuid, p_lead jsonb, p_outcome jsonb) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  v_company_id UUID;
+  v_lead_id    UUID;
+  v_existing   UUID;
+  v_payload    JSONB;
+  v_columns    TEXT;
+BEGIN
+  -- Zeile sperren: zwei gleichzeitige Zustellungen derselben Nachricht laufen
+  -- hier hintereinander durch, nicht nebeneinander.
+  SELECT company_id, lead_id INTO v_company_id, v_existing
+  FROM public.inbound_emails
+  WHERE id = p_inbound_id
+  FOR UPDATE;
+
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION 'inbound_email % not found', p_inbound_id
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  -- Der Aufrufer muss dieselbe Firma meinen wie die Zeile. Die Edge Functions
+  -- arbeiten mit dem Service-Role-Key und umgehen RLS; ohne diese Prüfung könnte
+  -- eine mitgeschickte fremde inbound_email_id einen Lead in einer fremden Firma
+  -- anlegen.
+  IF p_company_id IS DISTINCT FROM v_company_id THEN
+    RAISE EXCEPTION 'inbound_email % belongs to another company', p_inbound_id
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  -- Letzte Verteidigungslinie gegen einen zweiten Lead aus derselben Mail.
+  IF v_existing IS NOT NULL THEN
+    RETURN v_existing;
+  END IF;
+
+  -- Die Firma kommt aus der Zeile, nicht aus dem Aufrufer: ein manipuliertes
+  -- company_id im JSONB darf keinen Lead in einer fremden Firma anlegen.
+  v_payload := p_lead || jsonb_build_object('company_id', v_company_id);
+
+  -- NUR die mitgelieferten Spalten werden geschrieben. Ein
+  -- "INSERT … SELECT * FROM jsonb_populate_record(NULL::leads, …)" würde jede
+  -- nicht gelieferte Spalte explizit auf NULL setzen und damit die DEFAULTs
+  -- aushebeln — id, created_at und updated_at kämen als NULL an.
+  -- Schlüssel, die keine Spalte von leads sind, fallen hier ebenfalls weg.
+  SELECT string_agg(quote_ident(key), ', ')
+  INTO v_columns
+  FROM jsonb_object_keys(v_payload) AS key
+  WHERE key IN (
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'leads'
+  );
+
+  IF v_columns IS NULL THEN
+    RAISE EXCEPTION 'lead payload contains no known column'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  EXECUTE format(
+    'INSERT INTO public.leads (%1$s) SELECT %1$s FROM jsonb_populate_record(NULL::public.leads, $1) RETURNING id',
+    v_columns
+  )
+  USING v_payload
+  INTO v_lead_id;
+
+  UPDATE public.inbound_emails
+  SET lead_id                 = v_lead_id,
+      processing_status       = 'lead_created',
+      classification          = COALESCE(p_outcome->>'classification', classification),
+      confidence_score        = COALESCE((p_outcome->>'confidence_score')::NUMERIC, confidence_score),
+      missing_critical_fields = COALESCE(p_outcome->'missing_critical_fields', missing_critical_fields),
+      extracted_data          = COALESCE(p_outcome->'extracted_data', extracted_data),
+      processed_at            = NOW(),
+      last_error              = NULL
+  WHERE id = p_inbound_id;
+
+  RETURN v_lead_id;
+END;
+$_$;
+
+
+--
+-- Name: FUNCTION create_lead_from_inbound_email(p_inbound_id uuid, p_company_id uuid, p_lead jsonb, p_outcome jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.create_lead_from_inbound_email(p_inbound_id uuid, p_company_id uuid, p_lead jsonb, p_outcome jsonb) IS 'Legt den Lead an und verknüpft ihn mit der eingehenden E-Mail — atomar. Gibt bei einer bereits verknüpften Mail den bestehenden Lead zurück, statt einen zweiten anzulegen.';
+
+
+--
+-- Name: customer_backfill_quellen(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.customer_backfill_quellen(p_company_id uuid) RETURNS TABLE(quelle_tabelle text, quelle_id uuid, company_id uuid, erstellt_am timestamp with time zone, vorname text, nachname text, ganzer_name text, email_roh text, telefon_roh text, anrede text, sprache text, herkunft text, kundennummer text, customer_id uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT 'leads',  l.id, l.company_id, l.created_at,
+         l.customer_first_name, l.customer_last_name, NULL::TEXT,
+         l.customer_email, l.customer_phone, l.customer_salutation,
+         l.language, l.source, NULL::TEXT, l.customer_id
+  FROM public.leads l WHERE l.company_id = p_company_id
+  UNION ALL
+  SELECT 'offers', o.id, o.company_id, o.created_at,
+         o.customer_first_name, o.customer_last_name, NULL::TEXT,
+         o.customer_email, o.customer_phone, o.customer_salutation,
+         o.language, 'offer', o.customer_number, o.customer_id
+  FROM public.offers o WHERE o.company_id = p_company_id
+  UNION ALL
+  -- Vor-/Nachname erst seit 20260728120000; ganzer_name ist der Altbestand.
+  SELECT 'auftraege', a.id, a.company_id, a.created_at,
+         a.customer_first_name, a.customer_last_name, a.customer_name,
+         a.customer_email, a.customer_phone, NULL::TEXT,
+         a.language, 'auftrag', NULL::TEXT, a.customer_id
+  FROM public.auftraege a WHERE a.company_id = p_company_id
+  UNION ALL
+  SELECT 'appointments', t.id, t.company_id, t.created_at,
+         t.customer_first_name, t.customer_last_name, NULL::TEXT,
+         t.customer_email, t.customer_phone, NULL::TEXT,
+         t.language, 'termin', NULL::TEXT, t.customer_id
+  FROM public.appointments t WHERE t.company_id = p_company_id
+  UNION ALL
+  SELECT 'rechnungen', r.id, r.company_id, r.created_at,
+         NULL::TEXT, NULL::TEXT, r.customer_name,
+         r.customer_email, r.customer_phone, r.anrede,
+         r.language, 'rechnung', NULL::TEXT, r.customer_id
+  FROM public.rechnungen r WHERE r.company_id = p_company_id
+  UNION ALL
+  SELECT 'quittungen', q.id, q.company_id, q.created_at,
+         NULL::TEXT, NULL::TEXT, q.customer_name,
+         q.customer_email, q.customer_phone, NULL::TEXT,
+         q.language, 'quittung', NULL::TEXT, q.customer_id
+  FROM public.quittungen q WHERE q.company_id = p_company_id;
+$$;
+
+
+--
+-- Name: FUNCTION customer_backfill_quellen(p_company_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.customer_backfill_quellen(p_company_id uuid) IS 'Vereinheitlichte Sicht auf alle Zeilen mit Kundenangaben. Von preview_customer_backfill() UND run_customer_backfill() benutzt, damit Bericht und Ausfuehrung dasselbe sehen. inbound_emails fehlt hier bewusst: aus einer eingehenden Mail entsteht nie ein Kunde.';
+
+
+--
+-- Name: customer_merge_preview(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.customer_merge_preview(p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE v_src public.customers; v_tgt public.customers;
+BEGIN
+  IF NOT public.is_company_member(p_company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diese Firma' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  SELECT * INTO v_src FROM public.customers WHERE id = p_source_customer_id AND company_id = p_company_id;
+  SELECT * INTO v_tgt FROM public.customers WHERE id = p_target_customer_id AND company_id = p_company_id;
+  IF v_src.id IS NULL OR v_tgt.id IS NULL THEN
+    RAISE EXCEPTION 'Kunde gehoert nicht zu dieser Firma' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'moves', jsonb_build_object(
+      'leads',          (SELECT count(*) FROM public.leads          WHERE customer_id = v_src.id),
+      'offers',         (SELECT count(*) FROM public.offers         WHERE customer_id = v_src.id),
+      'auftraege',      (SELECT count(*) FROM public.auftraege      WHERE customer_id = v_src.id),
+      'appointments',   (SELECT count(*) FROM public.appointments   WHERE customer_id = v_src.id),
+      'rechnungen',     (SELECT count(*) FROM public.rechnungen     WHERE customer_id = v_src.id),
+      'quittungen',     (SELECT count(*) FROM public.quittungen     WHERE customer_id = v_src.id),
+      'inbound_emails', (SELECT count(*) FROM public.inbound_emails WHERE customer_id = v_src.id)
+    ),
+    -- Was das Ziel uebernimmt: NUR seine Luecken. Ein gefuelltes Feld im Ziel
+    -- bleibt stehen — die Oberflaeche zeigt das als Vorschau, nicht als Auswahl.
+    'fills', (
+      SELECT jsonb_object_agg(feld, wert) FROM (
+        SELECT 'first_name' AS feld, v_src.first_name AS wert
+          WHERE v_tgt.first_name IS NULL AND v_src.first_name IS NOT NULL
+        UNION ALL SELECT 'last_name', v_src.last_name
+          WHERE v_tgt.last_name IS NULL AND v_src.last_name IS NOT NULL
+        UNION ALL SELECT 'company_name', v_src.company_name
+          WHERE v_tgt.company_name IS NULL AND v_src.company_name IS NOT NULL
+        UNION ALL SELECT 'primary_email', v_src.primary_email
+          WHERE v_tgt.primary_email IS NULL AND v_src.primary_email IS NOT NULL
+        UNION ALL SELECT 'primary_phone', v_src.primary_phone
+          WHERE v_tgt.primary_phone IS NULL AND v_src.primary_phone IS NOT NULL
+        UNION ALL SELECT 'salutation', v_src.salutation
+          WHERE v_tgt.salutation IS NULL AND v_src.salutation IS NOT NULL
+        UNION ALL SELECT 'external_customer_number', v_src.external_customer_number
+          WHERE v_tgt.external_customer_number IS NULL AND v_src.external_customer_number IS NOT NULL
+      ) f
+    ),
+    -- Was verloren geht: im Ziel gefuellt und in der Quelle ANDERS.
+    'conflicts', (
+      SELECT jsonb_object_agg(feld, jsonb_build_object('ziel', ziel, 'quelle', quelle)) FROM (
+        SELECT 'first_name' AS feld, v_tgt.first_name AS ziel, v_src.first_name AS quelle
+          WHERE v_tgt.first_name IS NOT NULL AND v_src.first_name IS NOT NULL
+            AND v_tgt.first_name IS DISTINCT FROM v_src.first_name
+        UNION ALL SELECT 'last_name', v_tgt.last_name, v_src.last_name
+          WHERE v_tgt.last_name IS NOT NULL AND v_src.last_name IS NOT NULL
+            AND v_tgt.last_name IS DISTINCT FROM v_src.last_name
+        UNION ALL SELECT 'primary_email', v_tgt.primary_email, v_src.primary_email
+          WHERE v_tgt.primary_email IS NOT NULL AND v_src.primary_email IS NOT NULL
+            AND v_tgt.primary_email IS DISTINCT FROM v_src.primary_email
+        UNION ALL SELECT 'primary_phone', v_tgt.primary_phone, v_src.primary_phone
+          WHERE v_tgt.primary_phone IS NOT NULL AND v_src.primary_phone IS NOT NULL
+            AND v_tgt.primary_phone IS DISTINCT FROM v_src.primary_phone
+        UNION ALL SELECT 'language', v_tgt.language, v_src.language
+          WHERE v_tgt.language IS DISTINCT FROM v_src.language
+      ) c
+    )
+  );
+END;
+$$;
+
+
+--
+-- Name: FUNCTION customer_merge_preview(p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.customer_merge_preview(p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid) IS 'Vorschau VOR dem Zusammenfuehren: wie viele Vorgaenge umgehaengt werden, welche Luecken das Ziel uebernimmt und welche Werte der Quelle dabei verloren gehen. Schreibt nichts (STABLE).';
+
+
+--
+-- Name: customer_summary(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.customer_summary(p_customer_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_kunde public.customers;
+BEGIN
+  SELECT * INTO v_kunde FROM public.customers WHERE id = p_customer_id;
+  IF v_kunde.id IS NULL OR NOT public.is_company_member(v_kunde.company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diesen Kunden' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'kunde', to_jsonb(v_kunde),
+    'anzahl', jsonb_build_object(
+      'anfragen',   (SELECT count(*) FROM public.leads          WHERE customer_id = p_customer_id),
+      'offerten',   (SELECT count(*) FROM public.offers         WHERE customer_id = p_customer_id),
+      'auftraege',  (SELECT count(*) FROM public.auftraege      WHERE customer_id = p_customer_id AND deleted_at IS NULL),
+      'termine',    (SELECT count(*) FROM public.appointments   WHERE customer_id = p_customer_id),
+      'rechnungen', (SELECT count(*) FROM public.rechnungen     WHERE customer_id = p_customer_id),
+      'quittungen', (SELECT count(*) FROM public.quittungen     WHERE customer_id = p_customer_id),
+      'emails',     (SELECT count(*) FROM public.inbound_emails WHERE customer_id = p_customer_id)
+    ),
+    'pipeline', jsonb_build_object(
+      'offerten_offen',     (SELECT count(*) FROM public.offers
+                             WHERE customer_id = p_customer_id AND status IN ('draft','sent','viewed')),
+      'offerten_akzeptiert',(SELECT count(*) FROM public.offers
+                             WHERE customer_id = p_customer_id AND status = 'accepted'),
+      'auftraege_offen',    (SELECT count(*) FROM public.auftraege
+                             WHERE customer_id = p_customer_id AND deleted_at IS NULL
+                               AND status NOT IN ('abgeschlossen','storniert'))
+    ),
+    'finanzen', jsonb_build_object(
+      'fakturiert',  (SELECT COALESCE(SUM(gesamttotal), 0) FROM public.rechnungen
+                      WHERE customer_id = p_customer_id AND status <> 'entwurf'),
+      'bezahlt',     (SELECT COALESCE(SUM(gesamttotal), 0) FROM public.rechnungen
+                      WHERE customer_id = p_customer_id AND status = 'bezahlt'),
+      -- Naeherung bis zum Zahlungsbuch: "versendet" gilt als offen. Sobald es
+      -- payments/payment_allocations gibt, kommt der Wert von dort.
+      'offen',       (SELECT COALESCE(SUM(gesamttotal), 0) FROM public.rechnungen
+                      WHERE customer_id = p_customer_id AND status = 'versendet'),
+      -- BEWUSST getrennt und NICHT zu 'bezahlt' addiert: eine Quittung belegt
+      -- oft dieselbe Leistung wie eine Rechnung. Zusammenzuzaehlen hiesse den
+      -- Umsatz doppelt zu zaehlen.
+      'quittungen',  (SELECT COALESCE(SUM(gesamttotal), 0) FROM public.quittungen
+                      WHERE customer_id = p_customer_id)
+    ),
+    'aktivitaet', jsonb_build_object(
+      'erster_kontakt',  v_kunde.first_seen_at,
+      'letzte_aktion',   (SELECT max(t) FROM (
+          SELECT max(created_at) t FROM public.leads        WHERE customer_id = p_customer_id
+          UNION ALL SELECT max(created_at) FROM public.offers       WHERE customer_id = p_customer_id
+          UNION ALL SELECT max(created_at) FROM public.auftraege    WHERE customer_id = p_customer_id
+          UNION ALL SELECT max(created_at) FROM public.rechnungen   WHERE customer_id = p_customer_id
+          UNION ALL SELECT max(created_at) FROM public.quittungen   WHERE customer_id = p_customer_id
+          UNION ALL SELECT max(received_at) FROM public.inbound_emails WHERE customer_id = p_customer_id
+          UNION ALL SELECT max(appointment_date::timestamptz) FROM public.appointments WHERE customer_id = p_customer_id
+        ) x),
+      'naechster_termin', (SELECT jsonb_build_object('id', a.id, 'datum', a.appointment_date,
+                                                     'start', a.start_time, 'titel', a.title)
+                           FROM public.appointments a
+                           WHERE a.customer_id = p_customer_id
+                             AND a.appointment_date >= CURRENT_DATE
+                             AND a.status NOT IN ('cancelled')
+                           ORDER BY a.appointment_date, a.start_time LIMIT 1)
+    ),
+    'zusammengefuehrt_aus', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'id', s.id, 'anzeigename', s.display_name, 'am', s.merged_at)), '[]'::jsonb)
+      FROM public.customers s WHERE s.merged_into_customer_id = p_customer_id)
+  );
+END;
+$$;
+
+
+--
+-- Name: FUNCTION customer_summary(p_customer_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.customer_summary(p_customer_id uuid) IS 'Kennzahlen der Kundenkarte. finanzen.quittungen steht ABSICHTLICH neben finanzen.bezahlt und wird nicht addiert — sonst zaehlt derselbe Umsatz zweimal. finanzen.offen ist eine Naeherung, bis es ein Zahlungsbuch gibt.';
+
+
+--
+-- Name: customer_timeline(uuid, integer, integer, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.customer_timeline(p_customer_id uuid, p_limit integer DEFAULT 50, p_offset integer DEFAULT 0, p_before timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS TABLE(ereignis_am timestamp with time zone, ereignis_art text, entitaet text, entitaet_id uuid, titel text, untertitel text, status text, betrag numeric, sprache text)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_company UUID;
+  v_limit   INTEGER := GREATEST(1, LEAST(COALESCE(p_limit, 50), 200));
+BEGIN
+  SELECT c.company_id INTO v_company FROM public.customers c WHERE c.id = p_customer_id;
+  IF v_company IS NULL OR NOT public.is_company_member(v_company) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diesen Kunden' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN QUERY
+  WITH alle(ts, art, tab, eid, tit, sub, st, betr, spr) AS (
+    -- Jede Spalte ausdruecklich gecastet: die Basistabellen fuehren varchar und
+    -- eigene Aufzaehlungstypen, RETURNS TABLE verlangt text.
+    SELECT l.created_at, 'anfrage'::TEXT, 'leads'::TEXT, l.id,
+           COALESCE(NULLIF(l.service_type::TEXT, ''), 'Anfrage')::TEXT,
+           NULLIF(TRIM(CONCAT_WS(' ', l.from_plz, l.from_city)), '')::TEXT,
+           l.status::TEXT, NULL::NUMERIC(12,2), l.language::TEXT
+    FROM public.leads l WHERE l.customer_id = p_customer_id
+    UNION ALL
+    SELECT o.created_at, 'offerte', 'offers', o.id,
+           COALESCE(NULLIF(o.title, ''), 'Offerte')::TEXT, NULL::TEXT,
+           o.status::TEXT, o.total::NUMERIC(12,2), o.language::TEXT
+    FROM public.offers o WHERE o.customer_id = p_customer_id
+    UNION ALL
+    SELECT a.created_at, 'auftrag', 'auftraege', a.id,
+           COALESCE(NULLIF(a.title, ''), 'Auftrag')::TEXT, a.auftrag_nummer::TEXT,
+           a.status::TEXT, a.total::NUMERIC(12,2), a.language::TEXT
+    FROM public.auftraege a WHERE a.customer_id = p_customer_id AND a.deleted_at IS NULL
+    UNION ALL
+    -- Der Termin wird nach seinem DATUM einsortiert, nicht nach seiner Erfassung.
+    SELECT (t.appointment_date + COALESCE(t.start_time, TIME '00:00')) AT TIME ZONE 'Europe/Zurich',
+           'termin', 'appointments', t.id,
+           COALESCE(NULLIF(t.title, ''), 'Termin')::TEXT, t.appointment_type::TEXT,
+           t.status::TEXT, NULL::NUMERIC(12,2), t.language::TEXT
+    FROM public.appointments t WHERE t.customer_id = p_customer_id
+    UNION ALL
+    SELECT r.created_at, 'rechnung', 'rechnungen', r.id,
+           COALESCE(r.rechnung_nr, 'Rechnung')::TEXT, NULL::TEXT,
+           r.status::TEXT, r.gesamttotal::NUMERIC(12,2), r.language::TEXT
+    FROM public.rechnungen r WHERE r.customer_id = p_customer_id
+    UNION ALL
+    SELECT q.created_at, 'quittung', 'quittungen', q.id,
+           COALESCE(q.quittung_nr, 'Quittung')::TEXT, NULL::TEXT,
+           q.status::TEXT, q.gesamttotal::NUMERIC(12,2), q.language::TEXT
+    FROM public.quittungen q WHERE q.customer_id = p_customer_id
+    UNION ALL
+    SELECT i.received_at, 'email', 'inbound_emails', i.id,
+           COALESCE(NULLIF(i.subject, ''), 'E-Mail')::TEXT, i.from_email::TEXT,
+           i.processing_status::TEXT, NULL::NUMERIC(12,2), NULL::TEXT
+    FROM public.inbound_emails i WHERE i.customer_id = p_customer_id
+  )
+  SELECT alle.ts, alle.art, alle.tab, alle.eid, alle.tit, alle.sub, alle.st, alle.betr, alle.spr
+  FROM alle
+  WHERE p_before IS NULL OR alle.ts < p_before
+  ORDER BY alle.ts DESC, alle.eid
+  LIMIT v_limit OFFSET GREATEST(0, COALESCE(p_offset, 0));
+END;
+$$;
+
+
+--
+-- Name: FUNCTION customer_timeline(p_customer_id uuid, p_limit integer, p_offset integer, p_before timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.customer_timeline(p_customer_id uuid, p_limit integer, p_offset integer, p_before timestamp with time zone) IS 'Verlauf eines Kunden ueber sieben Tabellen. Termine werden nach ihrem Datum einsortiert, nicht nach ihrer Erfassung. Ab etwa 1000 Ereignissen je Kunde gehoert das LIMIT in die einzelnen Zweige (MergeAppend); heute waere das verfruehte Optimierung.';
+
+
+--
+-- Name: customers_set_display_name(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.customers_set_display_name() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.display_name IS NULL OR TRIM(NEW.display_name) = '' THEN
+    NEW.display_name := COALESCE(
+      NULLIF(TRIM(CONCAT_WS(' ',
+        NULLIF(TRIM(NEW.first_name), ''),
+        NULLIF(TRIM(NEW.last_name), '')
+      )), ''),
+      NULLIF(TRIM(NEW.company_name), ''),
+      public.normalize_customer_email(NEW.primary_email),
+      public.normalize_customer_phone(NEW.primary_phone)
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: deactivate_expired_subscriptions(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1580,6 +2168,58 @@ BEGIN
   RETURN v_result;
 END;
 $$;
+
+
+--
+-- Name: duplicate_candidates(uuid, uuid, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.duplicate_candidates(p_company_id uuid, p_customer_id uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 50, p_offset integer DEFAULT 0) RETURNS TABLE(customer_a_id uuid, customer_a_name text, customer_a_email text, customer_a_phone text, customer_b_id uuid, customer_b_name text, customer_b_email text, customer_b_phone text, match_reason text)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NOT public.is_company_member(p_company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diese Firma' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN QUERY
+  SELECT a.id, a.display_name, a.primary_email, a.primary_phone,
+         b.id, b.display_name, b.primary_email, b.primary_phone,
+         CASE
+           WHEN a.phone_normalized IS NOT NULL AND a.phone_normalized = b.phone_normalized
+                AND lower(TRIM(COALESCE(a.last_name, ''))) = lower(TRIM(COALESCE(b.last_name, '')))
+                AND COALESCE(a.last_name, '') <> ''
+             THEN 'same_phone_and_name'
+           ELSE 'same_phone'
+         END
+  FROM public.customers a
+  JOIN public.customers b
+    ON b.company_id = a.company_id
+   AND b.id <> a.id
+   AND b.merged_into_customer_id IS NULL
+   AND a.phone_normalized IS NOT NULL
+   AND a.phone_normalized = b.phone_normalized
+  WHERE a.company_id = p_company_id
+    AND a.merged_into_customer_id IS NULL
+    AND (p_customer_id IS NULL OR a.id = p_customer_id)
+    -- Ohne p_customer_id jedes Paar nur einmal zeigen. Der Vergleich laeuft ueber
+    -- die id, NICHT ueber created_at: NOW() ist innerhalb einer Transaktion
+    -- konstant, also tragen alle im Backfill entstandenen Kunden denselben
+    -- Zeitstempel und ein Paar erschiene zweimal.
+    AND (p_customer_id IS NOT NULL OR a.id < b.id)
+  ORDER BY a.created_at DESC, b.created_at DESC
+  LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 50), 200))
+  OFFSET GREATEST(0, COALESCE(p_offset, 0));
+END;
+$$;
+
+
+--
+-- Name: FUNCTION duplicate_candidates(p_company_id uuid, p_customer_id uuid, p_limit integer, p_offset integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.duplicate_candidates(p_company_id uuid, p_customer_id uuid, p_limit integer, p_offset integer) IS 'Paare mit derselben Telefonnummer. Ohne p_customer_id die Liste fuer die Uebersicht (jedes Paar einmal), mit p_customer_id das Band auf der Kundenkarte. Reine Namensaehnlichkeit gilt bewusst NICHT als Kandidat.';
 
 
 --
@@ -2007,6 +2647,46 @@ The function returns the best coverage entry for each company (preferring exact 
 
 
 --
+-- Name: find_customer_by_identity(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.find_customer_by_identity(p_company_id uuid, p_email text, p_phone text) RETURNS TABLE(customer_id uuid, matched_on text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  WITH k AS (
+    SELECT public.normalize_customer_email(p_email) AS e,
+           public.normalize_customer_phone(p_phone) AS p
+  )
+  SELECT c.id,
+         CASE
+           WHEN k.e IS NOT NULL AND c.email_normalized = k.e
+            AND k.p IS NOT NULL AND c.phone_normalized = k.p THEN 'email_and_phone'
+           WHEN k.e IS NOT NULL AND c.email_normalized = k.e THEN 'email'
+           ELSE 'phone'
+         END
+  FROM public.customers c, k
+  WHERE c.company_id = p_company_id
+    AND c.merged_into_customer_id IS NULL
+    AND (   (k.e IS NOT NULL AND c.email_normalized = k.e)
+         OR (k.p IS NOT NULL AND c.phone_normalized = k.p))
+  ORDER BY
+    -- Der beste Treffer zuerst: beide Merkmale schlagen ein einzelnes.
+    ((k.e IS NOT NULL AND c.email_normalized = k.e)::INT
+   + (k.p IS NOT NULL AND c.phone_normalized = k.p)::INT) DESC,
+    c.created_at ASC
+  LIMIT 1;
+$$;
+
+
+--
+-- Name: FUNCTION find_customer_by_identity(p_company_id uuid, p_email text, p_phone text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.find_customer_by_identity(p_company_id uuid, p_email text, p_phone text) IS 'Einzige Stelle, an der die Zuordnungsregel steht. Liefert den besten Treffer und woran er haengt (email_and_phone | email | phone). Legt NICHTS an.';
+
+
+--
 -- Name: generate_auftrag_nummer(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2142,40 +2822,32 @@ $$;
 --
 
 CREATE FUNCTION public.generate_rechnung_nr() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $_$
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 DECLARE
   next_nr  INTEGER;
-  year_str TEXT;
+  jahr_int INTEGER;
 BEGIN
   IF NEW.rechnung_nr IS NULL THEN
-    year_str := to_char(NOW(), 'YYYY');
+    jahr_int := EXTRACT(YEAR FROM COALESCE(NEW.datum, CURRENT_DATE))::INTEGER;
 
-    -- Bu firmanın bu yıldaki en yüksek numarasını bul, +1 al (per-company sayaç)
-    SELECT COALESCE(
-      MAX(
-        CASE
-          WHEN rechnung_nr ~ ('^RE-' || year_str || '-[0-9]+$')
-          THEN CAST(SPLIT_PART(rechnung_nr, '-', 3) AS INTEGER)
-          ELSE 0
-        END
-      ), 0
-    ) + 1
-    INTO next_nr
-    FROM rechnungen
-    WHERE company_id = NEW.company_id;
+    INSERT INTO public.rechnung_nr_counter AS c (company_id, jahr, letzte_nr)
+    VALUES (NEW.company_id, jahr_int, 1)
+    ON CONFLICT (company_id, jahr)
+      DO UPDATE SET letzte_nr = c.letzte_nr + 1
+    RETURNING c.letzte_nr INTO next_nr;
 
-    NEW.rechnung_nr := 'RE-' || year_str || '-' || LPAD(next_nr::text, 4, '0');
+    NEW.rechnung_nr := 'RE-' || jahr_int::TEXT || '-' || LPAD(next_nr::TEXT, 4, '0');
   END IF;
 
-  -- Fälligkeit: standardmäßig datum + 30 Tage
   IF NEW.faellig_am IS NULL THEN
     NEW.faellig_am := NEW.datum + 30;
   END IF;
 
   RETURN NEW;
 END;
-$_$;
+$$;
 
 
 --
@@ -2330,7 +3002,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM auth.users u
     WHERE u.id = auth.uid() 
-    AND u.email = 'redacted@example.test'
+    AND u.email = 'test@test.invalid'
   ) THEN
     RAISE EXCEPTION 'Unauthorized: Owner access required';
   END IF;
@@ -2563,7 +3235,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM auth.users u
     WHERE u.id = auth.uid() 
-    AND u.email = 'redacted@example.test'
+    AND u.email = 'test@test.invalid'
   ) THEN
     RAISE EXCEPTION 'Unauthorized: Owner access required';
   END IF;
@@ -3218,7 +3890,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM auth.users u
     WHERE u.id = auth.uid() 
-    AND u.email = 'redacted@example.test'
+    AND u.email = 'test@test.invalid'
   ) THEN
     RAISE EXCEPTION 'Unauthorized: Owner access required';
   END IF;
@@ -3241,7 +3913,7 @@ BEGIN
   LEFT JOIN public.profiles p ON p.id = u.id
   LEFT JOIN public.user_roles ur ON ur.user_id = u.id
   LEFT JOIN public.companies c ON c.user_id = u.id
-  WHERE u.email != 'redacted@example.test'
+  WHERE u.email != 'test@test.invalid'
   ORDER BY u.last_sign_in_at DESC NULLS LAST;
 END;
 $$;
@@ -3283,6 +3955,183 @@ $$;
 --
 
 COMMENT ON FUNCTION public.grant_trial(p_company_id uuid, p_days integer, p_granted_by uuid) IS 'Admin: grants a free CRM trial to a company (can be called multiple times)';
+
+
+--
+-- Name: guard_company_ownership(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_company_ownership() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+    IF current_user NOT IN ('postgres', 'service_role', 'supabase_admin')
+       AND NOT public.is_admin(auth.uid()) THEN
+      RAISE EXCEPTION 'Eigentuemerwechsel ist ueber die Anwendung nicht erlaubt'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION guard_company_ownership(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.guard_company_ownership() IS 'Verhindert UPDATE companies SET user_id = … aus der Anwendung heraus. companies.user_id ist der Anker mehrerer Alt-Policies (rechnungen, api_keys); ein Wechsel waere eine Rechteausweitung.';
+
+
+--
+-- Name: guard_customer_merge_fields(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_customer_merge_fields() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  -- BEWUSST SECURITY INVOKER (Default). In einer DEFINER-Funktion waere
+  -- current_user immer der Funktionseigentuemer und die Ausnahme wuerde stets
+  -- greifen — derselbe Fallstrick, der in guard_company_ownership dokumentiert ist.
+  -- merge_customers() laeuft als SECURITY DEFINER und faellt daher in die Ausnahme.
+  IF current_user IN ('postgres', 'supabase_admin') THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.merged_into_customer_id IS DISTINCT FROM OLD.merged_into_customer_id
+     OR NEW.merged_at IS DISTINCT FROM OLD.merged_at THEN
+    RAISE EXCEPTION
+      'Zusammenfuehrung laeuft ausschliesslich ueber merge_customers()'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: guard_customer_merges_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_customer_merges_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF current_user IN ('postgres', 'supabase_admin') THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  RAISE EXCEPTION 'customer_merges ist ein Nachweis und wird nicht veraendert'
+    USING ERRCODE = 'insufficient_privilege';
+END;
+$$;
+
+
+--
+-- Name: guard_quittung_delete(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_quittung_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF current_user IN ('postgres', 'supabase_admin') THEN
+    RETURN OLD;
+  END IF;
+
+  IF OLD.status IS DISTINCT FROM 'draft' THEN
+    RAISE EXCEPTION
+      'Quittung % ist im Status "%" und darf nicht geloescht werden.',
+      OLD.quittung_nr, OLD.status
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN OLD;
+END;
+$$;
+
+
+--
+-- Name: guard_quittung_status_regression(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_quittung_status_regression() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF current_user IN ('postgres', 'supabase_admin') THEN
+    RETURN NEW;
+  END IF;
+
+  IF OLD.status IN ('signed', 'sent', 'paid') AND NEW.status = 'draft' THEN
+    RAISE EXCEPTION
+      'Quittung % kann nicht in den Entwurf zurueckgesetzt werden (Status "%").',
+      OLD.quittung_nr, OLD.status
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: guard_rechnung_delete(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_rechnung_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  -- SECURITY INVOKER (Default): current_user muss der echte Aufrufer sein.
+  IF current_user IN ('postgres', 'supabase_admin') THEN
+    RETURN OLD;
+  END IF;
+
+  IF OLD.status IS DISTINCT FROM 'entwurf' THEN
+    RAISE EXCEPTION
+      'Rechnung % ist im Status "%" und darf nicht geloescht werden. Bitte stornieren.',
+      OLD.rechnung_nr, OLD.status
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN OLD;
+END;
+$$;
+
+
+--
+-- Name: guard_rechnung_status_regression(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_rechnung_status_regression() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF current_user IN ('postgres', 'supabase_admin') THEN
+    RETURN NEW;
+  END IF;
+
+  IF OLD.status IN ('versendet', 'bezahlt') AND NEW.status = 'entwurf' THEN
+    RAISE EXCEPTION
+      'Rechnung % kann nicht in den Entwurf zurueckgesetzt werden (Status "%").',
+      OLD.rechnung_nr, OLD.status
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
 
 
 --
@@ -3371,6 +4220,38 @@ $$;
 --
 
 COMMENT ON FUNCTION public.i18n_text(p_base text, p_translations jsonb, p_locale text, p_field text) IS 'Löst ein übersetztes Textfeld auf. Leere oder fehlende Übersetzung fällt auf die deutsche Basisspalte zurück — ein Kunde sieht nie einen leeren Text.';
+
+
+--
+-- Name: inbound_emails_set_customer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.inbound_emails_set_customer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.customer_id IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT f.customer_id INTO NEW.customer_id
+  FROM public.find_customer_by_identity(
+    NEW.company_id,
+    COALESCE(NULLIF(NEW.extracted_data ->> 'email', ''), NEW.from_email),
+    NEW.extracted_data ->> 'phone') f;
+
+  IF NEW.customer_id IS NULL THEN
+    SELECT f.customer_id INTO NEW.customer_id
+    FROM public.find_customer_by_identity(NEW.company_id, NEW.from_email, NULL) f;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'inbound_emails_set_customer: % (E-Mail wird trotzdem gespeichert)', SQLERRM;
+  RETURN NEW;
+END;
+$$;
 
 
 --
@@ -3523,6 +4404,30 @@ $$;
 
 
 --
+-- Name: is_company_role(uuid, text[], uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_company_role(_company_id uuid, _roles text[], _user_id uuid DEFAULT auth.uid()) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.company_members
+    WHERE company_id = _company_id
+      AND user_id    = _user_id
+      AND role       = ANY(_roles)
+  );
+$$;
+
+
+--
+-- Name: FUNCTION is_company_role(_company_id uuid, _roles text[], _user_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.is_company_role(_company_id uuid, _roles text[], _user_id uuid) IS 'Ist der Benutzer Mitglied dieser Firma MIT einer der genannten Rollen? Gegenstück zu is_company_member(), das jede Rolle akzeptiert.';
+
+
+--
 -- Name: is_company_visible_via_offer(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3626,6 +4531,35 @@ $$;
 
 
 --
+-- Name: leads_set_customer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.leads_set_customer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE v_res JSONB;
+BEGIN
+  IF NEW.customer_id IS NOT NULL OR NEW.company_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  v_res := public.resolve_or_create_customer(
+    NEW.company_id, NEW.customer_email, NEW.customer_phone,
+    NEW.customer_first_name, NEW.customer_last_name, NULL,
+    NEW.customer_salutation, NEW.language, COALESCE(NEW.source, 'lead'),
+    COALESCE(NEW.created_at, NOW()));
+
+  NEW.customer_id := NULLIF(v_res ->> 'customer_id', '')::UUID;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'leads_set_customer: % (Anfrage wird trotzdem gespeichert)', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: log_appointment_changes(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3665,6 +4599,175 @@ $$;
 
 
 --
+-- Name: merge_customers(uuid, uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.merge_customers(p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid, p_reason text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_src   public.customers;
+  v_tgt   public.customers;
+  v_moved JSONB := '{}'::JSONB;
+  v_n     INTEGER;
+BEGIN
+  IF NOT public.is_company_role(p_company_id, ARRAY['owner', 'admin']) THEN
+    RAISE EXCEPTION 'Zusammenfuehren ist owner und admin vorbehalten'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF p_source_customer_id = p_target_customer_id THEN
+    RAISE EXCEPTION 'Quelle und Ziel sind identisch'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  -- Nach id sortiert sperren, sonst verklemmen sich zwei gegenlaeufige Merges.
+  PERFORM 1 FROM public.customers
+   WHERE id IN (p_source_customer_id, p_target_customer_id)
+   ORDER BY id FOR UPDATE;
+
+  SELECT * INTO v_src FROM public.customers WHERE id = p_source_customer_id;
+  SELECT * INTO v_tgt FROM public.customers WHERE id = p_target_customer_id;
+
+  IF v_src.id IS NULL OR v_tgt.id IS NULL
+     OR v_src.company_id <> p_company_id OR v_tgt.company_id <> p_company_id THEN
+    RAISE EXCEPTION 'Kunde gehoert nicht zu dieser Firma'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF v_src.merged_into_customer_id IS NOT NULL OR v_tgt.merged_into_customer_id IS NOT NULL THEN
+    RAISE EXCEPTION 'Bereits zusammengefuehrte Kunden'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  UPDATE public.leads SET customer_id = v_tgt.id WHERE customer_id = v_src.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_moved := v_moved || jsonb_build_object('leads', v_n);
+
+  UPDATE public.offers SET customer_id = v_tgt.id WHERE customer_id = v_src.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_moved := v_moved || jsonb_build_object('offers', v_n);
+
+  UPDATE public.auftraege SET customer_id = v_tgt.id WHERE customer_id = v_src.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_moved := v_moved || jsonb_build_object('auftraege', v_n);
+
+  UPDATE public.appointments SET customer_id = v_tgt.id WHERE customer_id = v_src.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_moved := v_moved || jsonb_build_object('appointments', v_n);
+
+  UPDATE public.rechnungen SET customer_id = v_tgt.id WHERE customer_id = v_src.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_moved := v_moved || jsonb_build_object('rechnungen', v_n);
+
+  UPDATE public.quittungen SET customer_id = v_tgt.id WHERE customer_id = v_src.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_moved := v_moved || jsonb_build_object('quittungen', v_n);
+
+  UPDATE public.inbound_emails SET customer_id = v_tgt.id WHERE customer_id = v_src.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT; v_moved := v_moved || jsonb_build_object('inbound_emails', v_n);
+
+  -- Nur Luecken im Ziel fuellen, NIE ueberschreiben.
+  UPDATE public.customers SET
+    first_name               = COALESCE(first_name,               v_src.first_name),
+    last_name                = COALESCE(last_name,                v_src.last_name),
+    company_name             = COALESCE(company_name,             v_src.company_name),
+    primary_email            = COALESCE(primary_email,            v_src.primary_email),
+    primary_phone            = COALESCE(primary_phone,            v_src.primary_phone),
+    salutation               = COALESCE(salutation,               v_src.salutation),
+    external_customer_number = COALESCE(external_customer_number, v_src.external_customer_number),
+    notes                    = COALESCE(notes,                    v_src.notes),
+    source                   = COALESCE(source,                   v_src.source),
+    first_seen_at            = LEAST(first_seen_at, v_src.first_seen_at),
+    possible_duplicate       = FALSE
+  WHERE id = v_tgt.id;
+
+  INSERT INTO public.customer_merges (
+    company_id, source_customer_id, target_customer_id, merged_by,
+    reason, moved_counts, source_snapshot)
+  VALUES (p_company_id, v_src.id, v_tgt.id, auth.uid(),
+          NULLIF(TRIM(COALESCE(p_reason, '')), ''), v_moved, to_jsonb(v_src));
+
+  -- Die Quellzeile bleibt als Weiterleitung stehen. Der partielle UNIQUE-Index
+  -- auf customers greift nur bei merged_into_customer_id IS NULL — die E-Mail
+  -- gibt den Index in diesem Moment frei, es entsteht kein Konflikt.
+  UPDATE public.customers
+  SET merged_into_customer_id = v_tgt.id,
+      merged_at               = NOW(),
+      status                  = 'inactive'
+  WHERE id = v_src.id;
+
+  RETURN jsonb_build_object('target_customer_id', v_tgt.id, 'moved', v_moved);
+END;
+$$;
+
+
+--
+-- Name: FUNCTION merge_customers(p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid, p_reason text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.merge_customers(p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid, p_reason text) IS 'Fuehrt zwei Kunden zusammen. Die Quellzeile wird NICHT geloescht, sondern zur Weiterleitung — alte Links loesen weiter auf. Nicht ruecknehmbar; der Nachweis inklusive vollstaendiger Quellzeile steht in customer_merges.';
+
+
+--
+-- Name: normalize_customer_email(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.normalize_customer_email(p_email text) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+  SELECT NULLIF(LOWER(TRIM(p_email)), '');
+$$;
+
+
+--
+-- Name: FUNCTION normalize_customer_email(p_email text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.normalize_customer_email(p_email text) IS 'Kanonische Form einer E-Mail fuer den Kundenabgleich: trim + lower, Leerstring wird NULL. BEWUSST OHNE anbieterspezifische Regeln (Gmail-Punkte, Plus-Adressen) — bei anderen Anbietern sind das verschiedene Personen.';
+
+
+--
+-- Name: normalize_customer_phone(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.normalize_customer_phone(p_phone text) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+    AS $$
+DECLARE
+  v TEXT;
+  d TEXT;
+BEGIN
+  IF p_phone IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  v := regexp_replace(p_phone, '[[:space:]\-\(\)\./]', '', 'g');
+  IF v = '' THEN
+    RETURN NULL;
+  END IF;
+
+  IF v LIKE '+%' THEN
+    d := regexp_replace(substr(v, 2), '\D', '', 'g');
+    RETURN CASE WHEN length(d) >= 7 THEN '+' || d END;
+  ELSIF v LIKE '0041%' THEN
+    d := regexp_replace(substr(v, 5), '\D', '', 'g');
+    RETURN CASE WHEN length(d) >= 7 THEN '+41' || d END;
+  ELSIF v LIKE '00%' THEN
+    d := regexp_replace(substr(v, 3), '\D', '', 'g');
+    RETURN CASE WHEN length(d) >= 9 THEN '+' || d END;
+  ELSIF v LIKE '0%' THEN
+    d := regexp_replace(substr(v, 2), '\D', '', 'g');
+    RETURN CASE WHEN length(d) >= 8 THEN '+41' || d END;
+  END IF;
+
+  -- Kein erkennbares Praefix ("79 123 45 67") — mehrdeutig, wird verworfen.
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION normalize_customer_phone(p_phone text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.normalize_customer_phone(p_phone text) IS 'E.164 mit Schweizer Vorgabe. SQL-Gegenstueck zu normalizePhoneToE164() in notify-appointment-reminder. Nummern ohne erkennbares Praefix werden verworfen, nicht geraten.';
+
+
+--
 -- Name: notify_offer_response(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3699,6 +4802,149 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: offers_set_customer(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.offers_set_customer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE v_res JSONB;
+BEGIN
+  IF NEW.customer_id IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.lead_id IS NOT NULL THEN
+    SELECT l.customer_id INTO NEW.customer_id
+    FROM public.leads l WHERE l.id = NEW.lead_id AND l.company_id = NEW.company_id;
+  END IF;
+
+  IF NEW.customer_id IS NULL THEN
+    v_res := public.resolve_or_create_customer(
+      NEW.company_id, NEW.customer_email, NEW.customer_phone,
+      NEW.customer_first_name, NEW.customer_last_name, NULL,
+      NEW.customer_salutation, NEW.language, 'offer',
+      COALESCE(NEW.created_at, NOW()));
+    NEW.customer_id := NULLIF(v_res ->> 'customer_id', '')::UUID;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'offers_set_customer: % (Offerte wird trotzdem gespeichert)', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: preview_customer_backfill(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_customer_backfill(p_company_id uuid) RETURNS TABLE(identitaet text, identitaet_art text, quelle_tabelle text, quelle_id uuid, erstellt_am timestamp with time zone, email_roh text, email_norm text, telefon_roh text, telefon_norm text, vorname text, nachname text, ganzer_name text, sprache text, zeilen_je_identitaet integer, bestehender_kunde uuid, flag_namenskonflikt boolean, flag_telefonkonflikt boolean, flag_sprachkonflikt boolean, flag_telefon_quer boolean, flag_platzhalter boolean, flag_ohne_firma boolean)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NOT public.is_company_member(p_company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diese Firma' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN QUERY
+  WITH q AS (
+    SELECT s.*,
+           public.normalize_customer_email(s.email_roh)   AS e_norm,
+           public.normalize_customer_phone(s.telefon_roh) AS p_norm,
+           NULLIF(NULLIF(TRIM(COALESCE(s.vorname,  '')), ''), 'Unbekannt') AS v_clean,
+           NULLIF(NULLIF(TRIM(COALESCE(s.nachname, '')), ''), 'Unbekannt') AS n_clean
+    FROM public.customer_backfill_quellen(p_company_id) s
+  ),
+  k AS (
+    SELECT q.*,
+           CASE WHEN q.e_norm IS NOT NULL THEN 'e:' || q.e_norm
+                WHEN q.p_norm IS NOT NULL THEN 'p:' || q.p_norm END AS ident,
+           CASE WHEN q.e_norm IS NOT NULL THEN 'email'
+                WHEN q.p_norm IS NOT NULL THEN 'phone_only'
+                ELSE 'none' END AS art
+    FROM q
+  ),
+  -- Eine Telefonnummer, die unter MEHREREN Identitaeten auftaucht, ist genau
+  -- der Fall, den resolve_or_create_customer als Duplikat-Verdacht markiert.
+  -- Alle Spalten qualifiziert: die Namen der RETURNS-TABLE-Parameter kollidieren
+  -- sonst mit den CTE-Spalten (sprache, vorname, nachname, …).
+  quer AS (
+    SELECT k.p_norm FROM k
+    WHERE k.p_norm IS NOT NULL AND k.ident IS NOT NULL
+    GROUP BY k.p_norm HAVING count(DISTINCT k.ident) > 1
+  ),
+  agg AS (
+    SELECT k.ident AS a_ident,
+           count(*)::INTEGER                                AS n,
+           count(DISTINCT lower(TRIM(COALESCE(k.n_clean, ''))))
+             FILTER (WHERE k.n_clean IS NOT NULL)           AS n_namen,
+           count(DISTINCT k.p_norm) FILTER (WHERE k.p_norm IS NOT NULL)   AS n_tel,
+           count(DISTINCT k.sprache) FILTER (WHERE k.sprache IS NOT NULL) AS n_sprachen,
+           max(k.customer_id::TEXT)                         AS vorhandener
+    FROM k WHERE k.ident IS NOT NULL GROUP BY k.ident
+  )
+  SELECT
+    k.ident, k.art, k.quelle_tabelle, k.quelle_id, k.erstellt_am,
+    k.email_roh, k.e_norm, k.telefon_roh, k.p_norm,
+    k.v_clean, k.n_clean, k.ganzer_name, k.sprache,
+    COALESCE(agg.n, 1),
+    agg.vorhandener::UUID,
+    COALESCE(agg.n_namen, 0)    > 1,
+    COALESCE(agg.n_tel, 0)      > 1,
+    COALESCE(agg.n_sprachen, 0) > 1,
+    k.p_norm IN (SELECT quer.p_norm FROM quer),
+    -- Platzhalter aus _shared/leadMapping.ts
+    (TRIM(COALESCE(k.vorname, '')) = 'Unbekannt' OR TRIM(COALESCE(k.nachname, '')) = 'Unbekannt'),
+    k.company_id IS NULL
+  FROM k LEFT JOIN agg ON agg.a_ident = k.ident
+  ORDER BY (k.ident IS NULL) DESC, k.ident, k.erstellt_am;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION preview_customer_backfill(p_company_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.preview_customer_backfill(p_company_id uuid) IS 'Bericht VOR dem Backfill. STABLE — Postgres verhindert jedes Schreiben zur Laufzeit, die Zusage steht nicht nur im Kommentar. Zeilen mit identitaet = NULL stehen oben: sie tragen weder E-Mail noch Telefon und bekommen keinen Kunden.';
+
+
+--
+-- Name: reap_stuck_inbound_emails(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reap_stuck_inbound_emails(p_minutes integer DEFAULT 15) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  UPDATE public.inbound_emails
+  SET processing_status = 'failed',
+      last_error = COALESCE(last_error, 'Verarbeitung abgebrochen (Timeout)')
+  WHERE processing_status = 'processing'
+    AND lead_id IS NULL
+    AND updated_at < NOW() - (p_minutes || ' minutes')::INTERVAL;
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION reap_stuck_inbound_emails(p_minutes integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reap_stuck_inbound_emails(p_minutes integer) IS 'Setzt Zeilen, die länger als p_minutes auf processing stehen, auf failed — damit werden sie in der Review-Oberfläche sichtbar und wiederholbar.';
 
 
 --
@@ -3876,6 +5122,389 @@ $$;
 --
 
 COMMENT ON FUNCTION public.replace_offer_items(p_offer_id uuid, p_items jsonb) IS 'offer_items tablosunu atomik olarak yeniler. Delete + insert tek transaction içinde — insert başarısız olursa delete de geri alınır. Çağıran kullanıcı offer company_id''sine üye olmalı.';
+
+
+--
+-- Name: resolve_or_create_customer(uuid, text, text, text, text, text, text, text, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.resolve_or_create_customer(p_company_id uuid, p_email text, p_phone text, p_first_name text DEFAULT NULL::text, p_last_name text DEFAULT NULL::text, p_company_name text DEFAULT NULL::text, p_salutation text DEFAULT NULL::text, p_language text DEFAULT NULL::text, p_source text DEFAULT NULL::text, p_seen_at timestamp with time zone DEFAULT now()) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_email   TEXT;
+  v_phone   TEXT;
+  v_first   TEXT;
+  v_last    TEXT;
+  v_salut   TEXT;
+  v_lang    TEXT;
+  v_id      UUID;
+  v_matched TEXT;
+  v_dup     BOOLEAN := FALSE;
+  v_created BOOLEAN := FALSE;
+BEGIN
+  -- Ein angemeldeter Benutzer muss Mitglied der Firma sein. Edge Functions
+  -- laufen mit dem Service-Role-Key ohne auth.uid() — sie umgehen RLS ohnehin,
+  -- eine zweite Huerde brauchte es dort nicht. anon bekommt kein Ausfuehrungsrecht.
+  IF auth.uid() IS NOT NULL AND NOT public.is_company_member(p_company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diese Firma'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  v_email := public.normalize_customer_email(p_email);
+  v_phone := public.normalize_customer_phone(p_phone);
+
+  -- Die Platzhalter aus supabase/functions/_shared/leadMapping.ts sind kein Name.
+  v_first := NULLIF(NULLIF(TRIM(COALESCE(p_first_name, '')), ''), 'Unbekannt');
+  v_last  := NULLIF(NULLIF(TRIM(COALESCE(p_last_name,  '')), ''), 'Unbekannt');
+  v_salut := NULLIF(TRIM(COALESCE(p_salutation, '')), '');
+  IF v_salut IS NOT NULL AND v_salut NOT IN ('Herr', 'Frau', 'Firma') THEN
+    v_salut := NULL;
+  END IF;
+  v_lang := NULLIF(TRIM(COALESCE(p_language, '')), '');
+  IF v_lang IS NULL OR v_lang NOT IN ('de', 'fr', 'en') THEN
+    v_lang := 'de';
+  END IF;
+
+  IF v_email IS NULL AND v_phone IS NULL THEN
+    RETURN jsonb_build_object(
+      'customer_id', NULL, 'matched_on', 'none', 'created', FALSE,
+      'possible_duplicate', FALSE, 'reason', 'no_identity');
+  END IF;
+
+  -- Serialisiert zwei gleichzeitig eintreffende Datensaetze derselben Identitaet
+  -- — auch dort, wo kein UNIQUE-Index greift (Treffer nur ueber Telefon).
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(
+      p_company_id::TEXT || '|' || COALESCE('e:' || v_email, 'p:' || v_phone), 0));
+
+  SELECT f.customer_id, f.matched_on INTO v_id, v_matched
+  FROM public.find_customer_by_identity(p_company_id, p_email, p_phone) f;
+
+  IF v_matched = 'phone' THEN
+    UPDATE public.customers SET possible_duplicate = TRUE WHERE id = v_id;
+    v_dup := TRUE;
+    v_id  := NULL;
+  END IF;
+
+  IF v_id IS NULL THEN
+    BEGIN
+      INSERT INTO public.customers (
+        company_id, customer_type, salutation, first_name, last_name, company_name,
+        display_name, primary_email, primary_phone, language, source,
+        first_seen_at, possible_duplicate, created_via
+      ) VALUES (
+        p_company_id,
+        CASE WHEN v_salut = 'Firma' OR NULLIF(TRIM(COALESCE(p_company_name, '')), '') IS NOT NULL
+             THEN 'company' ELSE 'person' END,
+        v_salut, v_first, v_last, NULLIF(TRIM(COALESCE(p_company_name, '')), ''),
+        '',                                   -- der Trigger fuellt display_name
+        v_email,
+        -- Rohwert behalten, wenn er nicht normalisierbar war: der Bediener soll
+        -- sehen, was tatsaechlich erfasst wurde.
+        COALESCE(v_phone, NULLIF(TRIM(COALESCE(p_phone, '')), '')),
+        v_lang, NULLIF(TRIM(COALESCE(p_source, '')), ''),
+        COALESCE(p_seen_at, NOW()), v_dup, 'resolve_rpc'
+      )
+      RETURNING id INTO v_id;
+
+      v_created := TRUE;
+      v_matched := COALESCE(v_matched, 'none');
+    EXCEPTION WHEN unique_violation THEN
+      -- Dritte Verteidigungslinie: eine parallele Transaktion war schneller.
+      SELECT f.customer_id, f.matched_on INTO v_id, v_matched
+      FROM public.find_customer_by_identity(p_company_id, p_email, p_phone) f;
+      IF v_id IS NULL THEN
+        RAISE;
+      END IF;
+    END;
+  ELSE
+    -- Einen bestehenden Kunden NIE ueberschreiben, nur Luecken fuellen.
+    UPDATE public.customers c
+    SET first_name    = COALESCE(c.first_name,    v_first),
+        last_name     = COALESCE(c.last_name,     v_last),
+        salutation    = COALESCE(c.salutation,    v_salut),
+        primary_phone = COALESCE(c.primary_phone, NULLIF(TRIM(COALESCE(p_phone, '')), '')),
+        primary_email = COALESCE(c.primary_email, v_email),
+        first_seen_at = LEAST(c.first_seen_at, COALESCE(p_seen_at, NOW()))
+    WHERE c.id = v_id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'customer_id', v_id, 'matched_on', v_matched,
+    'created', v_created, 'possible_duplicate', v_dup);
+END;
+$$;
+
+
+--
+-- Name: FUNCTION resolve_or_create_customer(p_company_id uuid, p_email text, p_phone text, p_first_name text, p_last_name text, p_company_name text, p_salutation text, p_language text, p_source text, p_seen_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.resolve_or_create_customer(p_company_id uuid, p_email text, p_phone text, p_first_name text, p_last_name text, p_company_name text, p_salutation text, p_language text, p_source text, p_seen_at timestamp with time zone) IS 'Ordnet einen eingehenden Datensatz der kanonischen Kundenidentitaet zu. Ein E-Mail-Treffer bindet; ein reiner Telefon-Treffer erzeugt einen zweiten Kunden und markiert beide als Duplikat-Verdacht. Ohne jedes Identitaetsmerkmal wird KEIN Kunde angelegt (customer_id = null).';
+
+
+--
+-- Name: run_customer_backfill(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.run_customer_backfill(p_company_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_ident      RECORD;
+  v_id         UUID;
+  v_angelegt   INTEGER := 0;
+  v_verknuepft JSONB   := '{}'::JSONB;
+  v_n          INTEGER;
+  v_summe      INTEGER := 0;
+  v_offen      INTEGER;
+  v_mails      INTEGER := 0;
+BEGIN
+  IF NOT public.is_company_role(p_company_id, ARRAY['owner']) THEN
+    RAISE EXCEPTION 'Der Backfill ist dem Eigentuemer vorbehalten'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  -- IF NOT EXISTS + leeren, damit zwei Firmen in derselben Transaktion
+  -- nacheinander laufen koennen (ON COMMIT DROP raeumt erst beim Commit auf).
+  CREATE TEMP TABLE IF NOT EXISTS _bf_zuordnung (ident TEXT PRIMARY KEY, kunde UUID) ON COMMIT DROP;
+  DELETE FROM _bf_zuordnung;
+
+  FOR v_ident IN
+    WITH q AS (
+      SELECT s.*,
+             public.normalize_customer_email(s.email_roh)   AS e_norm,
+             public.normalize_customer_phone(s.telefon_roh) AS p_norm,
+             NULLIF(NULLIF(TRIM(COALESCE(s.vorname,  '')), ''), 'Unbekannt') AS v_clean,
+             NULLIF(NULLIF(TRIM(COALESCE(s.nachname, '')), ''), 'Unbekannt') AS n_clean
+      FROM public.customer_backfill_quellen(p_company_id) s
+      WHERE s.company_id IS NOT NULL
+    ),
+    k AS (
+      SELECT q.*,
+             CASE WHEN q.e_norm IS NOT NULL THEN 'e:' || q.e_norm
+                  WHEN q.p_norm IS NOT NULL THEN 'p:' || q.p_norm END AS ident
+      FROM q
+    )
+    SELECT
+      k.ident,
+      -- Name: offers vor leads vor appointments, je das neueste.
+      (SELECT x.v_clean FROM k x WHERE x.ident = k.ident AND x.v_clean IS NOT NULL
+         AND x.quelle_tabelle IN ('offers','leads','appointments')
+       ORDER BY CASE x.quelle_tabelle WHEN 'offers' THEN 1 WHEN 'leads' THEN 2 ELSE 3 END,
+                x.erstellt_am DESC LIMIT 1) AS vorname,
+      (SELECT x.n_clean FROM k x WHERE x.ident = k.ident AND x.n_clean IS NOT NULL
+         AND x.quelle_tabelle IN ('offers','leads','appointments')
+       ORDER BY CASE x.quelle_tabelle WHEN 'offers' THEN 1 WHEN 'leads' THEN 2 ELSE 3 END,
+                x.erstellt_am DESC LIMIT 1) AS nachname,
+      -- Anzeigename aus einem Beleg, falls es keine getrennte Quelle gibt. UNZERLEGT.
+      (SELECT NULLIF(TRIM(x.ganzer_name), '') FROM k x WHERE x.ident = k.ident
+         AND NULLIF(TRIM(COALESCE(x.ganzer_name, '')), '') IS NOT NULL
+       ORDER BY x.erstellt_am DESC LIMIT 1) AS ganzer_name,
+      (SELECT x.anrede FROM k x WHERE x.ident = k.ident AND x.anrede IS NOT NULL
+         AND x.anrede IN ('Herr','Frau','Firma')
+       ORDER BY CASE x.quelle_tabelle WHEN 'offers' THEN 1 WHEN 'leads' THEN 2 ELSE 3 END,
+                x.erstellt_am DESC LIMIT 1) AS anrede,
+      (SELECT x.email_roh FROM k x WHERE x.ident = k.ident AND x.e_norm IS NOT NULL
+       ORDER BY x.erstellt_am DESC LIMIT 1) AS email,
+      (SELECT x.telefon_roh FROM k x WHERE x.ident = k.ident AND x.p_norm IS NOT NULL
+       ORDER BY x.erstellt_am DESC LIMIT 1) AS telefon,
+      (SELECT x.sprache FROM k x WHERE x.ident = k.ident AND x.sprache IS NOT NULL
+         AND x.quelle_tabelle IN ('leads','offers')
+       ORDER BY CASE x.quelle_tabelle WHEN 'leads' THEN 1 ELSE 2 END,
+                x.erstellt_am DESC LIMIT 1) AS sprache,
+      -- Herkunft: die AELTESTE Zeile, nicht die neueste.
+      (SELECT x.herkunft FROM k x WHERE x.ident = k.ident AND x.herkunft IS NOT NULL
+       ORDER BY x.erstellt_am ASC LIMIT 1) AS herkunft,
+      (SELECT x.kundennummer FROM k x WHERE x.ident = k.ident
+         AND NULLIF(TRIM(COALESCE(x.kundennummer, '')), '') IS NOT NULL
+       ORDER BY x.erstellt_am DESC LIMIT 1) AS kundennummer,
+      min(k.erstellt_am) AS erster_kontakt
+    FROM k
+    WHERE k.ident IS NOT NULL
+    GROUP BY k.ident
+    ORDER BY min(k.erstellt_am)
+  LOOP
+    -- BEWUSST NICHT find_customer_by_identity(): die bindet auch bei einem
+    -- reinen Telefon-Treffer. Im Backfill waere das eine stille Verschmelzung
+    -- zweier Menschen, die sich einen Anschluss teilen (Ehepaar, Verwaltung) —
+    -- und sie waere unpruefbar, weil der Bericht dann eine andere Zahl nennt
+    -- als der Lauf. Hier wird auf den Identitaetsschluessel selbst gebunden:
+    -- E-Mail-Identitaet auf die E-Mail, Telefon-Identitaet nur auf einen Kunden,
+    -- der selbst keine E-Mail hat. Ueberschneidungen landen unten im
+    -- Duplikat-Verdacht und werden von Hand entschieden.
+    IF v_ident.ident LIKE 'e:%' THEN
+      SELECT c.id INTO v_id FROM public.customers c
+      WHERE c.company_id = p_company_id
+        AND c.merged_into_customer_id IS NULL
+        AND c.email_normalized = substr(v_ident.ident, 3)
+      LIMIT 1;
+    ELSE
+      SELECT c.id INTO v_id FROM public.customers c
+      WHERE c.company_id = p_company_id
+        AND c.merged_into_customer_id IS NULL
+        AND c.email_normalized IS NULL
+        AND c.phone_normalized = substr(v_ident.ident, 3)
+      LIMIT 1;
+    END IF;
+
+    IF v_id IS NULL THEN
+      INSERT INTO public.customers (
+        company_id, customer_type, salutation, first_name, last_name,
+        display_name, primary_email, primary_phone, language, source,
+        first_seen_at, created_via
+      ) VALUES (
+        p_company_id,
+        CASE WHEN v_ident.anrede = 'Firma' THEN 'company' ELSE 'person' END,
+        v_ident.anrede, v_ident.vorname, v_ident.nachname,
+        -- Getrennte Namen zuerst; sonst der Belegname, unveraendert.
+        COALESCE(
+          NULLIF(TRIM(CONCAT_WS(' ', v_ident.vorname, v_ident.nachname)), ''),
+          v_ident.ganzer_name,
+          ''),
+        v_ident.email, v_ident.telefon,
+        COALESCE(NULLIF(v_ident.sprache, ''), 'de'),
+        v_ident.herkunft, v_ident.erster_kontakt, 'backfill'
+      )
+      RETURNING id INTO v_id;
+      v_angelegt := v_angelegt + 1;
+    END IF;
+
+    -- Kundennummer aus der Offerte nachtragen, ohne Bestehendes zu ueberschreiben.
+    IF v_ident.kundennummer IS NOT NULL THEN
+      UPDATE public.customers
+      SET external_customer_number = COALESCE(external_customer_number, v_ident.kundennummer)
+      WHERE id = v_id;
+    END IF;
+
+    INSERT INTO _bf_zuordnung (ident, kunde) VALUES (v_ident.ident, v_id)
+    ON CONFLICT (ident) DO NOTHING;
+  END LOOP;
+
+  -- Zeilen verknuepfen. Nur was noch offen ist.
+  WITH z AS (
+    SELECT l.id,
+           COALESCE('e:' || public.normalize_customer_email(l.customer_email),
+                    'p:' || public.normalize_customer_phone(l.customer_phone)) AS ident
+    FROM public.leads l WHERE l.company_id = p_company_id AND l.customer_id IS NULL
+  )
+  UPDATE public.leads t SET customer_id = b.kunde
+  FROM z JOIN _bf_zuordnung b ON b.ident = z.ident WHERE t.id = z.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  v_verknuepft := v_verknuepft || jsonb_build_object('leads', v_n); v_summe := v_summe + v_n;
+
+  WITH z AS (
+    SELECT o.id,
+           COALESCE('e:' || public.normalize_customer_email(o.customer_email),
+                    'p:' || public.normalize_customer_phone(o.customer_phone)) AS ident
+    FROM public.offers o WHERE o.company_id = p_company_id AND o.customer_id IS NULL
+  )
+  UPDATE public.offers t SET customer_id = b.kunde
+  FROM z JOIN _bf_zuordnung b ON b.ident = z.ident WHERE t.id = z.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  v_verknuepft := v_verknuepft || jsonb_build_object('offers', v_n); v_summe := v_summe + v_n;
+
+  WITH z AS (
+    SELECT a.id,
+           COALESCE('e:' || public.normalize_customer_email(a.customer_email),
+                    'p:' || public.normalize_customer_phone(a.customer_phone)) AS ident
+    FROM public.auftraege a WHERE a.company_id = p_company_id AND a.customer_id IS NULL
+  )
+  UPDATE public.auftraege t SET customer_id = b.kunde
+  FROM z JOIN _bf_zuordnung b ON b.ident = z.ident WHERE t.id = z.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  v_verknuepft := v_verknuepft || jsonb_build_object('auftraege', v_n); v_summe := v_summe + v_n;
+
+  WITH z AS (
+    SELECT t.id,
+           COALESCE('e:' || public.normalize_customer_email(t.customer_email),
+                    'p:' || public.normalize_customer_phone(t.customer_phone)) AS ident
+    FROM public.appointments t WHERE t.company_id = p_company_id AND t.customer_id IS NULL
+  )
+  UPDATE public.appointments t SET customer_id = b.kunde
+  FROM z JOIN _bf_zuordnung b ON b.ident = z.ident WHERE t.id = z.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  v_verknuepft := v_verknuepft || jsonb_build_object('appointments', v_n); v_summe := v_summe + v_n;
+
+  WITH z AS (
+    SELECT r.id,
+           COALESCE('e:' || public.normalize_customer_email(r.customer_email),
+                    'p:' || public.normalize_customer_phone(r.customer_phone)) AS ident
+    FROM public.rechnungen r WHERE r.company_id = p_company_id AND r.customer_id IS NULL
+  )
+  UPDATE public.rechnungen t SET customer_id = b.kunde
+  FROM z JOIN _bf_zuordnung b ON b.ident = z.ident WHERE t.id = z.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  v_verknuepft := v_verknuepft || jsonb_build_object('rechnungen', v_n); v_summe := v_summe + v_n;
+
+  WITH z AS (
+    SELECT q.id,
+           COALESCE('e:' || public.normalize_customer_email(q.customer_email),
+                    'p:' || public.normalize_customer_phone(q.customer_phone)) AS ident
+    FROM public.quittungen q WHERE q.company_id = p_company_id AND q.customer_id IS NULL
+  )
+  UPDATE public.quittungen t SET customer_id = b.kunde
+  FROM z JOIN _bf_zuordnung b ON b.ident = z.ident WHERE t.id = z.id;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  v_verknuepft := v_verknuepft || jsonb_build_object('quittungen', v_n); v_summe := v_summe + v_n;
+
+  -- Posteingang zuletzt und NUR zuordnend: aus einer Mail entsteht kein Kunde.
+  -- Das LATERAL steht im CTE, nicht in der FROM-Liste des UPDATE: dort darf die
+  -- Zieltabelle nicht seitwaerts referenziert werden.
+  WITH z AS (
+    SELECT i.id, f.customer_id AS kunde
+    FROM public.inbound_emails i
+    CROSS JOIN LATERAL public.find_customer_by_identity(
+      i.company_id,
+      COALESCE(NULLIF(i.extracted_data ->> 'email', ''), i.from_email),
+      i.extracted_data ->> 'phone') f
+    WHERE i.company_id = p_company_id AND i.customer_id IS NULL
+  )
+  UPDATE public.inbound_emails t SET customer_id = z.kunde
+  FROM z WHERE t.id = z.id AND z.kunde IS NOT NULL;
+  GET DIAGNOSTICS v_mails = ROW_COUNT;
+  v_verknuepft := v_verknuepft || jsonb_build_object('inbound_emails', v_mails);
+
+  -- Telefon-Duplikate markieren, damit die Oberflaeche sie zur Pruefung anbietet.
+  UPDATE public.customers c SET possible_duplicate = TRUE
+  WHERE c.company_id = p_company_id
+    AND c.merged_into_customer_id IS NULL
+    AND c.phone_normalized IS NOT NULL
+    AND EXISTS (
+      SELECT 1 FROM public.customers d
+      WHERE d.company_id = c.company_id AND d.id <> c.id
+        AND d.merged_into_customer_id IS NULL
+        AND d.phone_normalized = c.phone_normalized);
+
+  SELECT
+    (SELECT count(*) FROM public.leads        WHERE company_id = p_company_id AND customer_id IS NULL)
+  + (SELECT count(*) FROM public.offers       WHERE company_id = p_company_id AND customer_id IS NULL)
+  + (SELECT count(*) FROM public.auftraege    WHERE company_id = p_company_id AND customer_id IS NULL)
+  + (SELECT count(*) FROM public.appointments WHERE company_id = p_company_id AND customer_id IS NULL)
+  + (SELECT count(*) FROM public.rechnungen   WHERE company_id = p_company_id AND customer_id IS NULL)
+  + (SELECT count(*) FROM public.quittungen   WHERE company_id = p_company_id AND customer_id IS NULL)
+  INTO v_offen;
+
+  RETURN jsonb_build_object(
+    'kunden_angelegt',    v_angelegt,
+    'zeilen_verknuepft',  v_verknuepft,
+    'zeilen_gesamt',      v_summe,
+    'ohne_zuordnung',     v_offen,
+    'duplikat_verdacht',  (SELECT count(*) FROM public.customers
+                           WHERE company_id = p_company_id AND possible_duplicate
+                             AND merged_into_customer_id IS NULL));
+END;
+$$;
+
+
+--
+-- Name: FUNCTION run_customer_backfill(p_company_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.run_customer_backfill(p_company_id uuid) IS 'Ordnet Bestandszeilen der kanonischen Kundenidentitaet zu. Idempotent: ruehrt nur customer_id IS NULL an. Wird NICHT aus einer Migration heraus aufgerufen — erst nachdem preview_customer_backfill() gelesen wurde. Ruecknahme: ROLLBACK_20260728140000_kunden_backfill.sql.';
 
 
 --
@@ -4063,6 +5692,107 @@ $$;
 
 
 --
+-- Name: search_customers(uuid, text, text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.search_customers(p_company_id uuid, p_query text DEFAULT NULL::text, p_filter text DEFAULT 'alle'::text, p_limit integer DEFAULT 25, p_offset integer DEFAULT 0) RETURNS TABLE(id uuid, display_name text, customer_type text, first_name text, last_name text, company_name text, primary_email text, primary_phone text, language text, status text, possible_duplicate boolean, first_seen_at timestamp with time zone, letzte_aktion timestamp with time zone, offerten_offen integer, auftraege_gesamt integer, offener_betrag numeric, bezahlter_betrag numeric, ort text, gesamt bigint)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_limit  INTEGER := GREATEST(1, LEAST(COALESCE(p_limit, 25), 100));
+  v_such   TEXT;
+  v_ziffer TEXT;
+BEGIN
+  IF NOT public.is_company_member(p_company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diese Firma' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  v_such := NULLIF(TRIM(COALESCE(p_query, '')), '');
+
+  -- Der Bediener tippt "079 123 45 67", gespeichert ist "+41791234567". Nach dem
+  -- Entfernen der Nicht-Ziffern bliebe "0791234567" — und das kommt in
+  -- "+41791234567" NICHT vor. Die fuehrende Null der nationalen Schreibweise
+  -- muss also weg, sonst findet die Suche ausgerechnet die Form nicht, die man
+  -- am ehesten eintippt.
+  v_ziffer := NULLIF(regexp_replace(
+                regexp_replace(COALESCE(v_such, ''), '\D', '', 'g'),
+                '^0+', ''), '');
+
+  RETURN QUERY
+  WITH treffer AS (
+    SELECT c.*
+    FROM public.customers c
+    WHERE c.company_id = p_company_id
+      -- Zusammengefuehrte Kunden erscheinen NIE in der Liste; die
+      -- Nachvollziehbarkeit haengt am Hinweisband der Kundenkarte.
+      AND c.merged_into_customer_id IS NULL
+      AND (p_filter IS DISTINCT FROM 'person'    OR c.customer_type = 'person')
+      AND (p_filter IS DISTINCT FROM 'firma'     OR c.customer_type = 'company')
+      AND (p_filter IS DISTINCT FROM 'duplikate' OR c.possible_duplicate)
+      AND (
+        v_such IS NULL
+        OR c.display_name  ILIKE '%' || v_such || '%'
+        OR c.primary_email ILIKE '%' || v_such || '%'
+        OR (v_ziffer IS NOT NULL AND length(v_ziffer) >= 3
+            AND c.phone_normalized ILIKE '%' || v_ziffer || '%')
+      )
+  ),
+  gezaehlt AS (SELECT count(*) AS n FROM treffer)
+  SELECT
+    t.id, t.display_name, t.customer_type, t.first_name, t.last_name, t.company_name,
+    t.primary_email, t.primary_phone, t.language, t.status, t.possible_duplicate,
+    t.first_seen_at,
+    akt.letzte,
+    COALESCE(off.offen, 0)::INTEGER,
+    COALESCE(auf.n, 0)::INTEGER,
+    COALESCE(fin.offen, 0)::NUMERIC(12,2),
+    COALESCE(fin.bezahlt, 0)::NUMERIC(12,2),
+    ort.ort,
+    gezaehlt.n
+  FROM treffer t
+  CROSS JOIN gezaehlt
+  LEFT JOIN LATERAL (
+    SELECT max(x.t) AS letzte FROM (
+      SELECT max(l.created_at) t FROM public.leads      l WHERE l.customer_id = t.id
+      UNION ALL SELECT max(o.created_at) FROM public.offers     o WHERE o.customer_id = t.id
+      UNION ALL SELECT max(a.created_at) FROM public.auftraege  a WHERE a.customer_id = t.id
+      UNION ALL SELECT max(r.created_at) FROM public.rechnungen r WHERE r.customer_id = t.id
+      UNION ALL SELECT max(i.received_at) FROM public.inbound_emails i WHERE i.customer_id = t.id
+    ) x
+  ) akt ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT count(*) AS offen FROM public.offers o
+    WHERE o.customer_id = t.id AND o.status IN ('draft','sent','viewed')
+  ) off ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT count(*) AS n FROM public.auftraege a
+    WHERE a.customer_id = t.id AND a.deleted_at IS NULL
+  ) auf ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(SUM(r.gesamttotal) FILTER (WHERE r.status = 'versendet'), 0) AS offen,
+           COALESCE(SUM(r.gesamttotal) FILTER (WHERE r.status = 'bezahlt'),   0) AS bezahlt
+    FROM public.rechnungen r WHERE r.customer_id = t.id
+  ) fin ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT NULLIF(TRIM(CONCAT_WS(' ', l.from_plz, l.from_city)), '') AS ort
+    FROM public.leads l WHERE l.customer_id = t.id AND l.from_city IS NOT NULL
+    ORDER BY l.created_at DESC LIMIT 1
+  ) ort ON TRUE
+  ORDER BY akt.letzte DESC NULLS LAST, t.display_name
+  LIMIT v_limit OFFSET GREATEST(0, COALESCE(p_offset, 0));
+END;
+$$;
+
+
+--
+-- Name: FUNCTION search_customers(p_company_id uuid, p_query text, p_filter text, p_limit integer, p_offset integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.search_customers(p_company_id uuid, p_query text, p_filter text, p_limit integer, p_offset integer) IS 'Kundenliste mit Suche, Filter und Seitenzahl. Die abgeleiteten Werte (letzte Aktion, offene Offerten, offener Betrag) entstehen hier per LATERAL statt als gespeicherte Spalten, die veralten wuerden. gesamt traegt die Trefferzahl fuer die Blaetterleiste. Ab etwa 10 000 Kunden braucht die ILIKE-Suche pg_trgm + GIN; heute nicht.';
+
+
+--
 -- Name: set_api_keys_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4108,6 +5838,51 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: set_offer_acceptance_evidence(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_offer_acceptance_evidence() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_ip      TEXT;
+  v_headers JSON;
+BEGIN
+  -- Nur beim Übergang in 'accepted'. Ein erneutes UPDATE derselben Offerte darf
+  -- den ursprünglichen Zeitpunkt nicht überschreiben.
+  IF NEW.status = 'accepted' AND OLD.status IS DISTINCT FROM 'accepted' THEN
+    NEW.accepted_at := now();
+
+    NEW.agb_version := public.agb_content_hash(NEW.access_token);
+    IF NEW.agb_version IS NOT NULL THEN
+      NEW.agb_accepted_at := now();
+    END IF;
+
+    -- PostgREST stellt die Kopfzeilen als GUC bereit. Bei direktem SQL-Zugriff
+    -- gibt es sie nicht — dann bleibt das Feld leer statt zu scheitern.
+    BEGIN
+      v_headers := current_setting('request.headers', true)::json;
+      v_ip := split_part(COALESCE(v_headers ->> 'x-forwarded-for', v_headers ->> 'x-real-ip', ''), ',', 1);
+      NEW.agb_ip_address := NULLIF(TRIM(v_ip), '');
+    EXCEPTION WHEN OTHERS THEN
+      NEW.agb_ip_address := NULL;
+    END;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION set_offer_acceptance_evidence(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.set_offer_acceptance_evidence() IS 'Setzt accepted_at, agb_version (Wortlaut-Hash) und agb_ip_address beim Uebergang nach accepted — serverseitig, unabhaengig davon, was der Aufrufer schickt.';
 
 
 --
@@ -4516,7 +6291,7 @@ $_$;
 -- Name: FUNCTION submit_lead_json(lead_data jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.submit_lead_json(lead_data jsonb) IS 'Public lead insert. Validates required fields (service_type, names, email format, phone, PLZ, city). Dedup: returns existing slug if same email+service_type+from_plz submitted within 1 hour. Sets expires_at = NOW() + 30 days. Status always pending_verification until admin verifies.';
+COMMENT ON FUNCTION public.submit_lead_json(lead_data jsonb) IS 'Altlast aus dem Marktplatz-Fork. KEIN Aufrufer im Repo. Ausfuehrungsrecht fuer anon 2026-07-28 entzogen — Leads entstehen ausschliesslich serverseitig.';
 
 
 --
@@ -4667,7 +6442,7 @@ COMMENT ON FUNCTION public.trigger_subscription_manager() IS 'Triggers the subsc
 CREATE FUNCTION public.trigger_team_reminder_for_appointment(p_appointment_id uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$ BEGIN RETURN NULL; END; $$;
+    AS $$ BEGIN RETURN false; END; $$;
 
 
 --
@@ -4811,13 +6586,11 @@ DECLARE
   ALLOWED_STATUSES      text[] := ARRAY['viewed', 'accepted', 'rejected'];
   TERMINAL_STATUSES     text[] := ARRAY['accepted', 'rejected'];
 BEGIN
-  -- Validate new_status against whitelist
   IF new_status IS NOT NULL AND NOT (new_status = ANY(ALLOWED_STATUSES)) THEN
     RAISE EXCEPTION 'Invalid status value: %', new_status
       USING ERRCODE = 'invalid_parameter_value';
   END IF;
 
-  -- Offer bilgilerini oku
   SELECT status, service_date, valid_until, id, company_id, lead_id
   INTO v_status, v_service_date, v_valid_until, v_offer_id, v_company_id, v_lead_id
   FROM public.offers
@@ -4827,13 +6600,11 @@ BEGIN
     RETURN false;
   END IF;
 
-  -- Terminal statüdeki teklifler üzerinde status değişikliği yapılamaz
-  -- (kabul edilmiş teklif reddedilemez, reddedilmiş kabul edilemez)
+  -- Eine angenommene Offerte wird nicht abgelehnt und umgekehrt.
   IF new_status IS NOT NULL AND v_status = ANY(TERMINAL_STATUSES) THEN
     RETURN false;
   END IF;
 
-  -- Kabul ediliyorsa son tarih kontrolü
   IF new_status = 'accepted' THEN
     v_acceptance_deadline := v_valid_until;
     IF v_service_date IS NOT NULL THEN
@@ -4846,7 +6617,6 @@ BEGIN
     END IF;
   END IF;
 
-  -- Offers tablosunu güncelle
   UPDATE public.offers
   SET
     status                 = COALESCE(new_status, status),
@@ -4864,34 +6634,14 @@ BEGIN
     RETURN false;
   END IF;
 
-  -- Auftrag otomatik oluştur (kabul durumunda, idempotent).
-  -- Full column set restored from 20260411000004 — the 20260606 rewrite reduced
-  -- this to a minimal INSERT that omitted the NOT-NULL scheduled_date (and other
-  -- useful fields), so it could never succeed.
   IF new_status = 'accepted' AND v_offer_id IS NOT NULL THEN
     INSERT INTO public.auftraege (
-      company_id,
-      offer_id,
-      lead_id,
-      auftrag_nummer,
-      title,
-      customer_name,
-      customer_email,
-      customer_phone,
-      from_address,
-      to_address,
-      scheduled_date,
-      scheduled_time,
-      description,
-      status,
-      subtotal,
-      vat_rate,
-      vat_amount,
-      total,
-      service_type,
-      pricing_type,
-      hourly_rate,
-      items
+      company_id, offer_id, lead_id, auftrag_nummer, title,
+      customer_name, customer_first_name, customer_last_name,
+      customer_email, customer_phone, from_address, to_address,
+      scheduled_date, scheduled_time, description, status,
+      subtotal, vat_rate, vat_amount, total,
+      service_type, pricing_type, hourly_rate, items
     )
     SELECT
       o.company_id,
@@ -4899,10 +6649,14 @@ BEGIN
       o.lead_id,
       '',   -- auftrag_nummer: trigger tarafından otomatik oluşturulur
       COALESCE(NULLIF(o.title, ''), 'Auftrag'),
+      -- Anzeigename fuer den Beleg …
       TRIM(CONCAT(
         COALESCE(o.customer_first_name, ''), ' ',
         COALESCE(o.customer_last_name, '')
       )),
+      -- … und daneben die Trennung, die die Offerte ohnehin schon kennt.
+      NULLIF(TRIM(o.customer_first_name), ''),
+      NULLIF(TRIM(o.customer_last_name), ''),
       o.customer_email,
       o.customer_phone,
       NULLIF(TRIM(CONCAT(
@@ -4919,8 +6673,6 @@ BEGIN
       o.service_start_time::time,
       o.description,
       'geplant'::public.auftrag_status,
-      -- C2: freeze the offer's financial snapshot onto the Auftrag (the manual
-      -- AuftragModal path already did this; the accept path did not → total=0, items=[]).
       COALESCE(o.subtotal, 0),
       COALESCE(o.vat_rate, 8.1),
       COALESCE(o.vat_amount, 0),
@@ -4945,11 +6697,8 @@ BEGIN
         WHERE a.offer_id = o.id
       );
 
-    -- lead_distributions has no updated_at column; responded_at is the correct
-    -- response-time field (consistent with 20260411000004).
-    UPDATE public.lead_distributions
-    SET status = 'job_confirmed', responded_at = COALESCE(responded_at, NOW())
-    WHERE lead_id = v_lead_id AND company_id = v_company_id;
+    -- Der frueher hier stehende UPDATE auf lead_distributions ist entfallen:
+    -- die Tabelle existiert nicht mehr (Marktplatz-Rest, 0 Zeilen).
 
     UPDATE public.leads
     SET status = 'job_confirmed', updated_at = NOW()
@@ -5421,10 +7170,18 @@ CREATE TABLE public.appointments (
     parent_appointment_id uuid,
     reminder_sent_team boolean DEFAULT false,
     language text DEFAULT 'de'::text NOT NULL,
+    customer_id uuid,
     CONSTRAINT appointments_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text])))
 );
 
 ALTER TABLE ONLY public.appointments REPLICA IDENTITY FULL;
+
+
+--
+-- Name: COLUMN appointments.customer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.customer_id IS 'Kanonischer Kunde, vom Auftrag bzw. Lead geerbt.';
 
 
 --
@@ -5607,6 +7364,9 @@ CREATE TABLE public.auftraege (
     customer_reminder_sent_at timestamp with time zone,
     appointment_id uuid,
     language text DEFAULT 'de'::text NOT NULL,
+    customer_id uuid,
+    customer_first_name text,
+    customer_last_name text,
     CONSTRAINT auftraege_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
     CONSTRAINT auftraege_pricing_type_check CHECK (((pricing_type)::text = ANY ((ARRAY['fixed'::character varying, 'hourly'::character varying, 'estimate'::character varying])::text[])))
 );
@@ -5631,6 +7391,13 @@ COMMENT ON COLUMN public.auftraege.offer_id IS 'Optional reference to the offer 
 --
 
 COMMENT ON COLUMN public.auftraege.team_leader_id IS 'Optional - can be assigned later before the job date';
+
+
+--
+-- Name: COLUMN auftraege.customer_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.auftraege.customer_name IS 'Anzeigename fuer Beleg und PDF, eingefroren. Bleibt fuehrend fuer die Darstellung; die strukturierte Form steht in customer_first_name/last_name.';
 
 
 --
@@ -5729,6 +7496,27 @@ COMMENT ON COLUMN public.auftraege.customer_reminder_sent IS 'Müşteriye yakla�
 --
 
 COMMENT ON COLUMN public.auftraege.appointment_id IS 'Kanonik takvim randevusu (service). Zaman/saat bu randevuda sahiplenir, auftraege.scheduled_* trigger ile aynalanır.';
+
+
+--
+-- Name: COLUMN auftraege.customer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.auftraege.customer_id IS 'Kanonischer Kunde, von der Offerte geerbt.';
+
+
+--
+-- Name: COLUMN auftraege.customer_first_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.auftraege.customer_first_name IS 'Vorname zum Zeitpunkt des Auftrags. NULL bei Zeilen von vor 2026-07-28 — dort steht nur der zusammengesetzte customer_name.';
+
+
+--
+-- Name: COLUMN auftraege.customer_last_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.auftraege.customer_last_name IS 'Nachname zum Zeitpunkt des Auftrags. Siehe customer_first_name.';
 
 
 --
@@ -5854,12 +7642,9 @@ CREATE TABLE public.companies (
     primary_color character varying(7) DEFAULT '#3b82f6'::character varying,
     signature_url text,
     twilio_enabled boolean DEFAULT false,
-    twilio_account_sid text,
-    twilio_auth_token text,
     twilio_phone_number text,
     sms_reminders_enabled boolean DEFAULT false,
     resend_enabled boolean DEFAULT false,
-    resend_api_key text,
     resend_from_email text,
     resend_from_name text,
     slogan text,
@@ -6151,6 +7936,27 @@ CREATE TABLE public.company_reminder_settings (
 
 
 --
+-- Name: company_secrets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.company_secrets (
+    company_id uuid NOT NULL,
+    resend_api_key text,
+    twilio_account_sid text,
+    twilio_auth_token text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE company_secrets; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.company_secrets IS 'Zugangsdaten Dritter (Resend, Twilio) je Firma. Bewusst ohne RLS-Policy: nur serverseitiger Zugriff ueber den Service-Role-Key. Niemals an den Browser.';
+
+
+--
 -- Name: company_service_items; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6211,6 +8017,128 @@ CREATE TABLE public.cookie_consent_log (
 
 
 --
+-- Name: customer_merges; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.customer_merges (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    source_customer_id uuid NOT NULL,
+    target_customer_id uuid NOT NULL,
+    merged_by uuid,
+    merged_at timestamp with time zone DEFAULT now() NOT NULL,
+    reason text,
+    moved_counts jsonb DEFAULT '{}'::jsonb NOT NULL,
+    source_snapshot jsonb NOT NULL,
+    CONSTRAINT customer_merges_distinct CHECK ((source_customer_id <> target_customer_id))
+);
+
+
+--
+-- Name: TABLE customer_merges; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.customer_merges IS 'Nachweis jeder Zusammenfuehrung. source_snapshot enthaelt die vollstaendige Quellzeile — damit laesst sich eine Zusammenfuehrung von Hand rueckgaengig machen. Eine unmerge-Funktion gibt es bewusst NICHT.';
+
+
+--
+-- Name: customers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.customers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    customer_type text DEFAULT 'person'::text NOT NULL,
+    salutation text,
+    first_name text,
+    last_name text,
+    company_name text,
+    display_name text NOT NULL,
+    primary_email text,
+    primary_phone text,
+    email_normalized text GENERATED ALWAYS AS (public.normalize_customer_email(primary_email)) STORED,
+    phone_normalized text GENERATED ALWAYS AS (public.normalize_customer_phone(primary_phone)) STORED,
+    language text DEFAULT 'de'::text NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    source text,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    external_customer_number text,
+    merged_into_customer_id uuid,
+    merged_at timestamp with time zone,
+    possible_duplicate boolean DEFAULT false NOT NULL,
+    created_via text DEFAULT 'manual'::text NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT customers_created_via_check CHECK ((created_via = ANY (ARRAY['manual'::text, 'resolve_rpc'::text, 'backfill'::text, 'merge'::text]))),
+    CONSTRAINT customers_display_name_present CHECK ((length(TRIM(BOTH FROM display_name)) > 0)),
+    CONSTRAINT customers_identity_required CHECK (((public.normalize_customer_email(primary_email) IS NOT NULL) OR (public.normalize_customer_phone(primary_phone) IS NOT NULL))),
+    CONSTRAINT customers_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
+    CONSTRAINT customers_merge_consistency CHECK ((((merged_into_customer_id IS NULL) AND (merged_at IS NULL)) OR ((merged_into_customer_id IS NOT NULL) AND (merged_at IS NOT NULL)))),
+    CONSTRAINT customers_merge_not_self CHECK ((merged_into_customer_id IS DISTINCT FROM id)),
+    CONSTRAINT customers_salutation_check CHECK (((salutation IS NULL) OR (salutation = ANY (ARRAY['Herr'::text, 'Frau'::text, 'Firma'::text])))),
+    CONSTRAINT customers_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text, 'blocked'::text, 'anonymized'::text]))),
+    CONSTRAINT customers_type_check CHECK ((customer_type = ANY (ARRAY['person'::text, 'company'::text])))
+);
+
+
+--
+-- Name: TABLE customers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.customers IS 'Kanonische Kundenidentitaet je Firma. Die customer_*-Felder auf Lead, Offerte, Auftrag, Rechnung und Quittung bleiben unberuehrt: sie sind der Snapshot zum Zeitpunkt des Dokuments, diese Tabelle ist der aktuelle Stand.';
+
+
+--
+-- Name: COLUMN customers.display_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.customers.display_name IS 'Anzeigename. Wird vom Trigger aus Vor-/Nachname bzw. Firmenname gefuellt, kann aber vom Bediener ueberschrieben werden ("Familie Mueller") — deshalb keine generierte Spalte.';
+
+
+--
+-- Name: COLUMN customers.email_normalized; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.customers.email_normalized IS 'Abgleichschluessel (generated, stored). ACHTUNG: aendert sich der Rumpf von normalize_customer_email(), berechnet Postgres bestehende Zeilen NICHT neu — in derselben Migration UPDATE customers SET primary_email = primary_email nachziehen und den UNIQUE-Index neu pruefen.';
+
+
+--
+-- Name: COLUMN customers.phone_normalized; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.customers.phone_normalized IS 'Wie email_normalized. BEWUSST NICHT unique: der Festnetzanschluss eines Haushalts oder einer Verwaltung gehoert regelmaessig mehreren Personen.';
+
+
+--
+-- Name: COLUMN customers.first_seen_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.customers.first_seen_at IS 'Erster Kontakt. Beim Backfill das MIN(created_at) aller Quellzeilen — created_at waere dort der Zeitpunkt des Backfills und damit wertlos.';
+
+
+--
+-- Name: COLUMN customers.external_customer_number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.customers.external_customer_number IS 'Uebernommen aus offers.customer_number — dort ein Freitextfeld, das der Bediener je Offerte selbst tippt. BEWUSST NICHT unique: in der Vergangenheit vergebene Nummern koennen sich doppeln.';
+
+
+--
+-- Name: COLUMN customers.merged_into_customer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.customers.merged_into_customer_id IS 'Zusammengefuehrt nach. Die Quellzeile wird NIE geloescht, sondern bleibt als Weiterleitung stehen, damit alte Links und Audit-Eintraege weiterhin aufloesen.';
+
+
+--
+-- Name: COLUMN customers.created_via; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.customers.created_via IS 'Entstehungsweg. Traegt die Ruecknahme des Backfills: DELETE … WHERE created_via = ''backfill'' entfernt genau die dort entstandenen Zeilen.';
+
+
+--
 -- Name: edge_rate_limits; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6260,6 +8188,85 @@ CREATE TABLE public.firma_resources (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
+
+
+--
+-- Name: inbound_emails; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.inbound_emails (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    provider text DEFAULT 'resend'::text NOT NULL,
+    provider_message_id text NOT NULL,
+    from_email text NOT NULL,
+    from_name text,
+    to_emails text[] DEFAULT '{}'::text[] NOT NULL,
+    subject text DEFAULT ''::text NOT NULL,
+    body_preview text,
+    processing_status text DEFAULT 'received'::text NOT NULL,
+    classification text,
+    confidence_score numeric(5,4),
+    rejection_reason text,
+    missing_critical_fields jsonb DEFAULT '[]'::jsonb NOT NULL,
+    extracted_data jsonb,
+    attachments jsonb DEFAULT '[]'::jsonb NOT NULL,
+    lead_id uuid,
+    processing_attempts integer DEFAULT 0 NOT NULL,
+    last_error text,
+    received_at timestamp with time zone NOT NULL,
+    processed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    opened_at timestamp with time zone,
+    customer_id uuid,
+    CONSTRAINT inbound_emails_attempts_check CHECK ((processing_attempts >= 0)),
+    CONSTRAINT inbound_emails_body_preview_len CHECK (((body_preview IS NULL) OR (length(body_preview) <= 2000))),
+    CONSTRAINT inbound_emails_confidence_range CHECK (((confidence_score IS NULL) OR ((confidence_score >= (0)::numeric) AND (confidence_score <= (1)::numeric)))),
+    CONSTRAINT inbound_emails_status_check CHECK ((processing_status = ANY (ARRAY['received'::text, 'processing'::text, 'needs_review'::text, 'lead_created'::text, 'rejected'::text, 'failed'::text])))
+);
+
+
+--
+-- Name: TABLE inbound_emails; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.inbound_emails IS 'Eingehende E-Mails aus dem Resend-Inbound-Webhook: Idempotenz, Review-Queue und Audit. Enthält bewusst weder den vollen Body noch Anhang-Binärdaten.';
+
+
+--
+-- Name: COLUMN inbound_emails.provider_message_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.inbound_emails.provider_message_id IS 'Message-ID des Providers (Resend: email.id). Idempotenz-Schlüssel — eine erneute Zustellung desselben Webhooks darf keinen zweiten Lead erzeugen.';
+
+
+--
+-- Name: COLUMN inbound_emails.body_preview; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.inbound_emails.body_preview IS 'Gekappte Klartext-Vorschau (max. 2000 Zeichen). Kein HTML, kein vollständiger Body.';
+
+
+--
+-- Name: COLUMN inbound_emails.attachments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.inbound_emails.attachments IS 'Nur Metadaten: [{id, filename, content_type, size}]. Binärdaten gehören nicht in Postgres.';
+
+
+--
+-- Name: COLUMN inbound_emails.opened_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.inbound_emails.opened_at IS 'Wann die Mail zum ersten Mal in der Review-Oberfläche geöffnet wurde. NULL = von niemandem angeschaut.';
+
+
+--
+-- Name: COLUMN inbound_emails.customer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.inbound_emails.customer_id IS 'Kanonischer Kunde — NUR gesetzt, wenn die Absenderadresse einen BESTEHENDEN Kunden trifft. Aus einer eingehenden Mail entsteht nie ein Kunde, sonst legte jede Werbemail einen an.';
 
 
 --
@@ -6449,33 +8456,6 @@ COMMENT ON TABLE public.lead_confirmations IS 'Çifte onay (double opt-in) token
 
 
 --
--- Name: lead_distributions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.lead_distributions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    lead_id uuid NOT NULL,
-    company_id uuid NOT NULL,
-    status character varying(50) DEFAULT 'sent'::character varying,
-    sent_at timestamp with time zone DEFAULT now(),
-    viewed_at timestamp with time zone,
-    responded_at timestamp with time zone,
-    expires_at timestamp with time zone DEFAULT (now() + '24:00:00'::interval),
-    rejection_reason text,
-    CONSTRAINT chk_lead_distributions_status CHECK (((status)::text = ANY ((ARRAY['sent'::character varying, 'accepted'::character varying, 'quota_full'::character varying, 'rejected'::character varying, 'expired'::character varying, 'job_confirmed'::character varying])::text[])))
-);
-
-ALTER TABLE ONLY public.lead_distributions REPLICA IDENTITY FULL;
-
-
---
--- Name: CONSTRAINT chk_lead_distributions_status ON lead_distributions; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON CONSTRAINT chk_lead_distributions_status ON public.lead_distributions IS 'İzin verilen lead_distributions durum değerleri.';
-
-
---
 -- Name: lead_forms; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6530,7 +8510,7 @@ CREATE TABLE public.leads (
     cleaning_service_needed boolean DEFAULT false,
     storage_needed boolean DEFAULT false,
     status character varying(50) DEFAULT 'pending_verification'::character varying,
-    source character varying(100) DEFAULT 'website'::character varying,
+    source character varying(100) DEFAULT 'web_form'::character varying,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     expires_at timestamp with time zone DEFAULT (now() + '48:00:00'::interval),
@@ -6621,9 +8601,10 @@ CREATE TABLE public.leads (
     from_has_estrich boolean,
     from_has_keller boolean,
     language text DEFAULT 'de'::text NOT NULL,
+    customer_id uuid,
     CONSTRAINT chk_leads_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'pending_verification'::character varying, 'awaiting_customer_confirmation'::character varying, 'unconfirmed_risky'::character varying, 'verified'::character varying, 'in_progress'::character varying, 'distributed'::character varying, 'no_matches'::character varying, 'unknown_plz'::character varying, 'completed'::character varying, 'rejected'::character varying, 'expired_unverified'::character varying, 'job_confirmed'::character varying])::text[]))),
     CONSTRAINT leads_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
-    CONSTRAINT leads_source_check CHECK (((source)::text = ANY ((ARRAY['web_form'::character varying, 'ai_voice'::character varying, 'manual'::character varying, 'import'::character varying, 'widget'::character varying, 'api'::character varying])::text[])))
+    CONSTRAINT leads_source_check CHECK (((source)::text = ANY ((ARRAY['web_form'::character varying, 'ai_voice'::character varying, 'manual'::character varying, 'import'::character varying, 'widget'::character varying, 'api'::character varying, 'email'::character varying])::text[])))
 );
 
 ALTER TABLE ONLY public.leads REPLICA IDENTITY FULL;
@@ -6682,7 +8663,7 @@ COMMENT ON COLUMN public.leads.status IS 'pending_verification: Admin onayı bek
 -- Name: COLUMN leads.source; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.leads.source IS 'Origin of the lead: web_form, ai_voice, manual, import, widget, api';
+COMMENT ON COLUMN public.leads.source IS 'Herkunft der Anfrage. Wertebereich siehe leads_source_check. Der Standardwert lautet web_form; bis 2026-07-28 stand hier website, was die Pruefregel ablehnte und jedes INSERT ohne ausdruecklichen Wert scheitern liess.';
 
 
 --
@@ -6854,6 +8835,13 @@ COMMENT ON COLUMN public.leads.language IS 'Sprache, in der die Anfrage gestellt
 
 
 --
+-- Name: COLUMN leads.customer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.customer_id IS 'Kanonischer Kunde. Wird beim INSERT per Trigger gesetzt; die customer_*-Felder daneben bleiben der Stand zum Zeitpunkt der Anfrage.';
+
+
+--
 -- Name: CONSTRAINT chk_leads_status ON leads; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -7005,7 +8993,6 @@ CREATE TABLE public.offers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     company_id uuid NOT NULL,
     lead_id uuid,
-    lead_distribution_id uuid,
     customer_first_name character varying NOT NULL,
     customer_last_name character varying NOT NULL,
     customer_email character varying NOT NULL,
@@ -7099,6 +9086,7 @@ CREATE TABLE public.offers (
     frozen_zwischenlager_city text,
     discount_percent numeric(5,2),
     language text DEFAULT 'de'::text NOT NULL,
+    customer_id uuid,
     CONSTRAINT chk_offers_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('sending'::character varying)::text, ('sent'::character varying)::text, ('viewed'::character varying)::text, ('accepted'::character varying)::text, ('rejected'::character varying)::text, ('expired'::character varying)::text, ('job_confirmed'::character varying)::text, ('completed'::character varying)::text]))),
     CONSTRAINT kostendach_requires_hourly_rate CHECK (((price_model <> 'kostendach'::text) OR ((hourly_rate IS NOT NULL) AND (kostendach_max IS NOT NULL)))),
     CONSTRAINT offers_discount_percent_range CHECK (((discount_percent IS NULL) OR ((discount_percent >= (0)::numeric) AND (discount_percent <= (100)::numeric)))),
@@ -7228,14 +9216,20 @@ COMMENT ON COLUMN public.offers.language IS 'Eingefroren aus leads.language beim
 
 
 --
+-- Name: COLUMN offers.customer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.offers.customer_id IS 'Kanonischer Kunde, vom Lead geerbt. Die eingefrorenen customer_*- und frozen_*-Felder bleiben unberuehrt.';
+
+
+--
 -- Name: offer_details; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.offer_details AS
+CREATE VIEW public.offer_details WITH (security_invoker='on') AS
  SELECT o.id,
     o.company_id,
     o.lead_id,
-    o.lead_distribution_id,
     o.customer_first_name,
     o.customer_last_name,
     o.customer_email,
@@ -7310,6 +9304,13 @@ CREATE VIEW public.offer_details AS
      LEFT JOIN public.companies c ON ((o.company_id = c.id)))
      LEFT JOIN public.leads l ON ((o.lead_id = l.id)))
      LEFT JOIN public.team_members tm ON ((o.assigned_team_member_id = tm.id)));
+
+
+--
+-- Name: VIEW offer_details; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.offer_details IS 'Offerte mit Firma, Lead und Betreuer. security_invoker = on — ohne das laeuft die View als postgres und umgeht RLS. anon hat hier nichts verloren.';
 
 
 --
@@ -7963,12 +9964,20 @@ CREATE TABLE public.quittungen (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     auftrag_id uuid,
     language text DEFAULT 'de'::text NOT NULL,
+    customer_id uuid,
     CONSTRAINT chk_quittung_gesamt CHECK ((round(gesamttotal, 2) = round((total + mwst_betrag), 2))),
     CONSTRAINT chk_quittung_mwst CHECK ((round(mwst_betrag, 2) = round(((total * mwst_satz) / (100)::numeric), 2))),
     CONSTRAINT chk_quittung_total_from_rabatt CHECK ((round(total, 2) = round(GREATEST((zwischensumme - rabatt), (0)::numeric), 2))),
     CONSTRAINT quittungen_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
     CONSTRAINT quittungen_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'signed'::text, 'sent'::text, 'paid'::text])))
 );
+
+
+--
+-- Name: COLUMN quittungen.customer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.quittungen.customer_id IS 'Kanonischer Kunde, vom Auftrag geerbt.';
 
 
 --
@@ -8050,6 +10059,25 @@ CREATE SEQUENCE public.raeumung_seq
 
 
 --
+-- Name: rechnung_nr_counter; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rechnung_nr_counter (
+    company_id uuid NOT NULL,
+    jahr integer NOT NULL,
+    letzte_nr integer DEFAULT 0 NOT NULL,
+    CONSTRAINT rechnung_nr_counter_letzte_nr_check CHECK ((letzte_nr >= 0))
+);
+
+
+--
+-- Name: TABLE rechnung_nr_counter; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.rechnung_nr_counter IS 'Laufende Rechnungsnummer je Firma und Jahr. Steigt nur; ein geloeschter Entwurf gibt seine Nummer nicht zurueck.';
+
+
+--
 -- Name: rechnungen; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8085,6 +10113,7 @@ CREATE TABLE public.rechnungen (
     schlusstext text,
     zahlungskonditionen text,
     language text DEFAULT 'de'::text NOT NULL,
+    customer_id uuid,
     CONSTRAINT rechnungen_anrede_check CHECK (((anrede IS NULL) OR (anrede = ANY (ARRAY['Herr'::text, 'Frau'::text])))),
     CONSTRAINT rechnungen_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
     CONSTRAINT rechnungen_status_check CHECK ((status = ANY (ARRAY['entwurf'::text, 'versendet'::text, 'bezahlt'::text, 'ueberfaellig'::text])))
@@ -8096,6 +10125,13 @@ CREATE TABLE public.rechnungen (
 --
 
 COMMENT ON TABLE public.rechnungen IS 'Swiss QR-Bill faturaları. abgeschlossen Auftrag''tan üretilir (auftrag_id UNIQUE = mükerrer engel). Kalemler offer_items''tan snapshot. quittungen (makbuz) sisteminden bağımsız.';
+
+
+--
+-- Name: COLUMN rechnungen.customer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rechnungen.customer_id IS 'Kanonischer Kunde, vom Auftrag geerbt.';
 
 
 --
@@ -8483,7 +10519,7 @@ CREATE TABLE public.user_roles (
 -- Name: virtual_besichtigung_sessions; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.virtual_besichtigung_sessions AS
+CREATE VIEW public.virtual_besichtigung_sessions WITH (security_invoker='on') AS
  SELECT sessions.id,
     sessions.token,
     sessions.company_id,
@@ -8505,6 +10541,13 @@ CREATE VIEW public.virtual_besichtigung_sessions AS
     sessions.created_by,
     sessions.data_expires_at
    FROM besichtigung.sessions;
+
+
+--
+-- Name: VIEW virtual_besichtigung_sessions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.virtual_besichtigung_sessions IS 'Oeffentliche Sicht auf besichtigung.sessions fuer die Firmenoberflaeche. security_invoker = on, damit die Policy is_company_member der Basistabelle greift.';
 
 
 --
@@ -8797,6 +10840,14 @@ ALTER TABLE ONLY public.company_reminder_settings
 
 
 --
+-- Name: company_secrets company_secrets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.company_secrets
+    ADD CONSTRAINT company_secrets_pkey PRIMARY KEY (company_id);
+
+
+--
 -- Name: company_service_items company_service_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8829,6 +10880,30 @@ ALTER TABLE ONLY public.cookie_consent_log
 
 
 --
+-- Name: customer_merges customer_merges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_merges
+    ADD CONSTRAINT customer_merges_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: customers customers_id_company_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customers
+    ADD CONSTRAINT customers_id_company_uniq UNIQUE (id, company_id);
+
+
+--
+-- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customers
+    ADD CONSTRAINT customers_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: edge_rate_limits edge_rate_limits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8850,6 +10925,22 @@ ALTER TABLE ONLY public.email_logs
 
 ALTER TABLE ONLY public.firma_resources
     ADD CONSTRAINT firma_resources_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: inbound_emails inbound_emails_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbound_emails
+    ADD CONSTRAINT inbound_emails_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: inbound_emails inbound_emails_provider_message_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbound_emails
+    ADD CONSTRAINT inbound_emails_provider_message_key UNIQUE (provider, provider_message_id);
 
 
 --
@@ -8938,22 +11029,6 @@ ALTER TABLE ONLY public.lead_confirmations
 
 ALTER TABLE ONLY public.lead_confirmations
     ADD CONSTRAINT lead_confirmations_token_key UNIQUE (token);
-
-
---
--- Name: lead_distributions lead_distributions_lead_id_company_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lead_distributions
-    ADD CONSTRAINT lead_distributions_lead_id_company_id_key UNIQUE (lead_id, company_id);
-
-
---
--- Name: lead_distributions lead_distributions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lead_distributions
-    ADD CONSTRAINT lead_distributions_pkey PRIMARY KEY (id);
 
 
 --
@@ -9189,6 +11264,14 @@ ALTER TABLE ONLY public.raeumung_anfragen
 
 
 --
+-- Name: rechnung_nr_counter rechnung_nr_counter_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rechnung_nr_counter
+    ADD CONSTRAINT rechnung_nr_counter_pkey PRIMARY KEY (company_id, jahr);
+
+
+--
 -- Name: rechnungen rechnungen_auftrag_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9373,14 +11456,6 @@ ALTER TABLE ONLY public.company_services
 
 
 --
--- Name: lead_distributions unique_lead_company; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lead_distributions
-    ADD CONSTRAINT unique_lead_company UNIQUE (lead_id, company_id);
-
-
---
 -- Name: subscription_payments uq_subscription_payment_reference; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9449,6 +11524,13 @@ COMMENT ON INDEX public.auftraege_offer_id_unique IS 'Bir offer en fazla bir AKT
 
 
 --
+-- Name: customers_company_email_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX customers_company_email_uniq ON public.customers USING btree (company_id, email_normalized) WHERE ((email_normalized IS NOT NULL) AND (merged_into_customer_id IS NULL));
+
+
+--
 -- Name: idx_admin_activity_log_action; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9509,6 +11591,13 @@ CREATE INDEX idx_appointments_company_status ON public.appointments USING btree 
 --
 
 CREATE INDEX idx_appointments_company_type_status ON public.appointments USING btree (company_id, appointment_type, status);
+
+
+--
+-- Name: idx_appointments_customer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_appointments_customer ON public.appointments USING btree (customer_id, appointment_date DESC) WHERE (customer_id IS NOT NULL);
 
 
 --
@@ -9621,6 +11710,13 @@ CREATE INDEX idx_auftraege_company_id ON public.auftraege USING btree (company_i
 --
 
 CREATE INDEX idx_auftraege_company_status_date ON public.auftraege USING btree (company_id, status, scheduled_date);
+
+
+--
+-- Name: idx_auftraege_customer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_auftraege_customer ON public.auftraege USING btree (customer_id, created_at DESC) WHERE ((customer_id IS NOT NULL) AND (deleted_at IS NULL));
 
 
 --
@@ -9764,17 +11860,45 @@ CREATE INDEX idx_cookie_consent_visitor ON public.cookie_consent_log USING btree
 
 
 --
--- Name: idx_distributions_company; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_customer_merges_company_merged; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_distributions_company ON public.lead_distributions USING btree (company_id);
+CREATE INDEX idx_customer_merges_company_merged ON public.customer_merges USING btree (company_id, merged_at DESC);
 
 
 --
--- Name: idx_distributions_status; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_customer_merges_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_distributions_status ON public.lead_distributions USING btree (status);
+CREATE INDEX idx_customer_merges_source ON public.customer_merges USING btree (source_customer_id);
+
+
+--
+-- Name: idx_customers_company_duplicates; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_customers_company_duplicates ON public.customers USING btree (company_id, created_at DESC) WHERE (possible_duplicate AND (merged_into_customer_id IS NULL));
+
+
+--
+-- Name: idx_customers_company_phone; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_customers_company_phone ON public.customers USING btree (company_id, phone_normalized) WHERE ((phone_normalized IS NOT NULL) AND (merged_into_customer_id IS NULL));
+
+
+--
+-- Name: idx_customers_company_status_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_customers_company_status_name ON public.customers USING btree (company_id, status, display_name);
+
+
+--
+-- Name: idx_customers_merged_into; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_customers_merged_into ON public.customers USING btree (merged_into_customer_id) WHERE (merged_into_customer_id IS NOT NULL);
 
 
 --
@@ -9803,6 +11927,41 @@ CREATE INDEX idx_email_logs_recipient ON public.email_logs USING btree (recipien
 --
 
 CREATE INDEX idx_history_appointment ON public.appointment_history USING btree (appointment_id);
+
+
+--
+-- Name: idx_inbound_emails_company_status_received; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_inbound_emails_company_status_received ON public.inbound_emails USING btree (company_id, processing_status, received_at DESC);
+
+
+--
+-- Name: idx_inbound_emails_customer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_inbound_emails_customer ON public.inbound_emails USING btree (customer_id, received_at DESC) WHERE (customer_id IS NOT NULL);
+
+
+--
+-- Name: idx_inbound_emails_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_inbound_emails_lead ON public.inbound_emails USING btree (lead_id) WHERE (lead_id IS NOT NULL);
+
+
+--
+-- Name: idx_inbound_emails_status_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_inbound_emails_status_created ON public.inbound_emails USING btree (processing_status, created_at);
+
+
+--
+-- Name: idx_inbound_emails_unopened; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_inbound_emails_unopened ON public.inbound_emails USING btree (company_id, processing_status) WHERE (opened_at IS NULL);
 
 
 --
@@ -9897,34 +12056,6 @@ CREATE INDEX idx_lead_confirmations_lead_id ON public.lead_confirmations USING b
 
 
 --
--- Name: idx_lead_distributions_company_sent_at; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_lead_distributions_company_sent_at ON public.lead_distributions USING btree (company_id, sent_at DESC);
-
-
---
--- Name: INDEX idx_lead_distributions_company_sent_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_lead_distributions_company_sent_at IS 'Optimizes dashboard recent leads query';
-
-
---
--- Name: idx_lead_distributions_company_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_lead_distributions_company_status ON public.lead_distributions USING btree (company_id, status);
-
-
---
--- Name: INDEX idx_lead_distributions_company_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_lead_distributions_company_status IS 'Optimizes dashboard pending/accepted lead counts';
-
-
---
 -- Name: idx_leads_ai_quality_score; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9964,6 +12095,13 @@ CREATE INDEX idx_leads_created ON public.leads USING btree (created_at DESC);
 --
 
 CREATE INDEX idx_leads_created_at ON public.leads USING btree (created_at DESC);
+
+
+--
+-- Name: idx_leads_customer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_leads_customer ON public.leads USING btree (customer_id, created_at DESC) WHERE (customer_id IS NOT NULL);
 
 
 --
@@ -10226,6 +12364,13 @@ COMMENT ON INDEX public.idx_offers_company_status_rejected_at IS 'Optimizes dash
 
 
 --
+-- Name: idx_offers_customer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_offers_customer ON public.offers USING btree (customer_id, created_at DESC) WHERE (customer_id IS NOT NULL);
+
+
+--
 -- Name: idx_offers_lead_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10272,6 +12417,13 @@ CREATE INDEX idx_quittungen_auftrag_id ON public.quittungen USING btree (auftrag
 --
 
 CREATE INDEX idx_quittungen_company_id ON public.quittungen USING btree (company_id);
+
+
+--
+-- Name: idx_quittungen_customer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_quittungen_customer ON public.quittungen USING btree (customer_id, datum DESC) WHERE (customer_id IS NOT NULL);
 
 
 --
@@ -10335,6 +12487,13 @@ CREATE INDEX idx_rechnungen_auftrag_id ON public.rechnungen USING btree (auftrag
 --
 
 CREATE INDEX idx_rechnungen_company_id ON public.rechnungen USING btree (company_id);
+
+
+--
+-- Name: idx_rechnungen_customer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_rechnungen_customer ON public.rechnungen USING btree (customer_id, datum DESC) WHERE (customer_id IS NOT NULL);
 
 
 --
@@ -10751,10 +12910,31 @@ CREATE TRIGGER trg_sync_auftrag_status_to_appointment AFTER UPDATE ON public.auf
 
 
 --
+-- Name: appointments trigger_appointments_set_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_appointments_set_customer BEFORE INSERT ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.appointments_set_customer();
+
+
+--
+-- Name: auftraege trigger_auftraege_set_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_auftraege_set_customer BEFORE INSERT ON public.auftraege FOR EACH ROW EXECUTE FUNCTION public.auftraege_set_customer();
+
+
+--
 -- Name: appointments trigger_calculate_duration; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trigger_calculate_duration BEFORE INSERT OR UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.calculate_appointment_duration();
+
+
+--
+-- Name: companies trigger_companies_guard_ownership; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_companies_guard_ownership BEFORE UPDATE ON public.companies FOR EACH ROW EXECUTE FUNCTION public.guard_company_ownership();
 
 
 --
@@ -10765,10 +12945,66 @@ CREATE TRIGGER trigger_companies_updated_at BEFORE UPDATE ON public.companies FO
 
 
 --
+-- Name: company_secrets trigger_company_secrets_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_company_secrets_updated_at BEFORE UPDATE ON public.company_secrets FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
+-- Name: customer_merges trigger_customer_merges_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_customer_merges_append_only BEFORE DELETE OR UPDATE ON public.customer_merges FOR EACH ROW EXECUTE FUNCTION public.guard_customer_merges_append_only();
+
+
+--
+-- Name: customers trigger_customers_guard_merge; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_customers_guard_merge BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION public.guard_customer_merge_fields();
+
+
+--
+-- Name: customers trigger_customers_set_display_name; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_customers_set_display_name BEFORE INSERT OR UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION public.customers_set_display_name();
+
+
+--
+-- Name: customers trigger_customers_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_customers_updated_at BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
 -- Name: offers trigger_generate_offer_number; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trigger_generate_offer_number BEFORE INSERT ON public.offers FOR EACH ROW WHEN ((new.offer_number IS NULL)) EXECUTE FUNCTION public.generate_offer_number();
+
+
+--
+-- Name: inbound_emails trigger_inbound_emails_set_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_inbound_emails_set_customer BEFORE INSERT ON public.inbound_emails FOR EACH ROW EXECUTE FUNCTION public.inbound_emails_set_customer();
+
+
+--
+-- Name: inbound_emails trigger_inbound_emails_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_inbound_emails_updated_at BEFORE UPDATE ON public.inbound_emails FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
+-- Name: leads trigger_leads_set_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_leads_set_customer BEFORE INSERT ON public.leads FOR EACH ROW EXECUTE FUNCTION public.leads_set_customer();
 
 
 --
@@ -10783,6 +13019,62 @@ CREATE TRIGGER trigger_leads_updated_at BEFORE UPDATE ON public.leads FOR EACH R
 --
 
 CREATE TRIGGER trigger_log_appointment_changes AFTER INSERT OR UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.log_appointment_changes();
+
+
+--
+-- Name: offers trigger_offers_acceptance_evidence; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_offers_acceptance_evidence BEFORE UPDATE OF status ON public.offers FOR EACH ROW EXECUTE FUNCTION public.set_offer_acceptance_evidence();
+
+
+--
+-- Name: offers trigger_offers_set_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_offers_set_customer BEFORE INSERT ON public.offers FOR EACH ROW EXECUTE FUNCTION public.offers_set_customer();
+
+
+--
+-- Name: quittungen trigger_quittungen_guard_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_quittungen_guard_delete BEFORE DELETE ON public.quittungen FOR EACH ROW EXECUTE FUNCTION public.guard_quittung_delete();
+
+
+--
+-- Name: quittungen trigger_quittungen_guard_status; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_quittungen_guard_status BEFORE UPDATE OF status ON public.quittungen FOR EACH ROW EXECUTE FUNCTION public.guard_quittung_status_regression();
+
+
+--
+-- Name: quittungen trigger_quittungen_set_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_quittungen_set_customer BEFORE INSERT ON public.quittungen FOR EACH ROW EXECUTE FUNCTION public.beleg_set_customer();
+
+
+--
+-- Name: rechnungen trigger_rechnungen_guard_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_rechnungen_guard_delete BEFORE DELETE ON public.rechnungen FOR EACH ROW EXECUTE FUNCTION public.guard_rechnung_delete();
+
+
+--
+-- Name: rechnungen trigger_rechnungen_guard_status; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_rechnungen_guard_status BEFORE UPDATE OF status ON public.rechnungen FOR EACH ROW EXECUTE FUNCTION public.guard_rechnung_status_regression();
+
+
+--
+-- Name: rechnungen trigger_rechnungen_set_customer; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_rechnungen_set_customer BEFORE INSERT ON public.rechnungen FOR EACH ROW EXECUTE FUNCTION public.beleg_set_customer();
 
 
 --
@@ -10995,6 +13287,14 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: appointments appointments_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
 -- Name: appointments appointments_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11056,6 +13356,14 @@ ALTER TABLE ONLY public.auftraege
 
 ALTER TABLE ONLY public.auftraege
     ADD CONSTRAINT auftraege_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: auftraege auftraege_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.auftraege
+    ADD CONSTRAINT auftraege_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
 
 
 --
@@ -11242,6 +13550,14 @@ ALTER TABLE ONLY public.company_reminder_settings
 
 
 --
+-- Name: company_secrets company_secrets_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.company_secrets
+    ADD CONSTRAINT company_secrets_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
 -- Name: company_service_items company_service_items_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11255,6 +13571,30 @@ ALTER TABLE ONLY public.company_service_items
 
 ALTER TABLE ONLY public.company_services
     ADD CONSTRAINT company_services_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customer_merges customer_merges_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_merges
+    ADD CONSTRAINT customer_merges_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customers customers_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customers
+    ADD CONSTRAINT customers_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customers customers_merged_into_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customers
+    ADD CONSTRAINT customers_merged_into_customer_id_fkey FOREIGN KEY (merged_into_customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
 
 
 --
@@ -11298,6 +13638,30 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: inbound_emails inbound_emails_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbound_emails
+    ADD CONSTRAINT inbound_emails_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: inbound_emails inbound_emails_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbound_emails
+    ADD CONSTRAINT inbound_emails_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
+-- Name: inbound_emails inbound_emails_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbound_emails
+    ADD CONSTRAINT inbound_emails_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE SET NULL;
+
+
+--
 -- Name: ip_blacklist ip_blacklist_added_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11338,27 +13702,19 @@ ALTER TABLE ONLY public.lead_confirmations
 
 
 --
--- Name: lead_distributions lead_distributions_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lead_distributions
-    ADD CONSTRAINT lead_distributions_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
-
---
--- Name: lead_distributions lead_distributions_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lead_distributions
-    ADD CONSTRAINT lead_distributions_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
-
-
---
 -- Name: leads leads_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.leads
     ADD CONSTRAINT leads_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE SET NULL;
+
+
+--
+-- Name: leads leads_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.leads
+    ADD CONSTRAINT leads_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
 
 
 --
@@ -11506,11 +13862,11 @@ ALTER TABLE ONLY public.offers
 
 
 --
--- Name: offers offers_lead_distribution_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: offers offers_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.offers
-    ADD CONSTRAINT offers_lead_distribution_id_fkey FOREIGN KEY (lead_distribution_id) REFERENCES public.lead_distributions(id) ON DELETE SET NULL;
+    ADD CONSTRAINT offers_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
 
 
 --
@@ -11546,11 +13902,27 @@ ALTER TABLE ONLY public.quittungen
 
 
 --
+-- Name: quittungen quittungen_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quittungen
+    ADD CONSTRAINT quittungen_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
 -- Name: quittungen quittungen_offer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.quittungen
     ADD CONSTRAINT quittungen_offer_id_fkey FOREIGN KEY (offer_id) REFERENCES public.offers(id) ON DELETE SET NULL;
+
+
+--
+-- Name: rechnung_nr_counter rechnung_nr_counter_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rechnung_nr_counter
+    ADD CONSTRAINT rechnung_nr_counter_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 
 --
@@ -11567,6 +13939,14 @@ ALTER TABLE ONLY public.rechnungen
 
 ALTER TABLE ONLY public.rechnungen
     ADD CONSTRAINT rechnungen_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: rechnungen rechnungen_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rechnungen
+    ADD CONSTRAINT rechnungen_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
 
 
 --
@@ -11753,13 +14133,6 @@ CREATE POLICY "Admins can delete companies" ON public.companies FOR DELETE USING
 
 
 --
--- Name: lead_distributions Admins can delete lead distributions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admins can delete lead distributions" ON public.lead_distributions FOR DELETE USING (public.is_admin(auth.uid()));
-
-
---
 -- Name: support_ticket_messages Admins can delete messages; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11785,13 +14158,6 @@ CREATE POLICY "Admins can delete tickets" ON public.support_tickets FOR DELETE U
 --
 
 CREATE POLICY "Admins can insert companies" ON public.companies FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
-
-
---
--- Name: lead_distributions Admins can insert lead distributions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admins can insert lead distributions" ON public.lead_distributions FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
 
 
 --
@@ -12058,13 +14424,6 @@ CREATE POLICY "Admins can update archive logs" ON public.archive_logs FOR UPDATE
 
 
 --
--- Name: lead_distributions Admins can update lead distributions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admins can update lead distributions" ON public.lead_distributions FOR UPDATE USING (public.is_admin(auth.uid()));
-
-
---
 -- Name: support_ticket_messages Admins can update messages; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12131,13 +14490,6 @@ CREATE POLICY "Admins can view all imported leads" ON public.manual_imported_lea
 CREATE POLICY "Admins can view all klaviertransport anfragen" ON public.klaviertransport_anfragen FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.user_roles
   WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = ANY (ARRAY['super_admin'::public.app_role, 'admin'::public.app_role, 'moderator'::public.app_role]))))));
-
-
---
--- Name: lead_distributions Admins can view all lead distributions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admins can view all lead distributions" ON public.lead_distributions FOR SELECT USING (public.is_admin(auth.uid()));
 
 
 --
@@ -12376,7 +14728,7 @@ CREATE POLICY "Companies can manage their templates" ON public.leistungsuebersic
 
 CREATE POLICY "Owner can read all activity logs" ON public.admin_activity_log FOR SELECT USING ((EXISTS ( SELECT 1
    FROM auth.users
-  WHERE ((users.id = auth.uid()) AND ((users.email)::text = 'redacted@example.test'::text)))));
+  WHERE ((users.id = auth.uid()) AND ((users.email)::text = 'test@test.invalid'::text)))));
 
 
 --
@@ -12684,10 +15036,10 @@ CREATE POLICY companies_select_member ON public.companies FOR SELECT TO authenti
 
 
 --
--- Name: companies companies_update_member; Type: POLICY; Schema: public; Owner: -
+-- Name: companies companies_update_owner_admin; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY companies_update_member ON public.companies FOR UPDATE TO authenticated USING (public.is_company_member(id));
+CREATE POLICY companies_update_owner_admin ON public.companies FOR UPDATE TO authenticated USING (public.is_company_role(id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(id, ARRAY['owner'::text, 'admin'::text]));
 
 
 --
@@ -12811,6 +15163,12 @@ CREATE POLICY company_pricing_configs_update_member ON public.company_pricing_co
 ALTER TABLE public.company_reminder_settings ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: company_secrets; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.company_secrets ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: company_service_items; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12857,6 +15215,60 @@ CREATE POLICY cookie_consent_public_insert ON public.cookie_consent_log FOR INSE
 
 
 --
+-- Name: customer_merges; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.customer_merges ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: customer_merges customer_merges_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customer_merges_select_member ON public.customer_merges FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: customers; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: customers customers_delete_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customers_delete_owner_admin ON public.customers FOR DELETE TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
+-- Name: customers customers_insert_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customers_insert_member ON public.customers FOR INSERT TO authenticated WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: customers customers_select_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customers_select_admin ON public.customers FOR SELECT USING (public.is_admin(auth.uid()));
+
+
+--
+-- Name: customers customers_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customers_select_member ON public.customers FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: customers customers_update_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customers_update_member ON public.customers FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
+
+
+--
 -- Name: edge_rate_limits; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12873,6 +15285,26 @@ ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.firma_resources ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: inbound_emails; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.inbound_emails ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: inbound_emails inbound_emails_manage_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbound_emails_manage_member ON public.inbound_emails USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: inbound_emails inbound_emails_select_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbound_emails_select_admin ON public.inbound_emails FOR SELECT USING (public.is_admin(auth.uid()));
+
 
 --
 -- Name: ip_blacklist; Type: ROW SECURITY; Schema: public; Owner: -
@@ -12925,26 +15357,6 @@ COMMENT ON POLICY lead_confirmations_admin_select ON public.lead_confirmations I
 
 
 --
--- Name: lead_distributions; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.lead_distributions ENABLE ROW LEVEL SECURITY;
-
---
--- Name: lead_distributions lead_distributions_select_member; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY lead_distributions_select_member ON public.lead_distributions FOR SELECT USING (public.is_company_member(company_id));
-
-
---
--- Name: lead_distributions lead_distributions_update_member; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY lead_distributions_update_member ON public.lead_distributions FOR UPDATE USING (public.is_company_member(company_id));
-
-
---
 -- Name: lead_forms; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12971,13 +15383,10 @@ CREATE POLICY leads_public_insert_v2 ON public.leads FOR INSERT TO authenticated
 
 
 --
--- Name: leads leads_select_company_or_distribution; Type: POLICY; Schema: public; Owner: -
+-- Name: leads leads_select_company_or_admin; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY leads_select_company_or_distribution ON public.leads FOR SELECT TO authenticated USING ((public.is_admin(auth.uid()) OR (EXISTS ( SELECT 1
-   FROM (public.lead_distributions ld
-     JOIN public.companies c ON ((c.id = ld.company_id)))
-  WHERE ((ld.lead_id = leads.id) AND (c.user_id = auth.uid())))) OR public.is_company_member(company_id, auth.uid())));
+CREATE POLICY leads_select_company_or_admin ON public.leads FOR SELECT TO authenticated USING ((public.is_admin(auth.uid()) OR public.is_company_member(company_id, auth.uid())));
 
 
 --
@@ -13330,6 +15739,12 @@ CREATE POLICY quittungen_update_member ON public.quittungen FOR UPDATE USING (pu
 --
 
 ALTER TABLE public.raeumung_anfragen ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: rechnung_nr_counter; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.rechnung_nr_counter ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: rechnungen; Type: ROW SECURITY; Schema: public; Owner: -

@@ -21,7 +21,7 @@ export const misc: Record<keyof typeof de, string> = {
   "dashboard.action.newLead": "Add enquiry",
 
   "dashboard.kpi.newLeads": "New enquiries",
-  "dashboard.kpi.newLeadsHint": "Received today",
+  "dashboard.kpi.newLeadsHint": "No offer yet",
   "dashboard.kpi.openOffers": "Open offers",
   "dashboard.kpi.openOffersHint": "Awaiting a reply",
   "dashboard.kpi.jobsThisMonth": "Jobs this month",
@@ -49,6 +49,8 @@ export const misc: Record<keyof typeof de, string> = {
   "dashboard.minutesShort": "min",
 
   "dashboard.leadStatus.sent": "New",
+  "dashboard.leadStatus.new": "New",
+  "dashboard.leadStatus.offerCreated": "Offer created",
   "dashboard.leadStatus.accepted": "Accepted",
   "dashboard.leadStatus.rejected": "Declined",
 
@@ -316,6 +318,7 @@ export const misc: Record<keyof typeof de, string> = {
     "You have the right to export your data (data portability) and to delete it (right to be forgotten). Every action is logged.",
 
   "archive.stats.leads": "Leads",
+  "archive.stats.leadsKept": "Enquiries are not deleted",
   "archive.stats.offers": "Offers",
   "archive.stats.appointments": "Appointments",
   "archive.stats.team": "Team",
@@ -346,7 +349,6 @@ export const misc: Record<keyof typeof de, string> = {
   "archive.delete.confirmDescription": "This action cannot be undone!",
   "archive.delete.warning": "Warning",
   "archive.delete.warningIntro": "The following data will be permanently deleted:",
-  "archive.delete.leadsDetail": "{count} leads (completed/declined)",
   "archive.delete.offersDetail": "{count} offers (sent/accepted/declined)",
   "archive.delete.appointmentsDetail": "{count} appointments (completed/cancelled)",
   "archive.delete.confirmCheckbox":

@@ -51,8 +51,6 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.list.sender.systemTooltip": "E-mail système",
   "offer.list.badge.blind": "À l'aveugle",
   "offer.list.badge.kostendachMax": "Plafond de coûts {amount}",
-  "offer.list.pagination.range": "{from}–{to} sur {total}",
-  "offer.list.pagination.perPage": "{count} par page",
   "offer.list.moreOptions": "Plus d'options",
   "offer.list.action.view": "Afficher",
   "offer.list.action.addToCalendar": "Ajouter au calendrier",

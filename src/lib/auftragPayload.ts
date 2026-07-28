@@ -139,7 +139,11 @@ export interface AuftragPayloadSource {
   offerId: string | null;
   leadId: string | null;
   title: string;
+  /** Anzeigename des Belegs — bleibt eingefroren, PDF und QR-Rechnung lesen ihn. */
   customerName: string;
+  /** Getrennte Form daneben (20260728120000). Quelle fuer alles, was den Namen strukturiert braucht. */
+  customerFirstName: string | null;
+  customerLastName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
   fromAddress: string | null;
@@ -216,6 +220,8 @@ export const buildAuftragInsertPayload = (
     language: extra.language,
     title: source.title,
     customer_name: source.customerName,
+    customer_first_name: source.customerFirstName,
+    customer_last_name: source.customerLastName,
     customer_email: source.customerEmail,
     customer_phone: source.customerPhone,
     from_address: source.fromAddress,
@@ -299,6 +305,8 @@ export const buildAuftragUpdatePayload = (
     lead_id: source.leadId,
     title: source.title,
     customer_name: source.customerName,
+    customer_first_name: source.customerFirstName,
+    customer_last_name: source.customerLastName,
     customer_email: source.customerEmail,
     customer_phone: source.customerPhone,
     from_address: source.fromAddress,

@@ -22,7 +22,7 @@ export const misc: Record<keyof typeof de, string> = {
   "dashboard.action.newLead": "Saisir une demande",
 
   "dashboard.kpi.newLeads": "Nouvelles demandes",
-  "dashboard.kpi.newLeadsHint": "Reçues aujourd'hui",
+  "dashboard.kpi.newLeadsHint": "Sans offre",
   "dashboard.kpi.openOffers": "Offres en attente",
   "dashboard.kpi.openOffersHint": "En attente de réponse",
   "dashboard.kpi.jobsThisMonth": "Mandats ce mois-ci",
@@ -51,6 +51,8 @@ export const misc: Record<keyof typeof de, string> = {
   "dashboard.minutesShort": "min",
 
   "dashboard.leadStatus.sent": "Nouveau",
+  "dashboard.leadStatus.new": "Nouveau",
+  "dashboard.leadStatus.offerCreated": "Offre créée",
   "dashboard.leadStatus.accepted": "Accepté",
   "dashboard.leadStatus.rejected": "Refusé",
 
@@ -323,6 +325,7 @@ export const misc: Record<keyof typeof de, string> = {
     "Vous avez le droit d'exporter vos données (portabilité) et de les supprimer (droit à l'oubli). Toutes les actions sont journalisées.",
 
   "archive.stats.leads": "Leads",
+  "archive.stats.leadsKept": "Les demandes ne sont pas supprimées",
   "archive.stats.offers": "Offres",
   "archive.stats.appointments": "Rendez-vous",
   "archive.stats.team": "Équipe",
@@ -355,7 +358,6 @@ export const misc: Record<keyof typeof de, string> = {
   "archive.delete.warning": "Avertissement",
   "archive.delete.warningIntro":
     "Les données suivantes seront définitivement supprimées :",
-  "archive.delete.leadsDetail": "{count} leads (clôturés/refusés)",
   "archive.delete.offersDetail": "{count} offres (envoyées/acceptées/refusées)",
   "archive.delete.appointmentsDetail": "{count} rendez-vous (terminés/annulés)",
   "archive.delete.confirmCheckbox":

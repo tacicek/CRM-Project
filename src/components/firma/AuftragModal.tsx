@@ -58,6 +58,7 @@ import { formatCurrency } from "@/i18n/format";
 import { useI18n, useT } from "@/i18n/useI18n";
 import { allowedAuftragTargets } from "@/lib/auftragStatus";
 import { buildServiceDetails, type AuftragLead } from "@/lib/auftragLead";
+import { splitPersonName, joinPersonName } from "@/lib/personName";
 import {
   buildAuftragInsertPayload,
   buildAuftragUpdatePayload,
@@ -126,6 +127,8 @@ interface Auftrag {
   appointment_id?: string | null;
   title: string;
   customer_name: string;
+  customer_first_name: string | null;
+  customer_last_name: string | null;
   customer_email: string | null;
   customer_phone: string | null;
   from_address: string | null;
@@ -217,9 +220,13 @@ export function AuftragModal({
   const [showServiceDetails, setShowServiceDetails] = useState(true);
 
   // Form state
+  // Der Name wird GETRENNT gefuehrt. customer_name entsteht daraus erst beim
+  // Speichern (joinPersonName) — bis 2026-07-28 war es umgekehrt, und der
+  // Rueckweg zum Termin zerschnitt "Anna Maria von Gunten" falsch.
   const [formData, setFormData] = useState({
     title: "",
-    customer_name: "",
+    customer_first_name: "",
+    customer_last_name: "",
     customer_email: "",
     customer_phone: "",
     from_address: "",
@@ -403,7 +410,8 @@ export function AuftragModal({
             // Pre-populate form with all data
             setFormData({
               title: offerData.title,
-              customer_name: `${offerData.customer_first_name} ${offerData.customer_last_name}`,
+              customer_first_name: offerData.customer_first_name ?? "",
+              customer_last_name: offerData.customer_last_name ?? "",
               customer_email: offerData.customer_email,
               customer_phone: offerData.customer_phone || "",
               from_address: fromAddress,
@@ -452,9 +460,16 @@ export function AuftragModal({
   // Initialize form for editing existing auftrag
   useEffect(() => {
     if (auftrag) {
+      // Zeilen von vor 20260728120000 fuehren nur den zusammengesetzten Namen.
+      // Fuer sie — und nur fuer sie — wird getrennt.
+      const zerlegt =
+        auftrag.customer_first_name !== null || auftrag.customer_last_name !== null
+          ? { first: auftrag.customer_first_name ?? "", last: auftrag.customer_last_name ?? "" }
+          : splitPersonName(auftrag.customer_name);
       setFormData({
         title: auftrag.title,
-        customer_name: auftrag.customer_name,
+        customer_first_name: zerlegt.first,
+        customer_last_name: zerlegt.last,
         customer_email: auftrag.customer_email || "",
         customer_phone: auftrag.customer_phone || "",
         from_address: auftrag.from_address || "",
@@ -488,7 +503,8 @@ export function AuftragModal({
       setLead(null);
       setFormData({
         title: "",
-        customer_name: "",
+        customer_first_name: "",
+        customer_last_name: "",
         customer_email: "",
         customer_phone: "",
         from_address: "",
@@ -590,7 +606,7 @@ export function AuftragModal({
   const handleSubmit = async () => {
     if (!companyId) return;
 
-    if (!formData.title || !formData.customer_name || !formData.scheduled_date) {
+    if (!formData.title || !formData.customer_last_name.trim() || !formData.scheduled_date) {
       toast({
         title: t("common.error"),
         description: t("auftrag.toast.requiredFields"),
@@ -664,7 +680,9 @@ export function AuftragModal({
         offerId: selectedOfferId || offerId || auftrag?.offer_id || null,
         leadId: offer?.lead_id || auftrag?.lead_id || null,
         title: formData.title,
-        customerName: formData.customer_name,
+        customerName: joinPersonName(formData.customer_first_name, formData.customer_last_name),
+        customerFirstName: formData.customer_first_name.trim() || null,
+        customerLastName: formData.customer_last_name.trim() || null,
         customerEmail: formData.customer_email || null,
         customerPhone: formData.customer_phone || null,
         fromAddress: formData.from_address || null,
@@ -770,7 +788,6 @@ export function AuftragModal({
         // Sonst neuen service-Termin erstellen
         if (!appointmentId) {
           const schedule = buildAppointmentSchedule();
-          const [firstName, ...rest] = formData.customer_name.trim().split(" ");
           const { data: newAppt, error: apptError } = await supabase
             .from("appointments")
             .insert({
@@ -782,8 +799,8 @@ export function AuftragModal({
               ...schedule,
               all_day: false,
               location_address: formData.from_address || null,
-              customer_first_name: firstName || formData.customer_name,
-              customer_last_name: rest.join(" ") || null,
+              customer_first_name: formData.customer_first_name.trim() || null,
+              customer_last_name: formData.customer_last_name.trim() || null,
               customer_email: formData.customer_email || null,
               customer_phone: formData.customer_phone || null,
               title: formData.title,
@@ -1469,11 +1486,16 @@ export function AuftragModal({
                   <User className="w-4 h-4" />
                   {t("auftrag.field.customerData")}
                 </Label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <Input
-                    placeholder={t("auftrag.field.namePlaceholder")}
-                    value={formData.customer_name}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, customer_name: e.target.value }))}
+                    placeholder={t("auftrag.field.firstNamePlaceholder")}
+                    value={formData.customer_first_name}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, customer_first_name: e.target.value }))}
+                  />
+                  <Input
+                    placeholder={t("auftrag.field.lastNamePlaceholder")}
+                    value={formData.customer_last_name}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, customer_last_name: e.target.value }))}
                   />
                   <Input
                     placeholder={t("common.email")}

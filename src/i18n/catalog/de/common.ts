@@ -3,6 +3,8 @@
  * Used across the whole dashboard — page-specific copy lives in `ui.ts`.
  */
 export const common = {
+  "common.pagination.range": "{from}–{to} von {total}",
+  "common.pagination.perPage": "{count} pro Seite",
   // --- Actions ---------------------------------------------------------------
   "common.save": "Speichern",
   "common.saving": "Wird gespeichert…",

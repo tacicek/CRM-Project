@@ -62,6 +62,8 @@ const firmaImports = {
   Quittungen: () => import("./pages/firma/Quittungen"),
   QuittungDetail: () => import("./pages/firma/QuittungDetail"),
   Rechnungen: () => import("./pages/firma/Rechnungen"),
+  Kunden: () => import("./pages/firma/Kunden"),
+  KundeDetail: () => import("./pages/firma/KundeDetail"),
   RechnungDetail: () => import("./pages/firma/RechnungDetail"),
 };
 
@@ -86,6 +88,8 @@ const FirmaPreisgestaltung = lazy(firmaImports.Preisgestaltung);
 const FirmaQuittungen = lazy(firmaImports.Quittungen);
 const FirmaQuittungDetail = lazy(firmaImports.QuittungDetail);
 const FirmaRechnungen = lazy(firmaImports.Rechnungen);
+const FirmaKunden = lazy(firmaImports.Kunden);
+const FirmaKundeDetail = lazy(firmaImports.KundeDetail);
 const FirmaRechnungDetail = lazy(firmaImports.RechnungDetail);
 
 // Layout wrapper
@@ -156,6 +160,8 @@ const App = () => (
                   <Route path="/firma/quittungen/neu" element={<FirmaQuittungDetail />} />
                   <Route path="/firma/quittungen/:id" element={<FirmaQuittungDetail />} />
                   <Route path="/firma/quittungen/:id/bearbeiten" element={<FirmaQuittungDetail />} />
+                  <Route path="/firma/kunden" element={<FirmaKunden />} />
+                  <Route path="/firma/kunden/:id" element={<FirmaKundeDetail />} />
                   <Route path="/firma/rechnungen" element={<FirmaRechnungen />} />
                   <Route path="/firma/rechnungen/neu" element={<FirmaRechnungDetail />} />
                   <Route path="/firma/rechnungen/:id" element={<FirmaRechnungDetail />} />

@@ -324,7 +324,6 @@ const FirmaOfferteErstellen = () => {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const leadId = searchParams.get("lead");
-  const distributionId = searchParams.get("distribution");
   // Dashboard locale — the OPERATOR's chrome only. Everything the customer reads (offer
   // title, item descriptions, payment terms, AGB, PDF, e-mail) resolves `offerLocale`
   // below instead — see documentT.
@@ -535,22 +534,11 @@ const FirmaOfferteErstellen = () => {
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let leadData: any = directLead ?? null;
+        const leadData: any = directLead ?? null;
 
-        if (!leadData && distributionId) {
-          // Fallback: fetch lead via distribution join (ensures company has access to this lead)
-          const { data: distData } = await supabase
-            .from("lead_distributions")
-            .select("lead:leads(*)")
-            .eq("id", distributionId)
-            .eq("company_id", companyData.id)
-            .maybeSingle();
-
-          const joinedLead = distData?.lead;
-          if (joinedLead && !Array.isArray(joinedLead)) {
-            leadData = joinedLead;
-          }
-        }
+        // Hier stand bis 2026-07-28 ein Rueckfall ueber ?distribution=… . Er war
+        // doppelt tot: die Tabelle lead_distributions hat 0 Zeilen, UND kein
+        // einziger Link im Repo hat diesen Parameter je gesetzt.
 
         if (!leadData) {
           toast({
@@ -708,7 +696,7 @@ const FirmaOfferteErstellen = () => {
     };
 
     fetchData();
-  }, [user, leadId, navigate, toast, loadPricingConfig, distributionId, t]);
+  }, [user, leadId, navigate, toast, loadPricingConfig, t]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -1286,7 +1274,6 @@ const FirmaOfferteErstellen = () => {
       const coreOfferData = {
         company_id: company.id,
         lead_id: leadId,
-        lead_distribution_id: distributionId || null,
         customer_first_name: lead.customer_first_name,
         customer_last_name: lead.customer_last_name,
         customer_email: lead.customer_email,

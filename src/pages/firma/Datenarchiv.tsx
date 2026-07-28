@@ -53,7 +53,9 @@ import {
 
 interface DataStats {
   leads_total: number;
-  leads_old: number;
+  // Kein leads_old mehr: archive_and_purge_company_data loescht ausschliesslich
+  // Offerten und Termine (20260727180000). Eine Zahl "loeschbare Anfragen" waere
+  // ein Versprechen, das nirgends eingeloest wird.
   offers_total: number;
   offers_old: number;
   appointments_total: number;
@@ -125,18 +127,13 @@ export default function FirmaDatenarchiv() {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-      // Fetch leads statistics
+      // Anfragen zaehlen — direkt aus `leads`. Bis 2026-07-28 stand hier
+      // lead_distributions (Marktplatz-Rest, 0 Zeilen), die Kachel zeigte also
+      // immer null.
       const { count: leadsTotal } = await supabase
-        .from("lead_distributions")
-        .select("*", { count: "exact", head: true })
+        .from("leads")
+        .select("id", { count: "exact", head: true })
         .eq("company_id", companyId);
-
-      const { count: leadsOld } = await supabase
-        .from("lead_distributions")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .lt("created_at", cutoffDate.toISOString())
-        .in("status", ["accepted", "rejected", "expired"]);
 
       // Fetch offers statistics
       const { count: offersTotal } = await supabase
@@ -172,7 +169,6 @@ export default function FirmaDatenarchiv() {
 
       setStats({
         leads_total: leadsTotal || 0,
-        leads_old: leadsOld || 0,
         offers_total: offersTotal || 0,
         offers_old: offersOld || 0,
         appointments_total: appointmentsTotal || 0,
@@ -208,11 +204,8 @@ export default function FirmaDatenarchiv() {
       // Export leads
       if (exportTypes.leads) {
         const { data: leads } = await supabase
-          .from("lead_distributions")
-          .select(`
-            *,
-            lead:leads (*)
-          `)
+          .from("leads")
+          .select("*")
           .eq("company_id", companyId);
         
         exportData.leads = leads || [];
@@ -427,15 +420,7 @@ export default function FirmaDatenarchiv() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.leads_total || 0}</div>
-              <p className="text-sm text-muted-foreground">
-                {t("archive.stats.olderThan", { count: stats?.leads_old || 0, days: retentionDays })}
-              </p>
-              {stats && stats.leads_old > 0 && (
-                <Progress 
-                  value={(stats.leads_old / stats.leads_total) * 100} 
-                  className="h-1 mt-2"
-                />
-              )}
+              <p className="text-sm text-muted-foreground">{t("archive.stats.leadsKept")}</p>
             </CardContent>
           </Card>
 
@@ -657,7 +642,6 @@ export default function FirmaDatenarchiv() {
                   <strong>{t("archive.delete.deletable")}</strong>
                 </p>
                 <ul className="text-sm text-red-700 mt-1 space-y-1">
-                  <li>• {stats?.leads_old || 0} {t("archive.stats.leads")}</li>
                   <li>• {stats?.offers_old || 0} {t("archive.stats.offers")}</li>
                   <li>• {stats?.appointments_old || 0} {t("archive.stats.appointments")}</li>
                 </ul>
@@ -668,7 +652,7 @@ export default function FirmaDatenarchiv() {
                   <Button 
                     variant="destructive" 
                     className="w-full"
-                    disabled={(stats?.leads_old || 0) + (stats?.offers_old || 0) + (stats?.appointments_old || 0) === 0}
+                    disabled={(stats?.offers_old || 0) + (stats?.appointments_old || 0) === 0}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     {t("archive.delete.title")}
@@ -692,7 +676,6 @@ export default function FirmaDatenarchiv() {
                       <AlertDescription>
                         {t("archive.delete.warningIntro")}
                         <ul className="mt-2 space-y-1">
-                          <li>• {t("archive.delete.leadsDetail", { count: stats?.leads_old || 0 })}</li>
                           <li>• {t("archive.delete.offersDetail", { count: stats?.offers_old || 0 })}</li>
                           <li>• {t("archive.delete.appointmentsDetail", { count: stats?.appointments_old || 0 })}</li>
                         </ul>

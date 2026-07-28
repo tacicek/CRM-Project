@@ -368,6 +368,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   const urlToImport: Record<string, () => Promise<unknown>> = useMemo(() => ({
     "/firma": firmaImports.Dashboard,
     "/firma/einstellungen": firmaImports.Einstellungen,
+    "/firma/kunden": firmaImports.Kunden,
     "/firma/offerten": firmaImports.Offerten,
     "/firma/quittungen": firmaImports.Quittungen,
     "/firma/rechnungen": firmaImports.Rechnungen,
@@ -417,6 +418,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   const menuGroups: MenuGroup[] = useMemo(() => [
     {
       id: "hauptbereich", labelKey: "nav.group.hauptbereich", items: [
+        { titleKey: "nav.kunden", url: "/firma/kunden", emoji: "🧑", moduleKey: "contacts" },
         { titleKey: "nav.offerten", url: "/firma/offerten", emoji: "📄", moduleKey: "offers" },
         { titleKey: "nav.auftraege", url: "/firma/auftraege", emoji: "✅", moduleKey: "orders" },
         { titleKey: "nav.quittungen", url: "/firma/quittungen", emoji: "🧾", moduleKey: "receipts" },

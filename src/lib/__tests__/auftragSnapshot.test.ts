@@ -34,6 +34,12 @@ const makeQueryRow = (overrides: Partial<AuftragQueryRow> = {}): AuftragQueryRow
   completion_notes: null,
   created_at: "2026-02-01T00:00:00Z",
   customer_email: "kunde@example.com",
+  // Seit 20260728120000 traegt der Auftrag den Namen auch getrennt: customer_name
+  // bleibt der Anzeigename des Belegs, die beiden Felder daneben sind die Quelle
+  // fuer alles, was den Namen strukturiert braucht (Termine).
+  customer_first_name: "Max",
+  customer_last_name: "Mustermann",
+  customer_id: null,
   customer_name: "Max Mustermann",
   customer_phone: null,
   customer_reminder_sent: false,

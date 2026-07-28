@@ -241,6 +241,7 @@ export type Database = {
           created_at: string | null
           customer_email: string | null
           customer_first_name: string | null
+          customer_id: string | null
           customer_last_name: string | null
           customer_phone: string | null
           description: string | null
@@ -289,6 +290,7 @@ export type Database = {
           created_at?: string | null
           customer_email?: string | null
           customer_first_name?: string | null
+          customer_id?: string | null
           customer_last_name?: string | null
           customer_phone?: string | null
           description?: string | null
@@ -337,6 +339,7 @@ export type Database = {
           created_at?: string | null
           customer_email?: string | null
           customer_first_name?: string | null
+          customer_id?: string | null
           customer_last_name?: string | null
           customer_phone?: string | null
           description?: string | null
@@ -652,6 +655,9 @@ export type Database = {
           completion_notes: string | null
           created_at: string | null
           customer_email: string | null
+          customer_first_name: string | null
+          customer_id: string | null
+          customer_last_name: string | null
           customer_name: string
           customer_phone: string | null
           customer_reminder_sent: boolean | null
@@ -696,6 +702,9 @@ export type Database = {
           completion_notes?: string | null
           created_at?: string | null
           customer_email?: string | null
+          customer_first_name?: string | null
+          customer_id?: string | null
+          customer_last_name?: string | null
           customer_name: string
           customer_phone?: string | null
           customer_reminder_sent?: boolean | null
@@ -740,6 +749,9 @@ export type Database = {
           completion_notes?: string | null
           created_at?: string | null
           customer_email?: string | null
+          customer_first_name?: string | null
+          customer_id?: string | null
+          customer_last_name?: string | null
           customer_name?: string
           customer_phone?: string | null
           customer_reminder_sent?: boolean | null
@@ -1747,6 +1759,142 @@ export type Database = {
         }
         Relationships: []
       }
+      customers: {
+        Row: {
+          company_id: string
+          company_name: string | null
+          created_at: string
+          created_via: string
+          customer_type: string
+          display_name: string
+          email_normalized: string | null
+          external_customer_number: string | null
+          first_name: string | null
+          first_seen_at: string
+          id: string
+          language: string
+          last_name: string | null
+          merged_at: string | null
+          merged_into_customer_id: string | null
+          notes: string | null
+          phone_normalized: string | null
+          possible_duplicate: boolean
+          primary_email: string | null
+          primary_phone: string | null
+          salutation: string | null
+          source: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          company_name?: string | null
+          created_at?: string
+          created_via?: string
+          customer_type?: string
+          display_name?: string
+          external_customer_number?: string | null
+          first_name?: string | null
+          first_seen_at?: string
+          id?: string
+          language?: string
+          last_name?: string | null
+          merged_at?: string | null
+          merged_into_customer_id?: string | null
+          notes?: string | null
+          possible_duplicate?: boolean
+          primary_email?: string | null
+          primary_phone?: string | null
+          salutation?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          company_name?: string | null
+          created_at?: string
+          created_via?: string
+          customer_type?: string
+          display_name?: string
+          external_customer_number?: string | null
+          first_name?: string | null
+          first_seen_at?: string
+          id?: string
+          language?: string
+          last_name?: string | null
+          merged_at?: string | null
+          merged_into_customer_id?: string | null
+          notes?: string | null
+          possible_duplicate?: boolean
+          primary_email?: string | null
+          primary_phone?: string | null
+          salutation?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_merged_into_customer_id_fkey"
+            columns: ["merged_into_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_merges: {
+        Row: {
+          company_id: string
+          id: string
+          merged_at: string
+          merged_by: string | null
+          moved_counts: Json
+          reason: string | null
+          source_customer_id: string
+          source_snapshot: Json
+          target_customer_id: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          merged_at?: string
+          merged_by?: string | null
+          moved_counts?: Json
+          reason?: string | null
+          source_customer_id: string
+          source_snapshot: Json
+          target_customer_id: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          merged_at?: string
+          merged_by?: string | null
+          moved_counts?: Json
+          reason?: string | null
+          source_customer_id?: string
+          source_snapshot?: Json
+          target_customer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_merges_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       edge_rate_limits: {
         Row: {
           key: string
@@ -1886,6 +2034,7 @@ export type Database = {
           company_id: string
           confidence_score: number | null
           created_at: string
+          customer_id: string | null
           extracted_data: Json | null
           from_email: string
           from_name: string | null
@@ -1912,6 +2061,7 @@ export type Database = {
           company_id: string
           confidence_score?: number | null
           created_at?: string
+          customer_id?: string | null
           extracted_data?: Json | null
           from_email: string
           from_name?: string | null
@@ -1938,6 +2088,7 @@ export type Database = {
           company_id?: string
           confidence_score?: number | null
           created_at?: string
+          customer_id?: string | null
           extracted_data?: Json | null
           from_email?: string
           from_name?: string | null
@@ -2338,57 +2489,6 @@ export type Database = {
           },
         ]
       }
-      lead_distributions: {
-        Row: {
-          company_id: string
-          expires_at: string | null
-          id: string
-          lead_id: string
-          rejection_reason: string | null
-          responded_at: string | null
-          sent_at: string | null
-          status: string | null
-          viewed_at: string | null
-        }
-        Insert: {
-          company_id: string
-          expires_at?: string | null
-          id?: string
-          lead_id: string
-          rejection_reason?: string | null
-          responded_at?: string | null
-          sent_at?: string | null
-          status?: string | null
-          viewed_at?: string | null
-        }
-        Update: {
-          company_id?: string
-          expires_at?: string | null
-          id?: string
-          lead_id?: string
-          rejection_reason?: string | null
-          responded_at?: string | null
-          sent_at?: string | null
-          status?: string | null
-          viewed_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_distributions_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_distributions_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       lead_forms: {
         Row: {
           created_at: string | null
@@ -2457,6 +2557,7 @@ export type Database = {
           customer_contact_time: string | null
           customer_email: string
           customer_first_name: string
+          customer_id: string | null
           customer_last_name: string
           customer_phone: string
           customer_salutation: string | null
@@ -2580,6 +2681,7 @@ export type Database = {
           customer_contact_time?: string | null
           customer_email: string
           customer_first_name: string
+          customer_id?: string | null
           customer_last_name: string
           customer_phone: string
           customer_salutation?: string | null
@@ -2703,6 +2805,7 @@ export type Database = {
           customer_contact_time?: string | null
           customer_email?: string
           customer_first_name?: string
+          customer_id?: string | null
           customer_last_name?: string
           customer_phone?: string
           customer_salutation?: string | null
@@ -3540,6 +3643,7 @@ export type Database = {
           created_at: string
           customer_email: string
           customer_first_name: string
+          customer_id: string | null
           customer_last_name: string
           customer_number: string | null
           customer_phone: string | null
@@ -3590,7 +3694,6 @@ export type Database = {
           internal_notes: string | null
           kostendach_max: number | null
           language: string
-          lead_distribution_id: string | null
           lead_id: string | null
           leistungsuebersicht_url: string | null
           moving_additional_stops: number | null
@@ -3639,6 +3742,7 @@ export type Database = {
           created_at?: string
           customer_email: string
           customer_first_name: string
+          customer_id?: string | null
           customer_last_name: string
           customer_number?: string | null
           customer_phone?: string | null
@@ -3689,7 +3793,6 @@ export type Database = {
           internal_notes?: string | null
           kostendach_max?: number | null
           language?: string
-          lead_distribution_id?: string | null
           lead_id?: string | null
           leistungsuebersicht_url?: string | null
           moving_additional_stops?: number | null
@@ -3738,6 +3841,7 @@ export type Database = {
           created_at?: string
           customer_email?: string
           customer_first_name?: string
+          customer_id?: string | null
           customer_last_name?: string
           customer_number?: string | null
           customer_phone?: string | null
@@ -3788,7 +3892,6 @@ export type Database = {
           internal_notes?: string | null
           kostendach_max?: number | null
           language?: string
-          lead_distribution_id?: string | null
           lead_id?: string | null
           leistungsuebersicht_url?: string | null
           moving_additional_stops?: number | null
@@ -3835,13 +3938,6 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "offers_lead_distribution_id_fkey"
-            columns: ["lead_distribution_id"]
-            isOneToOne: false
-            referencedRelation: "lead_distributions"
             referencedColumns: ["id"]
           },
           {
@@ -3993,6 +4089,7 @@ export type Database = {
           customer_address: string | null
           customer_destination: string | null
           customer_email: string | null
+          customer_id: string | null
           customer_name: string
           customer_phone: string | null
           datum: string
@@ -4024,6 +4121,7 @@ export type Database = {
           customer_address?: string | null
           customer_destination?: string | null
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
           datum?: string
@@ -4055,6 +4153,7 @@ export type Database = {
           customer_address?: string | null
           customer_destination?: string | null
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
           datum?: string
@@ -4280,6 +4379,7 @@ export type Database = {
           customer_address: string | null
           customer_destination: string | null
           customer_email: string | null
+          customer_id: string | null
           customer_name: string
           customer_phone: string | null
           datum: string
@@ -4313,6 +4413,7 @@ export type Database = {
           customer_address?: string | null
           customer_destination?: string | null
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
           datum?: string
@@ -4346,6 +4447,7 @@ export type Database = {
           customer_address?: string | null
           customer_destination?: string | null
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
           datum?: string
@@ -5497,7 +5599,6 @@ export type Database = {
           id: string | null
           internal_notes: string | null
           lead_description: string | null
-          lead_distribution_id: string | null
           lead_id: string | null
           leistungsuebersicht_url: string | null
           offer_number: number | null
@@ -5547,13 +5648,6 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "offers_lead_distribution_id_fkey"
-            columns: ["lead_distribution_id"]
-            isOneToOne: false
-            referencedRelation: "lead_distributions"
             referencedColumns: ["id"]
           },
           {
@@ -6013,6 +6107,99 @@ export type Database = {
           p_website?: string
         }
         Returns: string
+      }
+      customer_merge_preview: {
+        Args: {
+          p_company_id: string
+          p_source_customer_id: string
+          p_target_customer_id: string
+        }
+        Returns: Json
+      }
+      customer_summary: {
+        Args: { p_customer_id: string }
+        Returns: Json
+      }
+      customer_timeline: {
+        Args: {
+          p_customer_id: string
+          p_limit?: number
+          p_offset?: number
+          p_before?: string
+        }
+        Returns: {
+          ereignis_am: string
+          ereignis_art: string
+          entitaet: string
+          entitaet_id: string
+          titel: string
+          untertitel: string | null
+          status: string | null
+          betrag: number | null
+          sprache: string | null
+        }[]
+      }
+      duplicate_candidates: {
+        Args: {
+          p_company_id: string
+          p_customer_id?: string | null
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          customer_a_id: string
+          customer_a_name: string
+          customer_a_email: string | null
+          customer_a_phone: string | null
+          customer_b_id: string
+          customer_b_name: string
+          customer_b_email: string | null
+          customer_b_phone: string | null
+          match_reason: string
+        }[]
+      }
+      merge_customers: {
+        Args: {
+          p_company_id: string
+          p_source_customer_id: string
+          p_target_customer_id: string
+          p_reason?: string | null
+        }
+        Returns: Json
+      }
+      run_customer_backfill: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      search_customers: {
+        Args: {
+          p_company_id: string
+          p_query?: string | null
+          p_filter?: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          id: string
+          display_name: string
+          customer_type: string
+          first_name: string | null
+          last_name: string | null
+          company_name: string | null
+          primary_email: string | null
+          primary_phone: string | null
+          language: string
+          status: string
+          possible_duplicate: boolean
+          first_seen_at: string
+          letzte_aktion: string | null
+          offerten_offen: number
+          auftraege_gesamt: number
+          offener_betrag: number
+          bezahlter_betrag: number
+          ort: string | null
+          gesamt: number
+        }[]
       }
       deactivate_expired_subscriptions: {
         Args: never

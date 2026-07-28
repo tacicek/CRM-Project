@@ -85,7 +85,7 @@ aktif CRM akışında kullanılmayan yapı. **Bunlara dokunmadan önce kullanıc
 
 | Yapı | Kanıt | Not |
 |---|---|---|
-| `lead_distributions` | 0 satır | Multi-tenant lead-dağıtım. `offers.lead_distribution_id` FK'si hâlâ var ama tek-kiracıda anlamsız. |
+| ~~`lead_distributions`~~ | **KALDIRILDI 2026-07-28** | Multi-tenant lead-dağıtım kalıntısıydı (0 satır). Tablo, `offers.lead_distribution_id` kolonu ve `atomic_accept_lead` fonksiyonu düşürüldü (`20260728160000`). `leads`'in tek SELECT policy'si o tabloyu okuyan ölü bir dal taşıyordu — CASCADE ile silinmesin diye önce ölü dalsız yeniden kuruldu. |
 | `subscription_payments`, `subscription_reminders` | 0 satır | Stripe/abonelik. Fork'ta kaldırıldı. |
 | Stripe edge fn'leri (`import-stripe-subscriptions`, `sync-stripe-subscriptions`, `subscription-manager`, `create-token-checkout`*) | — | `src/` içinde Stripe **yalnızca** auto-generated `types.ts`'de geçer → frontend kullanmıyor. |
 | `landing_pages` (125 satır), `blog_posts` (3), `landing_page_analytics`, `blog_*` | leftover | Offerio marketing/SEO katmanı. CRM dashboard'ı bunları yönetmez. |
@@ -114,8 +114,10 @@ aktif CRM akışında kullanılmayan yapı. **Bunlara dokunmadan önce kullanıc
 ### 3.2 Tablolar arası gerçek FK ilişkileri (doğrulandı)
 
 ```
+customers ──< leads, offers, auftraege, appointments, rechnungen, quittungen, inbound_emails
+        (her biri customer_id; BİLEŞİK FK (customer_id, company_id) → customers(id, company_id),
+         böylece Firma A'nın müşterisi Firma B'nin kaydına yazılamaz — şema düzeyinde)
 leads ──< offers          (offers.lead_id → leads.id)
-        └─ offers.lead_distribution_id → lead_distributions   [KALINTI FK, tek-kiracıda boş]
 offers ──< offer_items     (offer_items.offer_id → offers.id)
 offers ──< auftraege       (auftraege.offer_id → offers.id;  ayrıca lead_id, team_leader_id)
 offers ──< quittungen      (quittungen.offer_id → offers.id)   ⚠️ quittungen AUFTRAG'a değil OFFER'a bağlı
@@ -193,6 +195,37 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 > üzerinden gelir. Yazma için MCP `unrestricted` moda alınmadıkça çalışmaz.
 
 ---
+
+## 4b. Kanonik müşteri (`customers`) — 2026-07-28
+
+`customers` **güncel** müşteri bilgisidir; lead/offer/auftrag/belge üzerindeki `customer_*`
+alanları **belgenin oluştuğu andaki dondurulmuş** hâldir. İkisi karıştırılmamalı — "müşterinin
+e-postası değişince eski fatura değişmez" sözü tam olarak bu ayrıma dayanır.
+
+- **Bağlantı `BEFORE INSERT` trigger'ıyla kurulur**, çağıranda değil. Sebep: `auftraege` ve
+  `appointments` iki ayrı kod tabanından yazılıyor (UI + DB RPC'si). Trigger hiçbir koşulda
+  INSERT'i iptal etmez; başarısızlık `RAISE WARNING` ile geçer ve `run_customer_backfill`
+  sonradan toplar.
+- **Eşleştirme kuralı tek yerde:** `find_customer_by_identity`. E-posta eşleşmesi bağlar;
+  yalnızca telefon eşleşmesi **bağlamaz**, ikinci müşteri açar ve ikisini de
+  `possible_duplicate` işaretler (bir hane hattı birden çok kişiye ait olabilir).
+- **Kiracı ayrımı şemada:** bileşik FK `(customer_id, company_id) → customers(id, company_id)`.
+  Basit `REFERENCES` bunu tutmaz — INSERT policy'si `customer_id`'nin kime ait olduğunu görmez.
+- `customers` satırı için **e-posta veya telefon zorunlu** (CHECK). Hiçbiri yoksa müşteri
+  oluşmaz ve `customer_id` NULL kalır.
+
+### İletişim bilgisi olmayan belgeler nasıl bağlanır (doğrulanmış yol)
+
+Backfill sonrası 2 satır bağlanmadan kaldı: `RE-2026-0024` (Bülent Süren) ve `QU-2026-0007`
+(Emen Özgür) — ikisinde de ne e-posta ne telefon var, hiçbir müşteriyle ad eşleşmesi de yok.
+Tahminle bağlanmazlar. Operatörün yolu:
+
+1. Mevcut fatura/makbuz formundan eksik e-postayı veya telefonu gir ve kaydet.
+2. `SELECT run_customer_backfill('<company_id>');` (owner rolüyle) — idempotenttir, yalnızca
+   `customer_id IS NULL` satırlara dokunur.
+
+Belgede ad tek parça olduğu için müşteri adı **bölünmeden** alınır (`display_name`), çünkü
+bölmek `20260728120000`'in kapattığı hatanın backfill'de tekrarı olurdu.
 
 ## 5. Edge Functions — Deployed Durum (2026-06-15 doğrulandı)
 

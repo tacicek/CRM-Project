@@ -9,6 +9,7 @@ export const nav = {
   "nav.emailImport": "E-Mail-Eingang",
   "nav.kalender": "Kalender",
   "nav.offerten": "Offerten",
+  "nav.kunden": "Kunden",
   "nav.auftraege": "Aufträge",
   "nav.quittungen": "Quittungen",
   "nav.rechnungen": "Rechnungen",

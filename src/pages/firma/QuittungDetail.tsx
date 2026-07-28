@@ -17,6 +17,7 @@ import { QuittungPDF } from "@/components/quittung/QuittungPDF";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { KundeLink } from "@/components/firma/KundeLink";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { logoToBase64 } from "@/lib/logoToBase64";
 import { useAuth } from "@/hooks/useAuth";
@@ -137,6 +138,8 @@ export default function QuittungDetail() {
   // Form state
   const [datum, setDatum] = useState(new Date().toISOString().split("T")[0]);
   const [customerName, setCustomerName] = useState("");
+  // Siehe RechnungDetail: nur der Verweis, der Beleg behaelt seinen Snapshot.
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerDestination, setCustomerDestination] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -307,6 +310,7 @@ export default function QuittungDetail() {
     setLanguage(resolveDocumentLocale(q));
     setDatum(q.datum);
     setCustomerName(q.customer_name || "");
+    setCustomerId(q.customer_id ?? null);
     setCustomerAddress(q.customer_address || "");
     setCustomerDestination(q.customer_destination || "");
     setCustomerEmail(q.customer_email || "");
@@ -600,7 +604,10 @@ export default function QuittungDetail() {
               {/* ── Header Section ── */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Kundendaten</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Kundendaten</h3>
+                    <KundeLink customerId={customerId} />
+                  </div>
                   <div>
                     <Label className="text-xs">Name *</Label>
                     <Input value={customerName} onChange={e => setCustomerName(e.target.value)}
