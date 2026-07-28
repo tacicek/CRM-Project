@@ -225,7 +225,6 @@ GRANT EXECUTE ON FUNCTION public.get_besichtigung_session_by_token(p_token text)
 GRANT EXECUTE ON FUNCTION public.get_besichtigung_videos(p_session_id uuid) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_besichtigung_videos(p_session_id uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_besichtigung_videos(p_session_id uuid) TO service_role;
-GRANT EXECUTE ON FUNCTION public.get_box_rental_stats(p_company_id uuid) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_box_rental_stats(p_company_id uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_box_rental_stats(p_company_id uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_checklist_by_offer_token(p_access_token text, p_service_type text) TO anon;

@@ -3980,25 +3980,40 @@ $$;
 -- Name: get_box_rental_stats(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_box_rental_stats(p_company_id uuid) RETURNS TABLE(total_active integer, overdue integer, pickup_today integer, pickup_this_week integer, total_boxes_out integer)
-    LANGUAGE plpgsql SECURITY DEFINER
+CREATE FUNCTION public.get_box_rental_stats(p_company_id uuid) RETURNS TABLE(total_active integer, overdue integer, urgent integer, pickup_today integer, pickup_this_week integer, total_boxes_out integer)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 BEGIN
+  IF NOT public.is_company_member(p_company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diese Firma.' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
   RETURN QUERY
-  SELECT 
-    COUNT(*)::INTEGER as total_active,
-    COUNT(*) FILTER (WHERE expected_return_date < CURRENT_DATE)::INTEGER as overdue,
-    COUNT(*) FILTER (WHERE expected_return_date = CURRENT_DATE OR pickup_scheduled_date = CURRENT_DATE)::INTEGER as pickup_today,
-    COUNT(*) FILTER (WHERE expected_return_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7)::INTEGER as pickup_this_week,
-    COALESCE(SUM(get_total_box_quantity(box_items)), 0)::INTEGER as total_boxes_out
-  FROM umzugsbox_rentals
+  SELECT
+    COUNT(*)::INTEGER,
+    COUNT(*) FILTER (WHERE expected_return_date < CURRENT_DATE)::INTEGER,
+    -- Dieselbe Bedingung wie das Band auf der Boxenseite: heute oder frueher
+    -- faellig. Schliesst `overdue` mit ein.
+    COUNT(*) FILTER (WHERE expected_return_date <= CURRENT_DATE)::INTEGER,
+    COUNT(*) FILTER (WHERE expected_return_date = CURRENT_DATE
+                        OR pickup_scheduled_date = CURRENT_DATE)::INTEGER,
+    COUNT(*) FILTER (WHERE expected_return_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7)::INTEGER,
+    COALESCE(SUM(get_total_box_quantity(box_items)), 0)::INTEGER
+  FROM public.umzugsbox_rentals
   WHERE company_id = p_company_id
     AND status IN ('delivered', 'in_use', 'pickup_requested', 'pickup_scheduled')
     AND is_rental = true
     AND archived_at IS NULL;
 END;
 $$;
+
+
+--
+-- Name: FUNCTION get_box_rental_stats(p_company_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.get_box_rental_stats(p_company_id uuid) IS 'Kennzahlen der Boxenvermietung. `urgent` (heute oder frueher faellig) ist die Zahl, die das Abzeichen in der Seitenleiste und das Band auf der Boxenseite gemeinsam benutzen — damit beide dasselbe meinen.';
 
 
 --
