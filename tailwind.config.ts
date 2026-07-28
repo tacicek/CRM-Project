@@ -15,6 +15,14 @@ export default {
       },
     },
     extend: {
+      // Dieselben Zahlen wie src/lib/breakpoints.ts. Getrennt benannt, damit
+      // niemand versehentlich `md:` (768px) benutzt: das Layout schaltete dann
+      // bei 768 um, waehrend useBreakpoint erst bei 820 `tablet` meldet — im
+      // Band dazwischen widersprechen sich Darstellung und Verhalten.
+      screens: {
+        "shell-tablet": "820px",
+        "shell-desktop": "1100px",
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
