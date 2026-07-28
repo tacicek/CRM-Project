@@ -62,6 +62,7 @@ export const nav = {
   "nav.mobile.tabbar": "Hauptnavigation",
   "nav.mobile.quickAccess": "Schnellzugriff",
   "nav.mobile.close": "Schliessen",
+  "nav.mobile.newAnfrage": "Anfrage erfassen",
 
   "nav.theme.label": "Erscheinungsbild",
   "nav.theme.light": "Hell",

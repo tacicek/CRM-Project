@@ -62,6 +62,7 @@ export const nav: Record<keyof typeof de, string> = {
   "nav.mobile.tabbar": "Navigation principale",
   "nav.mobile.quickAccess": "Accès rapide",
   "nav.mobile.close": "Fermer",
+  "nav.mobile.newAnfrage": "Saisir une demande",
 
   "nav.theme.label": "Apparence",
   "nav.theme.light": "Clair",
