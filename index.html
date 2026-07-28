@@ -3,6 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#FBFAF7" />
+
+    <!--
+      Setzt data-theme vor dem ersten Anstrich. Ohne das blitzt die helle
+      Oberflaeche auf, bevor React montiert ist.
+
+      Nur unterhalb von /firma: ausserhalb liegen kundenseitige Seiten
+      (/offerte/:token, /portal, /termin/*) und der Anmeldefluss. Deren
+      Aussehen darf nicht von einer Einstellung des Operators abhaengen.
+
+      Der Schluessel "crm:theme" steht auch in src/lib/theme.ts. Hier kann
+      nicht importiert werden — beim Aendern beide Stellen anfassen.
+    -->
+    <script>
+      (function () {
+        try {
+          if (location.pathname.indexOf("/firma") !== 0) return;
+          var stored = null;
+          try {
+            stored = localStorage.getItem("crm:theme");
+          } catch (e) {
+            /* Speicher gesperrt (privater Modus, Richtlinie) — dann gilt das System. */
+          }
+          var dark =
+            stored === "dark" ||
+            ((stored === null || stored === "system") &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) {
+            document.documentElement.setAttribute("data-theme", "dark");
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute("content", "#121110");
+          }
+        } catch (e) {
+          /* Im Zweifel hell — ein Fehler hier darf die Seite nicht blockieren. */
+        }
+      })();
+    </script>
     <title>CRM Dashboard</title>
     <meta name="description" content="Internes CRM Dashboard für Leads, Offerten, Aufträge und Kundenkommunikation." />
     <meta name="author" content="CRM" />
@@ -59,6 +96,14 @@
       
       /* Loading spinner */
       .init-loader{width:40px;height:40px;border:3px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:spin 1s linear infinite;margin:auto;margin-top:45vh}
+
+      /* Diese Regeln malen, bevor React montiert ist — ohne sie sieht ein
+         Benutzer mit dunklem Theme trotz Vorab-Script einen hellen Blitz.
+         Die Werte sind Literale, weil hier noch keine Variablen geladen sind;
+         sie entsprechen --folk-bg / --folk-ink / --folk-line / --folk-mint
+         aus index.css. Beim Aendern der Palette hier mitziehen. */
+      html[data-theme="dark"] body{background:#121110;color:#EDEBE6}
+      html[data-theme="dark"] .init-loader{border-color:#2B2926;border-top-color:#4FC3A4}
       @keyframes spin{to{transform:rotate(360deg)}}
       
       /* Critical Hero Section styles for LCP */
