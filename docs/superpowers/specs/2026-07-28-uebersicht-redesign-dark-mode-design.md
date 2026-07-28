@@ -574,6 +574,48 @@ aus. Was bleibt, ist benannt und wird nicht stillschweigend liegengelassen:
 Diese beiden sind `ui/`-Primitive und damit breiter wirksam als eine einzelne Seite —
 sie werden im Durchgang zuerst angefasst.
 
+### 7.1 Gemessene Arbeitsliste (Stand nach Durchgang 1, 2026-07-28)
+
+Erhoben über `src/pages/firma`, `src/components/firma`, `src/components/ui` und
+`src/features/wiki`: **314 Treffer in 33 Dateien.** Nach Aufwand sortiert, damit
+Durchgang 5 nicht neu suchen muss:
+
+| Klassen | Hex | Datei |
+|---:|---:|---|
+| 43 | 14 | `src/pages/firma/Kalender.tsx` |
+| 38 | 0 | `src/pages/firma/QuittungDetail.tsx` |
+| 32 | 5 | `src/pages/firma/Besichtigungen.tsx` |
+| 23 | 0 | `src/components/firma/AuftragModal.tsx` |
+| 19 | 0 | `src/pages/firma/RechnungDetail.tsx` |
+| 17 | 0 | `src/components/ui/calendar.tsx` ← Primitive, zuerst |
+| 13 | 0 | `src/components/firma/AppointmentAnfrageSummary.tsx` |
+| 11 | 2 | `src/components/ui/tiptap-editor.tsx` ← Primitive, zuerst |
+| 10 | 0 | `src/components/firma/BesichtigungAnalysisView.tsx` |
+| 9 | 0 | `src/components/firma/UmzugsboxModal.tsx` |
+| 0 | 9 | `src/components/firma/CalendarExportMenu.tsx` |
+| 7 | 1 | `src/pages/firma/Team.tsx` |
+| 7 | 0 | `src/pages/firma/Preisgestaltung.tsx` |
+| 7 | 0 | `src/pages/firma/OfferteDetail.tsx` |
+| 7 | 0 | `src/components/firma/ReminderSettings.tsx` |
+| 5 | 0 | `src/pages/firma/Umzugsboxen.tsx` |
+| 5 | 0 | `src/pages/firma/OfferteErstellen.tsx` |
+| 5 | 0 | `src/pages/firma/Leistungskatalog.tsx` |
+| 4 | 0 | `src/components/firma/VoiceRecorder.tsx` |
+| 0 | 3 | `src/pages/firma/Einstellungen.tsx` |
+| 2 | 0 | `src/pages/firma/OfferteBearbeiten.tsx` |
+| 2 | 0 | `src/components/firma/TeamWeekView.tsx` |
+
+Dazu 11 weitere Dateien mit je einem Treffer.
+
+**`Kalender.tsx` steht nicht zufällig oben:** dort kommen die eigenen Farben der Seite
+und das Stylesheet von `react-big-calendar` zusammen. Diese Datei bekommt eine eigene
+Aufgabe, keine Sammelbehandlung.
+
+**Nicht pauschal ersetzen.** Ein Teil dieser Farben ist bewusst hell —
+`QuittungDetail` und `RechnungDetail` zeigen die gedruckte Fassung eines Belegs; ein
+weisses Blatt bleibt dort richtig, auch im Dunkelmodus. Vor jeder Änderung ist zu
+entscheiden, ob die Farbe die *Oberfläche* oder das *Dokument* meint.
+
 Jede Datei wird einzeln geprüft; eine pauschale Suchen-und-Ersetzen-Runde ist
 ausgeschlossen, weil ein Teil dieser Farben bewusst hell ist (Dokumentvorschauen, die
 das gedruckte Ergebnis zeigen).

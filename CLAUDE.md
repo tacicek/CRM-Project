@@ -351,7 +351,15 @@ Almanca konuşan bir operatör, Fransız müşteriye Fransızca teklif gönderir
 
 ## 12. Hızlı Trouble-Shoot
 
-- ⚠️ **`npm run type-check` HİÇBİR ŞEYİ KONTROL ETMİYOR.** Kök `tsconfig.json` solution-style (`files: []`) — `tsc --noEmit` her zaman boş geçer. Gerçek kontrol: **`npx tsc --noEmit -p tsconfig.app.json`**. (Bu önceden var olan bir sorun; commit gate'i buna göre kullan.)
+- ✅ **`npm run type-check` gerçek kapıdır** (2026-07-28'de doğrulandı). Script `tsc -b`;
+  `npx tsc -b --dry` hem `tsconfig.app.json` hem `tsconfig.node.json`'ı derlediğini gösteriyor.
+  *(Bu satır eskiden "hiçbir şeyi kontrol etmiyor, `tsconfig.app.json` kullan" diyordu — script
+  düzeltildikten sonra güncellenmemişti ve o iddia bir spec'e kopyalandı.)*
+- ⚠️ **`npm run lint` şu an temiz DEĞİL:** `main` üzerinde 88 hata + 2 uyarı / 30 dosya
+  (35 `no-unused-vars`, 35 `no-explicit-any`, 8 `no-require-imports`). §14'ün "lint temiz
+  olmadan commit yok" kuralı harfiyen uygulanırsa hiç commit atılamaz. Pratik kapı:
+  **dokunduğun dosyalarda sıfır hata** + toplam sayı artmasın (`npx eslint . | tail -3`).
+  Eski 88 hata ayrı bir iş.
 - **Supabase 401** → `.env.local`'deki `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` doğru mu, anon key public mı?
 - **RLS hatası** → `auth.uid()` ile `companies.user_id` veya `company_members` üzerinden eşleşme var mı?
 - **Edge fn timeout** → 60s default, ağır işleri (PDF, AI) chunk'la veya queue'ya at.
