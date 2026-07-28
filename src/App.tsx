@@ -66,6 +66,7 @@ const firmaImports = {
   Kunden: () => import("./pages/firma/Kunden"),
   KundeDetail: () => import("./pages/firma/KundeDetail"),
   Nachtrag: () => import("./pages/firma/Nachtrag"),
+  Aufgaben: () => import("./pages/firma/Aufgaben"),
   RechnungDetail: () => import("./pages/firma/RechnungDetail"),
 };
 
@@ -93,6 +94,7 @@ const FirmaRechnungen = lazy(firmaImports.Rechnungen);
 const FirmaKunden = lazy(firmaImports.Kunden);
 const FirmaKundeDetail = lazy(firmaImports.KundeDetail);
 const FirmaNachtrag = lazy(firmaImports.Nachtrag);
+const FirmaAufgaben = lazy(firmaImports.Aufgaben);
 const FirmaRechnungDetail = lazy(firmaImports.RechnungDetail);
 
 // Layout wrapper
@@ -167,6 +169,7 @@ const App = () => (
                   <Route path="/firma/kunden" element={<FirmaKunden />} />
                   <Route path="/firma/kunden/:id" element={<FirmaKundeDetail />} />
                   <Route path="/firma/nachtrag/:id" element={<FirmaNachtrag />} />
+                  <Route path="/firma/aufgaben" element={<FirmaAufgaben />} />
                   <Route path="/firma/rechnungen" element={<FirmaRechnungen />} />
                   <Route path="/firma/rechnungen/neu" element={<FirmaRechnungDetail />} />
                   <Route path="/firma/rechnungen/:id" element={<FirmaRechnungDetail />} />
