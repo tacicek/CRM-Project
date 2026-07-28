@@ -56,6 +56,10 @@ export const nav = {
   "nav.push.off": "Push deaktiviert",
   "nav.push.blocked": "Benachr. blockiert",
 
+  "nav.mobile.more": "Mehr",
+  "nav.mobile.openMore": "Weitere Bereiche öffnen",
+  "nav.mobile.tabbar": "Hauptnavigation",
+
   "nav.theme.label": "Erscheinungsbild",
   "nav.theme.light": "Hell",
   "nav.theme.dark": "Dunkel",

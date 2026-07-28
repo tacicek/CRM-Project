@@ -56,6 +56,10 @@ export const nav: Record<keyof typeof de, string> = {
   "nav.push.off": "Notifications push désactivées",
   "nav.push.blocked": "Notifications bloquées",
 
+  "nav.mobile.more": "Plus",
+  "nav.mobile.openMore": "Ouvrir les autres sections",
+  "nav.mobile.tabbar": "Navigation principale",
+
   "nav.theme.label": "Apparence",
   "nav.theme.light": "Clair",
   "nav.theme.dark": "Sombre",
