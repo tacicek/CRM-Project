@@ -35,6 +35,7 @@ import AnfrageEditDialog from "@/components/firma/AnfrageEditDialog";
 import { getServiceLabel } from "@/i18n/domain";
 import { DEFAULT_LOCALE, LOCALE_NAMES, toLocale } from "@/i18n/locale";
 import { useI18n, useT } from "@/i18n/useI18n";
+import type { MessageKey } from "@/i18n/translator";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, type Locale as DateFnsLocale } from "date-fns";
 
@@ -42,6 +43,9 @@ interface Lead {
   id: string;
   /** Kanonischer Kunde (20260728110000). NULL, wo der Backfill nichts zuordnen konnte. */
   customer_id: string | null;
+  /** Verkaufsstufe (20260728240000). Zweite Achse neben `status`. */
+  sales_stage: string;
+  next_action_at: string | null;
   customer_first_name: string | null;
   customer_last_name: string | null;
   customer_email: string | null;
@@ -106,6 +110,32 @@ const formatRelativeDate = (dateStr: string | null, dateLocale: DateFnsLocale): 
 const getCustomerName = (lead: Lead, fallback: string): string => {
   const name = `${lead.customer_first_name || ""} ${lead.customer_last_name || ""}`.trim();
   return name || fallback;
+};
+
+/**
+ * Verkaufsstufe als Marke. Die Stufe bewegt sich grösstenteils von selbst
+ * (Trigger auf `offers`); hier wird sie nur gezeigt.
+ */
+const STUFEN_LABEL: Record<string, MessageKey> = {
+  new: "stage.new",
+  qualifying: "stage.qualifying",
+  inspection: "stage.inspection",
+  offer_draft: "stage.offer_draft",
+  offer_sent: "stage.offer_sent",
+  negotiating: "stage.negotiating",
+  won: "stage.won",
+  lost: "stage.lost",
+};
+
+const STUFEN_STIL: Record<string, string> = {
+  new: "bg-folk-bg-warm text-folk-ink3",
+  qualifying: "bg-folk-bg-warm text-folk-ink3",
+  inspection: "bg-folk-sky-bg text-folk-sky",
+  offer_draft: "bg-folk-bg-warm text-folk-ink2",
+  offer_sent: "bg-folk-lemon-bg text-folk-lemon",
+  negotiating: "bg-folk-lemon-bg text-folk-lemon",
+  won: "bg-folk-mint-bg text-folk-mint",
+  lost: "bg-folk-coral-bg text-folk-coral",
 };
 
 const getInitials = (lead: Lead): string => {
@@ -401,6 +431,9 @@ const FirmaAnfragen = () => {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <h3 className="text-[14px] font-semibold tracking-tight text-folk-ink">{getCustomerName(lead, t("lead.card.unknownCustomer"))}</h3>
+                          <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${STUFEN_STIL[lead.sales_stage] ?? STUFEN_STIL.new}`}>
+                            {t(STUFEN_LABEL[lead.sales_stage] ?? "stage.new")}
+                          </span>
                           <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-medium ${group.bg} ${group.color}`}>
                             <span>{group.emoji}</span>
                             <span>{getServiceLabel(lead.service_type, locale)}</span>

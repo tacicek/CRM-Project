@@ -10,6 +10,7 @@ export const nav = {
   "nav.kalender": "Kalender",
   "nav.offerten": "Offerten",
   "nav.kunden": "Kunden",
+  "nav.aufgaben": "Wiedervorlage",
   "nav.auftraege": "Aufträge",
   "nav.quittungen": "Quittungen",
   "nav.rechnungen": "Rechnungen",

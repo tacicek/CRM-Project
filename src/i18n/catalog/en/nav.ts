@@ -11,6 +11,7 @@ export const nav: Record<keyof typeof de, string> = {
   "nav.kalender": "Calendar",
   "nav.offerten": "Quotes",
   "nav.kunden": "Customers",
+  "nav.aufgaben": "Follow-ups",
   "nav.auftraege": "Work orders",
   "nav.quittungen": "Receipts",
   "nav.rechnungen": "Invoices",

@@ -83,6 +83,45 @@ for muster in 'https\?://' 'vault\.' 'net\.http' 'Bearer [^t]' 'eyJ'; do
   fi
 done
 
+echo "==> Funktionsrechte aus der Produktion uebernehmen"
+# WARUM DIESE DATEI EXISTIERT
+# Der Dump oben laeuft mit --no-privileges. Bei TABELLEN ist das harmlos: ohne
+# ACL kommt niemand heran, und grants.sql gibt bewusst zurueck, was Supabase
+# vergibt. Bei FUNKTIONEN ist es das Gegenteil — Postgres' Vorgabe fuer eine
+# Funktion ohne ACL ist EXECUTE fuer PUBLIC. Die Rechte wegzulassen SCHLIESST
+# Funktionen also nicht, es OEFFNET sie.
+#
+# Damit war jedes `REVOKE EXECUTE` der Produktion (submit_lead, die Kunden-RPCs,
+# run_pipeline_automations) im Teststapel unsichtbar: dort durfte anon alles.
+# Genau die Klasse Schutz, die zuletzt am haeufigsten dazukam, war die einzige,
+# die der Test nicht pruefen konnte.
+#
+# Erzeugt wird der exakte Zustand: erst alles entziehen, dann zurueckgeben, wo
+# die Produktion es zurueckgibt.
+{
+  echo "-- ERZEUGT von scripts/refresh-test-baseline.sh — nicht von Hand aendern."
+  echo "-- Bildet die EXECUTE-Rechte der Produktion nach. Siehe Skriptkommentar."
+  echo "REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon, authenticated, service_role;"
+  PROD "psql -U postgres -d postgres -A -t -c \"$(cat <<'SQL'
+select format('GRANT EXECUTE ON FUNCTION public.%I(%s) TO %I;',
+              p.proname, pg_get_function_identity_arguments(p.oid), r)
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+cross join unnest(array['anon','authenticated','service_role']) r
+where n.nspname = 'public' and p.prokind = 'f'
+  and has_function_privilege(r, p.oid, 'EXECUTE')
+order by p.proname, pg_get_function_identity_arguments(p.oid), r;
+SQL
+)\""
+} > "$TMP/function-grants.sql"
+
+zeilen="$(grep -c '^GRANT' "$TMP/function-grants.sql" || true)"
+if [ "$zeilen" -lt 100 ]; then
+  echo "ABBRUCH: nur $zeilen GRANT-Zeilen — das kann nicht der Produktionsstand sein." >&2
+  exit 1
+fi
+echo "    $zeilen GRANT-Zeilen uebernommen"
+
 echo "==> Manifest berechnen"
 PROD "psql -U postgres -d postgres -A -t -F'|' -c \"$(cat <<'SQL'
 select 'enums', count(*)::text from pg_type t join pg_namespace n on n.oid=t.typnamespace where n.nspname='public' and t.typtype='e'
@@ -123,5 +162,6 @@ print("counts:", alt["counts"])
 PY
 
 cp "$TMP/schema.sql" "$BASE/schema.sql"
-echo "==> fertig: $BASE/schema.sql + parity-manifest.json aufgefrischt"
+cp "$TMP/function-grants.sql" "$BASE/function-grants.sql"
+echo "==> fertig: $BASE/schema.sql + function-grants.sql + parity-manifest.json aufgefrischt"
 echo "    covers_migrations_through im Manifest von Hand nachziehen."

@@ -4473,6 +4473,24 @@ $$;
 
 
 --
+-- Name: guard_stage_history_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_stage_history_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF current_user IN ('postgres','supabase_admin') THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+  RAISE EXCEPTION 'sales_stage_history ist ein Verlauf und wird nicht veraendert'
+    USING ERRCODE = 'insufficient_privilege';
+END;
+$$;
+
+
+--
 -- Name: handle_new_user(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4869,6 +4887,29 @@ $$;
 
 
 --
+-- Name: leads_record_stage_change(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.leads_record_stage_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.sales_stage IS DISTINCT FROM OLD.sales_stage AND NEW.company_id IS NOT NULL THEN
+    INSERT INTO public.sales_stage_history (company_id, lead_id, from_stage, to_stage, changed_by,
+                                            source)
+    VALUES (NEW.company_id, NEW.id, OLD.sales_stage, NEW.sales_stage, auth.uid(),
+            COALESCE(current_setting('crm.stage_source', true), 'manual'));
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'leads_record_stage_change: %', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: leads_set_customer(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5176,6 +5217,65 @@ BEGIN
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'offer_amendments_inherit: %', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: offers_advance_lead_stage(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.offers_advance_lead_stage() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_ziel TEXT;
+  v_ist  TEXT;
+  -- Reihenfolge der Stufen; Rueckschritte gibt es nicht.
+  rang CONSTANT TEXT[] := ARRAY['new','qualifying','inspection','offer_draft',
+                                'offer_sent','negotiating','won','lost'];
+BEGIN
+  IF NEW.lead_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  v_ziel := CASE NEW.status
+              WHEN 'accepted' THEN 'won'
+              WHEN 'rejected' THEN 'lost'
+              WHEN 'sent'     THEN 'offer_sent'
+              WHEN 'viewed'   THEN 'offer_sent'
+              WHEN 'draft'    THEN 'offer_draft'
+            END;
+  IF v_ziel IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT sales_stage INTO v_ist FROM public.leads WHERE id = NEW.lead_id;
+  IF v_ist IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- `lost` braucht einen Grund (CHECK). Den kann der Trigger nicht erfinden —
+  -- eine abgelehnte Offerte setzt deshalb nur den Grund 'no_response' als
+  -- Vorschlag, den der Bediener korrigieren kann.
+  IF v_ziel = 'lost' THEN
+    UPDATE public.leads
+    SET sales_stage      = 'lost',
+        lost_reason_code = COALESCE(lost_reason_code, 'no_response')
+    WHERE id = NEW.lead_id AND sales_stage <> 'lost';
+    RETURN NEW;
+  END IF;
+
+  IF array_position(rang, v_ziel) > array_position(rang, v_ist)
+     AND v_ist NOT IN ('won','lost') THEN
+    UPDATE public.leads SET sales_stage = v_ziel WHERE id = NEW.lead_id;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'offers_advance_lead_stage: %', SQLERRM;
   RETURN NEW;
 END;
 $$;
@@ -5911,6 +6011,124 @@ $$;
 --
 
 COMMENT ON FUNCTION public.run_customer_backfill(p_company_id uuid) IS 'Ordnet Bestandszeilen der kanonischen Kundenidentitaet zu. Idempotent: ruehrt nur customer_id IS NULL an. Wird NICHT aus einer Migration heraus aufgerufen — erst nachdem preview_customer_backfill() gelesen wurde. Ruecknahme: ROLLBACK_20260728140000_kunden_backfill.sql.';
+
+
+--
+-- Name: run_pipeline_automations(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.run_pipeline_automations() RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_heute DATE := CURRENT_DATE;
+  v_a INT := 0; v_b INT := 0; v_c INT := 0;
+BEGIN
+  -- ---------------------------------------------------------------------------
+  -- 1. Versendet, seit 5 Tagen keine Antwort
+  -- ---------------------------------------------------------------------------
+  WITH faellig AS (
+    SELECT o.id, o.company_id, o.lead_id, o.title, o.offer_number,
+           l.customer_first_name, l.customer_last_name
+    FROM public.offers o
+    LEFT JOIN public.leads l ON l.id = o.lead_id
+    WHERE o.status IN ('sent', 'viewed')
+      AND o.superseded_at IS NULL
+      AND o.sent_at IS NOT NULL
+      AND o.sent_at < NOW() - INTERVAL '5 days'
+  ),
+  geliefert AS (
+    INSERT INTO public.automation_deliveries
+      (company_id, rule_key, entity_type, entity_id, schedule_window, result)
+    SELECT company_id, 'offer_no_response', 'offer', id, v_heute, 'task'
+    FROM faellig
+    ON CONFLICT (rule_key, entity_type, entity_id, schedule_window) DO NOTHING
+    RETURNING entity_id, company_id
+  )
+  INSERT INTO public.crm_tasks (company_id, title, description, task_type, priority,
+                                due_at, lead_id, offer_id)
+  SELECT g.company_id,
+         'Nachfassen: Offerte ' || COALESCE(f.offer_number::TEXT, '') ,
+         COALESCE(f.customer_first_name || ' ' || f.customer_last_name, '') ||
+           ' — seit 5 Tagen keine Antwort auf „' || COALESCE(f.title, '') || '".',
+         'follow_up', 'normal', NOW(), f.lead_id, f.id
+  FROM geliefert g JOIN faellig f ON f.id = g.entity_id;
+  GET DIAGNOSTICS v_a = ROW_COUNT;
+
+  -- ---------------------------------------------------------------------------
+  -- 2. Gueltigkeit laeuft in drei Tagen ab
+  -- ---------------------------------------------------------------------------
+  WITH faellig AS (
+    SELECT o.id, o.company_id, o.lead_id, o.title, o.offer_number, o.valid_until
+    FROM public.offers o
+    WHERE o.status IN ('sent', 'viewed')
+      AND o.superseded_at IS NULL
+      AND o.valid_until IS NOT NULL
+      AND o.valid_until BETWEEN v_heute AND v_heute + 3
+  ),
+  geliefert AS (
+    INSERT INTO public.automation_deliveries
+      (company_id, rule_key, entity_type, entity_id, schedule_window, result)
+    SELECT company_id, 'offer_expiring', 'offer', id, valid_until, 'task'
+    FROM faellig
+    ON CONFLICT (rule_key, entity_type, entity_id, schedule_window) DO NOTHING
+    RETURNING entity_id, company_id
+  )
+  INSERT INTO public.crm_tasks (company_id, title, description, task_type, priority,
+                                due_at, lead_id, offer_id)
+  SELECT g.company_id,
+         'Gueltigkeit laeuft ab: Offerte ' || COALESCE(f.offer_number::TEXT, ''),
+         'Gueltig bis ' || f.valid_until || '. Verlaengern oder nachfassen.',
+         'offer', 'high', f.valid_until::TIMESTAMPTZ, f.lead_id, f.id
+  FROM geliefert g JOIN faellig f ON f.id = g.entity_id;
+  GET DIAGNOSTICS v_b = ROW_COUNT;
+
+  -- ---------------------------------------------------------------------------
+  -- 3. Verloren, aber der Grund ist nur der Vorschlagswert
+  --
+  -- 'no_response' setzt der Stufen-Trigger, wenn eine Offerte abgelehnt wird —
+  -- er kann den wahren Grund nicht kennen. Die Aufgabe holt ihn nach, damit die
+  -- Verlustgruende spaeter etwas aussagen.
+  -- ---------------------------------------------------------------------------
+  WITH faellig AS (
+    SELECT l.id, l.company_id, l.customer_first_name, l.customer_last_name
+    FROM public.leads l
+    WHERE l.sales_stage = 'lost'
+      AND l.lost_reason_code = 'no_response'
+      AND l.company_id IS NOT NULL
+  ),
+  geliefert AS (
+    INSERT INTO public.automation_deliveries
+      (company_id, rule_key, entity_type, entity_id, schedule_window, result)
+    SELECT company_id, 'lost_reason_missing', 'lead', id, v_heute, 'task'
+    FROM faellig
+    ON CONFLICT (rule_key, entity_type, entity_id, schedule_window) DO NOTHING
+    RETURNING entity_id, company_id
+  )
+  INSERT INTO public.crm_tasks (company_id, title, description, task_type, priority,
+                                due_at, lead_id)
+  SELECT g.company_id,
+         'Verlustgrund erfassen',
+         COALESCE(f.customer_first_name || ' ' || f.customer_last_name, '') ||
+           ' — der Grund steht auf dem Vorschlagswert „keine Rueckmeldung".',
+         'lost_reason', 'low', NOW(), f.id
+  FROM geliefert g JOIN faellig f ON f.id = g.entity_id;
+  GET DIAGNOSTICS v_c = ROW_COUNT;
+
+  RETURN jsonb_build_object(
+    'offer_no_response',   v_a,
+    'offer_expiring',      v_b,
+    'lost_reason_missing', v_c);
+END;
+$$;
+
+
+--
+-- Name: FUNCTION run_pipeline_automations(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.run_pipeline_automations() IS 'Fuellt die Wiedervorlage. Idempotent ueber automation_deliveries — darf beliebig oft laufen. Laeuft als Cron ueber alle Firmen; kein Ausfuehrungsrecht fuer authenticated.';
 
 
 --
@@ -8012,6 +8230,29 @@ COMMENT ON COLUMN public.auftraege.customer_last_name IS 'Nachname zum Zeitpunkt
 
 
 --
+-- Name: automation_deliveries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.automation_deliveries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    rule_key text NOT NULL,
+    entity_type text NOT NULL,
+    entity_id uuid NOT NULL,
+    schedule_window date NOT NULL,
+    delivered_at timestamp with time zone DEFAULT now() NOT NULL,
+    result text
+);
+
+
+--
+-- Name: TABLE automation_deliveries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.automation_deliveries IS 'Was eine Regel bereits erledigt hat. Der eindeutige Schluessel macht jede Regel idempotent: sie darf beliebig oft laufen, ohne zu wiederholen.';
+
+
+--
 -- Name: blog_categories; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8506,6 +8747,43 @@ CREATE TABLE public.cookie_consent_log (
     withdrawal_timestamp timestamp with time zone,
     created_at timestamp with time zone DEFAULT now()
 );
+
+
+--
+-- Name: crm_tasks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.crm_tasks (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    title text NOT NULL,
+    description text,
+    task_type text DEFAULT 'follow_up'::text NOT NULL,
+    priority text DEFAULT 'normal'::text NOT NULL,
+    status text DEFAULT 'open'::text NOT NULL,
+    due_at timestamp with time zone,
+    done_at timestamp with time zone,
+    assigned_user_id uuid,
+    lead_id uuid,
+    offer_id uuid,
+    auftrag_id uuid,
+    customer_id uuid,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT crm_tasks_done_needs_time CHECK (((status <> 'done'::text) OR (done_at IS NOT NULL))),
+    CONSTRAINT crm_tasks_priority_check CHECK ((priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text]))),
+    CONSTRAINT crm_tasks_status_check CHECK ((status = ANY (ARRAY['open'::text, 'done'::text, 'cancelled'::text]))),
+    CONSTRAINT crm_tasks_title_present CHECK ((length(TRIM(BOTH FROM title)) > 0)),
+    CONSTRAINT crm_tasks_type_check CHECK ((task_type = ANY (ARRAY['follow_up'::text, 'call'::text, 'offer'::text, 'inspection'::text, 'admin'::text, 'lost_reason'::text, 'cross_sell'::text])))
+);
+
+
+--
+-- Name: TABLE crm_tasks; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.crm_tasks IS 'Wiedervorlage: was als naechstes zu tun ist. Wird von Hand oder von den Regeln in run_pipeline_automations() erzeugt.';
 
 
 --
@@ -9094,8 +9372,16 @@ CREATE TABLE public.leads (
     from_has_keller boolean,
     language text DEFAULT 'de'::text NOT NULL,
     customer_id uuid,
+    sales_stage text DEFAULT 'new'::text NOT NULL,
+    owner_user_id uuid,
+    next_action_at timestamp with time zone,
+    lost_reason_code text,
+    lost_reason_note text,
     CONSTRAINT chk_leads_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'pending_verification'::character varying, 'awaiting_customer_confirmation'::character varying, 'unconfirmed_risky'::character varying, 'verified'::character varying, 'in_progress'::character varying, 'distributed'::character varying, 'no_matches'::character varying, 'unknown_plz'::character varying, 'completed'::character varying, 'rejected'::character varying, 'expired_unverified'::character varying, 'job_confirmed'::character varying])::text[]))),
     CONSTRAINT leads_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
+    CONSTRAINT leads_lost_needs_reason CHECK (((sales_stage <> 'lost'::text) OR (lost_reason_code IS NOT NULL))),
+    CONSTRAINT leads_lost_reason_check CHECK (((lost_reason_code IS NULL) OR (lost_reason_code = ANY (ARRAY['price'::text, 'timing'::text, 'competitor'::text, 'no_response'::text, 'out_of_area'::text, 'scope'::text, 'other'::text])))),
+    CONSTRAINT leads_sales_stage_check CHECK ((sales_stage = ANY (ARRAY['new'::text, 'qualifying'::text, 'inspection'::text, 'offer_draft'::text, 'offer_sent'::text, 'negotiating'::text, 'won'::text, 'lost'::text]))),
     CONSTRAINT leads_source_check CHECK (((source)::text = ANY ((ARRAY['web_form'::character varying, 'ai_voice'::character varying, 'manual'::character varying, 'import'::character varying, 'widget'::character varying, 'api'::character varying, 'email'::character varying])::text[])))
 );
 
@@ -9331,6 +9617,27 @@ COMMENT ON COLUMN public.leads.language IS 'Sprache, in der die Anfrage gestellt
 --
 
 COMMENT ON COLUMN public.leads.customer_id IS 'Kanonischer Kunde. Wird beim INSERT per Trigger gesetzt; die customer_*-Felder daneben bleiben der Stand zum Zeitpunkt der Anfrage.';
+
+
+--
+-- Name: COLUMN leads.sales_stage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.sales_stage IS 'Verkaufsstufe. Zweite Achse neben `status`: der beschreibt den Lebenszyklus des Datensatzes (grossteils Marktplatz-Erbe), diese die Arbeit daran.';
+
+
+--
+-- Name: COLUMN leads.owner_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.owner_user_id IS 'Wer sich um diese Anfrage kuemmert. Bewusst auf auth.users statt auf company_members: eine geloeschte Mitgliedschaft soll die Zuordnung nicht mitnehmen, und der Name steht ohnehin dort.';
+
+
+--
+-- Name: COLUMN leads.next_action_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.leads.next_action_at IS 'Wann als naechstes nachgefasst wird. Grundlage der Wiedervorlage.';
 
 
 --
@@ -10720,6 +11027,24 @@ COMMENT ON COLUMN public.rechnungen.customer_id IS 'Kanonischer Kunde, vom Auftr
 
 
 --
+-- Name: sales_stage_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sales_stage_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    lead_id uuid NOT NULL,
+    from_stage text,
+    to_stage text NOT NULL,
+    changed_by uuid,
+    source text DEFAULT 'manual'::text NOT NULL,
+    changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT sales_stage_history_distinct CHECK ((from_stage IS DISTINCT FROM to_stage)),
+    CONSTRAINT sales_stage_history_source_check CHECK ((source = ANY (ARRAY['manual'::text, 'trigger'::text])))
+);
+
+
+--
 -- Name: service_acquisition_costs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11249,6 +11574,22 @@ ALTER TABLE ONLY public.auftraege
 
 
 --
+-- Name: automation_deliveries automation_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.automation_deliveries
+    ADD CONSTRAINT automation_deliveries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: automation_deliveries automation_deliveries_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.automation_deliveries
+    ADD CONSTRAINT automation_deliveries_uniq UNIQUE (rule_key, entity_type, entity_id, schedule_window);
+
+
+--
 -- Name: blog_categories blog_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11462,6 +11803,14 @@ ALTER TABLE ONLY public.company_services
 
 ALTER TABLE ONLY public.cookie_consent_log
     ADD CONSTRAINT cookie_consent_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: crm_tasks crm_tasks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.crm_tasks
+    ADD CONSTRAINT crm_tasks_pkey PRIMARY KEY (id);
 
 
 --
@@ -11918,6 +12267,14 @@ ALTER TABLE ONLY public.rechnungen
 
 ALTER TABLE ONLY public.rechnungen
     ADD CONSTRAINT rechnungen_rechnung_nr_key UNIQUE (rechnung_nr);
+
+
+--
+-- Name: sales_stage_history sales_stage_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sales_stage_history
+    ADD CONSTRAINT sales_stage_history_pkey PRIMARY KEY (id);
 
 
 --
@@ -12380,6 +12737,13 @@ CREATE INDEX idx_auftraege_team_leader ON public.auftraege USING btree (team_lea
 
 
 --
+-- Name: idx_automation_deliveries_company; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_automation_deliveries_company ON public.automation_deliveries USING btree (company_id, delivered_at DESC);
+
+
+--
 -- Name: idx_checklist_company; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12482,6 +12846,27 @@ CREATE INDEX idx_cookie_consent_timestamp ON public.cookie_consent_log USING btr
 --
 
 CREATE INDEX idx_cookie_consent_visitor ON public.cookie_consent_log USING btree (visitor_id);
+
+
+--
+-- Name: idx_crm_tasks_kunde; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_crm_tasks_kunde ON public.crm_tasks USING btree (customer_id) WHERE (customer_id IS NOT NULL);
+
+
+--
+-- Name: idx_crm_tasks_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_crm_tasks_lead ON public.crm_tasks USING btree (lead_id) WHERE (lead_id IS NOT NULL);
+
+
+--
+-- Name: idx_crm_tasks_offen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_crm_tasks_offen ON public.crm_tasks USING btree (company_id, due_at) WHERE (status = 'open'::text);
 
 
 --
@@ -12758,6 +13143,13 @@ CREATE INDEX idx_leads_moving_date ON public.leads USING btree (moving_date);
 
 
 --
+-- Name: idx_leads_next_action; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_leads_next_action ON public.leads USING btree (company_id, next_action_at) WHERE ((next_action_at IS NOT NULL) AND (sales_stage <> ALL (ARRAY['won'::text, 'lost'::text])));
+
+
+--
 -- Name: idx_leads_plz; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12797,6 +13189,13 @@ CREATE INDEX idx_leads_source ON public.leads USING btree (source);
 --
 
 CREATE INDEX idx_leads_source_form_id ON public.leads USING btree (source_form_id);
+
+
+--
+-- Name: idx_leads_stage; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_leads_stage ON public.leads USING btree (company_id, sales_stage, created_at DESC);
 
 
 --
@@ -13182,6 +13581,13 @@ CREATE INDEX idx_reminders_appointment ON public.appointment_reminders USING btr
 --
 
 CREATE INDEX idx_resources_company ON public.firma_resources USING btree (company_id);
+
+
+--
+-- Name: idx_sales_stage_history_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_sales_stage_history_lead ON public.sales_stage_history USING btree (lead_id, changed_at DESC);
 
 
 --
@@ -13619,6 +14025,13 @@ CREATE TRIGGER trigger_company_secrets_updated_at BEFORE UPDATE ON public.compan
 
 
 --
+-- Name: crm_tasks trigger_crm_tasks_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_crm_tasks_updated_at BEFORE UPDATE ON public.crm_tasks FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
 -- Name: customer_merges trigger_customer_merges_append_only; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -13675,6 +14088,13 @@ CREATE TRIGGER trigger_leads_set_customer BEFORE INSERT ON public.leads FOR EACH
 
 
 --
+-- Name: leads trigger_leads_stage_history; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_leads_stage_history AFTER UPDATE OF sales_stage ON public.leads FOR EACH ROW EXECUTE FUNCTION public.leads_record_stage_change();
+
+
+--
 -- Name: leads trigger_leads_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -13714,6 +14134,13 @@ CREATE TRIGGER trigger_offer_amendments_updated_at BEFORE UPDATE ON public.offer
 --
 
 CREATE TRIGGER trigger_offers_acceptance_evidence BEFORE UPDATE OF status ON public.offers FOR EACH ROW EXECUTE FUNCTION public.set_offer_acceptance_evidence();
+
+
+--
+-- Name: offers trigger_offers_advance_stage; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_offers_advance_stage AFTER INSERT OR UPDATE OF status ON public.offers FOR EACH ROW EXECUTE FUNCTION public.offers_advance_lead_stage();
 
 
 --
@@ -13791,6 +14218,13 @@ CREATE TRIGGER trigger_set_company_slug BEFORE INSERT ON public.companies FOR EA
 --
 
 CREATE TRIGGER trigger_set_lead_slug BEFORE INSERT ON public.leads FOR EACH ROW EXECUTE FUNCTION public.set_lead_slug();
+
+
+--
+-- Name: sales_stage_history trigger_stage_history_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_stage_history_append_only BEFORE DELETE OR UPDATE ON public.sales_stage_history FOR EACH ROW EXECUTE FUNCTION public.guard_stage_history_append_only();
 
 
 --
@@ -14093,6 +14527,14 @@ ALTER TABLE ONLY public.auftraege
 
 
 --
+-- Name: automation_deliveries automation_deliveries_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.automation_deliveries
+    ADD CONSTRAINT automation_deliveries_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
 -- Name: blog_posts blog_posts_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14276,6 +14718,54 @@ ALTER TABLE ONLY public.company_services
 
 
 --
+-- Name: crm_tasks crm_tasks_assigned_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.crm_tasks
+    ADD CONSTRAINT crm_tasks_assigned_user_id_fkey FOREIGN KEY (assigned_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: crm_tasks crm_tasks_auftrag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.crm_tasks
+    ADD CONSTRAINT crm_tasks_auftrag_id_fkey FOREIGN KEY (auftrag_id) REFERENCES public.auftraege(id) ON DELETE CASCADE;
+
+
+--
+-- Name: crm_tasks crm_tasks_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.crm_tasks
+    ADD CONSTRAINT crm_tasks_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: crm_tasks crm_tasks_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.crm_tasks
+    ADD CONSTRAINT crm_tasks_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
+-- Name: crm_tasks crm_tasks_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.crm_tasks
+    ADD CONSTRAINT crm_tasks_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: crm_tasks crm_tasks_offer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.crm_tasks
+    ADD CONSTRAINT crm_tasks_offer_id_fkey FOREIGN KEY (offer_id) REFERENCES public.offers(id) ON DELETE CASCADE;
+
+
+--
 -- Name: customer_merges customer_merges_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14417,6 +14907,14 @@ ALTER TABLE ONLY public.leads
 
 ALTER TABLE ONLY public.leads
     ADD CONSTRAINT leads_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
+-- Name: leads leads_owner_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.leads
+    ADD CONSTRAINT leads_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 
 --
@@ -14705,6 +15203,22 @@ ALTER TABLE ONLY public.rechnungen
 
 ALTER TABLE ONLY public.rechnungen
     ADD CONSTRAINT rechnungen_offer_id_fkey FOREIGN KEY (offer_id) REFERENCES public.offers(id) ON DELETE SET NULL;
+
+
+--
+-- Name: sales_stage_history sales_stage_history_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sales_stage_history
+    ADD CONSTRAINT sales_stage_history_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: sales_stage_history sales_stage_history_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sales_stage_history
+    ADD CONSTRAINT sales_stage_history_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
 
 
 --
@@ -15695,6 +16209,19 @@ CREATE POLICY auftraege_manage_member ON public.auftraege USING (public.is_compa
 
 
 --
+-- Name: automation_deliveries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.automation_deliveries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: automation_deliveries automation_deliveries_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY automation_deliveries_select_member ON public.automation_deliveries FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
 -- Name: blog_categories; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -15950,6 +16477,40 @@ ALTER TABLE public.cookie_consent_log ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY cookie_consent_public_insert ON public.cookie_consent_log FOR INSERT WITH CHECK (true);
+
+
+--
+-- Name: crm_tasks; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.crm_tasks ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: crm_tasks crm_tasks_delete_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY crm_tasks_delete_member ON public.crm_tasks FOR DELETE TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: crm_tasks crm_tasks_insert_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY crm_tasks_insert_member ON public.crm_tasks FOR INSERT TO authenticated WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: crm_tasks crm_tasks_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY crm_tasks_select_member ON public.crm_tasks FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: crm_tasks crm_tasks_update_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY crm_tasks_update_member ON public.crm_tasks FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
 
 
 --
@@ -16609,6 +17170,19 @@ CREATE POLICY rechnungen_company_select ON public.rechnungen FOR SELECT TO authe
 --
 
 CREATE POLICY rechnungen_company_update ON public.rechnungen FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: sales_stage_history; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.sales_stage_history ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: sales_stage_history sales_stage_history_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY sales_stage_history_select_member ON public.sales_stage_history FOR SELECT TO authenticated USING (public.is_company_member(company_id));
 
 
 --
