@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
 export interface NotificationMetadata {
   appointment_id?: string;
@@ -32,14 +32,25 @@ const MAX_NOTIFICATIONS = 20;
 
 export const useNotificationHistory = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [loadedFromDb, setLoadedFromDb] = useState(false);
+
+  /**
+   * Ob schon einmal aus der Datenbank geladen wurde.
+   *
+   * Bewusst ein Ref und kein State: die Marke wird nirgends angezeigt, ein
+   * Render braucht sie nie. Als State war sie eine Abhaengigkeit von
+   * `loadNotifications`, und damit war ausgerechnet die Sperre die Ursache des
+   * Problems, das sie verhindern sollte — die Sperre setzte sich, der Callback
+   * bekam eine neue Identitaet, der Effekt im Layout sah eine geaenderte
+   * Abhaengigkeit und lud ein zweites Mal. Jede Seite schickte die Abfrage
+   * dadurch doppelt.
+   */
+  const ausDbGeladen = useRef(false);
 
   const loadNotifications = useCallback((items: NotificationItem[]) => {
-    if (!loadedFromDb) {
-      setNotifications(items);
-      setLoadedFromDb(true);
-    }
-  }, [loadedFromDb]);
+    if (ausDbGeladen.current) return;
+    ausDbGeladen.current = true;
+    setNotifications(items);
+  }, []);
 
   const addNotification = useCallback((
     title: string, 
