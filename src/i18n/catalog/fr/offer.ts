@@ -963,4 +963,15 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.calc.priceBasis":
     "Les prix se basent sur les standards du marché suisse (Delta Umzug)",
 
+  // --- Versionierung (20260728190000) ------------------------------------
+  "offer.version.isVersion": "Version {n}",
+  "offer.version.superseded": "Une version plus récente de cette offre existe",
+  "offer.version.createRevision": "Nouvelle version",
+  "offer.version.createRevisionShort": "Version",
+  "offer.version.created": "Nouvelle version créée",
+  "offer.version.lockedTitle": "Cette offre a été envoyée",
+  "offer.version.lockedBody": "Les offres envoyées ne sont plus modifiées — le client doit pouvoir relire ce qu'il a vu. Pour toute modification, créez une nouvelle version.",
+  "offer.version.publicSupersededTitle": "Une version plus récente existe",
+  "offer.version.publicSupersededBody": "Cette offre a depuis été révisée. Vous voyez ici la version que vous aviez reçue. Merci de nous contacter — la version actuelle vous parviendra par e-mail.",
+
 };

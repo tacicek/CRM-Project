@@ -308,6 +308,22 @@ const FirmaOfferteBearbeiten = () => {
           return;
         }
 
+        // Versendete Offerten sind inhaltlich gesperrt (20260728190000). Bis
+        // 2026-07-28 galt das nur fuer accepted/rejected — `sent` und `viewed`
+        // liessen sich weiter bearbeiten, waehrend der Kunde den Link hatte.
+        // Die Sperre sitzt jetzt in der Datenbank; hier wird sie nur erklaert,
+        // statt den Bediener in einen Speicherfehler laufen zu lassen.
+        if (offerData.locked_at !== null && offerData.superseded_at === null
+            && !["accepted", "rejected"].includes(offerData.status)) {
+          toast({
+            title: t("offer.version.lockedTitle"),
+            description: t("offer.version.lockedBody"),
+            variant: "destructive",
+          });
+          navigate(`/firma/offerten/${offerId}`);
+          return;
+        }
+
         // Accepted or rejected offers cannot be edited
         if (["accepted", "rejected"].includes(offerData.status)) {
           toast({

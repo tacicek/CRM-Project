@@ -956,4 +956,15 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.calc.createOffer": "Create offer",
   "offer.calc.priceBasis": "Prices are based on Swiss market rates (Delta Umzug)",
 
+  // --- Versionierung (20260728190000) ------------------------------------
+  "offer.version.isVersion": "Version {n}",
+  "offer.version.superseded": "A newer version of this offer exists",
+  "offer.version.createRevision": "New version",
+  "offer.version.createRevisionShort": "Version",
+  "offer.version.created": "New version created",
+  "offer.version.lockedTitle": "This offer has been sent",
+  "offer.version.lockedBody": "Sent offers are no longer edited — the customer must be able to re-read what they saw. To make changes, create a new version.",
+  "offer.version.publicSupersededTitle": "A newer version exists",
+  "offer.version.publicSupersededBody": "This offer has since been revised. You are looking at the version you originally received. Please get in touch — you will receive the current version by e-mail.",
+
 };
