@@ -12,6 +12,7 @@ export const nav = {
   "nav.kunden": "Kunden",
   "nav.aufgaben": "Wiedervorlage",
   "nav.finanzen": "Finanzen",
+  "nav.faelle": "Fälle",
   "nav.auftraege": "Aufträge",
   "nav.quittungen": "Quittungen",
   "nav.rechnungen": "Rechnungen",

@@ -40,6 +40,10 @@ const makeQueryRow = (overrides: Partial<AuftragQueryRow> = {}): AuftragQueryRow
   customer_first_name: "Max",
   customer_last_name: "Mustermann",
   customer_id: null,
+  // Kanonische Orte (20260731100000). NULL heisst: aus der Zeit davor
+  // oder keine Adresse erfasst.
+  from_location_id: null,
+  to_location_id: null,
   customer_name: "Max Mustermann",
   customer_phone: null,
   customer_reminder_sent: false,
