@@ -25,6 +25,9 @@ const makeRow = (overrides: Partial<QuittungRow> = {}): QuittungRow => ({
   // Kanonischer Kunde (20260728110000). Der Beleg behaelt daneben seinen
   // eingefrorenen customer_name — die Zuordnung ersetzt den Snapshot nicht.
   customer_id: null,
+  // Der Zahlungseingang, den die Quittung bescheinigt (20260729130000).
+  // NULL heisst: noch nicht kassiert oder aus der Zeit vor dem Zahlungsbuch.
+  payment_id: null,
   positionen: [],
   zwischensumme: 100,
   mwst_satz: 8.1,

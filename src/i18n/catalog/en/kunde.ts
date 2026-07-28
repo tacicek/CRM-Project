@@ -56,8 +56,10 @@ export const kunde: Record<keyof typeof de, string> = {
   "kunde.finance.invoiced": "Invoiced",
   "kunde.finance.paid": "Paid",
   "kunde.finance.open": "Outstanding",
-  "kunde.finance.receipts": "Receipts",
-  "kunde.finance.hint": "Receipts are shown separately and are not added to the paid amount — otherwise the same revenue would be counted twice.",
+  "kunde.finance.receipts": "Of which receipts",
+  "kunde.finance.credits": "Credit notes",
+  "kunde.finance.hint":
+    "Paid is the sum of recorded payments — invoice and receipt each count once in it. “Of which receipts” is a share of that, not a second amount.",
   "kunde.activity.first": "First contact",
   "kunde.activity.last": "Last action",
   "kunde.activity.next": "Next appointment",

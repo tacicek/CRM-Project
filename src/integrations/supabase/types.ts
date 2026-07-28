@@ -1792,6 +1792,81 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_notes: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          datum: string
+          gutschrift_nr: string | null
+          id: string
+          language: string
+          note: string | null
+          pdf_url: string | null
+          positionen: Json
+          reason: string | null
+          rechnung_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          datum?: string
+          gutschrift_nr?: string | null
+          id?: string
+          language?: string
+          note?: string | null
+          pdf_url?: string | null
+          positionen?: Json
+          reason?: string | null
+          rechnung_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          datum?: string
+          gutschrift_nr?: string | null
+          id?: string
+          language?: string
+          note?: string | null
+          pdf_url?: string | null
+          positionen?: Json
+          reason?: string | null
+          rechnung_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      gutschrift_nr_counter: {
+        Row: {
+          company_id: string
+          jahr: number
+          letzte_nr: number
+        }
+        Insert: {
+          company_id: string
+          jahr: number
+          letzte_nr?: number
+        }
+        Update: {
+          company_id?: string
+          jahr?: number
+          letzte_nr?: number
+        }
+        Relationships: []
+      }
       crm_tasks: {
         Row: {
           assigned_user_id: string | null
@@ -1849,6 +1924,141 @@ export type Database = {
           task_type?: string
           title?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      invoice_reminders: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          due_date_snapshot: string | null
+          fee: number
+          id: string
+          interest: number
+          language: string
+          level: number
+          note: string | null
+          open_amount_snapshot: number
+          pdf_url: string | null
+          rechnung_id: string
+          sent_at: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          due_date_snapshot?: string | null
+          fee?: number
+          id?: string
+          interest?: number
+          language?: string
+          level: number
+          note?: string | null
+          open_amount_snapshot?: number
+          pdf_url?: string | null
+          rechnung_id: string
+          sent_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          due_date_snapshot?: string | null
+          fee?: number
+          id?: string
+          interest?: number
+          language?: string
+          level?: number
+          note?: string | null
+          open_amount_snapshot?: number
+          pdf_url?: string | null
+          rechnung_id?: string
+          sent_at?: string | null
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          created_via: string
+          currency: string
+          customer_id: string | null
+          id: string
+          method: string
+          note: string | null
+          payment_date: string
+          reconciliation_status: string
+          reference: string | null
+          reverses_payment_id: string | null
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          created_via?: string
+          currency?: string
+          customer_id?: string | null
+          id?: string
+          method?: string
+          note?: string | null
+          payment_date: string
+          reconciliation_status?: string
+          reference?: string | null
+          reverses_payment_id?: string | null
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          created_via?: string
+          currency?: string
+          customer_id?: string | null
+          id?: string
+          method?: string
+          note?: string | null
+          payment_date?: string
+          reconciliation_status?: string
+          reference?: string | null
+          reverses_payment_id?: string | null
+        }
+        Relationships: []
+      }
+      payment_allocations: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          payment_id: string
+          rechnung_id: string
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          payment_id: string
+          rechnung_id: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          payment_id?: string
+          rechnung_id?: string
         }
         Relationships: []
       }
@@ -4338,6 +4548,7 @@ export type Database = {
       }
       quittungen: {
         Row: {
+          payment_id: string | null
           betrag_noch_offen: boolean
           company_id: string
           created_at: string
@@ -4370,6 +4581,7 @@ export type Database = {
           zwischensumme: number
         }
         Insert: {
+          payment_id?: string | null
           betrag_noch_offen?: boolean
           company_id: string
           created_at?: string
@@ -4402,6 +4614,7 @@ export type Database = {
           zwischensumme?: number
         }
         Update: {
+          payment_id?: string | null
           betrag_noch_offen?: boolean
           company_id?: string
           created_at?: string
@@ -4628,6 +4841,10 @@ export type Database = {
       }
       rechnungen: {
         Row: {
+          credited_total: number
+          invoice_type: string
+          open_amount: number
+          paid_total: number
           auftrag_id: string | null
           company_id: string
           created_at: string
@@ -4662,6 +4879,10 @@ export type Database = {
           zwischensumme: number
         }
         Insert: {
+          credited_total?: number
+          invoice_type?: string
+          open_amount?: number
+          paid_total?: number
           auftrag_id?: string | null
           company_id: string
           created_at?: string
@@ -4696,6 +4917,10 @@ export type Database = {
           zwischensumme?: number
         }
         Update: {
+          credited_total?: number
+          invoice_type?: string
+          open_amount?: number
+          paid_total?: number
           auftrag_id?: string | null
           company_id?: string
           created_at?: string
@@ -6486,6 +6711,68 @@ export type Database = {
         Returns: Json
       }
       run_customer_backfill: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      record_payment: {
+        Args: {
+          p_allocations?: Json
+          p_amount: number
+          p_company_id: string
+          p_customer_id?: string
+          p_method?: string
+          p_note?: string
+          p_payment_date: string
+          p_reference?: string
+        }
+        Returns: Json
+      }
+      record_quittung_payment: {
+        Args: {
+          p_method?: string
+          p_note?: string
+          p_payment_date?: string
+          p_quittung_id: string
+          p_reference?: string
+        }
+        Returns: Json
+      }
+      reverse_payment: {
+        Args: { p_payment_id: string; p_reason?: string }
+        Returns: Json
+      }
+      finance_overview: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      open_receivables: {
+        Args: { p_company_id: string; p_limit?: number; p_offset?: number }
+        Returns: {
+          bezahlt: number
+          customer_id: string | null
+          customer_name: string | null
+          datum: string
+          faellig_am: string | null
+          gesamt: number
+          mahnstufe: number
+          offen: number
+          rechnung_id: string
+          rechnung_nr: string
+          tage_ueberfaellig: number
+          total_count: number
+        }[]
+      }
+      preview_finance_backfill: {
+        Args: { p_company_id: string }
+        Returns: {
+          beleg_datum: string
+          beleg_nr: string
+          betrag: number
+          hinweis: string
+          quelle: string
+        }[]
+      }
+      run_finance_backfill: {
         Args: { p_company_id: string }
         Returns: Json
       }

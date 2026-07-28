@@ -144,7 +144,13 @@ export default function FirmaRechnungen() {
       total: rechnungen.length,
       bezahlt: count("bezahlt"),
       ueberfaellig: count("ueberfaellig"),
-      revenue: rechnungen.filter((r) => r.status === "bezahlt").reduce((s, r) => s + (r.gesamttotal || 0), 0),
+      // Kassiert statt "Status bezahlt": paid_total wird von den Anrechnungen
+      // fortgeschrieben (20260729110000) und kennt Teilzahlungen. Der Status
+      // allein sagte frueher "bezahlt", ohne dass ein Eingang dahinterstand.
+      revenue: rechnungen.reduce((s, r) => s + (r.paid_total || 0), 0),
+      offenBetrag: rechnungen
+        .filter((r) => r.status !== "entwurf")
+        .reduce((s, r) => s + Math.max(0, r.open_amount || 0), 0),
       offen: count("entwurf") + count("versendet"),
     };
   }, [rechnungen]);
@@ -168,7 +174,7 @@ export default function FirmaRechnungen() {
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-folk-ink">Rechnungen</h1>
               <span className="text-[15px] text-folk-ink3">
-                <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.bezahlt}</span> bezahlt · Umsatz <span className="font-mono">{formatCurrency(stats.revenue, uiLocale)}</span>
+                <span className="font-mono">{stats.total}</span> insgesamt · <span className="font-mono">{stats.bezahlt}</span> bezahlt · Kassiert <span className="font-mono">{formatCurrency(stats.revenue, uiLocale)}</span> · Offen <span className="font-mono">{formatCurrency(stats.offenBetrag, uiLocale)}</span>
               </span>
             </div>
             <p className="mt-1 text-[15px] text-folk-ink2">

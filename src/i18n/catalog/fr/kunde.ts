@@ -56,8 +56,10 @@ export const kunde: Record<keyof typeof de, string> = {
   "kunde.finance.invoiced": "Facturé",
   "kunde.finance.paid": "Payé",
   "kunde.finance.open": "En attente",
-  "kunde.finance.receipts": "Quittances",
-  "kunde.finance.hint": "Les quittances sont indiquées séparément et ne s’ajoutent pas au montant payé — sinon le même chiffre d’affaires serait compté deux fois.",
+  "kunde.finance.receipts": "Dont quittances",
+  "kunde.finance.credits": "Notes de crédit",
+  "kunde.finance.hint":
+    "Payé est la somme des encaissements saisis — facture et quittance y comptent chacune une fois. « Dont quittances » en est une part, pas un second montant.",
   "kunde.activity.first": "Premier contact",
   "kunde.activity.last": "Dernière action",
   "kunde.activity.next": "Prochain rendez-vous",

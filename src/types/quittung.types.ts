@@ -84,6 +84,10 @@ export interface Quittung {
   teamchef_signed_at?: string | null;
   status: QuittungStatus;
   betrag_noch_offen: boolean;
+  /** Der Zahlungseingang, den diese Quittung bescheinigt (20260729130000).
+   *  NULL heisst: noch nicht kassiert. Der Umsatz wird ueber `payments`
+   *  gezaehlt, damit Rechnung und Quittung nicht doppelt zaehlen. */
+  payment_id?: string | null;
   pdf_url?: string | null;
   notiz?: string | null;
   created_at: string;

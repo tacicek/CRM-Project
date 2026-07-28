@@ -14,6 +14,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { KundeLink } from "@/components/firma/KundeLink";
+import { ZahlungErfassenDialog } from "@/components/firma/ZahlungErfassenDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
@@ -27,7 +28,7 @@ import {
   RECHNUNG_STATUS_LABELS, RECHNUNG_STATUS_COLORS, allowedRechnungTargets,
   isRechnungStatus, type RechnungStatus,
 } from "@/lib/rechnungStatus";
-import { useI18n } from "@/i18n/useI18n";
+import { useI18n, useT } from "@/i18n/useI18n";
 import { formatCurrency } from "@/i18n/format";
 import { resolveDocumentLocale, documentI18nFor } from "@/i18n/documentLocale";
 import { LOCALE_NAMES, LOCALES, toLocale, type Locale } from "@/i18n/locale";
@@ -97,6 +98,7 @@ export default function RechnungDetail() {
   // Dashboard locale — for the amounts shown in this form. The PDF uses the invoice's own
   // language (state `language` below), which is a different axis entirely.
   const { locale: uiLocale } = useI18n();
+  const t = useT();
   const prefillAppliedRef = useRef(false);
 
   const [company, setCompany] = useState<CompanyInfo | null>(null);
@@ -131,6 +133,10 @@ export default function RechnungDetail() {
   const [schlusstext, setSchlusstext] = useState("");
   const [zahlungskonditionen, setZahlungskonditionen] = useState("");
   const [status, setStatus] = useState<RechnungStatus>("entwurf");
+  const [bezahlt, setBezahlt] = useState(0);
+  const [offen, setOffen] = useState(0);
+  const [gutgeschrieben, setGutgeschrieben] = useState(0);
+  const [zahlungDialog, setZahlungDialog] = useState(false);
   // Document language — the language the CUSTOMER is invoiced in (rechnungen.language).
   const [language, setLanguage] = useState<Locale>("de");
   const [rechnungNr, setRechnungNr] = useState("");
@@ -196,6 +202,11 @@ export default function RechnungDetail() {
     setSchlusstext(data.schlusstext && data.schlusstext !== LEGACY_DE_SCHLUSSTEXT ? data.schlusstext : "");
     setZahlungskonditionen(data.zahlungskonditionen ?? "");
     setStatus(isRechnungStatus(data.status) ? data.status : "entwurf");
+    // Zahlungsstand aus dem Buch (20260729110000). paid_total und open_amount
+    // werden von den Anrechnungen fortgeschrieben, nicht hier gesetzt.
+    setBezahlt(data.paid_total ?? 0);
+    setOffen(data.open_amount ?? 0);
+    setGutgeschrieben(data.credited_total ?? 0);
     setLanguage(resolveDocumentLocale(data));
     setRechnungNr(data.rechnung_nr || "");
     setQrReferenz(data.qr_referenz);
@@ -487,7 +498,12 @@ export default function RechnungDetail() {
     );
   }
 
-  const statusOptions = allowedRechnungTargets(status);
+  // 'bezahlt' faellt aus der Handauswahl heraus: der Status folgt seit
+  // 20260729110000 den erfassten Zahlungen. Ein Versuch, ihn hier zu setzen,
+  // wuerde von der DB abgelehnt — die Auswahl darf ihn deshalb nicht anbieten.
+  const statusOptions = allowedRechnungTargets(status).filter(
+    (s) => s !== "bezahlt" || status === "bezahlt",
+  );
 
   return (
     <>
@@ -706,13 +722,40 @@ export default function RechnungDetail() {
               Per E-Mail senden
             </Button>
           )}
-          {rechnungId && status !== "bezahlt" && (
-            <Button onClick={() => handleStatusChange("bezahlt")} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-              <CheckCircle className="w-4 h-4 mr-2" /> Zahlung erhalten
+          {rechnungId && offen > 0 && (
+            <Button onClick={() => setZahlungDialog(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <CheckCircle className="w-4 h-4 mr-2" /> {t("finanz.offen.zahlungErfassen")}
             </Button>
           )}
         </div>
+
+        {/* Zahlungsstand — kommt aus dem Buch, nicht aus dem Status */}
+        {rechnungId && (
+          <p className="pb-6 text-[13px] text-folk-ink3">
+            {t("finanz.rechnung.bezahlt")}: <span className="font-mono">{formatCurrency(bezahlt, uiLocale)}</span>
+            {gutgeschrieben > 0 && (
+              <> · {t("finanz.rechnung.gutgeschrieben")}: <span className="font-mono">{formatCurrency(gutgeschrieben, uiLocale)}</span></>
+            )}
+            {" · "}
+            {t("finanz.rechnung.offen")}: <span className="font-mono">{formatCurrency(offen, uiLocale)}</span>
+            <br />
+            <span className="text-folk-ink4">{t("finanz.rechnung.keineZahlung")}</span>
+          </p>
+        )}
       </div>
+
+      {zahlungDialog && rechnungId && company && (
+        <ZahlungErfassenDialog
+          open
+          onOpenChange={setZahlungDialog}
+          companyId={company.id}
+          rechnung={{ id: rechnungId, nr: rechnungNr, offen, customerId }}
+          onDone={() => {
+            setZahlungDialog(false);
+            loadRechnung();
+          }}
+        />
+      )}
     </>
   );
 }
