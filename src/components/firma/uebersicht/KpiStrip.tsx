@@ -70,11 +70,11 @@ export const KpiStrip = ({ kpis }: { kpis: readonly Kpi[] }) => {
   return (
     <div
       className="
-        -mx-3 flex snap-x snap-proximity gap-2.5 overflow-x-auto px-3 pb-1
+        flex snap-x snap-proximity gap-2.5 overflow-x-auto pb-1
         [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
-        shell-tablet:mx-0 shell-tablet:grid shell-tablet:grid-cols-4 shell-tablet:gap-0
+        shell-tablet:grid shell-tablet:grid-cols-4 shell-tablet:gap-0
         shell-tablet:overflow-visible shell-tablet:rounded-xl shell-tablet:border
-        shell-tablet:border-folk-line shell-tablet:px-0 shell-tablet:pb-0
+        shell-tablet:border-folk-line shell-tablet:pb-0
       "
     >
       {kpis.map((kpi, index) => (
