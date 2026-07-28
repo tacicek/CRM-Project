@@ -1,0 +1,117 @@
+# Dedicated, isolated Supabase stack for CRM WIKI SCREENSHOT CAPTURE only.
+#
+# Why a third project instead of reusing one that already exists:
+#
+#   - supabase/config.toml (project "qzmyqkolzrckgaxaypxc", api 54321 / db 54322) has no
+#     baseline, no fixtures and no guard, and its default ports are already occupied on
+#     this machine by unrelated projects.
+#   - supabase-test/runtime (project "crm-test", db 54342) has the baseline and fixtures
+#     but [api] and [auth] are OFF by design, so a browser cannot log into it. That is a
+#     deliberate choice there (see its config header) and must not be undone.
+#
+# A screenshot harness needs PostgREST *and* GoTrue, because the app is a REST/Auth
+# client and vite.config.ts proxies ^/(rest|auth|storage|functions|realtime)/ to them.
+#
+# Identity the guard pins on — never the port alone, because ports get reused:
+#   project_id "crm-wiki" -> containers supabase_db_crm-wiki / supabase_kong_crm-wiki
+#   in-db marker crm_wiki_guard.identity, readable through the proxy over /rest/v1
+#
+# Run it from this workdir, never the repo root:
+#   supabase --workdir supabase-wiki/runtime start
+#   supabase --workdir supabase-wiki/runtime stop
+project_id = "crm-wiki"
+
+[api]
+# REQUIRED. Kong terminates /rest/v1, /auth/v1 and /storage/v1; the Vite dev-server
+# proxy targets it.
+enabled = true
+port = 54421
+# Only the schemas that exist on a virgin stack. Listing crm_wiki_guard here would
+# deadlock the very first `supabase start`: PostgREST refuses to build its schema cache
+# for a schema that does not exist yet, and the schema cannot be created until the stack
+# is up. The guard marker is reached instead through public.crm_wiki_identity(), a
+# SECURITY DEFINER function that guard-marker.sql recreates after every rebuild.
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54422
+shadow_port = 54420
+# Matches production and supabase-test (postgres:15.8.1.085). Changing this is not
+# backwards compatible with an existing data volume — stop, remove the volume, restart.
+major_version = 15
+
+[db.pooler]
+enabled = false
+
+[auth]
+# REQUIRED. The app authenticates with signInWithPassword against /auth/v1. There is no
+# honest way to screenshot the authenticated UI without a real session.
+enabled = true
+site_url = "http://localhost:8099"
+additional_redirect_urls = ["http://localhost:8099"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+# The single synthetic operator is created by the bootstrap through the GoTrue admin
+# API. Nobody else may ever create an account on this stack.
+enable_signup = false
+enable_anonymous_sign_ins = false
+
+[auth.email]
+# TRUE, and it must be: this key maps to GoTrue's EXTERNAL_EMAIL_ENABLED, which gates
+# the email PROVIDER as a whole — not just registration. Setting it false makes
+# `signInWithPassword` fail with "Email logins are disabled" (422
+# email_provider_disabled), so the capture script could never log in.
+#
+# Public registration is still closed: that is `[auth] enable_signup = false` above,
+# which maps to GoTrue's DISABLE_SIGNUP. The two keys are easy to confuse; together they
+# give exactly what this stack needs — the one seeded operator can log in, and nobody
+# can create another account.
+enable_signup = true
+# Nothing to confirm, and it removes GoTrue's only reason to attempt an email.
+enable_confirmations = false
+double_confirm_changes = false
+secure_password_change = false
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
+
+[realtime]
+# ON for fidelity: FirmaLayout subscribes to postgres_changes on notifications,
+# appointments and virtual_besichtigung_sessions. With realtime off the client retries a
+# dead websocket, which does not change the pixels but does pollute the console watcher
+# the capture script uses to detect a broken page.
+enabled = true
+
+[storage]
+# ON so /storage/v1 answers instead of returning a gateway error. No objects are seeded:
+# with logo_url NULL the sidebar renders its initials tile, which is an honest screenshot.
+enabled = true
+file_size_limit = "10MiB"
+
+[studio]
+# OFF: nothing in the capture path needs it, and it would bind two more ports. Flip to
+# true temporarily when a seed misbehaves.
+enabled = false
+port = 54423
+
+[inbucket]
+# OFF DELIBERATELY. This is an anti-email guard, not a size optimisation: with no SMTP
+# endpoint configured, GoTrue physically cannot deliver a message even if a flow tried.
+enabled = false
+port = 54424
+
+[edge_runtime]
+# OFF DELIBERATELY, and this is the strongest safety property of the stack. EVERY
+# outbound side effect in the app goes through supabase.functions.invoke — send-offer,
+# send-quittung, send-rechnung-email, test-resend-email, extract-anfrage-ai,
+# spell-check-ai, translate-content, google-places-*, calculate-distance, notify-*.
+# With no edge runtime, Kong answers /functions/v1/* with an error. That is structure,
+# not discipline: no key can leak because no function can run.
+enabled = false
+
+[analytics]
+enabled = false

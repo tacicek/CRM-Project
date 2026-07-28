@@ -1,0 +1,28 @@
+-- Grants for the `besichtigung` stub schema — required by the screenshot stack, and by
+-- nothing else today.
+--
+-- ROOT CAUSE this fixes, stated plainly:
+--
+--   public.virtual_besichtigung_sessions is a view with `security_invoker = on`, over
+--   besichtigung.sessions. With security_invoker the CALLER's privileges are used on the
+--   base table, not the view owner's. supabase-test/baseline/prereqs.sql creates the
+--   besichtigung stub but grants nothing on it, because the DB assertion suite queries
+--   that view as `postgres` (the owner) and therefore never notices.
+--
+--   A browser queries it as `authenticated`. Postgres answers "permission denied for
+--   table sessions", PostgREST turns that into 403, and FirmaLayout's sidebar badge
+--   query fails on EVERY page — which is what the capture script caught.
+--
+--   The underlying gap is that the sanitized baseline was dumped with `--schema=public`,
+--   so production's real grants on the besichtigung schema were never captured. That is
+--   already recorded as "İter.2 baseline completeness" in prereqs.sql's own header; this
+--   file is the screenshot stack's local compensation for it, not a substitute for
+--   regenerating the baseline with `--schema=public --schema=besichtigung`.
+--
+-- Deliberate test-scaffold difference from production: the stub table has no RLS, so an
+-- authenticated role can read all rows rather than only its own company's. That is
+-- acceptable HERE because this stack contains exactly one synthetic company and produces
+-- pictures, not assertions. It must NOT be copied into supabase-test, where an RLS
+-- assertion over this view would then be measuring the wrong thing.
+GRANT USAGE ON SCHEMA besichtigung TO anon, authenticated, service_role;
+GRANT SELECT ON besichtigung.sessions TO anon, authenticated, service_role;
