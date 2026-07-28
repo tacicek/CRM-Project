@@ -32,3 +32,6 @@ supabase/.temp/
 
 # TypeScript build-mode cache (tsc -b, used by npm run type-check)
 *.tsbuildinfo
+
+# Wiki screenshot stack: generated credentials, never committed
+supabase-wiki/.runtime/

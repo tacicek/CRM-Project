@@ -19,7 +19,7 @@ const removeProductionFiles = (filenames: string[]) => ({
 });
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   // Ensure the frontend always gets the required VITE_* vars even if only non-VITE vars exist
   const fileEnv = loadEnv(mode, process.cwd(), "");
   const env = { ...fileEnv, ...(process.env as Record<string, string | undefined>) };
@@ -31,6 +31,28 @@ export default defineConfig(({ mode }) => {
       ? `https://${env.VITE_SUPABASE_PROJECT_ID}.supabase.co`
       : undefined);
 
+  // In der PRODUKTION spricht der Browser nie direkt mit Supabase: nginx.conf
+  // leitet `^/(rest|auth|storage|functions|realtime)/` an Kong weiter, und
+  // VITE_SUPABASE_URL ist die eigene Domain. Der Dev-Server hatte diese
+  // Weiterleitung nicht — dort ging der Browser direkt an den Kong-Host.
+  //
+  // Das ist nicht nur eine Abweichung, es ist eine, die als Raetsel auftritt:
+  // der Kong-Host laeuft nur ueber http (er hat kein Zertifikat). Ein Browser
+  // mit "Nur-HTTPS"-Modus hebt den Aufruf still auf https, dort antwortet
+  // niemand, und die Konsole meldet "CORS request did not succeed" mit
+  // Statuscode null — obwohl es weder an CORS noch am Server liegt.
+  //
+  // Deshalb spiegelt der Dev-Server jetzt nginx: der Browser ruft
+  // ausschliesslich seinen eigenen Ursprung auf, Vite reicht weiter.
+  // `http://localhost` ist von der HTTPS-Anhebung ausgenommen.
+  //
+  // ⚠️ Diese localhost-Adresse ist NUR die Adresse des Dev-Servers, nicht die
+  // des Ziels. Sie ist KEIN Beleg dafuer, dass man auf einer Testdatenbank
+  // arbeitet — dafuer gibt es src/test/env-guard.ts, der zusaetzlich
+  // CRM_TEST_ENV und den DB-Host verlangt.
+  const supabaseProxyPfade = "^/(rest|auth|storage|functions|realtime)/";
+  const istDevServer = command === "serve" && Boolean(resolvedSupabaseUrl);
+
   const resolvedSupabaseKey =
     env.VITE_SUPABASE_ANON_KEY ||
     env.VITE_SUPABASE_PUBLISHABLE_KEY ||
@@ -41,6 +63,17 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "::",
       port: 8080,
+      // Spiegelt nginx.conf. `ws` fuer realtime, `changeOrigin` entspricht dem
+      // dortigen `proxy_set_header Host`.
+      proxy: resolvedSupabaseUrl
+        ? {
+            [supabaseProxyPfade]: {
+              target: resolvedSupabaseUrl,
+              changeOrigin: true,
+              ws: true,
+            },
+          }
+        : undefined,
       // Increase limit for large dev cookies (431 fix)
       hmr: true,
       headers: {
@@ -84,6 +117,17 @@ export default defineConfig(({ mode }) => {
             if (id.includes('vite/preload-helper')) {
               return 'vendor-react';
             }
+            // Wiki: one chunk per LOCALE for the help search index, so a session
+            // downloads only its own language (~6 KB gz) instead of all three.
+            //
+            // Article BODIES deliberately get NO entry here. They are reached only
+            // through import() in wikiContent.ts, so Rollup already emits one chunk
+            // each. Naming them as a group would fuse every article in every language
+            // into a single chunk, and opening one guide would download the whole
+            // manual — the exact opposite of the intent.
+            if (id.includes('/src/features/wiki/content/searchIndex.de')) return 'wiki-index-de';
+            if (id.includes('/src/features/wiki/content/searchIndex.fr')) return 'wiki-index-fr';
+            if (id.includes('/src/features/wiki/content/searchIndex.en')) return 'wiki-index-en';
             // The Buffer polyfill is imported eagerly by main.tsx (needed as a
             // global for the lazy qrcode/@react-pdf code). Keep it and its
             // transitive deps (base64-js, ieee754) in a small dedicated chunk so
@@ -174,9 +218,16 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      ...(resolvedSupabaseUrl
-        ? { "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(resolvedSupabaseUrl) }
-        : {}),
+      // Im Dev-Server der EIGENE Ursprung, als Ausdruck statt als Zeichenkette:
+      // `define` ersetzt Text, also landet hier wirklich `window.location.origin`
+      // im Bundle. Ein fest verdrahtetes "http://localhost:8080" waere falsch,
+      // sobald Vite auf einen freien Port ausweicht — dann riefe die Anwendung
+      // einen anderen Ursprung auf als den, unter dem sie laeuft.
+      ...(istDevServer
+        ? { "import.meta.env.VITE_SUPABASE_URL": "window.location.origin" }
+        : resolvedSupabaseUrl
+          ? { "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(resolvedSupabaseUrl) }
+          : {}),
       ...(resolvedSupabaseKey
         ? {
             "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(resolvedSupabaseKey),

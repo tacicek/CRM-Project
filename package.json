@@ -22,7 +22,13 @@
     "test:db": "bash scripts/test-db.sh",
     "test:integration": "npm run test:unit && npm run test:db",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "wiki:db:up": "supabase --workdir supabase-wiki/runtime start",
+    "wiki:db:down": "supabase --workdir supabase-wiki/runtime stop",
+    "wiki:db:bootstrap": "bash scripts/wiki-db.sh",
+    "wiki:db:reseed": "bash scripts/wiki-db.sh --reseed",
+    "wiki:capture": "node scripts/capture-wiki-screenshots.mjs",
+    "wiki:validate": "node scripts/validate-wiki.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -116,6 +122,7 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "lovable-tagger": "^1.1.13",
+    "playwright-core": "^1.62.0",
     "postcss": "^8.5.6",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.17",
