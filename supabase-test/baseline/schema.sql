@@ -1761,6 +1761,53 @@ COMMENT ON FUNCTION public.create_lead_from_inbound_email(p_inbound_id uuid, p_c
 
 
 --
+-- Name: create_offer_amendment(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_offer_amendment(p_offer_id uuid, p_title text, p_reason text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_offer public.offers;
+  v_id    UUID;
+BEGIN
+  SELECT * INTO v_offer FROM public.offers WHERE id = p_offer_id;
+
+  IF v_offer.id IS NULL OR NOT public.is_company_member(v_offer.company_id) THEN
+    RAISE EXCEPTION 'Offerte nicht gefunden' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  -- Ein Nachtrag setzt eine Zustimmung voraus, die er ergaenzt. Ohne sie ist
+  -- der richtige Weg die Revision (create_offer_revision).
+  IF v_offer.status <> 'accepted' THEN
+    RAISE EXCEPTION 'Ein Nachtrag setzt eine angenommene Offerte voraus. '
+                    'Solange sie nicht angenommen ist, legen Sie eine neue Version an.'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  IF NULLIF(TRIM(COALESCE(p_title, '')), '') IS NULL THEN
+    RAISE EXCEPTION 'Der Nachtrag braucht einen Titel' USING ERRCODE = 'check_violation';
+  END IF;
+
+  INSERT INTO public.offer_amendments (company_id, offer_id, amendment_number, title, reason, vat_rate)
+  VALUES (v_offer.company_id, v_offer.id, 0, TRIM(p_title),
+          NULLIF(TRIM(COALESCE(p_reason, '')), ''), COALESCE(v_offer.vat_rate, 8.1))
+  RETURNING id INTO v_id;
+
+  RETURN jsonb_build_object('nachtrag_id', v_id);
+END;
+$$;
+
+
+--
+-- Name: FUNCTION create_offer_amendment(p_offer_id uuid, p_title text, p_reason text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.create_offer_amendment(p_offer_id uuid, p_title text, p_reason text) IS 'Legt einen Nachtrag zu einer ANGENOMMENEN Offerte an. Nummer, Kunde, Sprache und Auftrag kommen per Trigger aus der Offerte.';
+
+
+--
 -- Name: create_offer_revision(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3183,6 +3230,41 @@ $$;
 
 
 --
+-- Name: get_amendment_by_token(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_amendment_by_token(p_token text) RETURNS TABLE(id uuid, amendment_number integer, title text, reason text, status text, subtotal numeric, vat_rate numeric, vat_amount numeric, total numeric, language text, sent_at timestamp with time zone, accepted_at timestamp with time zone, rejected_at timestamp with time zone, offer_title text, offer_number integer, company_name text, positionen jsonb)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT
+    a.id, a.amendment_number, a.title, a.reason, a.status,
+    a.subtotal, a.vat_rate, a.vat_amount, a.total, a.language,
+    a.sent_at, a.accepted_at, a.rejected_at,
+    o.title::TEXT, o.offer_number, c.company_name::TEXT,
+    COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+               'position', i.position, 'description', i.description,
+               'quantity', i.quantity, 'unit', i.unit, 'unit_price', i.unit_price)
+             ORDER BY i.position)
+      FROM public.offer_amendment_items i WHERE i.amendment_id = a.id
+    ), '[]'::jsonb)
+  FROM public.offer_amendments a
+  JOIN public.offers o    ON o.id = a.offer_id
+  JOIN public.companies c ON c.id = a.company_id
+  WHERE a.access_token = p_token
+    AND a.status IN ('sent', 'viewed', 'accepted', 'rejected');
+$$;
+
+
+--
+-- Name: FUNCTION get_amendment_by_token(p_token text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.get_amendment_by_token(p_token text) IS 'Oeffentliche Sicht auf einen Nachtrag. Entwuerfe sind bewusst nicht dabei — was nicht versendet wurde, hat der Kunde nie bekommen.';
+
+
+--
 -- Name: get_archivable_leads(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4088,6 +4170,58 @@ $$;
 --
 
 COMMENT ON FUNCTION public.grant_trial(p_company_id uuid, p_days integer, p_granted_by uuid) IS 'Admin: grants a free CRM trial to a company (can be called multiple times)';
+
+
+--
+-- Name: guard_amendment_after_send(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_amendment_after_send() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  erlaubt CONSTANT TEXT[] := ARRAY[
+    'status', 'sent_at', 'viewed_at', 'accepted_at', 'rejected_at',
+    'customer_response_note', 'accepted_ip',
+    'updated_at', 'customer_id', 'auftrag_id', 'locked_at'
+  ];
+  alt_j JSONB; neu_j JSONB; spalte TEXT;
+BEGIN
+  IF NEW.status = 'sent' AND OLD.status IS DISTINCT FROM 'sent' AND NEW.locked_at IS NULL THEN
+    NEW.locked_at := NOW();
+  END IF;
+
+  IF OLD.locked_at IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- BEWUSST SECURITY INVOKER: in DEFINER waere current_user immer der
+  -- Eigentuemer und die Ausnahme wuerde stets greifen.
+  IF current_user IN ('postgres', 'supabase_admin') THEN
+    RETURN NEW;
+  END IF;
+
+  alt_j := to_jsonb(OLD);
+  neu_j := to_jsonb(NEW);
+
+  FOR spalte IN
+    SELECT a.attname FROM pg_attribute a
+    WHERE a.attrelid = TG_RELID AND a.attnum > 0 AND NOT a.attisdropped
+      AND a.attgenerated = ''
+  LOOP
+    IF NOT (spalte = ANY(erlaubt))
+       AND (alt_j -> spalte) IS DISTINCT FROM (neu_j -> spalte) THEN
+      RAISE EXCEPTION
+        'Nachtrag % wurde versendet und ist inhaltlich gesperrt (Feld "%")',
+        OLD.amendment_number, spalte
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  END LOOP;
+
+  RETURN NEW;
+END;
+$$;
 
 
 --
@@ -5004,6 +5138,45 @@ BEGIN
         );
     END IF;
     RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: offer_amendments_inherit(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.offer_amendments_inherit() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE v_offer public.offers;
+BEGIN
+  SELECT * INTO v_offer FROM public.offers WHERE id = NEW.offer_id;
+
+  -- Kunde und Sprache kommen von der Offerte, nicht vom Aufrufer.
+  NEW.customer_id := COALESCE(NEW.customer_id, v_offer.customer_id);
+  NEW.language    := COALESCE(NULLIF(NEW.language, ''), v_offer.language, 'de');
+  -- NOT NULL wird erst nach dem Trigger geprueft; ein NULL kommt hier also an
+  -- und wird hier gefuellt.
+  NEW.auftrag_id  := COALESCE(NEW.auftrag_id,
+                              (SELECT a.id FROM public.auftraege a
+                               WHERE a.offer_id = NEW.offer_id AND a.deleted_at IS NULL
+                               LIMIT 1));
+
+  IF NEW.amendment_number IS NULL OR NEW.amendment_number = 0 THEN
+    SELECT COALESCE(MAX(amendment_number), 0) + 1 INTO NEW.amendment_number
+    FROM public.offer_amendments WHERE offer_id = NEW.offer_id;
+  END IF;
+
+  IF NEW.locked_at IS NULL AND NEW.status IN ('sent','viewed','accepted','rejected') THEN
+    NEW.locked_at := COALESCE(NEW.sent_at, NOW());
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'offer_amendments_inherit: %', SQLERRM;
+  RETURN NEW;
 END;
 $$;
 
@@ -6683,6 +6856,83 @@ CREATE FUNCTION public.trigger_team_reminder_for_appointment(p_appointment_id uu
 --
 
 COMMENT ON FUNCTION public.trigger_team_reminder_for_appointment(p_appointment_id uuid) IS 'Manually trigger a team reminder for a specific appointment';
+
+
+--
+-- Name: update_amendment_by_token(text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_amendment_by_token(p_token text, p_new_status text, p_note text DEFAULT NULL::text, p_ip text DEFAULT NULL::text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_a         public.offer_amendments;
+  v_positionen JSONB;
+BEGIN
+  IF p_new_status NOT IN ('viewed', 'accepted', 'rejected') THEN
+    RAISE EXCEPTION 'Ungueltiger Status: %', p_new_status USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  SELECT * INTO v_a FROM public.offer_amendments WHERE access_token = p_token;
+  IF v_a.id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  -- Einmal entschieden bleibt entschieden.
+  IF v_a.status IN ('accepted', 'rejected') AND p_new_status <> 'viewed' THEN
+    RETURN false;
+  END IF;
+  IF v_a.status = 'draft' THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.offer_amendments SET
+    status      = p_new_status,
+    viewed_at   = COALESCE(viewed_at, CASE WHEN p_new_status = 'viewed'   THEN NOW() END),
+    accepted_at = COALESCE(accepted_at, CASE WHEN p_new_status = 'accepted' THEN NOW() END),
+    rejected_at = COALESCE(rejected_at, CASE WHEN p_new_status = 'rejected' THEN NOW() END),
+    customer_response_note = COALESCE(NULLIF(TRIM(COALESCE(p_note, '')), ''), customer_response_note),
+    -- Zeitpunkt aus der Datenbank, IP aus dem Aufruf der Edge Function. Der
+    -- Browser liefert hier nichts, was zaehlt.
+    accepted_ip = CASE WHEN p_new_status = 'accepted'
+                       THEN COALESCE(NULLIF(TRIM(COALESCE(p_ip, '')), ''), accepted_ip)
+                       ELSE accepted_ip END
+  WHERE id = v_a.id;
+
+  -- Zustimmung wirkt auf den AUFTRAG: der zeigt, was auszufuehren und zu
+  -- verrechnen ist. Offerte und Nachtrag bleiben als Beleg unveraendert.
+  IF p_new_status = 'accepted' AND v_a.auftrag_id IS NOT NULL THEN
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+             'description',  i.description,
+             'quantity',     i.quantity,
+             'unit',         i.unit,
+             'unit_price',   i.unit_price,
+             'total',        i.quantity * i.unit_price,
+             'price_type',   'fixed',
+             'from_amendment', v_a.amendment_number)
+           ORDER BY i.position), '[]'::jsonb)
+    INTO v_positionen
+    FROM public.offer_amendment_items i WHERE i.amendment_id = v_a.id;
+
+    UPDATE public.auftraege a SET
+      items      = COALESCE(a.items, '[]'::jsonb) || v_positionen,
+      subtotal   = COALESCE(a.subtotal, 0)   + v_a.subtotal,
+      vat_amount = COALESCE(a.vat_amount, 0) + v_a.vat_amount,
+      total      = COALESCE(a.total, 0)      + v_a.total
+    WHERE a.id = v_a.auftrag_id;
+  END IF;
+
+  RETURN true;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION update_amendment_by_token(p_token text, p_new_status text, p_note text, p_ip text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.update_amendment_by_token(p_token text, p_new_status text, p_note text, p_ip text) IS 'Zustimmung oder Ablehnung eines Nachtrags durch den Kunden. Bei Zustimmung wird der Auftrag fortgeschrieben (Positionen und Betraege kommen dazu); Offerte und Nachtrag bleiben als Beleg unveraendert.';
 
 
 --
@@ -9228,6 +9478,72 @@ ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
 
 
 --
+-- Name: offer_amendment_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.offer_amendment_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    amendment_id uuid NOT NULL,
+    "position" integer DEFAULT 1 NOT NULL,
+    description text NOT NULL,
+    quantity numeric(10,2) DEFAULT 1 NOT NULL,
+    unit text,
+    unit_price numeric(12,2) DEFAULT 0 NOT NULL,
+    service_type text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: offer_amendments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.offer_amendments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    offer_id uuid NOT NULL,
+    auftrag_id uuid,
+    amendment_number integer NOT NULL,
+    title text NOT NULL,
+    reason text,
+    status text DEFAULT 'draft'::text NOT NULL,
+    access_token text DEFAULT encode(extensions.gen_random_bytes(16), 'hex'::text) NOT NULL,
+    subtotal numeric(12,2) DEFAULT 0 NOT NULL,
+    vat_rate numeric(5,2) DEFAULT 8.1 NOT NULL,
+    vat_amount numeric GENERATED ALWAYS AS (((subtotal * vat_rate) / (100)::numeric)) STORED,
+    total numeric GENERATED ALWAYS AS ((subtotal + ((subtotal * vat_rate) / (100)::numeric))) STORED,
+    sent_at timestamp with time zone,
+    viewed_at timestamp with time zone,
+    accepted_at timestamp with time zone,
+    rejected_at timestamp with time zone,
+    customer_response_note text,
+    accepted_ip text,
+    language text NOT NULL,
+    customer_id uuid,
+    locked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT offer_amendments_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
+    CONSTRAINT offer_amendments_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'sent'::text, 'viewed'::text, 'accepted'::text, 'rejected'::text]))),
+    CONSTRAINT offer_amendments_title_present CHECK ((length(TRIM(BOTH FROM title)) > 0))
+);
+
+
+--
+-- Name: TABLE offer_amendments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.offer_amendments IS 'Nachtrag zu einer angenommenen Offerte: eigener Beleg, eigener Link, eigene Zustimmung. Die Offerte bleibt unberuehrt — sie belegt die urspruengliche Vereinbarung. Bei Zustimmung wird der AUFTRAG fortgeschrieben.';
+
+
+--
+-- Name: COLUMN offer_amendments.language; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.offer_amendments.language IS 'Sprache des Kunden, aus der Offerte eingefroren. NICHT die Dashboard-Sprache des Bedieners — der Nachtrag geht an den Kunden.';
+
+
+--
 -- Name: offers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11389,6 +11705,46 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: offer_amendment_items offer_amendment_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendment_items
+    ADD CONSTRAINT offer_amendment_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: offer_amendments offer_amendments_id_company_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendments
+    ADD CONSTRAINT offer_amendments_id_company_uniq UNIQUE (id, company_id);
+
+
+--
+-- Name: offer_amendments offer_amendments_number_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendments
+    ADD CONSTRAINT offer_amendments_number_uniq UNIQUE (offer_id, amendment_number);
+
+
+--
+-- Name: offer_amendments offer_amendments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendments
+    ADD CONSTRAINT offer_amendments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: offer_amendments offer_amendments_token_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendments
+    ADD CONSTRAINT offer_amendments_token_uniq UNIQUE (access_token);
+
+
+--
 -- Name: offer_inventory_items offer_inventory_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12549,6 +12905,27 @@ CREATE INDEX idx_notifications_company_type_created ON public.notifications USIN
 
 
 --
+-- Name: idx_offer_amendment_items_amendment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_offer_amendment_items_amendment ON public.offer_amendment_items USING btree (amendment_id, "position");
+
+
+--
+-- Name: idx_offer_amendments_company_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_offer_amendments_company_status ON public.offer_amendments USING btree (company_id, status, created_at DESC);
+
+
+--
+-- Name: idx_offer_amendments_offer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_offer_amendments_offer ON public.offer_amendments USING btree (offer_id, amendment_number);
+
+
+--
 -- Name: idx_offer_inventory_items_category; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13309,6 +13686,27 @@ CREATE TRIGGER trigger_leads_updated_at BEFORE UPDATE ON public.leads FOR EACH R
 --
 
 CREATE TRIGGER trigger_log_appointment_changes AFTER INSERT OR UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.log_appointment_changes();
+
+
+--
+-- Name: offer_amendments trigger_offer_amendments_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_offer_amendments_guard BEFORE UPDATE ON public.offer_amendments FOR EACH ROW EXECUTE FUNCTION public.guard_amendment_after_send();
+
+
+--
+-- Name: offer_amendments trigger_offer_amendments_inherit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_offer_amendments_inherit BEFORE INSERT ON public.offer_amendments FOR EACH ROW EXECUTE FUNCTION public.offer_amendments_inherit();
+
+
+--
+-- Name: offer_amendments trigger_offer_amendments_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_offer_amendments_updated_at BEFORE UPDATE ON public.offer_amendments FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 
 --
@@ -14083,6 +14481,46 @@ ALTER TABLE ONLY public.moving_calculation_presets
 
 ALTER TABLE ONLY public.notifications
     ADD CONSTRAINT notifications_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: offer_amendment_items offer_amendment_items_amendment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendment_items
+    ADD CONSTRAINT offer_amendment_items_amendment_id_fkey FOREIGN KEY (amendment_id) REFERENCES public.offer_amendments(id) ON DELETE CASCADE;
+
+
+--
+-- Name: offer_amendments offer_amendments_auftrag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendments
+    ADD CONSTRAINT offer_amendments_auftrag_id_fkey FOREIGN KEY (auftrag_id) REFERENCES public.auftraege(id) ON DELETE SET NULL;
+
+
+--
+-- Name: offer_amendments offer_amendments_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendments
+    ADD CONSTRAINT offer_amendments_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: offer_amendments offer_amendments_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendments
+    ADD CONSTRAINT offer_amendments_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
+-- Name: offer_amendments offer_amendments_offer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offer_amendments
+    ADD CONSTRAINT offer_amendments_offer_id_fkey FOREIGN KEY (offer_id) REFERENCES public.offers(id) ON DELETE CASCADE;
 
 
 --
@@ -15815,6 +16253,57 @@ CREATE POLICY notifications_select_member ON public.notifications FOR SELECT USI
 --
 
 CREATE POLICY notifications_update_member ON public.notifications FOR UPDATE USING (public.is_company_member(company_id));
+
+
+--
+-- Name: offer_amendment_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.offer_amendment_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: offer_amendment_items offer_amendment_items_manage_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY offer_amendment_items_manage_member ON public.offer_amendment_items TO authenticated USING ((EXISTS ( SELECT 1
+   FROM public.offer_amendments a
+  WHERE ((a.id = offer_amendment_items.amendment_id) AND public.is_company_member(a.company_id))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.offer_amendments a
+  WHERE ((a.id = offer_amendment_items.amendment_id) AND public.is_company_member(a.company_id)))));
+
+
+--
+-- Name: offer_amendments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.offer_amendments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: offer_amendments offer_amendments_delete_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY offer_amendments_delete_owner_admin ON public.offer_amendments FOR DELETE TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
+-- Name: offer_amendments offer_amendments_insert_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY offer_amendments_insert_member ON public.offer_amendments FOR INSERT TO authenticated WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: offer_amendments offer_amendments_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY offer_amendments_select_member ON public.offer_amendments FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: offer_amendments offer_amendments_update_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY offer_amendments_update_member ON public.offer_amendments FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
 
 
 --

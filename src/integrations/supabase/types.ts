@@ -3236,6 +3236,135 @@ export type Database = {
           },
         ]
       }
+      offer_amendments: {
+        Row: {
+          access_token: string
+          accepted_at: string | null
+          accepted_ip: string | null
+          amendment_number: number
+          auftrag_id: string | null
+          company_id: string
+          created_at: string
+          customer_id: string | null
+          customer_response_note: string | null
+          id: string
+          language: string
+          locked_at: string | null
+          offer_id: string
+          reason: string | null
+          rejected_at: string | null
+          sent_at: string | null
+          status: string
+          subtotal: number
+          title: string
+          total: number
+          updated_at: string
+          vat_amount: number
+          vat_rate: number
+          viewed_at: string | null
+        }
+        Insert: {
+          access_token?: string
+          accepted_at?: string | null
+          accepted_ip?: string | null
+          amendment_number?: number
+          auftrag_id?: string | null
+          company_id: string
+          created_at?: string
+          customer_id?: string | null
+          customer_response_note?: string | null
+          id?: string
+          language?: string
+          locked_at?: string | null
+          offer_id: string
+          reason?: string | null
+          rejected_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal?: number
+          title: string
+          updated_at?: string
+          vat_rate?: number
+          viewed_at?: string | null
+        }
+        Update: {
+          access_token?: string
+          accepted_at?: string | null
+          accepted_ip?: string | null
+          amendment_number?: number
+          auftrag_id?: string | null
+          company_id?: string
+          created_at?: string
+          customer_id?: string | null
+          customer_response_note?: string | null
+          id?: string
+          language?: string
+          locked_at?: string | null
+          offer_id?: string
+          reason?: string | null
+          rejected_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal?: number
+          title?: string
+          updated_at?: string
+          vat_rate?: number
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_amendments_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offer_amendment_items: {
+        Row: {
+          amendment_id: string
+          created_at: string
+          description: string
+          id: string
+          position: number
+          quantity: number
+          service_type: string | null
+          unit: string | null
+          unit_price: number
+        }
+        Insert: {
+          amendment_id: string
+          created_at?: string
+          description: string
+          id?: string
+          position?: number
+          quantity?: number
+          service_type?: string | null
+          unit?: string | null
+          unit_price?: number
+        }
+        Update: {
+          amendment_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          position?: number
+          quantity?: number
+          service_type?: string | null
+          unit?: string | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_amendment_items_amendment_id_fkey"
+            columns: ["amendment_id"]
+            isOneToOne: false
+            referencedRelation: "offer_amendments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offer_inventory_items: {
         Row: {
           assembly_time_minutes: number
@@ -6126,6 +6255,10 @@ export type Database = {
         }
         Returns: string
       }
+      create_offer_amendment: {
+        Args: { p_offer_id: string; p_title: string; p_reason?: string | null }
+        Returns: Json
+      }
       create_offer_revision: {
         Args: { p_offer_id: string; p_reason?: string | null }
         Returns: Json
@@ -6178,6 +6311,28 @@ export type Database = {
           customer_b_email: string | null
           customer_b_phone: string | null
           match_reason: string
+        }[]
+      }
+      get_amendment_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          id: string
+          amendment_number: number
+          title: string
+          reason: string | null
+          status: string
+          subtotal: number
+          vat_rate: number
+          vat_amount: number
+          total: number
+          language: string
+          sent_at: string | null
+          accepted_at: string | null
+          rejected_at: string | null
+          offer_title: string
+          offer_number: number
+          company_name: string
+          positionen: Json
         }[]
       }
       merge_customers: {
@@ -6710,6 +6865,10 @@ export type Database = {
       trigger_subscription_manager: { Args: never; Returns: undefined }
       trigger_team_reminder_for_appointment: {
         Args: { p_appointment_id: string }
+        Returns: boolean
+      }
+      update_amendment_by_token: {
+        Args: { p_token: string; p_new_status: string; p_note?: string | null; p_ip?: string | null }
         Returns: boolean
       }
       update_besichtigung_session_status: {

@@ -35,31 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  FileText,
-  Download,
-  Loader2,
-  User,
-  ArrowLeft,
-  Calendar,
-  CalendarIcon,
-  Mail,
-  Phone,
-  Trash2,
-  Copy,
-  ExternalLink,
-  Eye,
-  CheckCircle,
-  MessageSquare,
-  Building2,
-  Clock,
-  AlertCircle,
-  ShieldCheck,
-  Check,
-  History,
-  CalendarCheck,
-  ClipboardList,
-} from "lucide-react";
+import { FileText, Download, Loader2, User, ArrowLeft, Calendar, CalendarIcon, Mail, Phone, Trash2, Copy, ExternalLink, Eye, CheckCircle, MessageSquare, Building2, Clock, AlertCircle, ShieldCheck, Check, History, CalendarCheck, ClipboardList, Plus } from "lucide-react";
 import { Fragment, Suspense, lazy, useEffect, useState } from "react";
 import { groupItemsByService } from "@/lib/offerServiceType";
 import { format } from "date-fns";
@@ -569,6 +545,28 @@ const FirmaOfferteDetail = () => {
     }
   };
 
+  const [isCreatingNachtrag, setIsCreatingNachtrag] = useState(false);
+
+  const handleCreateNachtrag = async () => {
+    if (!offer) return;
+    setIsCreatingNachtrag(true);
+    const { data, error } = await supabase.rpc("create_offer_amendment", {
+      p_offer_id: offer.id,
+      p_title: t("nachtrag.title"),
+      p_reason: null,
+    });
+    setIsCreatingNachtrag(false);
+    if (error) {
+      toast({ title: t("common.error"), description: error.message, variant: "destructive" });
+      return;
+    }
+    const neu = (data as { nachtrag_id?: string } | null)?.nachtrag_id;
+    if (neu) {
+      toast({ title: t("nachtrag.created") });
+      navigate(`/firma/nachtrag/${neu}`);
+    }
+  };
+
   const handleDownloadPdf = async () => {
     const payload = buildOfferPayload();
     if (!payload) {
@@ -970,6 +968,20 @@ const FirmaOfferteDetail = () => {
                   <Copy className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">{t("offer.version.createRevision")}</span>
                   <span className="sm:hidden">{t("offer.version.createRevisionShort")}</span>
+                </Button>
+              )}
+              {/* Angenommen: der Umfang ist vereinbart. Aenderungen daran gehen
+                  nur ueber einen Nachtrag, dem der Kunde getrennt zustimmt. */}
+              {offer.status === "accepted" && (
+                <Button
+                  variant="outline"
+                  onClick={handleCreateNachtrag}
+                  disabled={isCreatingNachtrag}
+                  className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t("nachtrag.create")}</span>
+                  <span className="sm:hidden">{t("nachtrag.title")}</span>
                 </Button>
               )}
               {offer.status === "accepted" && (
