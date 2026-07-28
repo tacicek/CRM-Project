@@ -1168,6 +1168,37 @@ COMMENT ON FUNCTION public.cleanup_inbound_emails(p_rejected_days integer, p_fai
 
 
 --
+-- Name: companies_ensure_owner_membership(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.companies_ensure_owner_membership() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.user_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- ON CONFLICT DO NOTHING statt einer Existenzpruefung: zwei gleichzeitige
+  -- Anlagen laufen so hintereinander durch, ohne dass eine scheitert.
+  INSERT INTO public.company_members (company_id, user_id, role)
+  VALUES (NEW.id, NEW.user_id, 'owner')
+  ON CONFLICT (company_id, user_id) DO NOTHING;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION companies_ensure_owner_membership(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.companies_ensure_owner_membership() IS 'Legt die owner-Mitgliedschaft zusammen mit der Firma an. Ohne sie sieht der Eigentuemer in der Anwendung nichts — alle Policies und die Firmenaufloesung gehen ueber company_members, nicht ueber companies.user_id.';
+
+
+--
 -- Name: consume_rate_limit(text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12931,6 +12962,13 @@ CREATE TRIGGER trigger_calculate_duration BEFORE INSERT OR UPDATE ON public.appo
 
 
 --
+-- Name: companies trigger_companies_ensure_owner_membership; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_companies_ensure_owner_membership AFTER INSERT ON public.companies FOR EACH ROW EXECUTE FUNCTION public.companies_ensure_owner_membership();
+
+
+--
 -- Name: companies trigger_companies_guard_ownership; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14669,60 +14707,6 @@ CREATE POLICY "Can view ticket messages" ON public.support_ticket_messages FOR S
 
 
 --
--- Name: moving_calculation_presets Companies can manage their calculation presets; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Companies can manage their calculation presets" ON public.moving_calculation_presets USING ((EXISTS ( SELECT 1
-   FROM public.companies
-  WHERE ((companies.id = moving_calculation_presets.company_id) AND (companies.user_id = auth.uid())))));
-
-
---
--- Name: company_offer_settings Companies can manage their offer settings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Companies can manage their offer settings" ON public.company_offer_settings USING ((EXISTS ( SELECT 1
-   FROM public.companies
-  WHERE ((companies.id = company_offer_settings.company_id) AND (companies.user_id = auth.uid())))));
-
-
---
--- Name: company_reminder_settings Companies can manage their reminder settings; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Companies can manage their reminder settings" ON public.company_reminder_settings USING ((EXISTS ( SELECT 1
-   FROM public.companies
-  WHERE ((companies.id = company_reminder_settings.company_id) AND (companies.user_id = auth.uid())))));
-
-
---
--- Name: firma_resources Companies can manage their resources; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Companies can manage their resources" ON public.firma_resources USING ((EXISTS ( SELECT 1
-   FROM public.companies
-  WHERE ((companies.id = firma_resources.company_id) AND (companies.user_id = auth.uid())))));
-
-
---
--- Name: checklist_templates Companies can manage their templates; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Companies can manage their templates" ON public.checklist_templates USING ((EXISTS ( SELECT 1
-   FROM public.companies
-  WHERE ((companies.id = checklist_templates.company_id) AND (companies.user_id = auth.uid())))));
-
-
---
--- Name: leistungsuebersicht_templates Companies can manage their templates; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Companies can manage their templates" ON public.leistungsuebersicht_templates USING ((EXISTS ( SELECT 1
-   FROM public.companies
-  WHERE ((companies.id = leistungsuebersicht_templates.company_id) AND (companies.user_id = auth.uid())))));
-
-
---
 -- Name: admin_activity_log Owner can read all activity logs; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -15023,6 +15007,20 @@ ALTER TABLE public.blog_seo_performance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.checklist_templates ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: checklist_templates checklist_templates_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY checklist_templates_select_member ON public.checklist_templates FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: checklist_templates checklist_templates_write_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY checklist_templates_write_owner_admin ON public.checklist_templates TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
 -- Name: companies; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -15053,6 +15051,20 @@ ALTER TABLE public.company_members ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.company_offer_settings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: company_offer_settings company_offer_settings_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY company_offer_settings_select_member ON public.company_offer_settings FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: company_offer_settings company_offer_settings_write_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY company_offer_settings_write_owner_admin ON public.company_offer_settings TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
 
 --
 -- Name: company_offer_templates; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15161,6 +15173,20 @@ CREATE POLICY company_pricing_configs_update_member ON public.company_pricing_co
 --
 
 ALTER TABLE public.company_reminder_settings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: company_reminder_settings company_reminder_settings_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY company_reminder_settings_select_member ON public.company_reminder_settings FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: company_reminder_settings company_reminder_settings_write_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY company_reminder_settings_write_owner_admin ON public.company_reminder_settings TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
 
 --
 -- Name: company_secrets; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15287,6 +15313,20 @@ ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.firma_resources ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: firma_resources firma_resources_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY firma_resources_select_member ON public.firma_resources FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: firma_resources firma_resources_write_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY firma_resources_write_owner_admin ON public.firma_resources TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
 -- Name: inbound_emails; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -15403,6 +15443,20 @@ CREATE POLICY leads_update_company_or_admin ON public.leads FOR UPDATE TO authen
 ALTER TABLE public.leistungsuebersicht_templates ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: leistungsuebersicht_templates leistungsuebersicht_templates_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY leistungsuebersicht_templates_select_member ON public.leistungsuebersicht_templates FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: leistungsuebersicht_templates leistungsuebersicht_templates_write_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY leistungsuebersicht_templates_write_owner_admin ON public.leistungsuebersicht_templates TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
 -- Name: manual_imported_leads; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -15447,6 +15501,20 @@ ALTER TABLE public.moebellift_anfragen ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.moving_calculation_presets ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: moving_calculation_presets moving_calculation_presets_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY moving_calculation_presets_select_member ON public.moving_calculation_presets FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: moving_calculation_presets moving_calculation_presets_write_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY moving_calculation_presets_write_owner_admin ON public.moving_calculation_presets TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
 
 --
 -- Name: notifications; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15756,36 +15824,28 @@ ALTER TABLE public.rechnungen ENABLE ROW LEVEL SECURITY;
 -- Name: rechnungen rechnungen_company_delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rechnungen_company_delete ON public.rechnungen FOR DELETE USING ((company_id IN ( SELECT companies.id
-   FROM public.companies
-  WHERE (companies.user_id = auth.uid()))));
+CREATE POLICY rechnungen_company_delete ON public.rechnungen FOR DELETE TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
 
 
 --
 -- Name: rechnungen rechnungen_company_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rechnungen_company_insert ON public.rechnungen FOR INSERT WITH CHECK ((company_id IN ( SELECT companies.id
-   FROM public.companies
-  WHERE (companies.user_id = auth.uid()))));
+CREATE POLICY rechnungen_company_insert ON public.rechnungen FOR INSERT TO authenticated WITH CHECK (public.is_company_member(company_id));
 
 
 --
 -- Name: rechnungen rechnungen_company_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rechnungen_company_select ON public.rechnungen FOR SELECT USING ((company_id IN ( SELECT companies.id
-   FROM public.companies
-  WHERE (companies.user_id = auth.uid()))));
+CREATE POLICY rechnungen_company_select ON public.rechnungen FOR SELECT TO authenticated USING (public.is_company_member(company_id));
 
 
 --
 -- Name: rechnungen rechnungen_company_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY rechnungen_company_update ON public.rechnungen FOR UPDATE USING ((company_id IN ( SELECT companies.id
-   FROM public.companies
-  WHERE (companies.user_id = auth.uid()))));
+CREATE POLICY rechnungen_company_update ON public.rechnungen FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
 
 
 --

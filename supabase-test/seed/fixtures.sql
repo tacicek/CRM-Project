@@ -22,10 +22,16 @@ values
   ('b0000000-0000-4000-8000-0000000000c2','Test Reinigung GmbH','firma-b@example.test','Zürich','8000','b0000000-0000-4000-8000-000000000002');
 
 -- Membership (member path for leads/offers policies).
+--
+-- Seit 20260728170000 legt ein Trigger auf `companies` die owner-Mitgliedschaft
+-- selbst an — diese Zeilen sind deshalb in der Regel schon da. Sie bleiben
+-- trotzdem stehen: sie machen sichtbar, welche Mitgliedschaften die Fixtures
+-- voraussetzen, und tragen den Aufbau auch dann, wenn der Trigger einmal fehlt.
 insert into company_members (company_id, user_id, role)
 values
   ('a0000000-0000-4000-8000-0000000000c1','a0000000-0000-4000-8000-000000000001','owner'),
-  ('b0000000-0000-4000-8000-0000000000c2','b0000000-0000-4000-8000-000000000002','owner');
+  ('b0000000-0000-4000-8000-0000000000c2','b0000000-0000-4000-8000-000000000002','owner')
+on conflict (company_id, user_id) do nothing;
 
 -- Leads (one per tenant). `source` set explicitly: the prod column default
 -- ('website') violates leads_source_check — a latent schema inconsistency the

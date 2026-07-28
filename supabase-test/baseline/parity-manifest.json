@@ -1,7 +1,7 @@
 {
   "generated_from": "read-only prod --schema-only --schema=public dump (PostgreSQL 15.8), sanitized (siehe README)",
   "generated_at": "2026-07-28",
-  "covers_migrations_through": "20260728160000_lead_distributions_entfernen",
+  "covers_migrations_through": "20260728180000_mitgliedschaft_statt_eigentum",
   "counting_recipe": {
     "hinweis": "Bis 2026-07-28 war nicht festgehalten, WIE die Zahlen entstanden — enums stand auf 28, was weder den 15 Enum-Typen noch den 84 Enum-Werten entspricht, und check_constraints auf 388, was weder den 68 echten CHECKs noch den 437 inkl. NOT NULL entspricht. Die alten Werte sind deshalb NICHT mit diesen vergleichbar. Ab hier stehen die Abfragen dabei, damit die naechste Auffrischung nichts raten muss.",
     "enums": "SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typtype='e'  -- Typen, nicht Werte",
@@ -23,9 +23,9 @@
     "tables": 76,
     "views": 6,
     "indexes": 294,
-    "policies": 181,
-    "triggers": 66,
-    "functions": 157,
+    "policies": 187,
+    "triggers": 67,
+    "functions": 158,
     "foreign_keys": 108,
     "check_constraints": 68,
     "rls_enabled_tables": 76
@@ -147,8 +147,8 @@
     ]
   },
   "column_fingerprint_md5": "d1407e09eefde74befa343cb1e9644cd",
-  "policy_fingerprint_md5": "0e971722757ea3e00e11e9697f09b6b2",
-  "function_fingerprint_md5": "3765d5355596d87463b1b571643eb82c",
+  "policy_fingerprint_md5": "cbf21e006c47082b45196303cf7cd1c0",
+  "function_fingerprint_md5": "7b837a6a716ea29be0f90a70db143b5c",
   "deliberate_test_differences": {
     "grants": "standard Supabase default grants re-added (dump used --no-privileges); RLS NOT changed",
     "reason_stubs": "no-op bodies: these made external HTTP/vault/cron calls; signatures preserved so dependents resolve",
