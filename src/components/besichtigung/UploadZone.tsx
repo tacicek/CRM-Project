@@ -139,7 +139,7 @@ export function UploadZone({
         "transition-all duration-200",
         isDragActive
           ? "border-primary bg-primary/5 scale-[1.01]"
-          : "border-gray-300 bg-gray-50/50",
+          : "border-folk-line-hard bg-folk-bg-warm/50",
         // Desktop: entire zone is clickable
         "sm:cursor-pointer sm:hover:border-gray-400",
         isBusy && "opacity-60 pointer-events-none"
@@ -179,7 +179,7 @@ export function UploadZone({
       <div
         className={cn(
           "w-16 h-16 rounded-full flex items-center justify-center mb-4",
-          isDragActive ? "bg-primary/10" : "bg-gray-100"
+          isDragActive ? "bg-primary/10" : "bg-folk-bg-warm"
         )}
         style={isDragActive && primaryColor ? { backgroundColor: `${primaryColor}15` } : undefined}
       >
@@ -197,8 +197,8 @@ export function UploadZone({
 
       {/* Text */}
       <div className="text-center">
-        <p className="font-medium text-gray-700 mb-1">{statusText}</p>
-        <p className="text-sm text-gray-500 hidden sm:block">
+        <p className="font-medium text-folk-ink2 mb-1">{statusText}</p>
+        <p className="text-sm text-folk-ink3 hidden sm:block">
           Bilder hierher ziehen oder{" "}
           <span
             className="text-primary underline"
@@ -244,8 +244,8 @@ export function UploadZone({
           disabled={isBusy}
           className={cn(
             "flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl",
-            "bg-white border border-gray-300 text-gray-700 text-sm font-medium",
-            "hover:bg-gray-50 transition-colors",
+            "bg-folk-card border border-folk-line-hard text-folk-ink2 text-sm font-medium",
+            "hover:bg-folk-bg-warm transition-colors",
             isBusy && "opacity-50"
           )}
         >

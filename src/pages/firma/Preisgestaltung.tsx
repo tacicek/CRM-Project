@@ -328,7 +328,7 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
             type="checkbox"
             checked={isWeekend}
             onChange={(e) => setIsWeekend(e.target.checked)}
-            className="rounded border-gray-300 w-4 h-4 focus:ring-2 focus:ring-primary"
+            className="rounded border-folk-line-hard w-4 h-4 focus:ring-2 focus:ring-primary"
             aria-label={t('pricing.preview.weekendAria')}
           />
           <span>
@@ -342,7 +342,7 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
             type="checkbox"
             checked={hasPiano}
             onChange={(e) => setHasPiano(e.target.checked)}
-            className="rounded border-gray-300 w-4 h-4 focus:ring-2 focus:ring-primary"
+            className="rounded border-folk-line-hard w-4 h-4 focus:ring-2 focus:ring-primary"
             aria-label={t('pricing.preview.pianoAria')}
           />
           <span>
@@ -354,7 +354,7 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
             type="checkbox"
             checked={hasElevator}
             onChange={(e) => setHasElevator(e.target.checked)}
-            className="rounded border-gray-300 w-4 h-4 focus:ring-2 focus:ring-primary"
+            className="rounded border-folk-line-hard w-4 h-4 focus:ring-2 focus:ring-primary"
             aria-label={t('pricing.preview.elevator')}
           />
           <span>{t('pricing.preview.elevator')}</span>

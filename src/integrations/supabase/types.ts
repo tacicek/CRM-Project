@@ -7505,6 +7505,7 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: {
           overdue: number
+          urgent: number
           pickup_this_week: number
           pickup_today: number
           total_active: number

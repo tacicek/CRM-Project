@@ -99,7 +99,7 @@ const difficultyColor = (d: string | null) => {
     case "einfach": return "bg-emerald-100 text-emerald-700 border-emerald-200";
     case "mittel": return "bg-amber-100 text-amber-700 border-amber-200";
     case "schwierig": return "bg-red-100 text-red-700 border-red-200";
-    default: return "bg-gray-100 text-gray-700 border-gray-200";
+    default: return "bg-folk-bg-warm text-folk-ink2 border-folk-line";
   }
 };
 

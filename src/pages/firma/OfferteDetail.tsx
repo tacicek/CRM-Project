@@ -541,7 +541,11 @@ const FirmaOfferteDetail = () => {
     const neu = (data as { neue_offerte_id?: string } | null)?.neue_offerte_id;
     if (neu) {
       toast({ title: t("offer.version.created") });
-      navigate(`/firma/offerten/${neu}/bearbeiten`);
+      // The edit route is registered flat as `/firma/offerte-bearbeiten/:offerId`
+      // (App.tsx), not nested under `/firma/offerten/:id`. The nested spelling matched no
+      // route, so `/firma/offerten/<id>/bearbeiten` fell through to the catch-all and the
+      // operator landed on the 404 page — with the new version created but seemingly lost.
+      navigate(`/firma/offerte-bearbeiten/${neu}`);
     }
   };
 
@@ -1628,7 +1632,7 @@ const FirmaOfferteDetail = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="bg-white rounded-lg p-2 sm:p-3 border border-green-200">
+                      <div className="bg-folk-card rounded-lg p-2 sm:p-3 border border-green-200">
                         <div className="flex items-start gap-2">
                           <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 mt-0.5 shrink-0" />
                           <p className="text-xs sm:text-sm break-words text-green-700 font-medium">
@@ -1648,7 +1652,7 @@ const FirmaOfferteDetail = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 sm:space-y-3">
-                      <div className="bg-white rounded-lg p-2 sm:p-3 border border-blue-200">
+                      <div className="bg-folk-card rounded-lg p-2 sm:p-3 border border-blue-200">
                         <div className="flex items-start gap-2">
                           <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 mt-0.5 shrink-0" />
                           <p className="text-xs sm:text-sm break-words line-clamp-3">{offer.customer_response_note}</p>
@@ -1699,7 +1703,7 @@ const FirmaOfferteDetail = () => {
                           <CheckCircle className="w-3.5 h-3.5 shrink-0" />
                           <span className="font-medium">{t("offer.detail.agb.accepted")}</span>
                         </div>
-                        <div className="bg-white rounded-lg p-2 sm:p-3 border border-green-200 space-y-1.5">
+                        <div className="bg-folk-card rounded-lg p-2 sm:p-3 border border-green-200 space-y-1.5">
                           <div className="flex items-center gap-2 text-xs">
                             <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
                             <span className="text-muted-foreground">{t("offer.detail.agb.acceptedAt")}</span>

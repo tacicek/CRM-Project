@@ -276,7 +276,7 @@ export const NotificationDropdown = ({
             relative group p-2.5 rounded-xl
             bg-gradient-to-br from-slate-50 to-slate-100 
            
-            border border-slate-200
+            border border-folk-line
             shadow-sm hover:shadow-md
             transition-all duration-300 ease-out
             hover:scale-105 active:scale-95
@@ -291,7 +291,7 @@ export const NotificationDropdown = ({
         >
           {/* Bell icon with animation */}
           <Bell className={`
-            w-5 h-5 text-slate-600
+            w-5 h-5 text-folk-ink3
             transition-all duration-300
             ${isOpen ? 'text-secondary scale-110' : 'group-hover:text-secondary'}
             ${unreadCount > 0 ? 'animate-[wiggle_1s_ease-in-out_infinite]' : ''}
@@ -317,11 +317,11 @@ export const NotificationDropdown = ({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[420px] p-0 overflow-hidden bg-folk-card border border-slate-200 shadow-2xl rounded-xl"
+        className="w-[420px] p-0 overflow-hidden bg-folk-card border border-folk-line shadow-2xl rounded-xl"
         sideOffset={8}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 border-b border-slate-200">
+        <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 border-b border-folk-line">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-gradient-to-br from-secondary to-secondary/80 shadow-sm">
@@ -330,7 +330,7 @@ export const NotificationDropdown = ({
               <div>
                 <h3 className="font-semibold text-folk-ink text-sm">{t("nav.notifications")}</h3>
                 {unreadCount > 0 && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-folk-ink3">
                     {t("nav.notifications.unread", { count: unreadCount })}
                   </p>
                 )}
@@ -341,7 +341,7 @@ export const NotificationDropdown = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-xs text-slate-600 hover:text-folk-ink hover:bg-slate-200/50"
+                  className="h-7 px-2 text-xs text-folk-ink3 hover:text-folk-ink hover:bg-slate-200/50"
                   onClick={(e) => {
                     e.preventDefault();
                     onMarkAllAsRead();
@@ -373,7 +373,7 @@ export const NotificationDropdown = ({
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
               <Bell className="w-8 h-8 text-slate-400" />
             </div>
-            <p className="text-sm font-medium text-slate-600">{t("nav.notifications.empty")}</p>
+            <p className="text-sm font-medium text-folk-ink3">{t("nav.notifications.empty")}</p>
             <p className="text-xs text-slate-400 mt-1">{t("nav.notifications.emptyHint")}</p>
           </div>
         ) : (
@@ -392,7 +392,7 @@ export const NotificationDropdown = ({
                       hover:scale-[1.01] hover:shadow-md
                       ${!notification.read
                         ? `bg-gradient-to-r ${config.gradient} border-l-4 ${config.accentColor}`
-                        : 'bg-folk-card hover:bg-slate-50'
+                        : 'bg-folk-card hover:bg-folk-bg-warm'
                       }
                     `}
                     style={{
@@ -436,7 +436,7 @@ export const NotificationDropdown = ({
                           {notification.body && (
                             <p className={`
                               text-xs mt-1 line-clamp-2 leading-relaxed
-                              ${!notification.read ? 'text-slate-600' : 'text-slate-500'}
+                              ${!notification.read ? 'text-folk-ink3' : 'text-folk-ink3'}
                             `}>
                               {notification.body}
                             </p>
@@ -465,7 +465,7 @@ export const NotificationDropdown = ({
 
         {/* Footer */}
         {notifications.length > 0 && (
-          <div className="border-t border-slate-200 bg-slate-50 px-4 py-2">
+          <div className="border-t border-folk-line bg-folk-bg-warm px-4 py-2">
             <p className="text-[11px] text-slate-400 text-center">
               {t("nav.notifications.count", { count: notifications.length })}
             </p>

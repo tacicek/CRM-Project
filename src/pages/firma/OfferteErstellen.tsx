@@ -2389,7 +2389,7 @@ const FirmaOfferteErstellen = () => {
                       </div>
                       {/* Zuschläge (zwischen Zwischensumme und MwSt) */}
                       {surcharges.map((s, i) => (
-                        <div key={i} className="flex justify-between items-center text-xs sm:text-sm text-slate-600">
+                        <div key={i} className="flex justify-between items-center text-xs sm:text-sm text-folk-ink3">
                           <span className="shrink-0 truncate">{s.label || t("offer.form.totals.surcharge")}</span>
                           <span>{formatCurrency(computeSurchargeAmount(s, calculateSubtotal(), lead?.distance_km ?? null))}</span>
                         </div>
@@ -2397,7 +2397,7 @@ const FirmaOfferteErstellen = () => {
                       {/* Rabatt + Total exkl. MwSt (P3b-2c-ii, new_offer.png) — nur bei aktivem Rabatt */}
                       {parsedDiscountPercent !== null && parsedDiscountPercent > 0 && (
                         <>
-                          <div className="flex justify-between items-start text-xs sm:text-sm text-slate-600">
+                          <div className="flex justify-between items-start text-xs sm:text-sm text-folk-ink3">
                             <span className="shrink-0">
                               {t("offer.form.totals.discount", { percent: formatPercent(parsedDiscountPercent, locale) })}
                             </span>

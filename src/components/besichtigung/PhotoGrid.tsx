@@ -43,8 +43,8 @@ export function PhotoGrid({
               className={cn(
                 "relative group aspect-square rounded-lg overflow-hidden",
                 "border-2 transition-all duration-200",
-                isUploading ? "border-blue-300 bg-blue-50" : "border-gray-200 bg-gray-100",
-                !isUploading && "hover:border-gray-300 hover:shadow-md cursor-pointer"
+                isUploading ? "border-blue-300 bg-blue-50" : "border-folk-line bg-folk-bg-warm",
+                !isUploading && "hover:border-folk-line-hard hover:shadow-md cursor-pointer"
               )}
               onClick={() => !isUploading && setSelectedPhoto(photo)}
             >
@@ -101,7 +101,7 @@ export function PhotoGrid({
                       e.stopPropagation();
                       setSelectedPhoto(photo);
                     }}
-                    className="p-2 rounded-full bg-white/90 text-gray-700 hover:bg-white mr-2"
+                    className="p-2 rounded-full bg-white/90 text-folk-ink2 hover:bg-folk-card mr-2"
                   >
                     <ZoomIn className="w-5 h-5" />
                   </button>

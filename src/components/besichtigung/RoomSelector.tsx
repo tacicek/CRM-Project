@@ -30,7 +30,7 @@ export function RoomSelector({
               "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2",
               isSelected
                 ? "border-primary bg-primary/5 shadow-md"
-                : "border-gray-200 hover:border-gray-300 bg-white"
+                : "border-folk-line hover:border-folk-line-hard bg-folk-card"
             )}
             style={
               isSelected && primaryColor
@@ -50,7 +50,7 @@ export function RoomSelector({
             <span
               className={cn(
                 "text-sm font-medium text-center leading-tight",
-                isSelected ? "text-primary" : "text-gray-700"
+                isSelected ? "text-primary" : "text-folk-ink2"
               )}
               style={isSelected && primaryColor ? { color: primaryColor } : undefined}
             >

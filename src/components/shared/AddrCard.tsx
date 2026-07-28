@@ -12,7 +12,7 @@ import { splitStreetNr } from "@/lib/splitStreetNr";
 
 export interface PlzEntry { p: string; o: string; k: string; }
 
-const INPUT_CLS = "w-full h-10 bg-gray-50 border-[1.5px] border-gray-200 rounded-lg px-3 text-sm text-gray-900 outline-none transition-all hover:border-gray-300 focus:border-blue-500 focus:bg-white focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] placeholder:text-gray-300";
+const INPUT_CLS = "w-full h-10 bg-folk-bg-warm border-[1.5px] border-folk-line rounded-lg px-3 text-sm text-folk-ink outline-none transition-all hover:border-folk-line-hard focus:border-blue-500 focus:bg-folk-card focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] placeholder:text-gray-300";
 
 export interface AddrCardProps {
   label: string;
@@ -66,11 +66,11 @@ export function AddrCard({
   };
 
   return (
-    <div className={cn("bg-white border-[1.5px] rounded-xl transition-all", filled ? "border-green-400" : "border-gray-200", className)}>
+    <div className={cn("bg-folk-card border-[1.5px] rounded-xl transition-all", filled ? "border-green-400" : "border-folk-line", className)}>
       {(icon || label) && (
-        <div className="flex items-center gap-2 px-4 pt-3.5 pb-3 border-b border-gray-100 bg-gray-50/70 rounded-t-xl">
+        <div className="flex items-center gap-2 px-4 pt-3.5 pb-3 border-b border-gray-100 bg-folk-bg-warm/70 rounded-t-xl">
           {icon && <span>{icon}</span>}
-          <span className="text-[13px] font-semibold text-gray-700">{label}</span>
+          <span className="text-[13px] font-semibold text-folk-ink2">{label}</span>
         </div>
       )}
       <div className="p-4 space-y-3">
@@ -123,7 +123,7 @@ export function AddrCard({
             </div>
             {acOpenVal && acListVal.length > 0 && (
               <div
-                className="absolute top-full left-0 right-0 mt-1 bg-white border-[1.5px] border-blue-200 rounded-xl shadow-xl z-[500] max-h-48 overflow-y-auto"
+                className="absolute top-full left-0 right-0 mt-1 bg-folk-card border-[1.5px] border-blue-200 rounded-xl shadow-xl z-[500] max-h-48 overflow-y-auto"
                 onMouseDown={e => e.preventDefault()}
               >
                 {acListVal.map(e => (
@@ -133,7 +133,7 @@ export function AddrCard({
                     className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0 text-sm"
                   >
                     <span className="font-mono text-[11px] text-gray-400 w-9 flex-shrink-0">{e.p}</span>
-                    <span className="font-medium text-gray-800">{e.o}</span>
+                    <span className="font-medium text-folk-ink">{e.o}</span>
                     <span className="ml-auto text-[11px] text-gray-400">{e.k}</span>
                   </div>
                 ))}

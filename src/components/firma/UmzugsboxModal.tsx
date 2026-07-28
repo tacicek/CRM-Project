@@ -447,7 +447,7 @@ export const UmzugsboxModal = ({
           )}
 
           {/* Customer Info */}
-          <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
+          <div className="space-y-4 p-4 bg-folk-bg-warm rounded-lg">
             <div className="flex items-center gap-2 text-sm font-medium">
               <User className="w-4 h-4" />
               {t("boxModal.customerData")}
@@ -564,7 +564,7 @@ export const UmzugsboxModal = ({
           </div>
 
           {/* Box Details */}
-          <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
+          <div className="space-y-4 p-4 bg-folk-bg-warm rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Package className="w-4 h-4" />
@@ -710,7 +710,7 @@ export const UmzugsboxModal = ({
           )}
 
           {/* Dates */}
-          <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
+          <div className="space-y-4 p-4 bg-folk-bg-warm rounded-lg">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Calendar className="w-4 h-4" />
               {t("boxModal.dates")}
@@ -795,7 +795,7 @@ export const UmzugsboxModal = ({
 
           {/* Team Assignment */}
           {teamMembers.length > 0 && (
-            <div className="space-y-4 p-4 bg-slate-50 rounded-lg">
+            <div className="space-y-4 p-4 bg-folk-bg-warm rounded-lg">
               <div className="text-sm font-medium">{t("boxModal.teamAssignment")}</div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

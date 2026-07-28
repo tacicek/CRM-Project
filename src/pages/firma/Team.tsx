@@ -453,7 +453,7 @@ const TeamPage = () => {
                     return (
                       <div
                         key={member.id}
-                        className="group relative border rounded-2xl bg-white hover:shadow-lg hover:border-primary/20 transition-all duration-300 overflow-hidden"
+                        className="group relative border rounded-2xl bg-folk-card hover:shadow-lg hover:border-primary/20 transition-all duration-300 overflow-hidden"
                       >
                         <div className="p-5">
                           <div className="flex items-start gap-4">
@@ -464,7 +464,7 @@ const TeamPage = () => {
                               {/* FIX: Safe initial access */}
                               {getInitials(member.first_name, member.last_name)}
                               <div 
-                                className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-white shadow-sm flex items-center justify-center border-2 border-white"
+                                className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-folk-card shadow-sm flex items-center justify-center border-2 border-white"
                                 style={{ color: member.color_code }}
                               >
                                 <RoleIcon className="w-3.5 h-3.5" />

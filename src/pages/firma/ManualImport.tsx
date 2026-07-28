@@ -704,7 +704,7 @@ const FirmaManualImport = () => {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <div className="p-2 bg-folk-card rounded-lg shadow-sm">
                       {SERVICE_TYPE_ICONS[extractedData.detected_service_type] || <Package className="w-5 h-5" />}
                     </div>
                     <div>

@@ -135,6 +135,9 @@ const formatBoxItems = (rental: UmzugsboxRental, t: Translator): string => {
 interface BoxStats {
   total_active: number;
   overdue: number;
+  /** Heute oder frueher faellig — dieselbe Zahl wie das Abzeichen in der
+   *  Seitenleiste (20260802100000). Schliesst `overdue` mit ein. */
+  urgent: number;
   pickup_today: number;
   pickup_this_week: number;
   total_boxes_out: number;
@@ -163,7 +166,7 @@ const statusOptions: StatusOption[] = [
   { value: "in_use", color: "bg-yellow-500", textColor: "text-yellow-700" },
   { value: "pickup_requested", color: "bg-orange-500", textColor: "text-orange-700" },
   { value: "pickup_scheduled", color: "bg-purple-500", textColor: "text-purple-700" },
-  { value: "returned", color: "bg-gray-500", textColor: "text-gray-700" },
+  { value: "returned", color: "bg-gray-500", textColor: "text-folk-ink2" },
   { value: "lost", color: "bg-red-500", textColor: "text-red-700" },
   { value: "damaged", color: "bg-red-300", textColor: "text-red-700" },
 ];
@@ -285,7 +288,15 @@ export default function Umzugsboxen() {
     return rentals.filter((entry) => {
       const r = rentalRow(entry);
       if (!r.expected_return_date) return false;
-      if (["returned", "lost", "damaged"].includes(r.status)) return false;
+      // Dieselbe Statusmenge wie `urgent` in get_box_rental_stats
+      // (20260802100000). Vorher stand hier "alles ausser returned/lost/
+      // damaged", was auch `reserved` einschloss — eine Miete, die nie
+      // ausgeliefert wurde, kann aber nicht zur Abholung faellig sein. Das
+      // Abzeichen in der Seitenleiste zeigt diese Zahl; sie muessen
+      // uebereinstimmen.
+      if (!["delivered", "in_use", "pickup_requested", "pickup_scheduled"].includes(r.status)) {
+        return false;
+      }
       const daysUntil = differenceInDays(new Date(r.expected_return_date), new Date());
       return daysUntil <= 0;
     });
@@ -554,7 +565,7 @@ export default function Umzugsboxen() {
                   return (
                   <div
                     key={rental.id}
-                    className="flex flex-col gap-3 p-3 bg-white rounded-lg border border-red-200 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-3 p-3 bg-folk-card rounded-lg border border-red-200 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex items-start gap-3">
                       <div>

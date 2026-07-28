@@ -113,7 +113,7 @@ export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
     return (
       <div className={cn("flex flex-col gap-2", className)}>
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+          <p className="text-xs font-semibold text-folk-ink3 uppercase tracking-wide">
             {label}
           </p>
           {isSigned && signedAt && (
@@ -127,11 +127,11 @@ export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
         <div
           ref={containerRef}
           className={cn(
-            "relative border-2 rounded-xl overflow-hidden bg-white",
+            "relative border-2 rounded-xl overflow-hidden bg-folk-card",
             "h-36 sm:h-44",
             isSigned
               ? "border-emerald-400 bg-emerald-50/30"
-              : "border-dashed border-slate-300",
+              : "border-dashed border-folk-line-hard",
           )}
         >
           <canvas

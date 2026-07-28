@@ -488,18 +488,18 @@ const FirmaBesichtigungen = () => {
           label,
           icon: CalendarX,
           color: "from-slate-400 to-slate-500",
-          bgColor: "bg-slate-50",
-          textColor: "text-slate-600",
-          borderColor: "border-slate-200",
+          bgColor: "bg-folk-bg-warm",
+          textColor: "text-folk-ink3",
+          borderColor: "border-folk-line",
         };
       default:
         return {
           label,
           icon: Calendar,
           color: "from-gray-500 to-gray-600",
-          bgColor: "bg-gray-50",
-          textColor: "text-gray-700",
-          borderColor: "border-gray-200",
+          bgColor: "bg-folk-bg-warm",
+          textColor: "text-folk-ink2",
+          borderColor: "border-folk-line",
         };
     }
   };
@@ -1130,7 +1130,7 @@ const FirmaBesichtigungen = () => {
                       isExpired ? "bg-red-100 text-red-700 border-red-200" :
                       session.status === "pending" ? "bg-amber-100 text-amber-700 border-amber-200" :
                       session.status === "completed" ? "bg-blue-100 text-blue-700 border-blue-200" :
-                      "bg-gray-100 text-gray-700 border-gray-200";
+                      "bg-folk-bg-warm text-folk-ink2 border-folk-line";
 
                     const initials = session.customer_name
                       .split(" ")
@@ -1285,7 +1285,7 @@ const FirmaBesichtigungen = () => {
                   <Badge className={`${
                     selectedVirtualSession.status === "uploaded" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
                     selectedVirtualSession.status === "pending" ? "bg-amber-100 text-amber-700 border-amber-200" :
-                    "bg-gray-100 text-gray-700 border-gray-200"
+                    "bg-folk-bg-warm text-folk-ink2 border-folk-line"
                   } border`}>
                     {selectedVirtualSession.status === "uploaded" ? t("calendar.virtual.detail.status.uploaded") :
                      selectedVirtualSession.status === "pending" ? t("calendar.virtual.detail.status.pending") :
@@ -1459,7 +1459,7 @@ const FirmaBesichtigungen = () => {
                       selectedDetails.status === 'completed' 
                         ? 'bg-blue-100 text-blue-700 border-blue-200' 
                         : selectedDetails.status === 'cancelled'
-                        ? 'bg-gray-100 text-gray-600 border-gray-200'
+                        ? 'bg-folk-bg-warm text-folk-ink3 border-folk-line'
                         : selectedDetails.status === 'confirmed'
                         ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                         : 'bg-amber-100 text-amber-700 border-amber-200'

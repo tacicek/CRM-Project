@@ -1077,7 +1077,7 @@ const FirmaCheckliste = () => {
                 Checklisten-Vorschau
               </DialogTitle>
             </DialogHeader>
-            <div className="border rounded-xl p-6 bg-white">
+            <div className="border rounded-xl p-6 bg-folk-card">
               <h2 className="text-2xl font-bold mb-2">{title || "Titel"}</h2>
               {subtitle && <p className="text-muted-foreground mb-6">{subtitle}</p>}
               

@@ -18,7 +18,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         caption_label: "text-sm font-bold text-folk-ink",
         nav: "flex items-center gap-1",
         nav_button: cn(
-          "h-7 w-7 rounded-md border border-gray-200 bg-folk-card flex items-center justify-center text-gray-500 hover:border-folk-line-hard hover:bg-indigo-50 hover:text-indigo-600 transition-all",
+          "h-7 w-7 rounded-md border border-folk-line bg-folk-card flex items-center justify-center text-folk-ink3 hover:border-folk-line-hard hover:bg-indigo-50 hover:text-indigo-600 transition-all",
         ),
         nav_button_previous: "",
         nav_button_next: "",

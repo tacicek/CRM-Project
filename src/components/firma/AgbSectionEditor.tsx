@@ -825,7 +825,7 @@ export const AgbSectionEditor = ({
                   </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="h-[60vh] pr-4">
-                  <div className="bg-white border rounded-lg p-6 shadow-sm">
+                  <div className="bg-folk-card border rounded-lg p-6 shadow-sm">
                     {/* Preview chrome — operator-facing. The section title/content below stay
                         as authored in the DB: they are the CUSTOMER's document text. */}
                     <div className="bg-primary text-primary-foreground rounded-md px-4 py-3 mb-6 text-center">

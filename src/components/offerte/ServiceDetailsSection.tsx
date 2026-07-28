@@ -103,7 +103,7 @@ const _InfoRow = ({ label, value, icon: Icon }: { label: string; value: string |
 const _BooleanBadge = ({ value, labelTrue, labelFalse }: { value: boolean | undefined | null; labelTrue: string; labelFalse: string }) => {
   if (value === undefined || value === null) return null;
   return (
-    <Badge variant={value ? "default" : "secondary"} className={`text-xs ${value ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+    <Badge variant={value ? "default" : "secondary"} className={`text-xs ${value ? "bg-green-100 text-green-700" : "bg-folk-bg-warm text-folk-ink3"}`}>
       {value ? <CheckCircle className="w-3 h-3 mr-1" /> : <XCircle className="w-3 h-3 mr-1" />}
       {value ? labelTrue : labelFalse}
     </Badge>
@@ -153,19 +153,19 @@ const DetailedReinigungSection = ({ data: _data }: { data: ReinigungAnfrage }) =
         <SectionHeader icon={Home} title={t("offer.leadDetail.section.object")} color="text-purple-600" />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {unterkunft && (
-            <div className="text-center p-2 bg-white rounded border">
+            <div className="text-center p-2 bg-folk-card rounded border">
               <p className="text-xs text-muted-foreground">{t("offer.leadDetail.field.accommodation")}</p>
               <p className="font-bold text-purple-600">{unterkunftLabel(unterkunft)}</p>
             </div>
           )}
           {zimmer && (
-            <div className="text-center p-2 bg-white rounded border">
+            <div className="text-center p-2 bg-folk-card rounded border">
               <p className="text-xs text-muted-foreground">{t("offer.leadDetail.field.rooms")}</p>
               <p className="font-bold text-purple-600">{String(zimmer)}</p>
             </div>
           )}
           {m2 && (
-            <div className="text-center p-2 bg-white rounded border">
+            <div className="text-center p-2 bg-folk-card rounded border">
               <p className="text-xs text-muted-foreground">{t("offer.leadDetail.field.area")}</p>
               <p className="font-bold text-purple-600">{m2} m²</p>
             </div>
@@ -179,13 +179,13 @@ const DetailedReinigungSection = ({ data: _data }: { data: ReinigungAnfrage }) =
           <SectionHeader icon={Bath} title={t("offer.leadDetail.section.wetRooms")} color="text-cyan-600" />
           <div className="grid grid-cols-2 gap-2 text-center">
             {bad !== undefined && (
-              <div className="p-2 bg-white rounded border">
+              <div className="p-2 bg-folk-card rounded border">
                 <p className="text-lg font-bold text-cyan-600">{bad}</p>
                 <p className="text-xs text-muted-foreground">{t("offer.leadDetail.field.bathroomsShort")}</p>
               </div>
             )}
             {wc !== undefined && (
-              <div className="p-2 bg-white rounded border">
+              <div className="p-2 bg-folk-card rounded border">
                 <p className="text-lg font-bold text-cyan-600">{wc}</p>
                 <p className="text-xs text-muted-foreground">{t("offer.leadDetail.field.toilet")}</p>
               </div>
@@ -199,8 +199,8 @@ const DetailedReinigungSection = ({ data: _data }: { data: ReinigungAnfrage }) =
         <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
           <SectionHeader icon={Building} title={t("offer.leadDetail.section.extraRooms")} color="text-blue-600" />
           <div className="flex flex-wrap gap-2">
-            {rooms?.map(r => <Badge key={r} variant="outline" className="bg-white">{r}</Badge>)}
-            {balkon && !rooms?.includes("balkon") && <Badge variant="outline" className="bg-white">{t("offer.leadDetail.badge.balcony")}</Badge>}
+            {rooms?.map(r => <Badge key={r} variant="outline" className="bg-folk-card">{r}</Badge>)}
+            {balkon && !rooms?.includes("balkon") && <Badge variant="outline" className="bg-folk-card">{t("offer.leadDetail.badge.balcony")}</Badge>}
           </div>
         </div>
       )}
@@ -210,10 +210,10 @@ const DetailedReinigungSection = ({ data: _data }: { data: ReinigungAnfrage }) =
         <div className="p-3 bg-sky-50 rounded-lg border border-sky-100">
           <SectionHeader icon={Wind} title={t("offer.leadDetail.section.windows")} color="text-sky-600" />
           <div className="flex flex-wrap gap-2">
-            {fenNormal > 0 && <Badge variant="outline" className="bg-white">{t("offer.leadDetail.badge.normalWindow", { count: fenNormal })}</Badge>}
-            {fenGross > 0 && <Badge variant="outline" className="bg-white">{t("offer.leadDetail.badge.largeWindow", { count: fenGross })}</Badge>}
-            {fenTuer > 0 && <Badge variant="outline" className="bg-white">{t("offer.leadDetail.badge.doorWindow", { count: fenTuer })}</Badge>}
-            {storenCount !== undefined && storenCount > 0 && <Badge variant="outline" className="bg-white">{t("offer.leadDetail.badge.shutters", { count: storenCount })}</Badge>}
+            {fenNormal > 0 && <Badge variant="outline" className="bg-folk-card">{t("offer.leadDetail.badge.normalWindow", { count: fenNormal })}</Badge>}
+            {fenGross > 0 && <Badge variant="outline" className="bg-folk-card">{t("offer.leadDetail.badge.largeWindow", { count: fenGross })}</Badge>}
+            {fenTuer > 0 && <Badge variant="outline" className="bg-folk-card">{t("offer.leadDetail.badge.doorWindow", { count: fenTuer })}</Badge>}
+            {storenCount !== undefined && storenCount > 0 && <Badge variant="outline" className="bg-folk-card">{t("offer.leadDetail.badge.shutters", { count: storenCount })}</Badge>}
           </div>
         </div>
       )}
@@ -322,15 +322,15 @@ const DetailedUmzugSection = ({ data }: { data: UmzugAnfrage }) => {
         <div className="p-2 sm:p-3 bg-blue-50 rounded-lg border border-blue-100">
           <SectionHeader icon={Calendar} title={t("offer.leadDetail.section.moveDetails")} color="text-blue-600" />
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center">
-            <div className="p-1.5 sm:p-2 bg-white rounded border">
+            <div className="p-1.5 sm:p-2 bg-folk-card rounded border">
               <p className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.leadDetail.field.date")}</p>
               <p className="font-bold text-blue-600 text-xs sm:text-sm">{data.umzug_details.datum ? format(new Date(data.umzug_details.datum), "dd.MM.yyyy", { locale: dateLocale }) : '-'}</p>
             </div>
-            <div className="p-1.5 sm:p-2 bg-white rounded border">
+            <div className="p-1.5 sm:p-2 bg-folk-card rounded border">
               <p className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.leadDetail.field.flexibility")}</p>
               <p className="font-bold text-blue-600 text-[10px] sm:text-xs">{data.umzug_details.flexibilitaet?.replace('flex_', '±').replace('_', ' ')}</p>
             </div>
-            <div className="p-1.5 sm:p-2 bg-white rounded border">
+            <div className="p-1.5 sm:p-2 bg-folk-card rounded border">
               <p className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.leadDetail.field.startTime")}</p>
               <p className="font-bold text-blue-600 text-xs sm:text-sm">{data.umzug_details.startzeit || t("offer.leadDetail.value.flexible")}</p>
             </div>
@@ -345,15 +345,15 @@ const DetailedUmzugSection = ({ data }: { data: UmzugAnfrage }) => {
 
           {/* Summary Stats */}
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center mb-3 sm:mb-4">
-            <div className="p-1.5 sm:p-2 bg-white rounded border">
+            <div className="p-1.5 sm:p-2 bg-folk-card rounded border">
               <p className="text-base sm:text-lg font-bold text-orange-600">{data.inventar.geschaetzte_kartons || 0}</p>
               <p className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.leadDetail.field.boxes")}</p>
             </div>
-            <div className="p-1.5 sm:p-2 bg-white rounded border">
+            <div className="p-1.5 sm:p-2 bg-folk-card rounded border">
               <p className="text-base sm:text-lg font-bold text-purple-600">{data.inventar.items?.reduce((sum, item) => sum + item.anzahl, 0) || 0}</p>
               <p className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.leadDetail.field.furniture")}</p>
             </div>
-            <div className="p-1.5 sm:p-2 bg-white rounded border">
+            <div className="p-1.5 sm:p-2 bg-folk-card rounded border">
               <p className="text-base sm:text-lg font-bold text-red-600">{data.inventar.schwere_gegenstaende?.filter(i => i.anzahl > 0).length || 0}</p>
               <p className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.leadDetail.field.special")}</p>
             </div>
@@ -369,7 +369,7 @@ const DetailedUmzugSection = ({ data }: { data: UmzugAnfrage }) => {
             if (boxItems.length === 0 && !data.inventar.geschaetzte_kartons) return null;
             
             return (
-              <div className="mb-4 p-3 bg-white rounded-lg border">
+              <div className="mb-4 p-3 bg-folk-card rounded-lg border">
                 <p className="text-xs font-semibold text-orange-700 mb-2 flex items-center gap-1">
                   {t("offer.leadDetail.boxesDetail", { count: data.inventar.geschaetzte_kartons || boxItems.reduce((s, i) => s + i.anzahl, 0) })}
                 </p>
@@ -445,7 +445,7 @@ const DetailedUmzugSection = ({ data }: { data: UmzugAnfrage }) => {
                     catItems.forEach(i => usedItems.add(i.name));
 
                     return (
-                      <div key={cat.labelKey} className="p-2 bg-white rounded-lg border">
+                      <div key={cat.labelKey} className="p-2 bg-folk-card rounded-lg border">
                         <p className="text-[10px] text-muted-foreground font-bold mb-2">{cat.icon} {t(cat.labelKey)}</p>
                         <div className="space-y-1">
                           {catItems.map((item, idx) => (
@@ -464,7 +464,7 @@ const DetailedUmzugSection = ({ data }: { data: UmzugAnfrage }) => {
                     const uncategorized = consolidated.filter(item => !usedItems.has(item.name));
                     if (uncategorized.length === 0) return null;
                     return (
-                      <div className="p-2 bg-white rounded-lg border">
+                      <div className="p-2 bg-folk-card rounded-lg border">
                         <p className="text-[10px] text-muted-foreground font-bold mb-2">{t("offer.leadDetail.category.more")}</p>
                         <div className="space-y-1">
                           {uncategorized.map((item, idx) => (
@@ -490,7 +490,7 @@ const DetailedUmzugSection = ({ data }: { data: UmzugAnfrage }) => {
           <SectionHeader icon={AlertTriangle} title={t("offer.leadDetail.section.paidExtras")} color="text-red-600" />
           <div className="space-y-2">
             {data.inventar.schwere_gegenstaende.filter(item => item.anzahl > 0).map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border border-red-100">
+              <div key={idx} className="flex items-center justify-between p-2 bg-folk-card rounded border border-red-100">
                 <div className="flex items-center gap-2">
                   <Badge variant="destructive" className="text-xs">{item.anzahl}x</Badge>
                   <span className="font-medium text-sm">{item.name}</span>
@@ -516,7 +516,7 @@ const DetailedUmzugSection = ({ data }: { data: UmzugAnfrage }) => {
           <SectionHeader icon={Wrench} title={t("offer.leadDetail.section.extraServices")} color="text-green-600" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {data.zusatzleistungen.verpackung?.aktiv && (
-              <div className="flex items-center gap-2 p-2 bg-white rounded border">
+              <div className="flex items-center gap-2 p-2 bg-folk-card rounded border">
                 <Package className="w-4 h-4 text-green-600" />
                 <span className="text-sm">
                   {t("offer.leadDetail.packing", {
@@ -528,31 +528,31 @@ const DetailedUmzugSection = ({ data }: { data: UmzugAnfrage }) => {
               </div>
             )}
             {data.zusatzleistungen.auspacken && (
-              <div className="flex items-center gap-2 p-2 bg-white rounded border">
+              <div className="flex items-center gap-2 p-2 bg-folk-card rounded border">
                 <Box className="w-4 h-4 text-green-600" />
                 <span className="text-sm">{t("offer.leadDetail.unpacking")}</span>
               </div>
             )}
             {data.zusatzleistungen.moebelmontage && (
-              <div className="flex items-center gap-2 p-2 bg-white rounded border">
+              <div className="flex items-center gap-2 p-2 bg-folk-card rounded border">
                 <Wrench className="w-4 h-4 text-green-600" />
                 <span className="text-sm">{t("offer.leadDetail.furnitureAssembly")}</span>
               </div>
             )}
             {data.zusatzleistungen.endreinigung && (
-              <div className="flex items-center gap-2 p-2 bg-white rounded border">
+              <div className="flex items-center gap-2 p-2 bg-folk-card rounded border">
                 <Sparkles className="w-4 h-4 text-green-600" />
                 <span className="text-sm">{t("offer.leadDetail.finalCleaning")}</span>
               </div>
             )}
             {data.zusatzleistungen.entsorgung?.aktiv && (
-              <div className="flex items-center gap-2 p-2 bg-white rounded border">
+              <div className="flex items-center gap-2 p-2 bg-folk-card rounded border">
                 <Trash2 className="w-4 h-4 text-green-600" />
                 <span className="text-sm">{t("offer.leadDetail.disposalWithVolume", { volume: data.zusatzleistungen.entsorgung.volumen_m3 })}</span>
               </div>
             )}
             {data.zusatzleistungen.zwischenlagerung?.aktiv && (
-              <div className="flex items-center gap-2 p-2 bg-white rounded border">
+              <div className="flex items-center gap-2 p-2 bg-folk-card rounded border">
                 <Warehouse className="w-4 h-4 text-green-600" />
                 <span className="text-sm">{t("offer.leadDetail.interimStorage", { weeks: data.zusatzleistungen.zwischenlagerung.dauer_wochen })}</span>
               </div>
@@ -650,7 +650,7 @@ const DetailedRaeumungSection = ({ data: _data }: { data: RaeumungAnfrage }) => 
           <div className="flex flex-wrap gap-2">
             {entCats.map(c => <Badge key={c} variant="outline">{c}</Badge>)}
             {menge && <Badge variant="outline">{t("offer.leadDetail.field.amount", { value: menge })}</Badge>}
-            {eAdresse && <p className="w-full text-sm text-gray-600 mt-1">{t("offer.leadDetail.field.pickupAddress", { address: eAdresse })}</p>}
+            {eAdresse && <p className="w-full text-sm text-folk-ink3 mt-1">{t("offer.leadDetail.field.pickupAddress", { address: eAdresse })}</p>}
           </div>
         </div>
       )}
@@ -785,7 +785,7 @@ const DetailedMoebelliftSection = ({ data: _data }: { data: MoebelliftAnfrage })
   return (
     <div className="space-y-4">
       {/* Einsatz-Details */}
-      <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+      <div className="p-3 bg-indigo-50 rounded-lg border border-folk-line">
         <SectionHeader icon={MoveUp} title={t("offer.leadDetail.section.liftDeployment")} color="text-indigo-600" />
         <div className="flex flex-wrap gap-2">
           {zweck && <Badge className="bg-indigo-100 text-indigo-700">{purposeLabelKeys[zweck] ? t(purposeLabelKeys[zweck]) : zweck}</Badge>}
@@ -886,8 +886,8 @@ const DetailedLagerungSection = ({ data }: { data: LagerungAnfrage | Record<stri
 
       {/* Was eingelagert werden soll */}
       {wasText && (
-        <div className="p-3 bg-gray-50 rounded-lg border">
-          <SectionHeader icon={Box} title={t("offer.leadDetail.section.storageContents")} color="text-gray-600" />
+        <div className="p-3 bg-folk-bg-warm rounded-lg border">
+          <SectionHeader icon={Box} title={t("offer.leadDetail.section.storageContents")} color="text-folk-ink3" />
           <p className="text-sm text-muted-foreground">{wasText}</p>
         </div>
       )}
@@ -924,9 +924,9 @@ const DetailedSpezialTransportSection = ({ data }: { data: Record<string, unknow
       {kat && (
         <div className="p-3 bg-violet-50 rounded-lg border border-violet-100">
           <p className="text-xs font-semibold text-violet-700 uppercase tracking-wider mb-1">{t("offer.leadDetail.field.category")}</p>
-          <p className="text-sm font-medium text-gray-800">{kat}</p>
+          <p className="text-sm font-medium text-folk-ink">{kat}</p>
           {detailAnswer !== null && detailAnswer !== undefined && (
-            <p className="text-sm text-gray-600 mt-1">{t("offer.leadDetail.field.detail", { value: formatDetail(detailAnswer) })}</p>
+            <p className="text-sm text-folk-ink3 mt-1">{t("offer.leadDetail.field.detail", { value: formatDetail(detailAnswer) })}</p>
           )}
         </div>
       )}
@@ -936,20 +936,20 @@ const DetailedSpezialTransportSection = ({ data }: { data: Record<string, unknow
         {vonAdresse && (
           <div className="p-3 bg-orange-50 rounded-lg border border-orange-100">
             <p className="text-xs font-semibold text-orange-700 uppercase tracking-wider mb-1">{t("offer.leadDetail.section.pickup")}</p>
-            <p className="text-sm text-gray-700">{vonAdresse}</p>
-            {data.vonStock && <p className="text-xs text-gray-500 mt-0.5">{t("offer.leadDetail.field.floorLabel", { value: String(data.vonStock) })}</p>}
+            <p className="text-sm text-folk-ink2">{vonAdresse}</p>
+            {data.vonStock && <p className="text-xs text-folk-ink3 mt-0.5">{t("offer.leadDetail.field.floorLabel", { value: String(data.vonStock) })}</p>}
             {typeof data.vonLift === "boolean" && (
-              <p className="text-xs text-gray-500">{t("offer.leadDetail.field.liftLabel", { value: data.vonLift ? t("offer.leadDetail.value.yes") : t("offer.leadDetail.value.no") })}</p>
+              <p className="text-xs text-folk-ink3">{t("offer.leadDetail.field.liftLabel", { value: data.vonLift ? t("offer.leadDetail.value.yes") : t("offer.leadDetail.value.no") })}</p>
             )}
           </div>
         )}
         {nachAdresse && (
           <div className="p-3 bg-green-50 rounded-lg border border-green-100">
             <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">{t("offer.leadDetail.section.delivery")}</p>
-            <p className="text-sm text-gray-700">{nachAdresse}</p>
-            {data.nachStock && <p className="text-xs text-gray-500 mt-0.5">{t("offer.leadDetail.field.floorLabel", { value: String(data.nachStock) })}</p>}
+            <p className="text-sm text-folk-ink2">{nachAdresse}</p>
+            {data.nachStock && <p className="text-xs text-folk-ink3 mt-0.5">{t("offer.leadDetail.field.floorLabel", { value: String(data.nachStock) })}</p>}
             {typeof data.nachLift === "boolean" && (
-              <p className="text-xs text-gray-500">{t("offer.leadDetail.field.liftLabel", { value: data.nachLift ? t("offer.leadDetail.value.yes") : t("offer.leadDetail.value.no") })}</p>
+              <p className="text-xs text-folk-ink3">{t("offer.leadDetail.field.liftLabel", { value: data.nachLift ? t("offer.leadDetail.value.yes") : t("offer.leadDetail.value.no") })}</p>
             )}
           </div>
         )}
@@ -1084,14 +1084,14 @@ const GenericDetailedSection = ({ data, serviceType }: { data: Record<string, un
 
       {/* Other Details */}
       {otherFields.length > 0 && (
-        <div className="p-3 bg-gray-50 rounded-lg border">
-          <SectionHeader icon={Info} title={t("offer.leadDetail.section.otherDetails")} color="text-gray-600" />
+        <div className="p-3 bg-folk-bg-warm rounded-lg border">
+          <SectionHeader icon={Info} title={t("offer.leadDetail.section.otherDetails")} color="text-folk-ink3" />
           <div className="grid grid-cols-2 gap-2 text-sm">
             {otherFields.map(([key, value]) => (
               <div key={key} className={typeof value === "object" ? "col-span-2" : ""}>
                 <span className="text-xs text-muted-foreground">{formatLabel(key)}:</span>
                 {typeof value === "object" && !Array.isArray(value) ? (
-                  <pre className="text-xs bg-white p-2 rounded mt-1 overflow-auto max-h-32">{formatValue(value)}</pre>
+                  <pre className="text-xs bg-folk-card p-2 rounded mt-1 overflow-auto max-h-32">{formatValue(value)}</pre>
                 ) : (
                   <p className="font-medium">{formatValue(value)}</p>
                 )}
@@ -1200,10 +1200,10 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
                   }
                 </p>
                 <div className="flex flex-wrap gap-1 text-xs">
-                  {typeof d.von_stock === "number" && <span className="px-1.5 py-0.5 rounded bg-white border border-amber-200">{stockLabel(d.von_stock)}</span>}
-                  <span className="px-1.5 py-0.5 rounded bg-white border border-amber-200">{d.von_lift ? t("offer.leadDetail.newWizard.lift") : t("offer.leadDetail.newWizard.noLift")}</span>
-                  {d.von_zimmer && <span className="px-1.5 py-0.5 rounded bg-white border border-amber-200">{t("offer.leadDetail.newWizard.rooms", { count: String(d.von_zimmer) })}</span>}
-                  {d.von_m2 ? <span className="px-1.5 py-0.5 rounded bg-white border border-amber-200">{String(d.von_m2)} m²</span> : null}
+                  {typeof d.von_stock === "number" && <span className="px-1.5 py-0.5 rounded bg-folk-card border border-amber-200">{stockLabel(d.von_stock)}</span>}
+                  <span className="px-1.5 py-0.5 rounded bg-folk-card border border-amber-200">{d.von_lift ? t("offer.leadDetail.newWizard.lift") : t("offer.leadDetail.newWizard.noLift")}</span>
+                  {d.von_zimmer && <span className="px-1.5 py-0.5 rounded bg-folk-card border border-amber-200">{t("offer.leadDetail.newWizard.rooms", { count: String(d.von_zimmer) })}</span>}
+                  {d.von_m2 ? <span className="px-1.5 py-0.5 rounded bg-folk-card border border-amber-200">{String(d.von_m2)} m²</span> : null}
                 </div>
               </div>
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg space-y-1.5">
@@ -1218,8 +1218,8 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
                         }
                       </p>
                       <div className="flex flex-wrap gap-1 text-xs">
-                        {typeof d.nach_stock === "number" && <span className="px-1.5 py-0.5 rounded bg-white border border-green-200">{stockLabel(d.nach_stock)}</span>}
-                        <span className="px-1.5 py-0.5 rounded bg-white border border-green-200">{d.nach_lift ? t("offer.leadDetail.newWizard.lift") : t("offer.leadDetail.newWizard.noLift")}</span>
+                        {typeof d.nach_stock === "number" && <span className="px-1.5 py-0.5 rounded bg-folk-card border border-green-200">{stockLabel(d.nach_stock)}</span>}
+                        <span className="px-1.5 py-0.5 rounded bg-folk-card border border-green-200">{d.nach_lift ? t("offer.leadDetail.newWizard.lift") : t("offer.leadDetail.newWizard.noLift")}</span>
                       </div>
                     </>
                 }
@@ -1231,11 +1231,11 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
                 <p className="text-[10px] text-slate-400 mb-0.5">{t("offer.leadDetail.newWizard.scope")}</p>
                 <p className="font-semibold text-sm text-blue-700">{volLabelKeys[String(d.vol)] ? t(volLabelKeys[String(d.vol)]) : t("offer.leadDetail.noValue")}</p>
               </div>
-              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+              <div className="p-2 rounded-lg bg-folk-bg-warm border border-slate-100">
                 <p className="text-[10px] text-slate-400 mb-0.5">{t("offer.leadDetail.newWizard.date")}</p>
                 <p className="font-semibold text-sm">{d.dateUnknown ? t("offer.leadDetail.newWizard.dateOpen") : lead.preferred_date ? format(new Date(lead.preferred_date), "dd.MM.yyyy", { locale: dateLocale }) : t("offer.leadDetail.noValue")}</p>
               </div>
-              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+              <div className="p-2 rounded-lg bg-folk-bg-warm border border-slate-100">
                 <p className="text-[10px] text-slate-400 mb-0.5">{t("offer.leadDetail.newWizard.flexibility")}</p>
                 <p className="font-semibold text-xs">{flexLabelKeys[String(lead.moving_flexibility || d.flex)] ? t(flexLabelKeys[String(lead.moving_flexibility || d.flex)]) : t("offer.leadDetail.noValue")}</p>
               </div>
@@ -1246,7 +1246,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
                 <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">{t("offer.leadDetail.newWizard.heavyItems")}</p>
                 <div className="flex flex-wrap gap-1">
                   {((svc.sperrgut as Record<string,unknown>)?.items as string[] || []).map((item: string) => (
-                    <span key={item} className="px-1.5 py-0.5 rounded bg-white border border-amber-200 text-xs">{item}</span>
+                    <span key={item} className="px-1.5 py-0.5 rounded bg-folk-card border border-amber-200 text-xs">{item}</span>
                   ))}
                 </div>
               </div>
@@ -1322,7 +1322,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
 
             {/* Customer Remarks */}
             {lead.description && (
-              <div className="p-3 bg-white rounded-lg border border-secondary/10 shadow-sm">
+              <div className="p-3 bg-folk-card rounded-lg border border-secondary/10 shadow-sm">
                 <div className="flex items-center gap-2 mb-1.5 text-muted-foreground">
                   <Package className="w-3.5 h-3.5" />
                   <span className="text-[10px] font-bold uppercase tracking-wider">{t("offer.leadDetail.customerNote")}</span>
@@ -1361,7 +1361,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
             {/* Addresses */}
             {isMovingService && lead.to_city ? (
               <div className="space-y-2 sm:space-y-0 sm:grid sm:gap-4 sm:grid-cols-2">
-                <div className="p-3 rounded-lg bg-white border border-secondary/10 shadow-sm">
+                <div className="p-3 rounded-lg bg-folk-card border border-secondary/10 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <MapPin className="w-4 h-4 text-red-500" />
                     <h4 className="font-bold text-xs sm:text-sm uppercase tracking-wider text-muted-foreground">{t("domain.address.umzug.primary")}</h4>
@@ -1375,7 +1375,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
                   </div>
                 </div>
 
-                <div className="p-3 rounded-lg bg-white border border-secondary/10 shadow-sm">
+                <div className="p-3 rounded-lg bg-folk-card border border-secondary/10 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <MapPin className="w-4 h-4 text-green-500" />
                     <h4 className="font-bold text-xs sm:text-sm uppercase tracking-wider text-muted-foreground">{t("domain.address.umzug.secondary")}</h4>
@@ -1390,7 +1390,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
                 </div>
               </div>
             ) : (
-              <div className="p-3 rounded-lg bg-white border border-secondary/10 shadow-sm">
+              <div className="p-3 rounded-lg bg-folk-card border border-secondary/10 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <MapPin className="w-4 h-4 text-secondary" />
                   <h4 className="font-bold text-xs sm:text-sm uppercase tracking-wider text-muted-foreground">{t("common.address")}</h4>
@@ -1407,7 +1407,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
 
             {/* Date & Rooms */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-white rounded-lg border border-secondary/10 shadow-sm">
+              <div className="p-3 bg-folk-card rounded-lg border border-secondary/10 shadow-sm">
                 <div className="flex items-center gap-2 mb-1.5 text-muted-foreground">
                   <Calendar className="w-3.5 h-3.5" />
                   <span className="text-[10px] font-bold uppercase tracking-wider">{t("common.date")}</span>
@@ -1416,7 +1416,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
                 {lead.preferred_time_slot && <p className="text-xs text-muted-foreground">{lead.preferred_time_slot}</p>}
               </div>
 
-              <div className="p-3 bg-white rounded-lg border border-secondary/10 shadow-sm">
+              <div className="p-3 bg-folk-card rounded-lg border border-secondary/10 shadow-sm">
                 <div className="flex items-center gap-2 mb-1.5 text-muted-foreground">
                   <Home className="w-3.5 h-3.5" />
                   <span className="text-[10px] font-bold uppercase tracking-wider">{t("offer.leadDetail.object")}</span>
@@ -1428,7 +1428,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
 
             {/* Special Items */}
             {lead.special_items && lead.special_items.length > 0 && (
-              <div className="p-3 bg-white rounded-lg border border-secondary/10 shadow-sm">
+              <div className="p-3 bg-folk-card rounded-lg border border-secondary/10 shadow-sm">
                 <div className="flex items-center gap-2 mb-2 text-muted-foreground">
                   <Package className="w-3.5 h-3.5" />
                   <span className="text-[10px] font-bold uppercase tracking-wider">{t("offer.leadDetail.specialItems")}</span>
@@ -1443,7 +1443,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
 
             {/* Service Specific Details */}
             {(lead.bathroom_count || lead.clearing_type || lead.disposal_type || lead.storage_duration || lead.piano_type || lead.moebellift_floor) && (
-              <div className="p-3 bg-white rounded-lg border border-blue-100 shadow-sm space-y-2">
+              <div className="p-3 bg-folk-card rounded-lg border border-blue-100 shadow-sm space-y-2">
                 <div className="flex items-center gap-2 mb-1 text-blue-600">
                   <Info className="w-3.5 h-3.5" />
                   <span className="text-[10px] font-bold uppercase tracking-wider">{t("offer.leadDetail.specificDetails")}</span>
@@ -1477,7 +1477,7 @@ export const ServiceDetailsSection = ({ lead }: ServiceDetailsSectionProps) => {
 
             {/* Description */}
             {lead.description && (
-              <div className="p-3 bg-white rounded-lg border border-secondary/10 shadow-sm">
+              <div className="p-3 bg-folk-card rounded-lg border border-secondary/10 shadow-sm">
                 <div className="flex items-center gap-2 mb-1.5 text-muted-foreground">
                   <Package className="w-3.5 h-3.5" />
                   <span className="text-[10px] font-bold uppercase tracking-wider">{t("offer.leadDetail.customerNote")}</span>

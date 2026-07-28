@@ -1661,7 +1661,7 @@ const FirmaOfferteBearbeiten = () => {
                         key={preset.valueKey}
                         type="button"
                         onClick={() => setPaymentTerms(documentT(preset.valueKey))}
-                        className="px-3 py-1 text-xs rounded-full border border-slate-200 hover:bg-slate-100 transition-colors"
+                        className="px-3 py-1 text-xs rounded-full border border-folk-line hover:bg-folk-bg-warm transition-colors"
                       >
                         {t(preset.labelKey)}
                       </button>

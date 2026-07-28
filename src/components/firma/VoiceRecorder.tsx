@@ -126,7 +126,7 @@ export default function VoiceRecorder({ onTranscriptReady, disabled }: VoiceReco
             value={editedTranscript}
             onChange={(e) => setEditedTranscript(e.target.value)}
             rows={5}
-            className="bg-white text-sm"
+            className="bg-folk-card text-sm"
             aria-label="Transkription bearbeiten"
           />
           <div className="flex gap-2">

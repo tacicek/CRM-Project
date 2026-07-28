@@ -153,7 +153,7 @@ const typeColors: Record<string, { bg: string; border: string; icon: typeof Eye;
 const statusConfig: Record<string, { color: string; bgColor: string; textColor: string; icon: typeof Clock }> = {
   pending: { color: "text-amber-700", bgColor: "bg-amber-100", textColor: "text-amber-700", icon: Clock },
   confirmed: { color: "text-emerald-700", bgColor: "bg-emerald-100", textColor: "text-emerald-700", icon: CheckCircle },
-  completed: { color: "text-slate-600", bgColor: "bg-slate-100", textColor: "text-slate-600", icon: CheckCircle },
+  completed: { color: "text-folk-ink3", bgColor: "bg-folk-bg-warm", textColor: "text-folk-ink3", icon: CheckCircle },
   cancelled: { color: "text-red-600", bgColor: "bg-red-100", textColor: "text-red-600", icon: XCircle },
   rescheduled: { color: "text-blue-600", bgColor: "bg-blue-100", textColor: "text-blue-600", icon: CalendarIcon },
   no_show: { color: "text-rose-600", bgColor: "bg-rose-100", textColor: "text-rose-600", icon: XCircle },
@@ -732,7 +732,7 @@ const KalenderPage = () => {
                         </h4>
                         <div className="space-y-2">
                           {Object.entries(typeColors).map(([key, val]) => (
-                            <div key={key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer" onClick={() => toggleFilter("types", key)}>
+                            <div key={key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-folk-bg-warm cursor-pointer" onClick={() => toggleFilter("types", key)}>
                               <Checkbox id={`type-${key}`} checked={filters.types.includes(key)} onCheckedChange={() => toggleFilter("types", key)} />
                               <label htmlFor={`type-${key}`} className="text-sm flex items-center gap-2 cursor-pointer flex-1">
                                 <span className="w-3 h-3 rounded" style={{ backgroundColor: val.bg }} />
@@ -748,7 +748,7 @@ const KalenderPage = () => {
                         </h4>
                         <div className="space-y-2">
                           {Object.entries(statusConfig).map(([key, config]) => (
-                            <div key={key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer" onClick={() => toggleFilter("statuses", key)}>
+                            <div key={key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-folk-bg-warm cursor-pointer" onClick={() => toggleFilter("statuses", key)}>
                               <Checkbox id={`status-${key}`} checked={filters.statuses.includes(key)} onCheckedChange={() => toggleFilter("statuses", key)} />
                               <label htmlFor={`status-${key}`} className={`text-sm cursor-pointer flex-1 ${config.color}`}>{getAppointmentStatusLabel(key, locale)}</label>
                             </div>
@@ -762,7 +762,7 @@ const KalenderPage = () => {
                           </h4>
                           <div className="space-y-2 max-h-36 overflow-y-auto">
                             {teamMembers.map((member) => (
-                              <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer" onClick={() => toggleFilter("teamMemberIds", member.id)}>
+                              <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-folk-bg-warm cursor-pointer" onClick={() => toggleFilter("teamMemberIds", member.id)}>
                                 <Checkbox id={`team-${member.id}`} checked={filters.teamMemberIds.includes(member.id)} onCheckedChange={() => toggleFilter("teamMemberIds", member.id)} />
                                 <label htmlFor={`team-${member.id}`} className="text-sm flex items-center gap-2 cursor-pointer flex-1">
                                   <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: member.color_code }}>
@@ -1045,7 +1045,7 @@ const KalenderPage = () => {
                         {selectedDateAppointments.length === 0 ? (
                           <div className="text-center py-8">
                             <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                            <p className="text-sm text-slate-500">{t("calendar.day.noAppointments")}</p>
+                            <p className="text-sm text-folk-ink3">{t("calendar.day.noAppointments")}</p>
                           </div>
                         ) : (
                           selectedDateAppointments.map((apt) => {
@@ -1075,7 +1075,7 @@ const KalenderPage = () => {
                                     },
                                   });
                                 }}
-                                className="p-3 rounded-xl border border-slate-200 hover:border-folk-line-hard cursor-pointer transition-all hover:shadow-md"
+                                className="p-3 rounded-xl border border-folk-line hover:border-folk-line-hard cursor-pointer transition-all hover:shadow-md"
                                 style={{ borderLeftColor: typeInfo.bg, borderLeftWidth: '3px' }}
                               >
                                 <div className="flex items-start justify-between gap-2">
@@ -1084,7 +1084,7 @@ const KalenderPage = () => {
                                       {apt.title}
                                     </p>
                                     <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-xs text-slate-500">
+                                      <span className="text-xs text-folk-ink3">
                                         {apt.start_time?.slice(0, 5)} - {apt.end_time?.slice(0, 5)}
                                       </span>
                                       <Badge
@@ -1116,7 +1116,7 @@ const KalenderPage = () => {
               {/* Context Menu */}
               {contextMenu && (
                 <div
-                  className="fixed z-50 bg-folk-card rounded-xl shadow-xl border border-slate-200 py-2 min-w-[180px]"
+                  className="fixed z-50 bg-folk-card rounded-xl shadow-xl border border-folk-line py-2 min-w-[180px]"
                   style={{
                     left: Math.min(contextMenu.x, window.innerWidth - 190),
                     top: Math.min(contextMenu.y, window.innerHeight - 90),
@@ -1124,7 +1124,7 @@ const KalenderPage = () => {
                 >
                   <button
                     onClick={handleCreateFromContextMenu}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-folk-bg-warm flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
                     {t("calendar.newAppointment")}
@@ -1136,7 +1136,7 @@ const KalenderPage = () => {
                         setContextMenu(null);
                       }
                     }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-folk-bg-warm flex items-center gap-2"
                   >
                     <CalendarIcon className="w-4 h-4" />
                     {t("calendar.contextMenu.showDay")}
@@ -1245,7 +1245,7 @@ const AppointmentDetailCard = ({
       {/* Content */}
       <div className="p-4 space-y-4">
         {/* Date & Time */}
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-folk-bg-warm">
           <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
             <Clock className="w-5 h-5 text-indigo-600" />
           </div>
@@ -1253,7 +1253,7 @@ const AppointmentDetailCard = ({
             <p className="text-sm font-medium text-folk-ink">
               {format(new Date(appointment.appointment_date), "EEEE, dd.MM.yyyy", { locale: dateLocale })}
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-folk-ink3">
               {t("calendar.detail.timeRange", {
                 start: appointment.start_time.slice(0, 5),
                 end: appointment.end_time.slice(0, 5),
@@ -1264,7 +1264,7 @@ const AppointmentDetailCard = ({
 
         {/* Location */}
         {appointment.location_address && (
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-folk-bg-warm">
             <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
               <MapPin className="w-5 h-5 text-emerald-600" />
             </div>
@@ -1272,7 +1272,7 @@ const AppointmentDetailCard = ({
               <p className="text-sm font-medium text-folk-ink">
                 {appointment.location_address}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-folk-ink3">
                 {appointment.location_plz} {appointment.location_city}
               </p>
               {appointment.location_notes && (
@@ -1287,8 +1287,8 @@ const AppointmentDetailCard = ({
         {/* Customer */}
         {appointment.customer_first_name && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t("calendar.detail.customer")}</p>
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+            <p className="text-xs font-semibold text-folk-ink3 uppercase tracking-wider">{t("calendar.detail.customer")}</p>
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-folk-bg-warm">
               <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
                 <User className="w-5 h-5 text-amber-600" />
               </div>
@@ -1324,12 +1324,12 @@ const AppointmentDetailCard = ({
         {/* Team Members */}
         {assignedMembers.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t("calendar.detail.team")}</p>
+            <p className="text-xs font-semibold text-folk-ink3 uppercase tracking-wider">{t("calendar.detail.team")}</p>
             <div className="flex flex-wrap gap-2">
               {assignedMembers.map(member => (
                 <div
                   key={member.id}
-                  className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-100"
+                  className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-folk-bg-warm"
                 >
                   <div
                     className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
@@ -1349,8 +1349,8 @@ const AppointmentDetailCard = ({
         {/* Description */}
         {appointment.description && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t("calendar.detail.description")}</p>
-            <p className="text-sm text-slate-600">{appointment.description}</p>
+            <p className="text-xs font-semibold text-folk-ink3 uppercase tracking-wider">{t("calendar.detail.description")}</p>
+            <p className="text-sm text-folk-ink3">{appointment.description}</p>
           </div>
         )}
 

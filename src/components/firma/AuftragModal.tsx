@@ -1243,9 +1243,9 @@ export function AuftragModal({
                   {showOfferDetails && (
                     <CardContent className="space-y-3">
                       {/* Items table */}
-                      <div className="bg-white rounded-lg border">
+                      <div className="bg-folk-card rounded-lg border">
                         <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
+                          <thead className="bg-folk-bg-warm">
                             <tr>
                               <th className="text-left p-2 font-medium">{t("common.description")}</th>
                               <th className="text-right p-2 font-medium w-20">{t("common.quantity")}</th>
@@ -1330,7 +1330,7 @@ export function AuftragModal({
                   ) : (
                     <div className="space-y-3">
                       {formData.extra_services.map((service, idx) => (
-                        <div key={service.id} className="grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-lg">
+                        <div key={service.id} className="grid grid-cols-12 gap-2 items-end p-3 bg-folk-bg-warm rounded-lg">
                           <div className="col-span-5 space-y-1">
                             <Label className="text-xs">{t("common.description")}</Label>
                             <Input
@@ -1685,7 +1685,7 @@ export function AuftragModal({
                             "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors",
                             formData.assigned_team_members.includes(member.id)
                               ? "border-blue-500 bg-blue-50"
-                              : "border-gray-200 hover:border-gray-300"
+                              : "border-folk-line hover:border-folk-line-hard"
                           )}
                           onClick={() => toggleTeamMember(member.id)}
                         >

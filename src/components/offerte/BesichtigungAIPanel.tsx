@@ -398,22 +398,22 @@ export const BesichtigungAIPanel = ({
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="bg-white rounded-lg p-2.5 text-center border">
+                <div className="bg-folk-card rounded-lg p-2.5 text-center border">
                   <Package className="w-4 h-4 mx-auto mb-0.5 text-blue-500" />
                   <p className="text-lg font-bold">{analysis.estimated_volume_m3 ?? "–"} m³</p>
                   <p className="text-[10px] text-muted-foreground">{t("offer.ai.stat.volume")}</p>
                 </div>
-                <div className="bg-white rounded-lg p-2.5 text-center border">
+                <div className="bg-folk-card rounded-lg p-2.5 text-center border">
                   <Clock className="w-4 h-4 mx-auto mb-0.5 text-amber-500" />
                   <p className="text-lg font-bold">{analysis.estimated_time_hours ?? "–"} Std.</p>
                   <p className="text-[10px] text-muted-foreground">{t("offer.ai.stat.duration")}</p>
                 </div>
-                <div className="bg-white rounded-lg p-2.5 text-center border">
+                <div className="bg-folk-card rounded-lg p-2.5 text-center border">
                   <Users className="w-4 h-4 mx-auto mb-0.5 text-emerald-500" />
                   <p className="text-lg font-bold">{analysis.recommended_workers ?? "–"}</p>
                   <p className="text-[10px] text-muted-foreground">{t("offer.ai.stat.workers")}</p>
                 </div>
-                <div className="bg-white rounded-lg p-2.5 text-center border">
+                <div className="bg-folk-card rounded-lg p-2.5 text-center border">
                   <Truck className="w-4 h-4 mx-auto mb-0.5 text-purple-500" />
                   <p className="text-lg font-bold">{truckLabel(analysis.recommended_truck, t)}</p>
                   <p className="text-[10px] text-muted-foreground">{t("offer.ai.stat.vehicle")}</p>

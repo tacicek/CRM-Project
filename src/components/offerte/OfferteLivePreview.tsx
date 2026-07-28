@@ -178,7 +178,7 @@ export const OfferteLivePreview = ({
   const livingSpace = offerDetails?.serviceDetails?.livingSpaceM2 ?? lead.from_living_space_m2;
 
   return (
-    <div className="bg-white p-4 text-[9px] leading-relaxed border rounded-lg shadow-sm max-h-[600px] overflow-y-auto">
+    <div className="bg-folk-card p-4 text-[9px] leading-relaxed border rounded-lg shadow-sm max-h-[600px] overflow-y-auto">
       {/* Header with Reference Info */}
       <div className="border-b-2 border-foreground pb-2 mb-3">
         <div className="flex justify-between items-start">

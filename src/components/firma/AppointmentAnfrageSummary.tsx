@@ -105,10 +105,10 @@ export const AppointmentAnfrageSummary = ({ leadId }: { leadId: string | null })
   const toMeta = meta(t, lead.to_floor, lead.to_has_lift, lead.to_rooms);
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+    <div className="space-y-3 rounded-xl border border-folk-line bg-folk-bg-warm/70 p-3">
       <div className="flex items-center gap-1.5">
-        <Package className="h-3.5 w-3.5 text-slate-500" />
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <Package className="h-3.5 w-3.5 text-folk-ink3" />
+        <p className="text-xs font-semibold uppercase tracking-wider text-folk-ink3">
           {t("lead.summary.title")}
           {lead.service_type ? ` · ${getServiceLabel(lead.service_type, locale)}` : ""}
         </p>
@@ -121,8 +121,8 @@ export const AppointmentAnfrageSummary = ({ leadId }: { leadId: string | null })
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("lead.summary.moveOut")}</p>
-                <p className="text-sm text-slate-700">{from}</p>
-                {fromMeta && <p className="text-xs text-slate-500">{fromMeta}</p>}
+                <p className="text-sm text-folk-ink2">{from}</p>
+                {fromMeta && <p className="text-xs text-folk-ink3">{fromMeta}</p>}
               </div>
             </div>
           )}
@@ -131,8 +131,8 @@ export const AppointmentAnfrageSummary = ({ leadId }: { leadId: string | null })
               <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("lead.summary.moveIn")}</p>
-                <p className="text-sm text-slate-700">{to}</p>
-                {toMeta && <p className="text-xs text-slate-500">{toMeta}</p>}
+                <p className="text-sm text-folk-ink2">{to}</p>
+                {toMeta && <p className="text-xs text-folk-ink3">{toMeta}</p>}
               </div>
             </div>
           )}
@@ -142,7 +142,7 @@ export const AppointmentAnfrageSummary = ({ leadId }: { leadId: string | null })
       {lead.description && (
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t("common.description")}</p>
-          <p className="whitespace-pre-line text-sm text-slate-600">{lead.description}</p>
+          <p className="whitespace-pre-line text-sm text-folk-ink3">{lead.description}</p>
         </div>
       )}
     </div>

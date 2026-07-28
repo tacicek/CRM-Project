@@ -186,9 +186,9 @@ export function TiptapEditor({
   }
 
   return (
-    <div className="border rounded-lg overflow-hidden bg-white">
+    <div className="border rounded-lg overflow-hidden bg-folk-card">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-1 p-2 border-b bg-gray-50">
+      <div className="flex flex-wrap items-center gap-1 p-2 border-b bg-folk-bg-warm">
         {!isHtmlMode && (
           <>
             <Button
