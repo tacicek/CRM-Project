@@ -22,4 +22,7 @@ export const uebersicht = {
   "uebersicht.section.alleAnzeigen": "All {count} →",
   "uebersicht.empty.title": "No open items",
   "uebersicht.empty.body": "New requests appear here automatically.",
+  "uebersicht.umsatz.title": "Revenue · last 5 weeks",
+  "uebersicht.banner.warten": "{count} requests waiting",
+  "uebersicht.banner.hinweis": "Whoever quotes first, wins.",
 } as const;

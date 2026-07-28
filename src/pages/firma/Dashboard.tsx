@@ -25,6 +25,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useUebersichtData } from "@/hooks/useUebersichtData";
 import { KpiStrip } from "@/components/firma/uebersicht/KpiStrip";
 import { WorkItems } from "@/components/firma/uebersicht/WorkItems";
+import { RevenueBars } from "@/components/firma/uebersicht/RevenueBars";
 import type { WorkItemStatus } from "@/types/uebersicht";
 
 /**
@@ -113,12 +114,13 @@ const FirmaDashboard = () => {
   const [isAcceptDialogOpen, setIsAcceptDialogOpen] = useState(false);
   const [boxStats, setBoxStats] = useState<BoxStats | null>(null);
   const { resolvedTheme } = useTheme();
-  const { workItems, kpis } = useUebersichtData();
+  const { workItems, kpis, revenueWeeks } = useUebersichtData();
   const [vorgangFilter, setVorgangFilter] = useState<VorgangFilter>("alle");
 
   // Nur clientseitig gefiltert — die Kennzahlen oben bleiben davon unberuehrt,
   // sonst widerspraeche der Streifen der Liste darunter.
   const sichtbareVorgaenge = workItems.filter((item) => MATCHES[vorgangFilter](item.status));
+  const offeneNeue = workItems.filter((item) => item.status === "neu").length;
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -498,6 +500,23 @@ const FirmaDashboard = () => {
               aktuellen Offerten-Revision. Das Theme entscheidet ueber Raster
               oder Liste, der Breakpoint ueber die Dichte (CSS, nicht JS). */}
           <section className="lg:col-span-2">
+            {offeneNeue > 0 && (
+              <Link
+                to="/firma/anfragen"
+                className="mb-3 flex items-center gap-3 rounded-2xl bg-folk-ink px-4 py-3.5 shell-tablet:hidden"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-bold text-folk-bg">
+                    {t("uebersicht.banner.warten", { count: String(offeneNeue) })}
+                  </span>
+                  <span className="mt-0.5 block text-[11.5px] text-folk-ink5">
+                    {t("uebersicht.banner.hinweis")}
+                  </span>
+                </span>
+                <ArrowRight className="h-4 w-4 shrink-0 text-folk-lemon" aria-hidden="true" />
+              </Link>
+            )}
+
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">
                 {t("uebersicht.section.aktiveVorgaenge")}
@@ -548,6 +567,7 @@ const FirmaDashboard = () => {
 
           {/* Right rail */}
           <aside className="space-y-4">
+            {revenueWeeks.length > 0 && <RevenueBars weeks={revenueWeeks} />}
             {boxStats && (boxStats.total_active > 0 || boxStats.overdue > 0) && (
               <section className="rounded-xl border border-folk-line bg-folk-card p-5">
                 <div className="mb-4 flex items-center justify-between">

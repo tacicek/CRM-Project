@@ -22,4 +22,7 @@ export const uebersicht = {
   "uebersicht.section.alleAnzeigen": "Les {count} →",
   "uebersicht.empty.title": "Aucun dossier ouvert",
   "uebersicht.empty.body": "Les nouvelles demandes apparaissent ici automatiquement.",
+  "uebersicht.umsatz.title": "Chiffre d'affaires · 5 dernières semaines",
+  "uebersicht.banner.warten": "{count} demandes en attente",
+  "uebersicht.banner.hinweis": "Le premier à faire une offre l'emporte.",
 } as const;
