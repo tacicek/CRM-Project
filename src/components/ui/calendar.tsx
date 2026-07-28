@@ -14,11 +14,11 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
       classNames={{
         months: "flex flex-col",
         month: "space-y-2",
-        caption: "flex justify-between items-center px-1 pb-1.5 border-b border-indigo-100",
-        caption_label: "text-sm font-bold text-gray-900",
+        caption: "flex justify-between items-center px-1 pb-1.5 border-b border-folk-line",
+        caption_label: "text-sm font-bold text-folk-ink",
         nav: "flex items-center gap-1",
         nav_button: cn(
-          "h-7 w-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all",
+          "h-7 w-7 rounded-md border border-gray-200 bg-folk-card flex items-center justify-center text-gray-500 hover:border-folk-line-hard hover:bg-indigo-50 hover:text-indigo-600 transition-all",
         ),
         nav_button_previous: "",
         nav_button_next: "",
@@ -29,7 +29,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         cell: "flex-1 text-center p-[1px] relative focus-within:relative focus-within:z-20",
         day: cn(
           "h-9 w-full flex items-center justify-center rounded-md text-[13px] font-medium transition-all cursor-pointer",
-          "text-gray-700 hover:bg-indigo-50 hover:text-indigo-700",
+          "text-folk-ink2 hover:bg-indigo-50 hover:text-indigo-700",
         ),
         day_range_end: "day-range-end",
         day_selected:

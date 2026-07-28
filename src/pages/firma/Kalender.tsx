@@ -976,7 +976,7 @@ const KalenderPage = () => {
                                     <ChevronRight className="w-4 h-4" />
                                   </Button>
                                 </div>
-                                <h2 className="text-lg font-bold text-slate-900">
+                                <h2 className="text-lg font-bold text-folk-ink">
                                   {getHeaderText()}
                                 </h2>
                               </div>
@@ -1075,12 +1075,12 @@ const KalenderPage = () => {
                                     },
                                   });
                                 }}
-                                className="p-3 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all hover:shadow-md"
+                                className="p-3 rounded-xl border border-slate-200 hover:border-folk-line-hard cursor-pointer transition-all hover:shadow-md"
                                 style={{ borderLeftColor: typeInfo.bg, borderLeftWidth: '3px' }}
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm text-slate-900 truncate">
+                                    <p className="font-medium text-sm text-folk-ink truncate">
                                       {apt.title}
                                     </p>
                                     <div className="flex items-center gap-2 mt-1">
@@ -1116,7 +1116,7 @@ const KalenderPage = () => {
               {/* Context Menu */}
               {contextMenu && (
                 <div
-                  className="fixed z-50 bg-white rounded-xl shadow-xl border border-slate-200 py-2 min-w-[180px]"
+                  className="fixed z-50 bg-folk-card rounded-xl shadow-xl border border-slate-200 py-2 min-w-[180px]"
                   style={{
                     left: Math.min(contextMenu.x, window.innerWidth - 190),
                     top: Math.min(contextMenu.y, window.innerHeight - 90),
@@ -1250,7 +1250,7 @@ const AppointmentDetailCard = ({
             <Clock className="w-5 h-5 text-indigo-600" />
           </div>
           <div>
-            <p className="text-sm font-medium text-slate-900">
+            <p className="text-sm font-medium text-folk-ink">
               {format(new Date(appointment.appointment_date), "EEEE, dd.MM.yyyy", { locale: dateLocale })}
             </p>
             <p className="text-xs text-slate-500">
@@ -1269,7 +1269,7 @@ const AppointmentDetailCard = ({
               <MapPin className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-900">
+              <p className="text-sm font-medium text-folk-ink">
                 {appointment.location_address}
               </p>
               <p className="text-xs text-slate-500">
@@ -1293,7 +1293,7 @@ const AppointmentDetailCard = ({
                 <User className="w-5 h-5 text-amber-600" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-slate-900">
+                <p className="text-sm font-medium text-folk-ink">
                   {appointment.customer_first_name} {appointment.customer_last_name}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-1">
@@ -1337,7 +1337,7 @@ const AppointmentDetailCard = ({
                   >
                     {(member.first_name || "?")[0]}
                   </div>
-                  <span className="text-xs font-medium text-slate-700">
+                  <span className="text-xs font-medium text-folk-ink2">
                     {member.first_name || "—"}
                   </span>
                 </div>

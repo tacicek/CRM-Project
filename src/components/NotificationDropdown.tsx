@@ -317,7 +317,7 @@ export const NotificationDropdown = ({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[420px] p-0 overflow-hidden bg-white border border-slate-200 shadow-2xl rounded-xl"
+        className="w-[420px] p-0 overflow-hidden bg-folk-card border border-slate-200 shadow-2xl rounded-xl"
         sideOffset={8}
       >
         {/* Header */}
@@ -328,7 +328,7 @@ export const NotificationDropdown = ({
                 <Bell className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 text-sm">{t("nav.notifications")}</h3>
+                <h3 className="font-semibold text-folk-ink text-sm">{t("nav.notifications")}</h3>
                 {unreadCount > 0 && (
                   <p className="text-xs text-slate-500">
                     {t("nav.notifications.unread", { count: unreadCount })}
@@ -341,7 +341,7 @@ export const NotificationDropdown = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                  className="h-7 px-2 text-xs text-slate-600 hover:text-folk-ink hover:bg-slate-200/50"
                   onClick={(e) => {
                     e.preventDefault();
                     onMarkAllAsRead();
@@ -392,7 +392,7 @@ export const NotificationDropdown = ({
                       hover:scale-[1.01] hover:shadow-md
                       ${!notification.read
                         ? `bg-gradient-to-r ${config.gradient} border-l-4 ${config.accentColor}`
-                        : 'bg-white hover:bg-slate-50'
+                        : 'bg-folk-card hover:bg-slate-50'
                       }
                     `}
                     style={{
@@ -416,7 +416,7 @@ export const NotificationDropdown = ({
                           <div className="flex items-start justify-between gap-2">
                             <h4 className={`
                               font-semibold text-sm leading-tight
-                              ${!notification.read ? 'text-slate-900' : 'text-slate-700'}
+                              ${!notification.read ? 'text-folk-ink' : 'text-folk-ink2'}
                             `}>
                               {notification.title}
                             </h4>

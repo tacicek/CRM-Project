@@ -519,8 +519,12 @@
   border-left: 1px solid hsl(var(--border) / 0.5) !important;
 }
 
+/* `!important` wie bei den Nachbarregeln: das Stylesheet von
+   react-big-calendar wird in Kalender.tsx importiert und landet deshalb in
+   einem spaeter geladenen Chunk. Ohne Vorrang gewinnt dessen `#e6e6e6`, und
+   die Tage ausserhalb des Monats leuchten im Dunkelmodus hellgrau. */
 .rbc-off-range-bg {
-  background: linear-gradient(135deg, hsl(var(--muted) / 0.15), hsl(var(--muted) / 0.08));
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.15), hsl(var(--muted) / 0.08)) !important;
 }
 
 .rbc-today {
