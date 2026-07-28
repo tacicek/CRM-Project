@@ -110,6 +110,26 @@
     --folk-rose: 194 68 114;
     --folk-rose-bg: 249 233 240;
 
+    /* --------------------------------------------------------------------
+     * Termintypen im Kalender.
+     *
+     * Sie kippen bewusst NICHT mit dem Theme: die Plaettchen tragen weisse
+     * Schrift, ihre Kontrastforderung richtet sich also gegen Weiss, nicht
+     * gegen die Seite. Ein helleres Dunkel-Pendant wuerde genau diese
+     * Lesbarkeit wieder verlieren.
+     *
+     * Die Werte sind gegenueber vorher abgedunkelt. Gemessen gegen Weiss lagen
+     * sechs von sieben unter 4.5:1 — "Nachfassen" auf Bernstein bei 2.15:1,
+     * also praktisch unlesbar. Jetzt liegt keiner mehr darunter.
+     * ------------------------------------------------------------------ */
+    --cal-besichtigung: 124 58 237;
+    --cal-service: 4 120 87;
+    --cal-follow-up: 180 83 9;
+    --cal-meeting: 37 99 235;
+    --cal-blocked: 75 85 99;
+    --cal-cancelled: 220 38 38;
+    --cal-completed: 100 116 139;
+
     /* Native Bedienelemente (Scrollbalken, Datumsauswahl) mitziehen. Steht
      * hier im CSS und nicht im Provider, damit es genau eine Quelle gibt. */
     color-scheme: light;
@@ -570,7 +590,12 @@
   padding: 3px 8px;
   font-size: 0.75rem;
   font-weight: 500;
-  border: none !important;
+  /* Ohne !important: der Inline-Stil aus Kalender.tsx setzt einen 4px breiten
+     farbigen Streifen links, der den Termintyp zeigt. Mit !important gewann
+     diese Regel und der Streifen war nie zu sehen — die Absicht im Code lief
+     ins Leere. `none` bleibt als Ausgangswert, damit der Standardrahmen von
+     react-big-calendar weg ist. */
+  border: none;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;

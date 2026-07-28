@@ -142,12 +142,15 @@ interface CalendarEvent {
 // Presentation only — the human-readable labels come from `getAppointmentTypeLabel` /
 // `getAppointmentStatusLabel` (@/i18n/domain), so they exist once for all three locales
 // instead of being re-declared in German per file.
+// Die Farben stehen als --cal-* in index.css, damit sie an einer Stelle
+// liegen und ihre Kontrastbegruendung mit ihnen. Sie gehen als Inline-Stil an
+// react-big-calendar, deshalb echte Farbwerte statt Tailwind-Klassen.
 const typeColors: Record<string, { bg: string; border: string; icon: typeof Eye; gradient: string }> = {
-  besichtigung: { bg: "#8B5CF6", border: "#7C3AED", icon: Eye, gradient: "from-violet-500 to-purple-500" },
-  service: { bg: "#10B981", border: "#059669", icon: Truck, gradient: "from-emerald-500 to-green-500" },
-  follow_up: { bg: "#F59E0B", border: "#D97706", icon: Clock, gradient: "from-amber-500 to-orange-500" },
-  meeting: { bg: "#3B82F6", border: "#2563EB", icon: Users, gradient: "from-blue-500 to-cyan-500" },
-  blocked: { bg: "#6B7280", border: "#4B5563", icon: XCircle, gradient: "from-slate-500 to-slate-600" },
+  besichtigung: { bg: "rgb(var(--cal-besichtigung))", border: "rgb(var(--cal-besichtigung) / 0.7)", icon: Eye, gradient: "from-violet-500 to-purple-500" },
+  service: { bg: "rgb(var(--cal-service))", border: "rgb(var(--cal-service) / 0.7)", icon: Truck, gradient: "from-emerald-500 to-green-500" },
+  follow_up: { bg: "rgb(var(--cal-follow-up))", border: "rgb(var(--cal-follow-up) / 0.7)", icon: Clock, gradient: "from-amber-500 to-orange-500" },
+  meeting: { bg: "rgb(var(--cal-meeting))", border: "rgb(var(--cal-meeting) / 0.7)", icon: Users, gradient: "from-blue-500 to-cyan-500" },
+  blocked: { bg: "rgb(var(--cal-blocked))", border: "rgb(var(--cal-blocked) / 0.7)", icon: XCircle, gradient: "from-slate-500 to-slate-600" },
 };
 
 const statusConfig: Record<string, { color: string; bgColor: string; textColor: string; icon: typeof Clock }> = {
@@ -288,20 +291,23 @@ const KalenderPage = () => {
     let backgroundColor = eventTeam.length > 0 ? eventTeam[0].color_code : colors.bg;
     let borderColor = eventTeam.length > 0 ? eventTeam[0].color_code : colors.border;
 
-    if (status === "pending") {
-      backgroundColor = backgroundColor + "CC";
-    } else if (status === "cancelled") {
-      backgroundColor = "#EF4444";
-      borderColor = "#DC2626";
+    // "pending" wurde vorher durch Transparenz angezeigt (Hex + "CC"). Das
+    // kostet Kontrast: die Flaeche mischt sich mit der hellen Seite auf, und
+    // die weisse Schrift faellt auf 3.7:1. Der Zustand steht jetzt im Rand,
+    // nicht in der Deckkraft — die Lesbarkeit bleibt.
+    const gestrichelt = status === "pending";
+    if (status === "cancelled") {
+      backgroundColor = "rgb(var(--cal-cancelled))";
+      borderColor = "rgb(var(--cal-cancelled) / 0.7)";
     } else if (status === "completed") {
-      backgroundColor = "#94A3B8";
-      borderColor = "#64748B";
+      backgroundColor = "rgb(var(--cal-completed))";
+      borderColor = "rgb(var(--cal-completed) / 0.7)";
     }
 
     return {
       style: {
         backgroundColor,
-        borderLeft: `4px solid ${borderColor}`,
+        borderLeft: `4px ${gestrichelt ? "dashed" : "solid"} ${borderColor}`,
         borderRadius: "6px",
         opacity: status === "cancelled" ? 0.6 : 1,
         color: "#fff",
