@@ -133,6 +133,14 @@ interface Offer {
   description: string | null;
   /** Kanonischer Kunde (20260728110000). NULL, wo der Backfill nichts zuordnen konnte. */
   customer_id: string | null;
+  /** Versionierung (20260728190000). Eine versendete Offerte ist inhaltlich gesperrt;
+   *  Aenderungen entstehen als neue Version derselben Serie. */
+  offer_series_id: string;
+  version_number: number;
+  supersedes_offer_id: string | null;
+  superseded_at: string | null;
+  locked_at: string | null;
+  revision_reason: string | null;
   customer_first_name: string;
   customer_last_name: string;
   customer_email: string;
@@ -530,6 +538,37 @@ const FirmaOfferteDetail = () => {
     }
   };
 
+  const [isCreatingRevision, setIsCreatingRevision] = useState(false);
+
+  /**
+   * Neue Version anlegen. Die Regel — was kopiert wird, was der Vorgaenger
+   * behaelt, wann es abgelehnt wird — steckt in create_offer_revision; hier
+   * wird nur aufgerufen und zur neuen Fassung navigiert.
+   */
+  const handleCreateRevision = async () => {
+    if (!offer) return;
+    setIsCreatingRevision(true);
+    const { data, error } = await supabase.rpc("create_offer_revision", {
+      p_offer_id: offer.id,
+      p_reason: null,
+    });
+    setIsCreatingRevision(false);
+
+    if (error) {
+      toast({
+        title: t("common.error"),
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    const neu = (data as { neue_offerte_id?: string } | null)?.neue_offerte_id;
+    if (neu) {
+      toast({ title: t("offer.version.created") });
+      navigate(`/firma/offerten/${neu}/bearbeiten`);
+    }
+  };
+
   const handleDownloadPdf = async () => {
     const payload = buildOfferPayload();
     if (!payload) {
@@ -893,6 +932,17 @@ const FirmaOfferteDetail = () => {
                 <h1 className="text-xl font-bold tracking-tight text-folk-ink sm:text-2xl">{offer.title}</h1>
                 {getStatusBadge(offer.status)}
               </div>
+              {offer.version_number > 1 && (
+                <p className="mt-1 text-[13px] text-folk-ink3">
+                  {t("offer.version.isVersion", { n: offer.version_number })}
+                  {offer.revision_reason ? ` · ${offer.revision_reason}` : ""}
+                </p>
+              )}
+              {offer.superseded_at && (
+                <p className="mt-1 text-[13px] font-medium text-folk-coral">
+                  {t("offer.version.superseded")}
+                </p>
+              )}
               <p className="mt-1 font-mono text-[14px] text-folk-ink3">
                 {formatDate(offer.created_at)}
                 {offer.sent_at && ` · ${t("offer.detail.sentOn", { date: formatDate(offer.sent_at) })}`}
@@ -908,6 +958,20 @@ const FirmaOfferteDetail = () => {
                 <span className="hidden sm:inline">{t("offer.detail.downloadPdf")}</span>
                 <span className="sm:hidden">{t("offer.detail.downloadPdfShort")}</span>
               </Button>
+              {/* Versendet, aber noch nicht angenommen: Aenderungen laufen ueber
+                  eine neue Version — die alte bleibt als Beleg stehen. */}
+              {offer.locked_at !== null && !offer.superseded_at && offer.status !== "accepted" && (
+                <Button
+                  variant="outline"
+                  onClick={handleCreateRevision}
+                  disabled={isCreatingRevision}
+                  className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t("offer.version.createRevision")}</span>
+                  <span className="sm:hidden">{t("offer.version.createRevisionShort")}</span>
+                </Button>
+              )}
               {offer.status === "accepted" && (
                 existingAuftragId ? (
                   <Button

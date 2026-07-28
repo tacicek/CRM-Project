@@ -3696,10 +3696,12 @@ export type Database = {
           language: string
           lead_id: string | null
           leistungsuebersicht_url: string | null
+          locked_at: string | null
           moving_additional_stops: number | null
           moving_distance_km: number | null
           moving_driving_time_minutes: number | null
           offer_number: number | null
+          offer_series_id: string
           offerte_type: string
           origin_building_info: Json | null
           payment_due_days: number | null
@@ -3708,6 +3710,7 @@ export type Database = {
           price_model: string
           rejected_at: string | null
           resources: Json | null
+          revision_reason: string | null
           secondary_service_date: string | null
           secondary_service_type: string | null
           sent_at: string | null
@@ -3717,6 +3720,8 @@ export type Database = {
           service_start_time: string | null
           status: string
           subtotal: number
+          superseded_at: string | null
+          supersedes_offer_id: string | null
           surcharges: Json | null
           time_estimate: Json | null
           title: string
@@ -3725,6 +3730,7 @@ export type Database = {
           valid_until: string | null
           vat_amount: number | null
           vat_rate: number
+          version_number: number
           viewed_at: string | null
         }
         Insert: {
@@ -3795,10 +3801,12 @@ export type Database = {
           language?: string
           lead_id?: string | null
           leistungsuebersicht_url?: string | null
+          locked_at?: string | null
           moving_additional_stops?: number | null
           moving_distance_km?: number | null
           moving_driving_time_minutes?: number | null
           offer_number?: number | null
+          offer_series_id?: string
           offerte_type?: string
           origin_building_info?: Json | null
           payment_due_days?: number | null
@@ -3807,6 +3815,7 @@ export type Database = {
           price_model?: string
           rejected_at?: string | null
           resources?: Json | null
+          revision_reason?: string | null
           secondary_service_date?: string | null
           secondary_service_type?: string | null
           sent_at?: string | null
@@ -3816,6 +3825,8 @@ export type Database = {
           service_start_time?: string | null
           status?: string
           subtotal?: number
+          superseded_at?: string | null
+          supersedes_offer_id?: string | null
           surcharges?: Json | null
           time_estimate?: Json | null
           title: string
@@ -3824,6 +3835,7 @@ export type Database = {
           valid_until?: string | null
           vat_amount?: number | null
           vat_rate?: number
+          version_number?: number
           viewed_at?: string | null
         }
         Update: {
@@ -3894,10 +3906,12 @@ export type Database = {
           language?: string
           lead_id?: string | null
           leistungsuebersicht_url?: string | null
+          locked_at?: string | null
           moving_additional_stops?: number | null
           moving_distance_km?: number | null
           moving_driving_time_minutes?: number | null
           offer_number?: number | null
+          offer_series_id?: string
           offerte_type?: string
           origin_building_info?: Json | null
           payment_due_days?: number | null
@@ -3906,6 +3920,7 @@ export type Database = {
           price_model?: string
           rejected_at?: string | null
           resources?: Json | null
+          revision_reason?: string | null
           secondary_service_date?: string | null
           secondary_service_type?: string | null
           sent_at?: string | null
@@ -3915,6 +3930,8 @@ export type Database = {
           service_start_time?: string | null
           status?: string
           subtotal?: number
+          superseded_at?: string | null
+          supersedes_offer_id?: string | null
           surcharges?: Json | null
           time_estimate?: Json | null
           title?: string
@@ -3923,6 +3940,7 @@ export type Database = {
           valid_until?: string | null
           vat_amount?: number | null
           vat_rate?: number
+          version_number?: number
           viewed_at?: string | null
         }
         Relationships: [
@@ -6107,6 +6125,10 @@ export type Database = {
           p_website?: string
         }
         Returns: string
+      }
+      create_offer_revision: {
+        Args: { p_offer_id: string; p_reason?: string | null }
+        Returns: Json
       }
       customer_merge_preview: {
         Args: {

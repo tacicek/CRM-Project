@@ -21,26 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  FileText,
-  Download,
-  Loader2,
-  Building2,
-  Calendar,
-  Mail,
-  Phone,
-  Globe,
-  CheckCircle,
-  XCircle,
-  Clock,
-  CheckSquare,
-  ChevronDown,
-  ChevronUp,
-  ClipboardList,
-  Printer,
-  Eye,
-  MessageCircle,
-} from "lucide-react";
+import { FileText, Download, Loader2, Building2, Calendar, Mail, Phone, Globe, CheckCircle, XCircle, Clock, CheckSquare, ChevronDown, ChevronUp, ClipboardList, Printer, Eye, MessageCircle, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Fragment, useEffect, useState } from "react";
 import { groupItemsByService } from "@/lib/offerServiceType";
@@ -114,6 +95,9 @@ interface Offer {
   vat_amount: number;
   total: number;
   status: string;
+  /** Aus get_offer_by_token (20260728210000): zeigt dieser Link eine ueberholte Fassung? */
+  is_superseded?: boolean | null;
+  version_number?: number | null;
   created_at: string;
   sent_at: string | null;
   accepted_at: string | null;
@@ -391,6 +375,10 @@ const PublicOfferView = () => {
 
   const canRespond = () => {
     if (!offer) return false;
+    // Eine ueberholte Fassung wird nicht mehr angenommen — der Kunde stimmt der
+    // aktuellen zu. Die Datenbank weist es ohnehin ab (update_offer_by_token);
+    // hier wird der Knopf gar nicht erst angeboten.
+    if (offer.is_superseded) return false;
     return ["sent", "viewed"].includes(offer.status) && !isExpired();
   };
 
@@ -770,6 +758,21 @@ const PublicOfferView = () => {
   }
 
   const getStatusDisplay = () => {
+    // Ueberholte Fassung: der Link bleibt absichtlich gueltig — der Kunde soll
+    // nachlesen koennen, was er bekommen hat. Aber er muss erfahren, dass es
+    // nicht mehr der aktuelle Stand ist, sonst haelt er ihn dafuer.
+    if (offer.is_superseded) {
+      return (
+        <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-4 py-3 text-amber-800">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-medium">{t("offer.version.publicSupersededTitle")}</p>
+            <p className="mt-0.5 text-sm">{t("offer.version.publicSupersededBody")}</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (offer.status) {
       case "accepted":
         return (

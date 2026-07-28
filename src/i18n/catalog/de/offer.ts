@@ -1003,4 +1003,15 @@ export const offer = {
   "offer.calc.creating": "Wird erstellt…",
   "offer.calc.createOffer": "Offerte erstellen",
   "offer.calc.priceBasis": "Preise basieren auf Schweizer Marktstandard (Delta Umzug)",
+  // --- Versionierung (20260728190000) ------------------------------------
+  "offer.version.isVersion": "Version {n}",
+  "offer.version.superseded": "Zu dieser Fassung gibt es eine neuere Version",
+  "offer.version.createRevision": "Neue Version",
+  "offer.version.createRevisionShort": "Version",
+  "offer.version.created": "Neue Version angelegt",
+  "offer.version.lockedTitle": "Diese Offerte wurde versendet",
+  "offer.version.lockedBody": "Versendete Offerten werden nicht mehr geändert — der Kunde muss nachlesen können, was er gesehen hat. Für Änderungen legen Sie eine neue Version an.",
+  "offer.version.publicSupersededTitle": "Es gibt eine neuere Fassung",
+  "offer.version.publicSupersededBody": "Diese Offerte wurde inzwischen überarbeitet. Sie sehen hier den Stand, den Sie ursprünglich erhalten haben. Bitte wenden Sie sich an uns — die aktuelle Fassung erhalten Sie per E-Mail.",
+
 } as const;

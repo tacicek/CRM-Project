@@ -1761,6 +1761,106 @@ COMMENT ON FUNCTION public.create_lead_from_inbound_email(p_inbound_id uuid, p_c
 
 
 --
+-- Name: create_offer_revision(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_offer_revision(p_offer_id uuid, p_reason text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  v_alt      public.offers;
+  v_neu_id   UUID;
+  v_version  INTEGER;
+  v_spalten  TEXT;
+  v_kind     TEXT;
+  -- Was NICHT mitkopiert wird.
+  ausschluss CONSTANT TEXT[] := ARRAY[
+    'id', 'created_at', 'updated_at', 'access_token',
+    'status', 'sent_at', 'viewed_at', 'accepted_at', 'rejected_at',
+    'customer_response_note', 'agb_accepted_at', 'agb_version', 'agb_ip_address',
+    'locked_at', 'superseded_at', 'supersedes_offer_id',
+    'offer_series_id', 'version_number', 'revision_reason'
+  ];
+BEGIN
+  SELECT * INTO v_alt FROM public.offers WHERE id = p_offer_id;
+
+  IF v_alt.id IS NULL OR NOT public.is_company_member(v_alt.company_id) THEN
+    RAISE EXCEPTION 'Offerte nicht gefunden' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  IF v_alt.superseded_at IS NOT NULL THEN
+    RAISE EXCEPTION 'Zu dieser Offerte gibt es bereits eine neuere Version — diese zuerst oeffnen'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  IF v_alt.status = 'accepted' THEN
+    RAISE EXCEPTION 'Die Offerte ist angenommen. Aenderungen am vereinbarten Umfang '
+                    'brauchen die erneute Zustimmung des Kunden (Nachtrag).'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  IF v_alt.locked_at IS NULL THEN
+    RAISE EXCEPTION 'Die Offerte ist noch ein Entwurf und kann direkt bearbeitet werden'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  SELECT COALESCE(MAX(version_number), 0) + 1 INTO v_version
+  FROM public.offers WHERE offer_series_id = v_alt.offer_series_id;
+
+  SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum) INTO v_spalten
+  FROM pg_attribute a
+  WHERE a.attrelid = 'public.offers'::regclass
+    AND a.attnum > 0 AND NOT a.attisdropped
+    AND a.attgenerated = ''                 -- generierte Spalten rechnet die DB selbst
+    AND NOT (a.attname = ANY(ausschluss));
+
+  EXECUTE format(
+    'INSERT INTO public.offers (%s, offer_series_id, version_number, supersedes_offer_id, revision_reason, status)
+     SELECT %s, $1, $2, $3, $4, ''draft'' FROM public.offers WHERE id = $5
+     RETURNING id',
+    v_spalten, v_spalten)
+  INTO v_neu_id
+  USING v_alt.offer_series_id, v_version, v_alt.id, NULLIF(TRIM(COALESCE(p_reason, '')), ''), v_alt.id;
+
+  -- Kindtabellen — ebenfalls aus dem Katalog. Beim ersten Anlauf hatte ich die
+  -- Spalten hier von Hand aufgezaehlt und mich bei allen drei Tabellen geirrt;
+  -- genau davor warnt der Kopf dieser Datei fuer `offers`.
+  FOREACH v_kind IN ARRAY ARRAY['offer_items', 'offer_inventory_items', 'offer_leistungsuebersicht'] LOOP
+    SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum) INTO v_spalten
+    FROM pg_attribute a
+    WHERE a.attrelid = ('public.' || v_kind)::regclass
+      AND a.attnum > 0 AND NOT a.attisdropped
+      AND a.attgenerated = ''
+      AND a.attname NOT IN ('id', 'offer_id', 'created_at', 'updated_at');
+
+    IF v_spalten IS NOT NULL THEN
+      EXECUTE format(
+        'INSERT INTO public.%I (offer_id, %s) SELECT $1, %s FROM public.%I WHERE offer_id = $2',
+        v_kind, v_spalten, v_spalten, v_kind)
+      USING v_neu_id, v_alt.id;
+    END IF;
+  END LOOP;
+
+  UPDATE public.offers SET superseded_at = NOW() WHERE id = v_alt.id;
+
+  RETURN jsonb_build_object(
+    'neue_offerte_id', v_neu_id,
+    'version',         v_version,
+    'serie',           v_alt.offer_series_id,
+    'vorgaenger',      v_alt.id);
+END;
+$_$;
+
+
+--
+-- Name: FUNCTION create_offer_revision(p_offer_id uuid, p_reason text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.create_offer_revision(p_offer_id uuid, p_reason text) IS 'Legt die naechste Version einer versendeten Offerte an (Offerte + Positionen + Inventar + Leistungsuebersicht, eine Transaktion). Der Vorgaenger bleibt unveraendert — er ist der Stand, den der Kunde gesehen hat. Eine ANGENOMMENE Offerte wird abgewiesen: das waere ein Nachtrag.';
+
+
+--
 -- Name: customer_backfill_quellen(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3693,7 +3793,7 @@ COMMENT ON FUNCTION public.get_company_pricing_history(p_company_id uuid, p_limi
 -- Name: get_offer_by_token(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_offer_by_token(offer_access_token text) RETURNS TABLE(id uuid, title character varying, description text, customer_first_name character varying, customer_last_name character varying, customer_email character varying, customer_phone character varying, service_date date, valid_until date, subtotal numeric, vat_rate numeric, vat_amount numeric, total numeric, status character varying, created_at timestamp with time zone, sent_at timestamp with time zone, viewed_at timestamp with time zone, accepted_at timestamp with time zone, rejected_at timestamp with time zone, company_id uuid, lead_id uuid, agb_accepted_at timestamp with time zone, service_type character varying, is_expired boolean, from_street character varying, from_house_number character varying, from_plz character varying, from_city character varying, from_floor integer, from_has_lift boolean, to_street character varying, to_house_number character varying, to_plz character varying, to_city character varying, to_floor integer, to_has_lift boolean, surcharges jsonb, price_model text, hourly_rate numeric, kostendach_max numeric, offerte_type text, discount_percent numeric, from_has_estrich boolean, from_has_keller boolean, language text)
+CREATE FUNCTION public.get_offer_by_token(offer_access_token text) RETURNS TABLE(id uuid, title character varying, description text, customer_first_name character varying, customer_last_name character varying, customer_email character varying, customer_phone character varying, service_date date, valid_until date, subtotal numeric, vat_rate numeric, vat_amount numeric, total numeric, status character varying, created_at timestamp with time zone, sent_at timestamp with time zone, viewed_at timestamp with time zone, accepted_at timestamp with time zone, rejected_at timestamp with time zone, company_id uuid, lead_id uuid, agb_accepted_at timestamp with time zone, service_type character varying, is_expired boolean, from_street character varying, from_house_number character varying, from_plz character varying, from_city character varying, from_floor integer, from_has_lift boolean, to_street character varying, to_house_number character varying, to_plz character varying, to_city character varying, to_floor integer, to_has_lift boolean, surcharges jsonb, price_model text, hourly_rate numeric, kostendach_max numeric, offerte_type text, discount_percent numeric, from_has_estrich boolean, from_has_keller boolean, language text, is_superseded boolean, version_number integer)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -3746,7 +3846,9 @@ CREATE FUNCTION public.get_offer_by_token(offer_access_token text) RETURNS TABLE
     o.discount_percent,
     COALESCE(o.frozen_has_estrich, l.from_has_estrich) AS from_has_estrich,
     COALESCE(o.frozen_has_keller, l.from_has_keller)   AS from_has_keller,
-    o.language
+    o.language,
+    (o.superseded_at IS NOT NULL) AS is_superseded,
+    o.version_number
   FROM public.offers o
   LEFT JOIN public.leads l ON l.id = o.lead_id
   WHERE o.access_token = offer_access_token
@@ -4060,6 +4162,77 @@ BEGIN
 
   RAISE EXCEPTION 'customer_merges ist ein Nachweis und wird nicht veraendert'
     USING ERRCODE = 'insufficient_privilege';
+END;
+$$;
+
+
+--
+-- Name: guard_offer_content_after_send(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_offer_content_after_send() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  -- Was sich nach dem Versand noch aendern DARF. Alles andere ist gesperrt,
+  -- auch Spalten, die es zum Zeitpunkt dieser Migration noch nicht gibt.
+  erlaubt CONSTANT TEXT[] := ARRAY[
+    'status', 'sent_at', 'viewed_at', 'accepted_at', 'rejected_at',
+    'customer_response_note',
+    'agb_accepted_at', 'agb_version', 'agb_ip_address',
+    'updated_at', 'customer_id',
+    'offer_series_id', 'version_number', 'supersedes_offer_id',
+    'superseded_at', 'locked_at', 'revision_reason'
+  ];
+  alt_j  JSONB;
+  neu_j  JSONB;
+  spalte TEXT;
+BEGIN
+  -- Der Uebergang nach `sent` setzt die Sperre — und darf sie im selben
+  -- Statement noch nicht gegen sich selbst wenden.
+  IF NEW.status = 'sent' AND OLD.status IS DISTINCT FROM 'sent' AND NEW.locked_at IS NULL THEN
+    NEW.locked_at := NOW();
+  END IF;
+
+  IF OLD.locked_at IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- BEWUSST SECURITY INVOKER (Default): in einer DEFINER-Funktion waere
+  -- current_user immer der Eigentuemer und die Ausnahme wuerde stets greifen —
+  -- derselbe Fallstrick wie in guard_company_ownership.
+  IF current_user IN ('postgres', 'supabase_admin') THEN
+    RETURN NEW;
+  END IF;
+
+  alt_j := to_jsonb(OLD);
+  neu_j := to_jsonb(NEW);
+
+  -- Nur echte Spalten vergleichen. Generierte Spalten (total, vat_amount) sind in
+  -- einem BEFORE-Trigger auf NEW noch nicht berechnet und wuerden sich deshalb
+  -- IMMER von OLD unterscheiden — jede Statusaenderung waere faelschlich
+  -- blockiert. Schutz verlieren sie dadurch nicht: sie leiten sich aus Spalten
+  -- ab, die selbst gesperrt sind.
+  FOR spalte IN
+    SELECT a.attname
+    FROM pg_attribute a
+    WHERE a.attrelid = TG_RELID
+      AND a.attnum > 0
+      AND NOT a.attisdropped
+      AND a.attgenerated = ''
+  LOOP
+    IF NOT (spalte = ANY(erlaubt))
+       AND (alt_j -> spalte) IS DISTINCT FROM (neu_j -> spalte) THEN
+      RAISE EXCEPTION
+        'Offerte % wurde versendet und ist inhaltlich gesperrt (Feld "%"). '
+        'Aenderungen laufen ueber create_offer_revision().',
+        COALESCE(OLD.offer_number::TEXT, OLD.id::TEXT), spalte
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  END LOOP;
+
+  RETURN NEW;
 END;
 $$;
 
@@ -4866,6 +5039,35 @@ BEGIN
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'offers_set_customer: % (Offerte wird trotzdem gespeichert)', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: offers_set_series(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.offers_set_series() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.offer_series_id IS NULL THEN
+    -- Version 1 einer neuen Serie. Eine Revision setzt beides selbst
+    -- (create_offer_revision) und laeuft hier vorbei.
+    NEW.offer_series_id := NEW.id;
+    NEW.version_number  := COALESCE(NEW.version_number, 1);
+  END IF;
+
+  -- Wird eine Zeile gleich in einem versendeten Status angelegt (Import, ein
+  -- kuenftiger Codepfad), muss sie ebenso gesperrt sein. Ohne das haengt die
+  -- Sperre allein am UPDATE-Uebergang und eine solche Offerte bliebe fuer immer
+  -- frei aenderbar.
+  IF NEW.locked_at IS NULL AND NEW.status IN ('sent', 'viewed', 'accepted', 'rejected') THEN
+    NEW.locked_at := COALESCE(NEW.sent_at, NOW());
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -6614,6 +6816,7 @@ DECLARE
   v_offer_id            uuid;
   v_company_id          uuid;
   v_lead_id             uuid;
+  v_superseded_at       timestamptz;
   ALLOWED_STATUSES      text[] := ARRAY['viewed', 'accepted', 'rejected'];
   TERMINAL_STATUSES     text[] := ARRAY['accepted', 'rejected'];
 BEGIN
@@ -6622,8 +6825,8 @@ BEGIN
       USING ERRCODE = 'invalid_parameter_value';
   END IF;
 
-  SELECT status, service_date, valid_until, id, company_id, lead_id
-  INTO v_status, v_service_date, v_valid_until, v_offer_id, v_company_id, v_lead_id
+  SELECT status, service_date, valid_until, id, company_id, lead_id, superseded_at
+  INTO v_status, v_service_date, v_valid_until, v_offer_id, v_company_id, v_lead_id, v_superseded_at
   FROM public.offers
   WHERE access_token = offer_access_token;
 
@@ -6633,6 +6836,14 @@ BEGIN
 
   -- Eine angenommene Offerte wird nicht abgelehnt und umgekehrt.
   IF new_status IS NOT NULL AND v_status = ANY(TERMINAL_STATUSES) THEN
+    RETURN false;
+  END IF;
+
+  -- Ueberholte Fassung: der Link bleibt gueltig und zeigt weiterhin, was der
+  -- Kunde damals gesehen hat — aber zugestimmt wird der aktuellen Fassung.
+  -- Das blosse Oeffnen (viewed) bleibt erlaubt, sonst verloere man die
+  -- Information, dass jemand den alten Link noch benutzt.
+  IF v_superseded_at IS NOT NULL AND new_status IN ('accepted', 'rejected') THEN
     RETURN false;
   END IF;
 
@@ -9118,6 +9329,12 @@ CREATE TABLE public.offers (
     discount_percent numeric(5,2),
     language text DEFAULT 'de'::text NOT NULL,
     customer_id uuid,
+    offer_series_id uuid NOT NULL,
+    version_number integer DEFAULT 1 NOT NULL,
+    supersedes_offer_id uuid,
+    superseded_at timestamp with time zone,
+    locked_at timestamp with time zone,
+    revision_reason text,
     CONSTRAINT chk_offers_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('sending'::character varying)::text, ('sent'::character varying)::text, ('viewed'::character varying)::text, ('accepted'::character varying)::text, ('rejected'::character varying)::text, ('expired'::character varying)::text, ('job_confirmed'::character varying)::text, ('completed'::character varying)::text]))),
     CONSTRAINT kostendach_requires_hourly_rate CHECK (((price_model <> 'kostendach'::text) OR ((hourly_rate IS NOT NULL) AND (kostendach_max IS NOT NULL)))),
     CONSTRAINT offers_discount_percent_range CHECK (((discount_percent IS NULL) OR ((discount_percent >= (0)::numeric) AND (discount_percent <= (100)::numeric)))),
@@ -9251,6 +9468,27 @@ COMMENT ON COLUMN public.offers.language IS 'Eingefroren aus leads.language beim
 --
 
 COMMENT ON COLUMN public.offers.customer_id IS 'Kanonischer Kunde, vom Lead geerbt. Die eingefrorenen customer_*- und frozen_*-Felder bleiben unberuehrt.';
+
+
+--
+-- Name: COLUMN offers.offer_series_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.offers.offer_series_id IS 'Die Offerte ueber alle Versionen hinweg. Version 1 traegt hier ihre eigene id.';
+
+
+--
+-- Name: COLUMN offers.superseded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.offers.superseded_at IS 'Gesetzt, sobald eine neuere Version existiert. Der alte Link bleibt gueltig und zeigt weiterhin DIESE Fassung, aber die Annahme ist darueber gesperrt.';
+
+
+--
+-- Name: COLUMN offers.locked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.offers.locked_at IS 'Gesetzt beim Uebergang nach `sent`. Ab da sind Inhaltsaenderungen gesperrt — Aenderungen laufen ueber create_offer_revision().';
 
 
 --
@@ -12409,6 +12647,13 @@ CREATE INDEX idx_offers_lead_id ON public.offers USING btree (lead_id);
 
 
 --
+-- Name: idx_offers_series; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_offers_series ON public.offers USING btree (offer_series_id, version_number DESC);
+
+
+--
 -- Name: idx_offers_status; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12794,6 +13039,13 @@ CREATE INDEX idx_website_settings_type ON public.website_settings USING btree (s
 
 
 --
+-- Name: offers_series_version_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX offers_series_version_uniq ON public.offers USING btree (company_id, offer_series_id, version_number);
+
+
+--
 -- Name: uniq_confirmed_besichtigung_per_lead; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13067,10 +13319,24 @@ CREATE TRIGGER trigger_offers_acceptance_evidence BEFORE UPDATE OF status ON pub
 
 
 --
+-- Name: offers trigger_offers_guard_content; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_offers_guard_content BEFORE UPDATE ON public.offers FOR EACH ROW EXECUTE FUNCTION public.guard_offer_content_after_send();
+
+
+--
 -- Name: offers trigger_offers_set_customer; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trigger_offers_set_customer BEFORE INSERT ON public.offers FOR EACH ROW EXECUTE FUNCTION public.offers_set_customer();
+
+
+--
+-- Name: offers trigger_offers_set_series; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_offers_set_series BEFORE INSERT ON public.offers FOR EACH ROW EXECUTE FUNCTION public.offers_set_series();
 
 
 --
@@ -13913,6 +14179,14 @@ ALTER TABLE ONLY public.offers
 
 ALTER TABLE ONLY public.offers
     ADD CONSTRAINT offers_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE SET NULL;
+
+
+--
+-- Name: offers offers_supersedes_offer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.offers
+    ADD CONSTRAINT offers_supersedes_offer_id_fkey FOREIGN KEY (supersedes_offer_id) REFERENCES public.offers(id) ON DELETE SET NULL;
 
 
 --
