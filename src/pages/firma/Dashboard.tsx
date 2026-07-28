@@ -12,7 +12,6 @@ import {
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 import { AcceptBesichtigungDialog } from "@/components/firma/AcceptBesichtigungDialog";
@@ -21,6 +20,7 @@ import { LOCALE_TAGS, type Locale } from "@/i18n/locale";
 import { formatDate, formatDateTime } from "@/i18n/format";
 import { getAppointmentTypeLabel } from "@/i18n/domain";
 import type { MessageKey } from "@/i18n/translator";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useUebersichtData } from "@/hooks/useUebersichtData";
 import { KpiStrip } from "@/components/firma/uebersicht/KpiStrip";
@@ -45,14 +45,6 @@ const MATCHES: Record<VorgangFilter, (status: WorkItemStatus) => boolean> = {
   offeriert: (status) => status === "offeriert" || status === "ueberfaellig",
   gewonnen: (status) => status === "gewonnen",
 };
-
-interface DashboardStats {
-  tokenBalance: number;
-  pendingLeads: number;
-  openOffers: number;
-  jobsThisMonth: number;
-  besichtigungCount: number;
-}
 
 interface BoxStats {
   total_active: number;
@@ -101,21 +93,18 @@ const FirmaDashboard = () => {
   const { user } = useAuth();
   const t = useT();
   const { locale } = useI18n();
-  const [stats, setStats] = useState<DashboardStats>({
-    tokenBalance: 0,
-    pendingLeads: 0,
-    openOffers: 0,
-    jobsThisMonth: 0,
-    besichtigungCount: 0,
-  });
   const [besichtigungRequests, setBesichtigungRequests] = useState<BesichtigungRequest[]>([]);
   const [todayAppointments, setTodayAppointments] = useState<TodayAppointment[]>([]);
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  // Die aktive Firma steht im Kontext. Vorher rief diese Seite zusaetzlich
+  // fetchSingleCompanyForUser auf — ein Helfer, der im schlechtesten Fall vier
+  // HTTP-Abfragen nacheinander macht (Mitgliedschaft, E-Mail,
+  // Benachrichtigungs-E-Mail, Rueckfall), obwohl die Antwort schon vorliegt.
+  const { companyId } = useCompanyContext();
   const [selectedBesichtigung, setSelectedBesichtigung] = useState<BesichtigungRequest | null>(null);
   const [isAcceptDialogOpen, setIsAcceptDialogOpen] = useState(false);
   const [boxStats, setBoxStats] = useState<BoxStats | null>(null);
   const { resolvedTheme } = useTheme();
-  const { workItems, activity, kpis, revenueWeeks } = useUebersichtData();
+  const { workItems, activity, kpis, revenueWeeks, isLoading } = useUebersichtData();
   const [vorgangFilter, setVorgangFilter] = useState<VorgangFilter>("alle");
 
   // Nur clientseitig gefiltert — die Kennzahlen oben bleiben davon unberuehrt,
@@ -126,73 +115,37 @@ const FirmaDashboard = () => {
   const gefilterteVorgaenge = workItems.filter((item) => MATCHES[vorgangFilter](item.status));
   const sichtbareVorgaenge = gefilterteVorgaenge.slice(0, VORGAENGE_SICHTBAR);
   const offeneNeue = workItems.filter((item) => item.status === "neu").length;
+  const offeneOfferten = kpis.find((k) => k.key === "offerten")?.value ?? 0;
+  // Vorher zaehlte der Altcode dieselben Dinge ein zweites Mal — mit eigenen
+  // Abfragen und eigener Definition. Jetzt eine Quelle je Zahl.
+  const totalOpen = offeneNeue + offeneOfferten + besichtigungRequests.length;
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!user) return;
+    // Nur noch das, was die drei geschuetzten Bereiche brauchen:
+    // Besichtigungsanfragen, heutige Termine, Boxenlage. Kennzahlen und
+    // Vorgaenge kommen aus useUebersichtData — vorher holten beide Pfade
+    // dieselben leads und offers, teils dreifach.
+    const ladeBereiche = async () => {
+      if (!companyId) return;
 
       try {
-        const company = await fetchSingleCompanyForUser<{ id: string }>({
-          userId: user.id,
-          userEmail: user.email,
-          select: "id",
-        });
-
-        if (!company) return;
-        setCompanyId(company.id);
 
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const todayEnd = new Date();
         todayEnd.setHours(23, 59, 59, 999);
-        const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
-        const monthEnd = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 0, 23, 59, 59, 999);
 
         const [
-          { data: alleLeads },
-          { data: offertenLeadIds },
-          { count: openOffersCount },
-          { count: jobsThisMonthCount },
           { data: besichtigungNotifications },
           { data: appointmentsForOffers },
           { data: todayAppts },
           boxStatsResult,
         ] = await Promise.all([
-          // "Offene Anfragen" = Anfragen, zu denen es noch keine Offerte gibt.
-          // Bis 2026-07-28 zaehlte hier lead_distributions — eine Tabelle aus dem
-          // Marktplatz-Fork, die im Einzelmandanten 0 Zeilen hat. Die Kachel stand
-          // deshalb strukturell auf null.
-          supabase.from("leads").select("id").eq("company_id", company.id),
-
-          supabase
-            .from("offers")
-            .select("lead_id")
-            .eq("company_id", company.id)
-            .not("lead_id", "is", null),
-
-          supabase
-            .from("offers")
-            .select("*", { count: "exact", head: true })
-            .eq("company_id", company.id)
-            .in("status", ["sent", "viewed"]),
-
-          supabase
-            .from("appointments")
-            .select("*", { count: "exact", head: true })
-            .eq("company_id", company.id)
-            .eq("appointment_type", "service")
-            // appointment_date is a DATE column — compare with local yyyy-MM-dd strings.
-            // toISOString() shifts local midnight to the previous UTC day in CET/CEST,
-            // which pulled in the wrong calendar days.
-            .gte("appointment_date", format(monthStart, "yyyy-MM-dd"))
-            .lte("appointment_date", format(monthEnd, "yyyy-MM-dd"))
-            .neq("status", "cancelled"),
-
 
           supabase
             .from("notifications")
             .select("id, type, title, body, metadata, created_at, read")
-            .eq("company_id", company.id)
+            .eq("company_id", companyId)
             .eq("type", "besichtigung_request")
             .order("created_at", { ascending: false })
             .limit(5),
@@ -200,14 +153,14 @@ const FirmaDashboard = () => {
           supabase
             .from("appointments")
             .select("offer_id")
-            .eq("company_id", company.id)
+            .eq("company_id", companyId)
             .eq("appointment_type", "besichtigung")
             .neq("status", "cancelled"),
 
           supabase
             .from("appointments")
             .select("id, title, appointment_date, appointment_type")
-            .eq("company_id", company.id)
+            .eq("company_id", companyId)
             .gte("appointment_date", format(todayStart, "yyyy-MM-dd"))
             .lte("appointment_date", format(todayEnd, "yyyy-MM-dd"))
             .neq("status", "cancelled")
@@ -219,17 +172,11 @@ const FirmaDashboard = () => {
           // is unchanged: the query still runs in this Promise.all and errors still map
           // to { data: null, error } instead of rejecting the whole batch.
           Promise.resolve(
-            supabase.rpc("get_box_rental_stats", { p_company_id: company.id })
+            supabase.rpc("get_box_rental_stats", { p_company_id: companyId })
           )
             .then(({ data, error }) => ({ data, error }))
             .catch((error) => ({ data: null, error })),
         ]);
-
-        // Anfragen, zu denen bereits eine Offerte existiert — dieselbe Zuordnung,
-        // die Anfragen.tsx fuer seine Gruppierung benutzt.
-        const mitOfferte = new Set(
-          (offertenLeadIds ?? []).map((o: { lead_id: string | null }) => o.lead_id).filter(Boolean),
-        );
 
 
         const confirmedOfferIds = new Set(
@@ -271,22 +218,13 @@ const FirmaDashboard = () => {
           setBoxStats(boxStatsResult.data[0] as BoxStats);
         }
 
-        setStats({
-          tokenBalance: 0,
-          pendingLeads: (alleLeads ?? []).filter(
-            (l: { id: string }) => !mitOfferte.has(l.id),
-          ).length,
-          openOffers: openOffersCount || 0,
-          jobsThisMonth: jobsThisMonthCount || 0,
-          besichtigungCount: pendingBesichtigungen.length,
-        });
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       }
     };
 
-    fetchDashboardData();
-  }, [user]);
+    void ladeBereiche();
+  }, [companyId]);
 
   const formatTimestamp = (dateString: string) =>
     dateString ? formatDateTime(dateString, locale) : "";
@@ -333,7 +271,6 @@ const FirmaDashboard = () => {
   };
 
   const today = formatWeekdayLong(new Date(), locale);
-  const totalOpen = stats.pendingLeads + stats.openOffers + stats.besichtigungCount;
 
   // Folk-style KPI tiles — emoji-led, flat color, single coral accent on the highlight
 
@@ -383,7 +320,26 @@ const FirmaDashboard = () => {
         {/* Kennzahlen — ein umrandeter Streifen ab 820px, darunter
             scrollende Kacheln. Werte aus useUebersichtData; Umsatz stammt aus
             finance_overview, nicht aus einer zweiten Rechnung. */}
-        <KpiStrip kpis={kpis} />
+        {isLoading ? (
+          /* Skelett statt Nullwerte. Vorher rechnete die Seite mit leeren
+             Daten los und fuellte sich sichtbar nach — genau das, was als
+             "Tabellen laden spaeter" gemeldet wurde. */
+          <div className="flex gap-2.5 overflow-hidden shell-tablet:grid shell-tablet:grid-cols-4 shell-tablet:gap-0 shell-tablet:rounded-xl shell-tablet:border shell-tablet:border-folk-line">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={`box-border w-[105px] flex-none rounded-xl border border-folk-line bg-folk-card px-3.5 py-3 shell-tablet:w-auto shell-tablet:rounded-none shell-tablet:border-0 shell-tablet:px-5 shell-tablet:py-4 ${
+                  i < 3 ? "shell-tablet:border-r shell-tablet:border-folk-line" : ""
+                }`}
+              >
+                <div className="h-3 w-16 animate-pulse rounded bg-folk-bg-warm" />
+                <div className="mt-2 h-6 w-12 animate-pulse rounded bg-folk-bg-warm" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <KpiStrip kpis={kpis} />
+        )}
 
         {/* Heute — soft mint accent */}
         {todayAppointments.length > 0 && (
@@ -555,7 +511,16 @@ const FirmaDashboard = () => {
               })}
             </div>
 
-            {sichtbareVorgaenge.length > 0 ? (
+            {isLoading ? (
+              <div className="space-y-2.5">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="rounded-2xl border border-folk-line bg-folk-card p-4 shell-tablet:rounded-xl">
+                    <div className="h-4 w-40 animate-pulse rounded bg-folk-bg-warm" />
+                    <div className="mt-2 h-3 w-24 animate-pulse rounded bg-folk-bg-warm" />
+                  </div>
+                ))}
+              </div>
+            ) : sichtbareVorgaenge.length > 0 ? (
               <WorkItems
                 items={sichtbareVorgaenge}
                 variant={resolvedTheme === "dark" ? "list" : "grid"}
@@ -613,7 +578,7 @@ const FirmaDashboard = () => {
               </section>
             )}
 
-            {stats.pendingLeads > 0 && (
+            {offeneNeue > 0 && (
               <Link to="/firma/anfragen" className="block">
                 <section className="group rounded-xl border border-folk-coral/30 bg-folk-coral-bg p-5 ring-1 ring-folk-coral/20 transition-all hover:ring-folk-coral/40">
                   <div className="flex items-center gap-3">
@@ -622,8 +587,8 @@ const FirmaDashboard = () => {
                     </div>
                     <div className="flex-1">
                       <p className="text-[15px] font-bold tracking-tight text-folk-ink">
-                        <span className="font-mono">{stats.pendingLeads}</span>{" "}
-                        {t("dashboard.pendingLeads", { count: stats.pendingLeads })}
+                        <span className="font-mono">{offeneNeue}</span>{" "}
+                        {t("dashboard.pendingLeads", { count: offeneNeue })}
                       </p>
                       <p className="mt-0.5 text-[13px] text-folk-ink2">{t("dashboard.pendingLeads.hint")}</p>
                     </div>
@@ -634,7 +599,7 @@ const FirmaDashboard = () => {
             )}
 
             {/* Empty-state filler when right rail is otherwise empty */}
-            {!(boxStats && (boxStats.total_active > 0 || boxStats.overdue > 0)) && stats.pendingLeads === 0 && (
+            {!(boxStats && (boxStats.total_active > 0 || boxStats.overdue > 0)) && offeneNeue === 0 && (
               <section className="rounded-xl border border-folk-line bg-folk-card p-5">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl leading-none">✨</span>

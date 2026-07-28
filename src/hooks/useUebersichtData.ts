@@ -75,7 +75,12 @@ export const useUebersichtData = (): UebersichtData => {
               .select("id, service_type, from_city, to_city, created_at")
               .eq("company_id", companyId)
               .order("created_at", { ascending: false })
-              .limit(60),
+              // 200 statt 60: aus diesen Zeilen entstehen nicht nur die
+              // angezeigten Vorgaenge, sondern auch die Zaehler im Kopf und im
+              // KPI-Streifen. Bei 60 blieben aeltere offene Anfragen
+              // unberuecksichtigt und die Zahl waere still zu klein. Die Menge
+              // ist unkritisch — fuenf Spalten, im Einzelmandanten dreistellig.
+              .limit(200),
             supabase
               .from("offers")
               .select(
