@@ -227,6 +227,37 @@ Tahminle bağlanmazlar. Operatörün yolu:
 Belgede ad tek parça olduğu için müşteri adı **bölünmeden** alınır (`display_name`), çünkü
 bölmek `20260728120000`'in kapattığı hatanın backfill'de tekrarı olurdu.
 
+## 4c. Teklif versiyonlama ve Nachtrag — 2026-07-28
+
+**Gönderilen bir teklif artık içerik olarak kilitlidir.** Kilit veritabanında
+(`guard_offer_content_after_send`), arayüzde değil — API'ye doğrudan `PATCH` de
+geçemez.
+
+- Her `offers` satırı **bir versiyondur**: `offer_series_id` + `version_number`.
+  Değişiklik `create_offer_revision()` ile yeni versiyon açar; teklif, kalemler,
+  envanter ve Leistungsübersicht **tek transaction'da** klonlanır. Teklif numarası
+  taşınır (müşteri için aynı tekliftir).
+- **Kilit izin listesiyle çalışır**, yasak listesiyle değil: `offers`'ın ~95 kolonu
+  var; korunacakları saymak, bir sonraki yeni kolonu sessizce korumasız bırakırdı.
+  Sadece durum, müşteri yanıtı, AGB kanıtı ve versiyon alanları değişebilir.
+  **Generated kolonlar hariç** — BEFORE trigger'da `NEW`'de henüz hesaplanmadıkları
+  için her durum değişikliğini yanlışlıkla engellerlerdi.
+- **Eski link geçerli kalır** ve ait olduğu fassung'u gösterir (müşteri ne aldığını
+  okuyabilmeli), ama üzerinden **kabul edilemez**; açılması serbest.
+  `get_offer_by_token` bunun için `is_superseded` + `version_number` döndürür.
+
+**Kabul edilmiş bir teklif revize edilemez — Nachtrag gerekir.** Müşteri belirli
+bir kapsama onay verdi; yeni kapsam **yeniden onayını** gerektirir.
+
+- `offer_amendments` + `offer_amendment_items`: kendi linki, kendi onayı olan ayrı
+  bir belge. Teklif dokunulmadan kalır (ilk anlaşmanın kanıtı).
+- **Onayda Auftrag fortgeschrieben edilir, teklif değil.** Auftrag icrayı gösterir:
+  kalemler `items`'a eklenir, tutarlar toplanır. İkinci bir Auftrag açmak randevu,
+  ekip ve faturayı bölerdi.
+- Dil **tekliften devralınır** ve kolonda **DEFAULT yoktur**: default trigger'dan
+  önce dolar ve teklifin dili hiç ulaşmazdı — Fransız müşteriye Almanca Nachtrag
+  giderdi. Public sayfa `documentI18nFor` kullanır, **asla `useT()` değil**.
+
 ## 5. Edge Functions — Deployed Durum (2026-06-15 doğrulandı)
 
 > **Runtime davranış notu (2026-06-15 doğrulandı):**
