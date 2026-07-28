@@ -35,3 +35,12 @@ supabase/.temp/
 
 # Wiki screenshot stack: generated credentials, never committed
 supabase-wiki/.runtime/
+
+# Beim Bauen erzeugt (scripts/generate-sitemap.mjs), deshalb nicht versioniert:
+# die Datei aenderte sich bei jedem Build und stand dauerhaft als Aenderung im
+# Status. Ausgeliefert wird sie weiterhin — der Build legt sie an, und
+# robots.txt verweist darauf.
+public/sitemap.xml
+
+# Zustand der Supabase-CLI, keine Projektdatei
+supabase/.temp/
