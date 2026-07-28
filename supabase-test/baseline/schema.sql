@@ -737,6 +737,38 @@ $$;
 
 
 --
+-- Name: auftraege_set_locations(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.auftraege_set_locations() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.customer_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  NEW.from_location_id := COALESCE(
+    NEW.from_location_id,
+    public.resolve_or_create_location(NEW.company_id, NEW.customer_id,
+                                      NEW.from_address, 'from', 'manual'));
+  NEW.to_location_id := COALESCE(
+    NEW.to_location_id,
+    public.resolve_or_create_location(NEW.company_id, NEW.customer_id,
+                                      NEW.to_address, 'to', 'manual'));
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Ein fehlender Ortsbezug darf niemals einen Auftrag verhindern. Der
+  -- Backfill sammelt liegengebliebene Zeilen spaeter ein; dieselbe
+  -- Sicherheitslinie wie beim Kundenbezug.
+  RAISE WARNING 'Ortsbezug fuer Auftrag nicht aufloesbar: %', SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: beleg_set_customer(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1983,6 +2015,67 @@ COMMENT ON FUNCTION public.customer_backfill_quellen(p_company_id uuid) IS 'Vere
 
 
 --
+-- Name: customer_cases_aufgabe_anlegen(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.customer_cases_aufgabe_anlegen() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  INSERT INTO public.crm_tasks (company_id, title, description, task_type, priority,
+                                due_at, customer_id, auftrag_id, assigned_user_id)
+  VALUES (
+    NEW.company_id,
+    COALESCE(NEW.case_number, 'Fall') || ': ' || NEW.title,
+    NEW.description,
+    'admin',
+    CASE WHEN NEW.priority = 'urgent' THEN 'high' ELSE NEW.priority END,
+    COALESCE(NEW.due_at, NOW()),
+    NEW.customer_id, NEW.auftrag_id, NEW.assigned_user_id
+  );
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: customer_cases_verlauf_schreiben(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.customer_cases_verlauf_schreiben() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO public.customer_case_events
+      (case_id, company_id, event_type, neu_wert, note, actor_id)
+    VALUES (NEW.id, NEW.company_id, 'angelegt', NEW.status, NEW.title, auth.uid());
+    RETURN NULL;
+  END IF;
+
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    INSERT INTO public.customer_case_events
+      (case_id, company_id, event_type, alt_wert, neu_wert, note, actor_id)
+    VALUES (NEW.id, NEW.company_id,
+            CASE WHEN NEW.status IN ('geloest','abgelehnt') THEN 'abschluss' ELSE 'status' END,
+            OLD.status, NEW.status, NEW.resolution, auth.uid());
+  END IF;
+
+  IF NEW.assigned_user_id IS DISTINCT FROM OLD.assigned_user_id THEN
+    INSERT INTO public.customer_case_events
+      (case_id, company_id, event_type, alt_wert, neu_wert, actor_id)
+    VALUES (NEW.id, NEW.company_id, 'zuweisung',
+            OLD.assigned_user_id::TEXT, NEW.assigned_user_id::TEXT, auth.uid());
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
 -- Name: customer_merge_preview(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3030,6 +3123,33 @@ BEGIN
     AND auftrag_nummer LIKE year_prefix || '-%';
 
   NEW.auftrag_nummer := year_prefix || '-' || LPAD(next_number::TEXT, 4, '0');
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: generate_fall_nr(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.generate_fall_nr() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  next_nr  INTEGER;
+  jahr_int INTEGER;
+BEGIN
+  IF NEW.case_number IS NULL THEN
+    jahr_int := EXTRACT(YEAR FROM COALESCE(NEW.reported_at, NOW()))::INTEGER;
+
+    INSERT INTO public.fall_nr_counter AS c (company_id, jahr, letzte_nr)
+    VALUES (NEW.company_id, jahr_int, 1)
+    ON CONFLICT (company_id, jahr) DO UPDATE SET letzte_nr = c.letzte_nr + 1
+    RETURNING c.letzte_nr INTO next_nr;
+
+    NEW.case_number := 'FA-' || jahr_int::TEXT || '-' || LPAD(next_nr::TEXT, 4, '0');
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -4455,6 +4575,21 @@ BEGIN
   END LOOP;
 
   RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: guard_case_events_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_case_events_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'Der Fallverlauf ist ein Nachweis und wird nicht veraendert.'
+    USING ERRCODE = 'insufficient_privilege';
 END;
 $$;
 
@@ -6045,6 +6180,49 @@ $$;
 
 
 --
+-- Name: portal_report_case(text, text, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.portal_report_case(p_session text, p_case_type text, p_title text, p_description text DEFAULT NULL::text, p_auftrag_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+DECLARE
+  v_kunde_id UUID;
+  v_company  UUID;
+  v_id       UUID;
+BEGIN
+  v_kunde_id := public.portal_session_customer(p_session);
+  IF v_kunde_id IS NULL THEN
+    RAISE EXCEPTION 'Zugang ungueltig oder abgelaufen.'
+      USING ERRCODE = 'invalid_authorization_specification';
+  END IF;
+
+  SELECT company_id INTO v_company FROM public.customers WHERE id = v_kunde_id;
+
+  -- Der Auftrag muss dem meldenden Kunden gehoeren. Ohne diese Pruefung waere
+  -- die ID ein Weg, einen Fall an einen fremden Auftrag zu haengen.
+  IF p_auftrag_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.auftraege
+    WHERE id = p_auftrag_id AND customer_id = v_kunde_id
+  ) THEN
+    RAISE EXCEPTION 'Auftrag gehoert nicht zu diesem Kunden.'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  INSERT INTO public.customer_cases
+    (company_id, customer_id, case_type, title, description,
+     auftrag_id, reported_by, priority)
+  VALUES (v_company, v_kunde_id, p_case_type, TRIM(p_title), p_description,
+          p_auftrag_id, 'kunde', 'high')
+  RETURNING id INTO v_id;
+
+  RETURN jsonb_build_object('id', v_id);
+END;
+$$;
+
+
+--
 -- Name: portal_request_change(text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6844,6 +7022,47 @@ COMMENT ON FUNCTION public.resolve_or_create_customer(p_company_id uuid, p_email
 
 
 --
+-- Name: resolve_or_create_location(uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.resolve_or_create_location(p_company_id uuid, p_customer_id uuid, p_address_raw text, p_kind text DEFAULT 'object'::text, p_created_via text DEFAULT 'manual'::text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_id UUID;
+BEGIN
+  IF p_customer_id IS NULL OR NULLIF(TRIM(COALESCE(p_address_raw, '')), '') IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT id INTO v_id FROM public.service_locations
+  WHERE customer_id = p_customer_id
+    AND LOWER(TRIM(address_raw)) = LOWER(TRIM(p_address_raw));
+  IF FOUND THEN
+    RETURN v_id;
+  END IF;
+
+  INSERT INTO public.service_locations
+    (company_id, customer_id, kind, address_raw, created_via)
+  VALUES (p_company_id, p_customer_id, p_kind, TRIM(p_address_raw), p_created_via)
+  -- Zwei gleichzeitige Auftraege auf dieselbe Adresse: der Index entscheidet,
+  -- nicht das SELECT oben.
+  ON CONFLICT (customer_id, (LOWER(TRIM(address_raw)))) DO NOTHING
+  RETURNING id INTO v_id;
+
+  IF v_id IS NULL THEN
+    SELECT id INTO v_id FROM public.service_locations
+    WHERE customer_id = p_customer_id
+      AND LOWER(TRIM(address_raw)) = LOWER(TRIM(p_address_raw));
+  END IF;
+
+  RETURN v_id;
+END;
+$$;
+
+
+--
 -- Name: reverse_payment(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7303,6 +7522,61 @@ BEGIN
   GET DIAGNOSTICS v_tasks = ROW_COUNT;
 
   RETURN jsonb_build_object('status_nachgezogen', v_status, 'aufgaben', v_tasks);
+END;
+$$;
+
+
+--
+-- Name: run_location_backfill(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.run_location_backfill(p_company_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_a RECORD;
+  v_orte INTEGER := 0;
+  v_auftraege INTEGER := 0;
+  v_von UUID; v_nach UUID;
+  v_n INTEGER;
+BEGIN
+  IF NOT public.is_company_role(p_company_id, ARRAY['owner','admin']) THEN
+    RAISE EXCEPTION 'Nur Eigentuemer oder Administrator.' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  FOR v_a IN
+    SELECT id, company_id, customer_id, from_address, to_address
+    FROM public.auftraege
+    WHERE company_id = p_company_id
+      AND customer_id IS NOT NULL
+      AND deleted_at IS NULL
+      AND (from_location_id IS NULL OR to_location_id IS NULL)
+    ORDER BY created_at
+  LOOP
+    v_von  := public.resolve_or_create_location(v_a.company_id, v_a.customer_id,
+                                                v_a.from_address, 'from', 'backfill');
+    v_nach := public.resolve_or_create_location(v_a.company_id, v_a.customer_id,
+                                                v_a.to_address, 'to', 'backfill');
+    -- Gezaehlt wird nur, was sich TATSAECHLICH aendert. Zwei Auftraege tragen
+    -- nur eine der beiden Adressen; ihre zweite Spalte bleibt fuer immer NULL
+    -- und die Zeile taucht in jedem Lauf wieder auf. Sie deshalb als
+    -- "verarbeitet" zu melden hiesse, Arbeit zu behaupten, die nicht
+    -- stattgefunden hat — der zweite Lauf muss 0 sagen koennen.
+    UPDATE public.auftraege
+    SET from_location_id = COALESCE(from_location_id, v_von),
+        to_location_id   = COALESCE(to_location_id, v_nach)
+    WHERE id = v_a.id
+      AND (   (from_location_id IS NULL AND v_von  IS NOT NULL)
+           OR (to_location_id   IS NULL AND v_nach IS NOT NULL));
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    v_auftraege := v_auftraege + v_n;
+  END LOOP;
+
+  SELECT COUNT(*) INTO v_orte FROM public.service_locations
+  WHERE company_id = p_company_id AND created_via = 'backfill';
+
+  RETURN jsonb_build_object('orte', v_orte, 'auftraege', v_auftraege);
 END;
 $$;
 
@@ -9179,6 +9453,7 @@ CREATE TABLE public.appointments (
     reminder_sent_team boolean DEFAULT false,
     language text DEFAULT 'de'::text NOT NULL,
     customer_id uuid,
+    location_id uuid,
     CONSTRAINT appointments_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text])))
 );
 
@@ -9375,6 +9650,8 @@ CREATE TABLE public.auftraege (
     customer_id uuid,
     customer_first_name text,
     customer_last_name text,
+    from_location_id uuid,
+    to_location_id uuid,
     CONSTRAINT auftraege_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
     CONSTRAINT auftraege_pricing_type_check CHECK (((pricing_type)::text = ANY ((ARRAY['fixed'::character varying, 'hourly'::character varying, 'estimate'::character varying])::text[])))
 );
@@ -10119,6 +10396,71 @@ COMMENT ON TABLE public.crm_tasks IS 'Wiedervorlage: was als naechstes zu tun is
 
 
 --
+-- Name: customer_case_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.customer_case_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    case_id uuid NOT NULL,
+    company_id uuid NOT NULL,
+    event_type text NOT NULL,
+    alt_wert text,
+    neu_wert text,
+    note text,
+    actor_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT customer_case_events_type_check CHECK ((event_type = ANY (ARRAY['angelegt'::text, 'status'::text, 'zuweisung'::text, 'notiz'::text, 'abschluss'::text])))
+);
+
+
+--
+-- Name: customer_cases; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.customer_cases (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    customer_id uuid,
+    case_number text,
+    case_type text NOT NULL,
+    title text NOT NULL,
+    description text,
+    status text DEFAULT 'offen'::text NOT NULL,
+    priority text DEFAULT 'normal'::text NOT NULL,
+    auftrag_id uuid,
+    appointment_id uuid,
+    rechnung_id uuid,
+    location_id uuid,
+    reported_by text DEFAULT 'firma'::text NOT NULL,
+    reported_at timestamp with time zone DEFAULT now() NOT NULL,
+    assigned_user_id uuid,
+    due_at timestamp with time zone,
+    resolution text,
+    resolution_type text,
+    credit_note_id uuid,
+    closed_at timestamp with time zone,
+    evidence jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT customer_cases_abschluss_vollstaendig CHECK (((status <> ALL (ARRAY['geloest'::text, 'abgelehnt'::text])) OR ((closed_at IS NOT NULL) AND (resolution_type IS NOT NULL)))),
+    CONSTRAINT customer_cases_priority_check CHECK ((priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'urgent'::text]))),
+    CONSTRAINT customer_cases_reported_by_check CHECK ((reported_by = ANY (ARRAY['firma'::text, 'kunde'::text]))),
+    CONSTRAINT customer_cases_resolution_type_check CHECK (((resolution_type IS NULL) OR (resolution_type = ANY (ARRAY['repariert'::text, 'ersetzt'::text, 'gutschrift'::text, 'nachgeholt'::text, 'kulanz'::text, 'abgelehnt'::text, 'sonstiges'::text])))),
+    CONSTRAINT customer_cases_status_check CHECK ((status = ANY (ARRAY['offen'::text, 'in_arbeit'::text, 'wartet_auf_kunde'::text, 'geloest'::text, 'abgelehnt'::text]))),
+    CONSTRAINT customer_cases_titel_da CHECK ((length(TRIM(BOTH FROM title)) > 0)),
+    CONSTRAINT customer_cases_type_check CHECK ((case_type = ANY (ARRAY['damage'::text, 'complaint'::text, 'recleaning'::text, 'service_change'::text])))
+);
+
+
+--
+-- Name: TABLE customer_cases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.customer_cases IS 'Schaden, Reklamation, Nachreinigung, Serviceaenderung — EINE Tabelle mit Typfeld. Die vier unterscheiden sich im Anlass, nicht im Ablauf.';
+
+
+--
 -- Name: customer_change_requests; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10301,6 +10643,17 @@ CREATE TABLE public.email_logs (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     language text,
     CONSTRAINT email_logs_language_check CHECK (((language IS NULL) OR (language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))))
+);
+
+
+--
+-- Name: fall_nr_counter; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fall_nr_counter (
+    company_id uuid NOT NULL,
+    jahr integer NOT NULL,
+    letzte_nr integer DEFAULT 0 NOT NULL
 );
 
 
@@ -12712,6 +13065,51 @@ CREATE TABLE public.service_detail_templates (
 
 
 --
+-- Name: service_locations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.service_locations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    customer_id uuid NOT NULL,
+    kind text DEFAULT 'object'::text NOT NULL,
+    label text,
+    address_raw text NOT NULL,
+    street text,
+    house_number text,
+    plz text,
+    city text,
+    floor text,
+    has_elevator boolean,
+    parking_note text,
+    access_note text,
+    rooms numeric(4,1),
+    area_m2 numeric(8,2),
+    notes text,
+    created_via text DEFAULT 'manual'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT service_locations_adresse_da CHECK ((length(TRIM(BOTH FROM address_raw)) > 0)),
+    CONSTRAINT service_locations_created_via_check CHECK ((created_via = ANY (ARRAY['manual'::text, 'backfill'::text, 'portal'::text]))),
+    CONSTRAINT service_locations_kind_check CHECK ((kind = ANY (ARRAY['from'::text, 'to'::text, 'object'::text, 'storage'::text])))
+);
+
+
+--
+-- Name: TABLE service_locations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.service_locations IS 'Kanonische Orte je Kunde. address_raw bleibt unzerlegt — geraten waere schlimmer als roh. Die strukturierten Felder daneben sind alle optional.';
+
+
+--
+-- Name: COLUMN service_locations.kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.service_locations.kind IS 'Die beim Anlegen beobachtete Rolle. Nicht bindend: eine Auszugsadresse kann beim naechsten Mal die Einzugsadresse sein.';
+
+
+--
 -- Name: shared_content; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -13371,6 +13769,14 @@ ALTER TABLE ONLY public.credit_notes
 
 
 --
+-- Name: credit_notes credit_notes_id_company_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.credit_notes
+    ADD CONSTRAINT credit_notes_id_company_uniq UNIQUE (id, company_id);
+
+
+--
 -- Name: credit_notes credit_notes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13384,6 +13790,30 @@ ALTER TABLE ONLY public.credit_notes
 
 ALTER TABLE ONLY public.crm_tasks
     ADD CONSTRAINT crm_tasks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: customer_case_events customer_case_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_case_events
+    ADD CONSTRAINT customer_case_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: customer_cases customer_cases_nr_je_firma; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_nr_je_firma UNIQUE (company_id, case_number);
+
+
+--
+-- Name: customer_cases customer_cases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_pkey PRIMARY KEY (id);
 
 
 --
@@ -13432,6 +13862,14 @@ ALTER TABLE ONLY public.edge_rate_limits
 
 ALTER TABLE ONLY public.email_logs
     ADD CONSTRAINT email_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fall_nr_counter fall_nr_counter_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fall_nr_counter
+    ADD CONSTRAINT fall_nr_counter_pkey PRIMARY KEY (company_id, jahr);
 
 
 --
@@ -14002,6 +14440,22 @@ ALTER TABLE ONLY public.service_detail_templates
 
 
 --
+-- Name: service_locations service_locations_id_company_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.service_locations
+    ADD CONSTRAINT service_locations_id_company_uniq UNIQUE (id, company_id);
+
+
+--
+-- Name: service_locations service_locations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.service_locations
+    ADD CONSTRAINT service_locations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: shared_content shared_content_component_key_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14280,6 +14734,13 @@ CREATE INDEX idx_appointments_lead ON public.appointments USING btree (lead_id);
 
 
 --
+-- Name: idx_appointments_location; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_appointments_location ON public.appointments USING btree (location_id) WHERE (location_id IS NOT NULL);
+
+
+--
 -- Name: idx_appointments_offer; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14378,6 +14839,13 @@ CREATE INDEX idx_auftraege_customer ON public.auftraege USING btree (customer_id
 
 
 --
+-- Name: idx_auftraege_from_location; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_auftraege_from_location ON public.auftraege USING btree (from_location_id) WHERE (from_location_id IS NOT NULL);
+
+
+--
 -- Name: idx_auftraege_offer_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14413,10 +14881,24 @@ CREATE INDEX idx_auftraege_team_leader ON public.auftraege USING btree (team_lea
 
 
 --
+-- Name: idx_auftraege_to_location; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_auftraege_to_location ON public.auftraege USING btree (to_location_id) WHERE (to_location_id IS NOT NULL);
+
+
+--
 -- Name: idx_automation_deliveries_company; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_automation_deliveries_company ON public.automation_deliveries USING btree (company_id, delivered_at DESC);
+
+
+--
+-- Name: idx_case_events_fall; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_case_events_fall ON public.customer_case_events USING btree (case_id, created_at);
 
 
 --
@@ -14571,6 +15053,27 @@ CREATE INDEX idx_crm_tasks_lead ON public.crm_tasks USING btree (lead_id) WHERE 
 --
 
 CREATE INDEX idx_crm_tasks_offen ON public.crm_tasks USING btree (company_id, due_at) WHERE (status = 'open'::text);
+
+
+--
+-- Name: idx_customer_cases_auftrag; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_customer_cases_auftrag ON public.customer_cases USING btree (auftrag_id) WHERE (auftrag_id IS NOT NULL);
+
+
+--
+-- Name: idx_customer_cases_kunde; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_customer_cases_kunde ON public.customer_cases USING btree (customer_id, reported_at DESC);
+
+
+--
+-- Name: idx_customer_cases_offen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_customer_cases_offen ON public.customer_cases USING btree (company_id, due_at) WHERE (status <> ALL (ARRAY['geloest'::text, 'abgelehnt'::text]));
 
 
 --
@@ -15379,6 +15882,20 @@ CREATE INDEX idx_sales_stage_history_lead ON public.sales_stage_history USING bt
 
 
 --
+-- Name: idx_service_locations_company; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_service_locations_company ON public.service_locations USING btree (company_id, city);
+
+
+--
+-- Name: idx_service_locations_je_kunde; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_service_locations_je_kunde ON public.service_locations USING btree (customer_id, lower(TRIM(BOTH FROM address_raw)));
+
+
+--
 -- Name: idx_shared_content_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15659,6 +16176,20 @@ CREATE TRIGGER credit_notes_updated_at BEFORE UPDATE ON public.credit_notes FOR 
 
 
 --
+-- Name: customer_cases customer_cases_set_nr; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER customer_cases_set_nr BEFORE INSERT ON public.customer_cases FOR EACH ROW EXECUTE FUNCTION public.generate_fall_nr();
+
+
+--
+-- Name: customer_cases customer_cases_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER customer_cases_updated_at BEFORE UPDATE ON public.customer_cases FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
 -- Name: invoice_reminders invoice_reminders_erben; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15712,6 +16243,13 @@ CREATE TRIGGER rechnungen_set_nr BEFORE INSERT ON public.rechnungen FOR EACH ROW
 --
 
 CREATE TRIGGER rechnungen_updated_at BEFORE UPDATE ON public.rechnungen FOR EACH ROW EXECUTE FUNCTION public.update_rechnungen_updated_at();
+
+
+--
+-- Name: service_locations service_locations_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER service_locations_updated_at BEFORE UPDATE ON public.service_locations FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 
 --
@@ -15827,10 +16365,24 @@ CREATE TRIGGER trigger_auftraege_set_customer BEFORE INSERT ON public.auftraege 
 
 
 --
+-- Name: auftraege trigger_auftraege_set_locations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_auftraege_set_locations BEFORE INSERT ON public.auftraege FOR EACH ROW EXECUTE FUNCTION public.auftraege_set_locations();
+
+
+--
 -- Name: appointments trigger_calculate_duration; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trigger_calculate_duration BEFORE INSERT OR UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.calculate_appointment_duration();
+
+
+--
+-- Name: customer_case_events trigger_case_events_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_case_events_append_only BEFORE DELETE OR UPDATE ON public.customer_case_events FOR EACH ROW EXECUTE FUNCTION public.guard_case_events_append_only();
 
 
 --
@@ -15873,6 +16425,20 @@ CREATE TRIGGER trigger_credit_notes_fortschreiben AFTER INSERT OR DELETE OR UPDA
 --
 
 CREATE TRIGGER trigger_crm_tasks_updated_at BEFORE UPDATE ON public.crm_tasks FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
+-- Name: customer_cases trigger_customer_cases_aufgabe; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_customer_cases_aufgabe AFTER INSERT ON public.customer_cases FOR EACH ROW EXECUTE FUNCTION public.customer_cases_aufgabe_anlegen();
+
+
+--
+-- Name: customer_cases trigger_customer_cases_verlauf; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_customer_cases_verlauf AFTER INSERT OR UPDATE ON public.customer_cases FOR EACH ROW EXECUTE FUNCTION public.customer_cases_verlauf_schreiben();
 
 
 --
@@ -16318,6 +16884,14 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: appointments appointments_location_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT appointments_location_fk FOREIGN KEY (location_id, company_id) REFERENCES public.service_locations(id, company_id) ON DELETE SET NULL (location_id);
+
+
+--
 -- Name: appointments appointments_offer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16382,6 +16956,14 @@ ALTER TABLE ONLY public.auftraege
 
 
 --
+-- Name: auftraege auftraege_from_location_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.auftraege
+    ADD CONSTRAINT auftraege_from_location_fk FOREIGN KEY (from_location_id, company_id) REFERENCES public.service_locations(id, company_id) ON DELETE SET NULL (from_location_id);
+
+
+--
 -- Name: auftraege auftraege_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16403,6 +16985,14 @@ ALTER TABLE ONLY public.auftraege
 
 ALTER TABLE ONLY public.auftraege
     ADD CONSTRAINT auftraege_team_leader_id_fkey FOREIGN KEY (team_leader_id) REFERENCES public.team_members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: auftraege auftraege_to_location_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.auftraege
+    ADD CONSTRAINT auftraege_to_location_fk FOREIGN KEY (to_location_id, company_id) REFERENCES public.service_locations(id, company_id) ON DELETE SET NULL (to_location_id);
 
 
 --
@@ -16669,6 +17259,86 @@ ALTER TABLE ONLY public.crm_tasks
 
 
 --
+-- Name: customer_case_events customer_case_events_case_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_case_events
+    ADD CONSTRAINT customer_case_events_case_id_fkey FOREIGN KEY (case_id) REFERENCES public.customer_cases(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customer_case_events customer_case_events_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_case_events
+    ADD CONSTRAINT customer_case_events_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customer_cases customer_cases_appointment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_appointment_id_fkey FOREIGN KEY (appointment_id) REFERENCES public.appointments(id) ON DELETE SET NULL;
+
+
+--
+-- Name: customer_cases customer_cases_assigned_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_assigned_user_id_fkey FOREIGN KEY (assigned_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: customer_cases customer_cases_auftrag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_auftrag_id_fkey FOREIGN KEY (auftrag_id) REFERENCES public.auftraege(id) ON DELETE SET NULL;
+
+
+--
+-- Name: customer_cases customer_cases_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customer_cases customer_cases_credit_note_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_credit_note_fk FOREIGN KEY (credit_note_id, company_id) REFERENCES public.credit_notes(id, company_id) ON DELETE SET NULL (credit_note_id);
+
+
+--
+-- Name: customer_cases customer_cases_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
+-- Name: customer_cases customer_cases_location_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_location_fk FOREIGN KEY (location_id, company_id) REFERENCES public.service_locations(id, company_id) ON DELETE SET NULL (location_id);
+
+
+--
+-- Name: customer_cases customer_cases_rechnung_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_cases
+    ADD CONSTRAINT customer_cases_rechnung_fk FOREIGN KEY (rechnung_id, company_id) REFERENCES public.rechnungen(id, company_id) ON DELETE SET NULL (rechnung_id);
+
+
+--
 -- Name: customer_change_requests customer_change_requests_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16722,6 +17392,14 @@ ALTER TABLE ONLY public.email_logs
 
 ALTER TABLE ONLY public.email_logs
     ADD CONSTRAINT email_logs_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id);
+
+
+--
+-- Name: fall_nr_counter fall_nr_counter_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fall_nr_counter
+    ADD CONSTRAINT fall_nr_counter_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 
 --
@@ -17258,6 +17936,22 @@ ALTER TABLE ONLY public.sales_stage_history
 
 ALTER TABLE ONLY public.sales_stage_history
     ADD CONSTRAINT sales_stage_history_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: service_locations service_locations_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.service_locations
+    ADD CONSTRAINT service_locations_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: service_locations service_locations_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.service_locations
+    ADD CONSTRAINT service_locations_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE CASCADE;
 
 
 --
@@ -18279,6 +18973,13 @@ ALTER TABLE public.blog_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.blog_seo_performance ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: customer_case_events case_events_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY case_events_select_member ON public.customer_case_events FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
 -- Name: customer_change_requests change_requests_select_member; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -18580,6 +19281,46 @@ CREATE POLICY crm_tasks_update_member ON public.crm_tasks FOR UPDATE TO authenti
 
 
 --
+-- Name: customer_case_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.customer_case_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: customer_cases; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.customer_cases ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: customer_cases customer_cases_delete_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customer_cases_delete_owner_admin ON public.customer_cases FOR DELETE TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
+-- Name: customer_cases customer_cases_insert_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customer_cases_insert_member ON public.customer_cases FOR INSERT TO authenticated WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: customer_cases customer_cases_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customer_cases_select_member ON public.customer_cases FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: customer_cases customer_cases_update_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY customer_cases_update_member ON public.customer_cases FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
+
+
+--
 -- Name: customer_change_requests; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -18650,6 +19391,12 @@ ALTER TABLE public.edge_rate_limits ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fall_nr_counter; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.fall_nr_counter ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: firma_resources; Type: ROW SECURITY; Schema: public; Owner: -
@@ -19380,6 +20127,40 @@ ALTER TABLE public.service_catalog ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.service_detail_templates ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: service_locations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.service_locations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: service_locations service_locations_delete_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY service_locations_delete_owner_admin ON public.service_locations FOR DELETE TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
+-- Name: service_locations service_locations_insert_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY service_locations_insert_member ON public.service_locations FOR INSERT TO authenticated WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: service_locations service_locations_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY service_locations_select_member ON public.service_locations FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: service_locations service_locations_update_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY service_locations_update_member ON public.service_locations FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
+
 
 --
 -- Name: shared_content; Type: ROW SECURITY; Schema: public; Owner: -

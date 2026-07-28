@@ -16,6 +16,7 @@ import { inventory } from "@/i18n/catalog/fr/inventory";
 import { kunde } from "@/i18n/catalog/fr/kunde";
 import { finanz } from "@/i18n/catalog/fr/finanz";
 import { portal } from "@/i18n/catalog/fr/portal";
+import { fall } from "@/i18n/catalog/fr/fall";
 
 export const fr: Record<keyof typeof de, string> = {
   ...common,
@@ -35,4 +36,5 @@ export const fr: Record<keyof typeof de, string> = {
   ...kunde,
   ...finanz,
   ...portal,
+  ...fall,
 };

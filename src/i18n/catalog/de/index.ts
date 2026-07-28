@@ -25,6 +25,7 @@ import { inventory } from "@/i18n/catalog/de/inventory";
 import { kunde } from "@/i18n/catalog/de/kunde";
 import { finanz } from "@/i18n/catalog/de/finanz";
 import { portal } from "@/i18n/catalog/de/portal";
+import { fall } from "@/i18n/catalog/de/fall";
 
 export const de = {
   ...common,
@@ -44,4 +45,5 @@ export const de = {
   ...kunde,
   ...finanz,
   ...portal,
+  ...fall,
 };

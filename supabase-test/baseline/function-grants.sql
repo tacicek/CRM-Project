@@ -28,6 +28,9 @@ GRANT EXECUTE ON FUNCTION public.atomic_confirm_lead(p_confirmation_id uuid, p_l
 GRANT EXECUTE ON FUNCTION public.auftraege_set_customer() TO anon;
 GRANT EXECUTE ON FUNCTION public.auftraege_set_customer() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.auftraege_set_customer() TO service_role;
+GRANT EXECUTE ON FUNCTION public.auftraege_set_locations() TO anon;
+GRANT EXECUTE ON FUNCTION public.auftraege_set_locations() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.auftraege_set_locations() TO service_role;
 GRANT EXECUTE ON FUNCTION public.beleg_set_customer() TO anon;
 GRANT EXECUTE ON FUNCTION public.beleg_set_customer() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.beleg_set_customer() TO service_role;
@@ -89,6 +92,12 @@ GRANT EXECUTE ON FUNCTION public.credit_notes_von_rechnung_erben() TO authentica
 GRANT EXECUTE ON FUNCTION public.credit_notes_von_rechnung_erben() TO service_role;
 GRANT EXECUTE ON FUNCTION public.customer_backfill_quellen(p_company_id uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_backfill_quellen(p_company_id uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.customer_cases_aufgabe_anlegen() TO anon;
+GRANT EXECUTE ON FUNCTION public.customer_cases_aufgabe_anlegen() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_cases_aufgabe_anlegen() TO service_role;
+GRANT EXECUTE ON FUNCTION public.customer_cases_verlauf_schreiben() TO anon;
+GRANT EXECUTE ON FUNCTION public.customer_cases_verlauf_schreiben() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_cases_verlauf_schreiben() TO service_role;
 GRANT EXECUTE ON FUNCTION public.customer_merge_preview(p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_merge_preview(p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.customer_summary(p_customer_id uuid) TO authenticated;
@@ -137,6 +146,9 @@ GRANT EXECUTE ON FUNCTION public.find_customer_by_identity(p_company_id uuid, p_
 GRANT EXECUTE ON FUNCTION public.generate_auftrag_nummer() TO anon;
 GRANT EXECUTE ON FUNCTION public.generate_auftrag_nummer() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.generate_auftrag_nummer() TO service_role;
+GRANT EXECUTE ON FUNCTION public.generate_fall_nr() TO anon;
+GRANT EXECUTE ON FUNCTION public.generate_fall_nr() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.generate_fall_nr() TO service_role;
 GRANT EXECUTE ON FUNCTION public.generate_gutschrift_nr() TO anon;
 GRANT EXECUTE ON FUNCTION public.generate_gutschrift_nr() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.generate_gutschrift_nr() TO service_role;
@@ -263,6 +275,9 @@ GRANT EXECUTE ON FUNCTION public.guard_allocation_within_payment() TO service_ro
 GRANT EXECUTE ON FUNCTION public.guard_amendment_after_send() TO anon;
 GRANT EXECUTE ON FUNCTION public.guard_amendment_after_send() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.guard_amendment_after_send() TO service_role;
+GRANT EXECUTE ON FUNCTION public.guard_case_events_append_only() TO anon;
+GRANT EXECUTE ON FUNCTION public.guard_case_events_append_only() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.guard_case_events_append_only() TO service_role;
 GRANT EXECUTE ON FUNCTION public.guard_company_ownership() TO anon;
 GRANT EXECUTE ON FUNCTION public.guard_company_ownership() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.guard_company_ownership() TO service_role;
@@ -417,6 +432,9 @@ GRANT EXECUTE ON FUNCTION public.portal_overview(p_session text) TO service_role
 GRANT EXECUTE ON FUNCTION public.portal_redeem_magic_link(p_token text) TO anon;
 GRANT EXECUTE ON FUNCTION public.portal_redeem_magic_link(p_token text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.portal_redeem_magic_link(p_token text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.portal_report_case(p_session text, p_case_type text, p_title text, p_description text, p_auftrag_id uuid) TO anon;
+GRANT EXECUTE ON FUNCTION public.portal_report_case(p_session text, p_case_type text, p_title text, p_description text, p_auftrag_id uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.portal_report_case(p_session text, p_case_type text, p_title text, p_description text, p_auftrag_id uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.portal_request_change(p_session text, p_feld text, p_neu_wert text, p_bemerkung text) TO anon;
 GRANT EXECUTE ON FUNCTION public.portal_request_change(p_session text, p_feld text, p_neu_wert text, p_bemerkung text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.portal_request_change(p_session text, p_feld text, p_neu_wert text, p_bemerkung text) TO service_role;
@@ -449,6 +467,8 @@ GRANT EXECUTE ON FUNCTION public.replace_offer_items(p_offer_id uuid, p_items js
 GRANT EXECUTE ON FUNCTION public.replace_offer_items(p_offer_id uuid, p_items jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.resolve_or_create_customer(p_company_id uuid, p_email text, p_phone text, p_first_name text, p_last_name text, p_company_name text, p_salutation text, p_language text, p_source text, p_seen_at timestamp with time zone) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.resolve_or_create_customer(p_company_id uuid, p_email text, p_phone text, p_first_name text, p_last_name text, p_company_name text, p_salutation text, p_language text, p_source text, p_seen_at timestamp with time zone) TO service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_or_create_location(p_company_id uuid, p_customer_id uuid, p_address_raw text, p_kind text, p_created_via text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.resolve_or_create_location(p_company_id uuid, p_customer_id uuid, p_address_raw text, p_kind text, p_created_via text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.reverse_payment(p_payment_id uuid, p_reason text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.reverse_payment(p_payment_id uuid, p_reason text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.run_customer_backfill(p_company_id uuid) TO authenticated;
@@ -456,6 +476,8 @@ GRANT EXECUTE ON FUNCTION public.run_customer_backfill(p_company_id uuid) TO ser
 GRANT EXECUTE ON FUNCTION public.run_finance_backfill(p_company_id uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.run_finance_backfill(p_company_id uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.run_invoice_automations() TO service_role;
+GRANT EXECUTE ON FUNCTION public.run_location_backfill(p_company_id uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.run_location_backfill(p_company_id uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.run_pipeline_automations() TO service_role;
 GRANT EXECUTE ON FUNCTION public.save_besichtigung_analysis(p_session_id uuid, p_estimated_volume_m3 numeric, p_estimated_time_hours numeric, p_recommended_workers integer, p_recommended_truck text, p_room_breakdown jsonb, p_detected_items jsonb, p_special_items text[], p_special_requirements text[], p_from_access_difficulty text, p_from_floor integer, p_from_has_lift boolean, p_from_parking_distance text, p_confidence numeric, p_raw_response jsonb) TO anon;
 GRANT EXECUTE ON FUNCTION public.save_besichtigung_analysis(p_session_id uuid, p_estimated_volume_m3 numeric, p_estimated_time_hours numeric, p_recommended_workers integer, p_recommended_truck text, p_room_breakdown jsonb, p_detected_items jsonb, p_special_items text[], p_special_requirements text[], p_from_access_difficulty text, p_from_floor integer, p_from_has_lift boolean, p_from_parking_distance text, p_confidence numeric, p_raw_response jsonb) TO authenticated;

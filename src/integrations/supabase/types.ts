@@ -225,6 +225,7 @@ export type Database = {
       }
       appointments: {
         Row: {
+          location_id: string | null
           all_day: boolean | null
           appointment_date: string
           appointment_type: Database["public"]["Enums"]["appointment_type"]
@@ -274,6 +275,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          location_id?: string | null
           all_day?: boolean | null
           appointment_date: string
           appointment_type: Database["public"]["Enums"]["appointment_type"]
@@ -323,6 +325,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          location_id?: string | null
           all_day?: boolean | null
           appointment_date?: string
           appointment_type?: Database["public"]["Enums"]["appointment_type"]
@@ -647,6 +650,8 @@ export type Database = {
       }
       auftraege: {
         Row: {
+          from_location_id: string | null
+          to_location_id: string | null
           appointment_id: string | null
           assigned_team_members: string[] | null
           auftrag_nummer: string
@@ -694,6 +699,8 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          from_location_id?: string | null
+          to_location_id?: string | null
           appointment_id?: string | null
           assigned_team_members?: string[] | null
           auftrag_nummer: string
@@ -741,6 +748,8 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          from_location_id?: string | null
+          to_location_id?: string | null
           appointment_id?: string | null
           assigned_team_members?: string[] | null
           auftrag_nummer?: string
@@ -2104,6 +2113,126 @@ export type Database = {
           id?: string
           neu_wert?: string
           status?: string
+        }
+        Relationships: []
+      }
+      customer_cases: {
+        Row: {
+          appointment_id: string | null
+          assigned_user_id: string | null
+          auftrag_id: string | null
+          case_number: string | null
+          case_type: string
+          closed_at: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          credit_note_id: string | null
+          customer_id: string | null
+          description: string | null
+          due_at: string | null
+          evidence: Json
+          id: string
+          location_id: string | null
+          priority: string
+          rechnung_id: string | null
+          reported_at: string
+          reported_by: string
+          resolution: string | null
+          resolution_type: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          assigned_user_id?: string | null
+          auftrag_id?: string | null
+          case_number?: string | null
+          case_type: string
+          closed_at?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          credit_note_id?: string | null
+          customer_id?: string | null
+          description?: string | null
+          due_at?: string | null
+          evidence?: Json
+          id?: string
+          location_id?: string | null
+          priority?: string
+          rechnung_id?: string | null
+          reported_at?: string
+          reported_by?: string
+          resolution?: string | null
+          resolution_type?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          assigned_user_id?: string | null
+          auftrag_id?: string | null
+          case_number?: string | null
+          case_type?: string
+          closed_at?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          credit_note_id?: string | null
+          customer_id?: string | null
+          description?: string | null
+          due_at?: string | null
+          evidence?: Json
+          id?: string
+          location_id?: string | null
+          priority?: string
+          rechnung_id?: string | null
+          reported_at?: string
+          reported_by?: string
+          resolution?: string | null
+          resolution_type?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      customer_case_events: {
+        Row: {
+          actor_id: string | null
+          alt_wert: string | null
+          case_id: string
+          company_id: string
+          created_at: string
+          event_type: string
+          id: string
+          neu_wert: string | null
+          note: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          alt_wert?: string | null
+          case_id: string
+          company_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          neu_wert?: string | null
+          note?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          alt_wert?: string | null
+          case_id?: string
+          company_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          neu_wert?: string | null
+          note?: string | null
         }
         Relationships: []
       }
@@ -4663,6 +4792,75 @@ export type Database = {
         }
         Relationships: []
       }
+      service_locations: {
+        Row: {
+          access_note: string | null
+          address_raw: string
+          area_m2: number | null
+          city: string | null
+          company_id: string
+          created_at: string
+          created_via: string
+          customer_id: string
+          floor: string | null
+          has_elevator: boolean | null
+          house_number: string | null
+          id: string
+          kind: string
+          label: string | null
+          notes: string | null
+          parking_note: string | null
+          plz: string | null
+          rooms: number | null
+          street: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_note?: string | null
+          address_raw: string
+          area_m2?: number | null
+          city?: string | null
+          company_id: string
+          created_at?: string
+          created_via?: string
+          customer_id: string
+          floor?: string | null
+          has_elevator?: boolean | null
+          house_number?: string | null
+          id?: string
+          kind?: string
+          label?: string | null
+          notes?: string | null
+          parking_note?: string | null
+          plz?: string | null
+          rooms?: number | null
+          street?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_note?: string | null
+          address_raw?: string
+          area_m2?: number | null
+          city?: string | null
+          company_id?: string
+          created_at?: string
+          created_via?: string
+          customer_id?: string
+          floor?: string | null
+          has_elevator?: boolean | null
+          house_number?: string | null
+          id?: string
+          kind?: string
+          label?: string | null
+          notes?: string | null
+          parking_note?: string | null
+          plz?: string | null
+          rooms?: number | null
+          street?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quittungen: {
         Row: {
           payment_id: string | null
@@ -6920,6 +7118,30 @@ export type Database = {
       }
       decide_change_request: {
         Args: { p_annehmen: boolean; p_id: string; p_notiz?: string }
+        Returns: Json
+      }
+      resolve_or_create_location: {
+        Args: {
+          p_address_raw: string
+          p_company_id: string
+          p_created_via?: string
+          p_customer_id: string
+          p_kind?: string
+        }
+        Returns: string
+      }
+      run_location_backfill: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      portal_report_case: {
+        Args: {
+          p_auftrag_id?: string
+          p_case_type: string
+          p_description?: string
+          p_session: string
+          p_title: string
+        }
         Returns: Json
       }
       search_customers: {

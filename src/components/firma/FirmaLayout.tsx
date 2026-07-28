@@ -422,6 +422,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
         { titleKey: "nav.kunden", url: "/firma/kunden", emoji: "🧑", moduleKey: "contacts" },
         { titleKey: "nav.aufgaben", url: "/firma/aufgaben", emoji: "🔔", moduleKey: "leads" },
         { titleKey: "nav.finanzen", url: "/firma/finanzen", emoji: "💰", moduleKey: "invoices" },
+        { titleKey: "nav.faelle", url: "/firma/faelle", emoji: "🛠️", moduleKey: "orders" },
         { titleKey: "nav.offerten", url: "/firma/offerten", emoji: "📄", moduleKey: "offers" },
         { titleKey: "nav.auftraege", url: "/firma/auftraege", emoji: "✅", moduleKey: "orders" },
         { titleKey: "nav.quittungen", url: "/firma/quittungen", emoji: "🧾", moduleKey: "receipts" },

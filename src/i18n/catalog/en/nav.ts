@@ -13,6 +13,7 @@ export const nav: Record<keyof typeof de, string> = {
   "nav.kunden": "Customers",
   "nav.aufgaben": "Follow-ups",
   "nav.finanzen": "Finances",
+  "nav.faelle": "Cases",
   "nav.auftraege": "Work orders",
   "nav.quittungen": "Receipts",
   "nav.rechnungen": "Invoices",
