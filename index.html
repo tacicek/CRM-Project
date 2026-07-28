@@ -67,6 +67,10 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/pwa-192.png" />
     <!-- iOS liest kein display:standalone aus dem Manifest. -->
+    <!-- Beide: `mobile-web-app-capable` ist der Standard, den Chrome erwartet,
+         `apple-…` versteht aelteres iOS-Safari weiterhin allein. Ohne das
+         erste meldet Chrome die Seite als veraltet. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="CRM" />
 
