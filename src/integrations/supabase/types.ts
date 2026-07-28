@@ -2062,6 +2062,51 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_change_requests: {
+        Row: {
+          alt_wert: string | null
+          bemerkung: string | null
+          company_id: string
+          created_at: string
+          customer_id: string
+          entscheid_notiz: string | null
+          entschieden_am: string | null
+          entschieden_von: string | null
+          feld: string
+          id: string
+          neu_wert: string
+          status: string
+        }
+        Insert: {
+          alt_wert?: string | null
+          bemerkung?: string | null
+          company_id: string
+          created_at?: string
+          customer_id: string
+          entscheid_notiz?: string | null
+          entschieden_am?: string | null
+          entschieden_von?: string | null
+          feld: string
+          id?: string
+          neu_wert: string
+          status?: string
+        }
+        Update: {
+          alt_wert?: string | null
+          bemerkung?: string | null
+          company_id?: string
+          created_at?: string
+          customer_id?: string
+          entscheid_notiz?: string | null
+          entschieden_am?: string | null
+          entschieden_von?: string | null
+          feld?: string
+          id?: string
+          neu_wert?: string
+          status?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           company_id: string
@@ -4546,6 +4591,78 @@ export type Database = {
         }
         Relationships: []
       }
+      portal_magic_links: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          expires_at: string
+          id: string
+          revoked_at: string | null
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          expires_at: string
+          id?: string
+          revoked_at?: string | null
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
+      portal_sessions: {
+        Row: {
+          company_id: string
+          created_at: string
+          customer_id: string
+          expires_at: string
+          id: string
+          last_seen_at: string | null
+          magic_link_id: string | null
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          customer_id: string
+          expires_at: string
+          id?: string
+          last_seen_at?: string | null
+          magic_link_id?: string | null
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          customer_id?: string
+          expires_at?: string
+          id?: string
+          last_seen_at?: string | null
+          magic_link_id?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: []
+      }
       quittungen: {
         Row: {
           payment_id: string | null
@@ -6774,6 +6891,35 @@ export type Database = {
       }
       run_finance_backfill: {
         Args: { p_company_id: string }
+        Returns: Json
+      }
+      portal_create_magic_link: {
+        Args: { p_customer_id: string; p_gueltig_tage?: number }
+        Returns: Json
+      }
+      portal_redeem_magic_link: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      portal_overview: {
+        Args: { p_session: string }
+        Returns: Json
+      }
+      portal_request_change: {
+        Args: {
+          p_bemerkung?: string
+          p_feld: string
+          p_neu_wert: string
+          p_session: string
+        }
+        Returns: Json
+      }
+      portal_revoke_access: {
+        Args: { p_customer_id: string }
+        Returns: Json
+      }
+      decide_change_request: {
+        Args: { p_annehmen: boolean; p_id: string; p_notiz?: string }
         Returns: Json
       }
       search_customers: {

@@ -11,6 +11,7 @@ import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useKunde } from "@/hooks/useKunde";
 import { useKundeTimeline } from "@/hooks/useKundeTimeline";
+import { PortalZugangPanel } from "@/components/firma/PortalZugangPanel";
 import { KundeMergeDialog } from "@/components/firma/KundeMergeDialog";
 import { useI18n, useT } from "@/i18n/useI18n";
 import { formatCurrency } from "@/i18n/format";
@@ -293,6 +294,10 @@ export default function FirmaKundeDetail() {
                   </div>
                 )}
               </dl>
+
+              <div className="mt-5 border-t border-folk-line pt-4">
+                <PortalZugangPanel customerId={id!} companyId={companyId} />
+              </div>
             </section>
           </div>
         ) : (

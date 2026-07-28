@@ -32,6 +32,7 @@ const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
 // Public views kept (shareable offer link, appointment actions)
 const PublicOfferView = lazy(() => import("./pages/public/OfferView"));
 const PublicNachtragView = lazy(() => import("./pages/public/NachtragView"));
+const Portal = lazy(() => import("./pages/public/Portal"));
 const AppointmentCancel = lazy(() => import("./pages/public/AppointmentCancel"));
 const AppointmentReschedule = lazy(() => import("./pages/public/AppointmentReschedule"));
 const RescheduleResponse = lazy(() => import("./pages/public/RescheduleResponse"));
@@ -150,6 +151,10 @@ const App = () => (
                 {/* Public shareable views */}
                 <Route path="/offerte/:token" element={<PublicOfferView />} />
                 <Route path="/nachtrag/:token" element={<PublicNachtragView />} />
+                {/* Kundenbereich. Der Link wird beim ersten Oeffnen verbraucht;
+                    die Sitzung lebt danach im Tab, deshalb auch ohne Token. */}
+                <Route path="/portal/:token" element={<Portal />} />
+                <Route path="/portal" element={<Portal />} />
                 <Route path="/termin/:appointmentId/absagen" element={<AppointmentCancel />} />
                 <Route path="/termin/:appointmentId/verschieben" element={<AppointmentReschedule />} />
                 <Route path="/termin/:appointmentId/antwort" element={<RescheduleResponse />} />
