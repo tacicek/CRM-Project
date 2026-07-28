@@ -132,7 +132,33 @@ const FirmaRouteWrapper = () => (
 
 export { firmaImports };
 
-const queryClient = new QueryClient();
+/**
+ * React Query war eingebunden, aber ohne Einstellungen — und damit ohne
+ * Wirkung: `staleTime` steht ab Werk auf 0, also gilt jede Antwort sofort als
+ * veraltet und wird bei jedem Einhängen neu geholt.
+ *
+ * Die Werte hier sind auf ein Innendienst-Werkzeug gemünzt, nicht auf eine
+ * Echtzeitanzeige: wer zwischen zwei Seiten wechselt, soll dieselben Zahlen
+ * ohne neue Wartezeit wiedersehen.
+ *
+ * `refetchOnWindowFocus: false`, weil das Fenster den ganzen Tag offen liegt
+ * und jeder Wechsel zurück sonst eine Abfragewelle auslöst.
+ *
+ * `retry: 1` nur für Lesezugriffe. Schreibende Aufrufe werden nicht
+ * wiederholt — ein zweites Mal gesendetes Angebot wäre schlimmer als eine
+ * sichtbare Fehlermeldung.
+ */
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+    mutations: { retry: 0 },
+  },
+});
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center">
