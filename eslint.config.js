@@ -51,8 +51,11 @@ export default tseslint.config(
           "badgeVariants", 
           "toggleVariants",
           "DEFAULT_OFFER_DETAILS", 
-          "useTracking", 
+          "useTracking",
           "useAuth",
+          // Wie useAuth: der Hook steht bewusst neben seinem Provider, damit
+          // Kontext und Zugriff nicht auseinanderlaufen.
+          "useTheme",
           "useFormField",
           "generateServiceSchema",
           "generateLocalBusinessSchema",

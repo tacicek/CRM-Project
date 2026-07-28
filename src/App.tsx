@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "rea
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/CompanyProvider";
+import { ThemeProvider } from "@/hooks/useTheme";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { lazy, Suspense, useLayoutEffect } from "react";
 
@@ -73,6 +74,7 @@ const firmaImports = {
   Posteingang: () => import("./pages/firma/Posteingang"),
   Kennzahlen: () => import("./pages/firma/Kennzahlen"),
   RechnungDetail: () => import("./pages/firma/RechnungDetail"),
+  Hilfe: () => import("./pages/firma/Hilfe"),
 };
 
 const FirmaDashboard = lazy(firmaImports.Dashboard);
@@ -105,6 +107,7 @@ const FirmaFaelle = lazy(firmaImports.Faelle);
 const FirmaPosteingang = lazy(firmaImports.Posteingang);
 const FirmaKennzahlen = lazy(firmaImports.Kennzahlen);
 const FirmaRechnungDetail = lazy(firmaImports.RechnungDetail);
+const FirmaHilfe = lazy(firmaImports.Hilfe);
 
 // Layout wrapper
 const FirmaLayout = lazy(() => import("./components/firma/FirmaLayout"));
@@ -112,12 +115,17 @@ const FirmaLayout = lazy(() => import("./components/firma/FirmaLayout"));
 // I18nProvider sitzt INNERHALB des CompanyProvider: die Dashboard-Sprache kommt aus
 // companies.default_language. Öffentliche Seiten liegen bewusst ausserhalb — sie
 // richten sich nach der Sprache des Dokuments, nicht nach der der Firma.
+// ThemeProvider steht aus demselben Grund hier drin: das Erscheinungsbild ist
+// eine Einstellung des Operators und darf nicht auf Kundenseiten durchschlagen.
+// Beim Verlassen von /firma wird data-theme wieder entfernt.
 const FirmaRouteWrapper = () => (
   <CompanyProvider>
     <I18nProvider>
-      <FirmaLayout>
-        <Outlet />
-      </FirmaLayout>
+      <ThemeProvider>
+        <FirmaLayout>
+          <Outlet />
+        </FirmaLayout>
+      </ThemeProvider>
     </I18nProvider>
   </CompanyProvider>
 );
@@ -202,6 +210,9 @@ const App = () => (
                   <Route path="/firma/manual-import" element={<FirmaManualImport />} />
                   <Route path="/firma/anfragen" element={<FirmaAnfragen />} />
                   <Route path="/firma/datenarchiv" element={<FirmaDatenarchiv />} />
+                  {/* Hilfe & Anleitung — index and one route per article. */}
+                  <Route path="/firma/hilfe" element={<FirmaHilfe />} />
+                  <Route path="/firma/hilfe/:slug" element={<FirmaHilfe />} />
                 </Route>
 
                 {/* Catch-all 404 */}
