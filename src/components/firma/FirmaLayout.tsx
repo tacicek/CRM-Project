@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useNotificationHistory } from "@/hooks/useNotificationHistory";
+import { useBoxRentalStats } from "@/hooks/useBoxRentalStats";
 import { supabase } from "@/integrations/supabase/client";
 import { firmaImports } from "@/App";
 import { MODULES } from "@/config/modules";
@@ -235,7 +236,6 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   const company = activeCompany as Company | null;
   const [besichtigungUploadedCount, setBesichtigungUploadedCount] = useState(0);
   const [inboundReviewCount, setInboundReviewCount] = useState(0);
-  const [boxUrgentCount, setBoxUrgentCount] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -301,21 +301,10 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     supabase.from("inbound_emails").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("processing_status", "needs_review").then(({ count }) => setInboundReviewCount(count || 0));
   }, [companyId]);
 
-  // Dringende Boxen-Abholungen
-  //
-  // Ueber die RPC und nicht ueber eine eigene Abfrage: `urgent` ist dort
-  // definiert (20260802100000) und ist dieselbe Zahl, die die Boxenseite im
-  // roten Band zeigt. Eine zweite Filterlogik hier wuerde frueher oder spaeter
-  // eine andere Zahl ergeben als die Seite, auf die das Abzeichen fuehrt.
-  //
-  // Kein Realtime-Kanal: eine Miete wird nicht durch ein Ereignis ueberfaellig,
-  // sondern durch Zeitablauf. Neu geladen wird beim Seitenwechsel.
-  useEffect(() => {
-    if (!companyId) return;
-    supabase
-      .rpc("get_box_rental_stats", { p_company_id: companyId })
-      .then(({ data }) => setBoxUrgentCount(data?.[0]?.urgent ?? 0));
-  }, [companyId, location.pathname]);
+  // Dringende Boxen-Abholungen. Begruendung der Quelle und der Haltbarkeit
+  // steht im Hook — die Uebersicht liest dieselbe Zahl aus demselben Speicher.
+  const { data: boxStats } = useBoxRentalStats(companyId);
+  const boxUrgentCount = boxStats?.urgent ?? 0;
 
   // Real-time: notifications
   useEffect(() => {

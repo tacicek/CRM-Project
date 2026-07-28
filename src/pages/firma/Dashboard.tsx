@@ -23,6 +23,7 @@ import type { MessageKey } from "@/i18n/translator";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useUebersichtData } from "@/hooks/useUebersichtData";
+import { useBoxRentalStats } from "@/hooks/useBoxRentalStats";
 import { KpiStrip } from "@/components/firma/uebersicht/KpiStrip";
 import { WorkItems } from "@/components/firma/uebersicht/WorkItems";
 import { RevenueBars } from "@/components/firma/uebersicht/RevenueBars";
@@ -45,14 +46,6 @@ const MATCHES: Record<VorgangFilter, (status: WorkItemStatus) => boolean> = {
   offeriert: (status) => status === "offeriert" || status === "ueberfaellig",
   gewonnen: (status) => status === "gewonnen",
 };
-
-interface BoxStats {
-  total_active: number;
-  overdue: number;
-  urgent: number;
-  pickup_today: number;
-}
-
 
 interface TodayAppointment {
   id: string;
@@ -102,9 +95,12 @@ const FirmaDashboard = () => {
   const { companyId } = useCompanyContext();
   const [selectedBesichtigung, setSelectedBesichtigung] = useState<BesichtigungRequest | null>(null);
   const [isAcceptDialogOpen, setIsAcceptDialogOpen] = useState(false);
-  const [boxStats, setBoxStats] = useState<BoxStats | null>(null);
   const { resolvedTheme } = useTheme();
   const { workItems, activity, kpis, revenueWeeks, isLoading } = useUebersichtData();
+  // Dieselbe Abfrage, die auch das Abzeichen in der Navigation speist. Sie lief
+  // frueher zweimal nebeneinander — hier und im Layout. Ueber den gemeinsamen
+  // Schluessel bleibt eine uebrig.
+  const { data: boxStats } = useBoxRentalStats(companyId);
   const [vorgangFilter, setVorgangFilter] = useState<VorgangFilter>("alle");
 
   // Nur clientseitig gefiltert — die Kennzahlen oben bleiben davon unberuehrt,
@@ -139,7 +135,6 @@ const FirmaDashboard = () => {
           { data: besichtigungNotifications },
           { data: appointmentsForOffers },
           { data: todayAppts },
-          boxStatsResult,
         ] = await Promise.all([
 
           supabase
@@ -166,16 +161,6 @@ const FirmaDashboard = () => {
             .neq("status", "cancelled")
             .order("appointment_date", { ascending: true })
             .limit(8),
-
-          // Promise.resolve adopts the Supabase thenable into a real Promise so
-          // .catch is available (PostgrestBuilder.then returns a PromiseLike). Behaviour
-          // is unchanged: the query still runs in this Promise.all and errors still map
-          // to { data: null, error } instead of rejecting the whole batch.
-          Promise.resolve(
-            supabase.rpc("get_box_rental_stats", { p_company_id: companyId })
-          )
-            .then(({ data, error }) => ({ data, error }))
-            .catch((error) => ({ data: null, error })),
         ]);
 
 
@@ -214,9 +199,6 @@ const FirmaDashboard = () => {
           setTodayAppointments(todayAppts as TodayAppointment[]);
         }
 
-        if (boxStatsResult.data && boxStatsResult.data.length > 0) {
-          setBoxStats(boxStatsResult.data[0] as BoxStats);
-        }
 
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
