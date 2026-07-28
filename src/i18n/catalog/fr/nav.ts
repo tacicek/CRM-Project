@@ -39,6 +39,7 @@ export const nav: Record<keyof typeof de, string> = {
 
   "nav.workspace": "Espace de travail",
   "nav.searchPlaceholder": "Rechercher ou saisir une commande …",
+  "nav.search.empty": "Aucun résultat.",
   "nav.openMenu": "Ouvrir le menu",
   "nav.closeMenu": "Fermer le menu",
   "nav.user": "Utilisateur",

@@ -39,6 +39,7 @@ export const nav = {
   // --- Shell ---------------------------------------------------------------------
   "nav.workspace": "Workspace",
   "nav.searchPlaceholder": "Suche oder Befehl …",
+  "nav.search.empty": "Nichts gefunden.",
   "nav.openMenu": "Menü öffnen",
   "nav.closeMenu": "Menü schliessen",
   "nav.user": "Benutzer",
