@@ -510,7 +510,7 @@ const FirmaDashboard = () => {
               </Link>
             </div>
 
-            <div className="mb-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="mb-3 flex gap-2 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {VORGANG_FILTER.map((option) => {
                 const active = option === vorgangFilter;
                 return (

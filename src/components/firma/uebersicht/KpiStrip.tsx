@@ -70,7 +70,7 @@ export const KpiStrip = ({ kpis }: { kpis: readonly Kpi[] }) => {
   return (
     <div
       className="
-        flex snap-x snap-proximity gap-2.5 overflow-x-auto pb-1
+        flex snap-x snap-proximity gap-2.5 overflow-x-auto overscroll-x-contain pb-1
         [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
         shell-tablet:grid shell-tablet:grid-cols-4 shell-tablet:gap-0
         shell-tablet:overflow-visible shell-tablet:rounded-xl shell-tablet:border
