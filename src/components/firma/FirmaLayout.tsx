@@ -422,17 +422,17 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     }
   }, [urlToImport]);
 
-  useEffect(() => {
-    const preload = () => {
-      ["/firma/offerten", "/firma/kalender"].forEach((url, i) => {
-        if (!prefetchedRef.current.has(url)) {
-          setTimeout(() => { const fn = urlToImport[url]; if (fn) { prefetchedRef.current.add(url); fn(); } }, i * 500);
-        }
-      });
-    };
-    if ("requestIdleCallback" in window) (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(preload);
-    else setTimeout(preload, 2000);
-  }, [urlToImport]);
+  // Kein Vorabladen von Offerten und Kalender mehr.
+  //
+  // Gemessen an der gebauten Fassung zog dieser Block ueber 700 kB (gzip) in
+  // jede Sitzung: beide Seiten importieren @react-pdf/renderer, jspdf und
+  // qrcode statisch, also kam der komplette PDF- und QR-Stapel mit —
+  // vendor-react-pdf 314 kB, vendor-pdf 179 kB, vendor-qr 207 kB. Auf einem
+  // Telefon ist das nicht "schnellere Navigation", sondern eine Minute
+  // Parsen, bevor ueberhaupt etwas bedienbar ist.
+  //
+  // Das gezielte Vorabladen beim Darueberfahren (handlePrefetch) bleibt: es
+  // laedt genau die eine Seite, auf die jemand gerade zeigt.
 
   // The nav shape lives in @/config/firmaNav; this layer only adds the live counters.
   const badges: BadgeCounts = useMemo(() => ({
