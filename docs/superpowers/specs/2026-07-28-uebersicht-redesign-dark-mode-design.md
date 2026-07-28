@@ -655,6 +655,12 @@ Nach Durchgang 2 gibt es dort eine Tab-Leiste und ein Mehr-Sheet. Ein Wiki, das 
 Bedienung falsch erklärt, ist schlimmer als keines — es kostet den Benutzer Zeit und
 Vertrauen.
 
+> **Seit Durchgang 2b ist der Artikel sachlich falsch, nicht nur veraltet.** Der
+> Abschnitt „Am Mobiltelefon" in `navigation-und-benachrichtigungen.ts` (DE/FR/EN)
+> beschreibt ein ausklappbares Menü und eine Seitenleiste. Beides gibt es unter 820px
+> nicht mehr — dort stehen Tab-Leiste und Mehr-Sheet. Ein Benutzer, der der Anleitung
+> folgt, sucht nach einer Schaltfläche, die entfernt wurde.
+
 Umfang:
 
 - **Navigationsartikel in DE, FR und EN** auf die neue Mobilbedienung umschreiben.
