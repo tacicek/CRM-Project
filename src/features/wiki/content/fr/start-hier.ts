@@ -59,7 +59,7 @@ const body = {
       // One pixel taller than the German crop: French labels wrap differently. Element
       // crops legitimately differ per locale, which is why the validator compares each
       // number against its own file rather than across locales.
-      height: 1165,
+      height: 1400,
       caption: "Le menu latéral avec tous les domaines.",
       alt: "Menu latéral du programme. En haut le nom de l'entreprise, puis Vue d'ensemble, Demandes, Boîte e-mail, Devis et Calendrier. Ensuite les groupes Espace principal, Exploitation et Administration.",
       hotspots: [

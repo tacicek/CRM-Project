@@ -26,7 +26,7 @@ const body = {
       kind: "figure",
       src: "/wiki/screenshots/fr/seitenleiste-v1.webp",
       width: 240,
-      height: 1165,
+      height: 1400,
       caption: "Le menu latéral, divisé en accès rapide et trois groupes.",
       alt: "Menu latéral avec le nom de l'entreprise en haut, puis Vue d'ensemble, Demandes, Boîte e-mail, Devis et Calendrier, puis les groupes Espace principal, Exploitation et Administration, chacun avec une icône et un texte.",
       hotspots: [

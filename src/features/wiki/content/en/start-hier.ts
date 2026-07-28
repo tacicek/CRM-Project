@@ -56,7 +56,7 @@ const body = {
       kind: "figure",
       src: "/wiki/screenshots/en/seitenleiste-v1.webp",
       width: 240,
-      height: 1165,
+      height: 1400,
       caption: "The side menu with all areas.",
       alt: "Side menu of the program. The company name at the top, then Overview, Enquiries, Email inbox, Quotes and Calendar. Below that the groups Main area, Operations and Administration.",
       hotspots: [

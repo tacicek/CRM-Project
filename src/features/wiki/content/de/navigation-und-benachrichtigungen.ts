@@ -26,7 +26,7 @@ const body = {
       kind: "figure",
       src: "/wiki/screenshots/de/seitenleiste-v1.webp",
       width: 240,
-      height: 1146,
+      height: 1400,
       caption: "Die Seitenleiste, aufgeteilt in Schnellzugriff und drei Gruppen.",
       alt: "Seitenleiste mit dem Firmennamen oben, dann Übersicht, Anfragen, E-Mail-Eingang, Offerten und Kalender, danach die Gruppen Hauptbereich, Betrieb und Verwaltung, jeweils mit Symbol und Text.",
       hotspots: [

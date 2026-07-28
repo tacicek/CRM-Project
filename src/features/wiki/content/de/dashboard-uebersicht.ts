@@ -105,6 +105,14 @@ const body = {
       id: "unterwegs",
       text: "Unterwegs am Handy",
     },
+    {
+      kind: "figure",
+      src: "/wiki/screenshots/de/dashboard-uebersicht-mobile-v1.webp",
+      width: 780,
+      height: 1688,
+      caption: "Dieselbe Übersicht auf einem Mobiltelefon.",
+      alt: "Die Übersicht auf einem schmalen Bildschirm. Die Kacheln stehen nebeneinander und lassen sich seitwärts schieben; unten steht eine Leiste mit Übersicht, Anfragen, Offerten, Kalender und Mehr.",
+    },
   ],
 
   whatHappensNext: [

@@ -56,7 +56,7 @@ const body = {
       kind: "figure",
       src: "/wiki/screenshots/de/seitenleiste-v1.webp",
       width: 240,
-      height: 1146,
+      height: 1400,
       caption: "Die Seitenleiste mit allen Bereichen.",
       alt: "Seitenleiste des Programms. Oben der Firmenname, darunter Übersicht, Anfragen, E-Mail-Eingang, Offerten und Kalender. Danach die Gruppen Hauptbereich, Betrieb und Verwaltung.",
       hotspots: [

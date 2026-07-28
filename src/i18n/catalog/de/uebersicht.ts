@@ -28,4 +28,6 @@ export const uebersicht = {
   "uebersicht.aktivitaet.title": "Verlauf",
   "uebersicht.aktivitaet.automatisch": "Vom System gesetzt",
   "uebersicht.aktivitaet.vonHand": "Von Hand geändert",
+  "uebersicht.pill.ueberfaellig": "Überfällig",
+  "uebersicht.pill.abgelehnt": "Abgelehnt",
 } as const;

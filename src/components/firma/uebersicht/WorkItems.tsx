@@ -23,6 +23,10 @@ type StatusLook = {
   dot: string;
   pill: string;
   labelKey: MessageKey;
+  /** Kurzform fuer die Pille. Eigenes Feld statt eines zusammengebauten
+   *  Schluessels: `as MessageKey` auf einer Interpolation schaltet genau die
+   *  Pruefung ab, die den fehlenden Eintrag gemeldet haette. */
+  pillKey: MessageKey;
   actionKey: MessageKey;
   /** Nur `neu` bekommt die gefüllte Hauptaktion — alles andere ist Nacharbeit. */
   filled: boolean;
@@ -33,6 +37,7 @@ const LOOK: Record<WorkItemStatus, StatusLook> = {
     dot: "bg-folk-coral",
     pill: "bg-folk-coral-bg text-folk-coral",
     labelKey: "uebersicht.status.neu",
+    pillKey: "uebersicht.filter.neu",
     actionKey: "uebersicht.action.offerteErstellen",
     filled: true,
   },
@@ -40,6 +45,7 @@ const LOOK: Record<WorkItemStatus, StatusLook> = {
     dot: "bg-folk-mint",
     pill: "bg-folk-mint-bg text-folk-mint",
     labelKey: "uebersicht.status.offeriert",
+    pillKey: "uebersicht.filter.offeriert",
     actionKey: "uebersicht.action.nachfassen",
     filled: false,
   },
@@ -47,6 +53,7 @@ const LOOK: Record<WorkItemStatus, StatusLook> = {
     dot: "bg-folk-lemon",
     pill: "bg-folk-lemon-bg text-folk-lemon",
     labelKey: "uebersicht.status.ueberfaellig",
+    pillKey: "uebersicht.pill.ueberfaellig",
     actionKey: "uebersicht.action.nachfassen",
     filled: false,
   },
@@ -54,6 +61,7 @@ const LOOK: Record<WorkItemStatus, StatusLook> = {
     dot: "bg-folk-ink4",
     pill: "bg-folk-bg-warm text-folk-ink3",
     labelKey: "uebersicht.status.abgelehnt",
+    pillKey: "uebersicht.pill.abgelehnt",
     actionKey: "uebersicht.action.oeffnen",
     filled: false,
   },
@@ -61,6 +69,7 @@ const LOOK: Record<WorkItemStatus, StatusLook> = {
     dot: "bg-folk-mint",
     pill: "bg-folk-mint-bg text-folk-mint",
     labelKey: "uebersicht.status.gewonnen",
+    pillKey: "uebersicht.filter.gewonnen",
     actionKey: "uebersicht.action.planen",
     filled: false,
   },
@@ -134,7 +143,7 @@ const Card = ({ item, onOpen, onAct }: { item: WorkItem; onOpen: () => void; onA
           </span>
         </span>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${look.pill}`}>
-          {t(`uebersicht.filter.${item.status === "ueberfaellig" ? "offeriert" : item.status}` as MessageKey)}
+          {t(look.pillKey)}
         </span>
       </button>
 

@@ -26,7 +26,7 @@ const body = {
       kind: "figure",
       src: "/wiki/screenshots/en/seitenleiste-v1.webp",
       width: 240,
-      height: 1165,
+      height: 1400,
       caption: "The side menu, split into quick access and three groups.",
       alt: "Side menu with the company name at the top, then Overview, Enquiries, Email inbox, Quotes and Calendar, then the groups Main area, Operations and Administration, each entry with an icon and a label.",
       hotspots: [
