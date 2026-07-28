@@ -71,6 +71,93 @@
     --sidebar-accent-foreground: 224 64% 33%;
     --sidebar-border: 210 25% 88%;
     --sidebar-ring: 224 64% 33%;
+
+    /* --------------------------------------------------------------------
+     * folk — die Designsprache des CRM.
+     *
+     * KANALWERTE, nicht Hex: Tailwind ersetzt `<alpha-value>` nur innerhalb
+     * einer Farbfunktion. Stuende hier ein Hex, wuerden die 31 Stellen mit
+     * Deckkraft-Modifikator (`bg-folk-coral/30`, `text-folk-ink/40`) still
+     * wirkungslos. Beim Aendern eines Wertes: Kanalform beibehalten.
+     *
+     * Diese Hellwerte sind exakt die vorherigen Hex-Literale aus
+     * tailwind.config.ts — das Hell-Erscheinungsbild aendert sich nicht.
+     * ------------------------------------------------------------------ */
+    --folk-bg: 251 250 247;
+    --folk-bg-warm: 247 245 239;
+    --folk-sidebar: 243 241 234;
+    --folk-sidebar-hi: 235 231 220;
+    --folk-card: 255 255 255;
+    --folk-ink: 24 24 26;
+    --folk-ink2: 60 60 63;
+    --folk-ink3: 115 112 115;
+    --folk-ink4: 165 163 161;
+    --folk-ink5: 199 197 192;
+    --folk-line: 235 233 226;
+    --folk-line-soft: 242 240 232;
+    --folk-line-hard: 218 215 205;
+    --folk-coral: 248 117 87;
+    --folk-coral-lite: 252 229 222;
+    --folk-coral-bg: 255 241 236;
+    --folk-violet: 110 91 216;
+    --folk-violet-bg: 242 238 253;
+    --folk-mint: 66 166 120;
+    --folk-mint-bg: 235 246 240;
+    --folk-lemon: 212 165 10;
+    --folk-lemon-bg: 251 244 217;
+    --folk-sky: 58 130 186;
+    --folk-sky-bg: 233 241 248;
+    --folk-rose: 194 68 114;
+    --folk-rose-bg: 249 233 240;
+
+    /* Native Bedienelemente (Scrollbalken, Datumsauswahl) mitziehen. Steht
+     * hier im CSS und nicht im Provider, damit es genau eine Quelle gibt. */
+    color-scheme: light;
+  }
+
+  /* --------------------------------------------------------------------
+   * Dunkelmodus. Gilt nur, solange <html> das Attribut traegt — der
+   * ThemeProvider setzt es ausschliesslich unterhalb von /firma, damit
+   * kundenseitige Seiten (/offerte/:token, /portal, /termin/*) und der
+   * Anmeldefluss unberuehrt bleiben.
+   *
+   * folk dunkel ist warm-neutral, kein Blauschwarz: ein kuehles Grau wuerde
+   * der Papier-Anmutung des Hell-Sets widersprechen.
+   *
+   * `--folk-ink4` ist bewusst heller als eine mechanische Spiegelung
+   * (#8A857C statt ~#726E66): ink4 traegt Meta-Text wie Zeitstempel und
+   * Routen; der gespiegelte Wert laege bei 3.7:1 gegen den Grund, dieser bei
+   * ~5.1:1. Wer die Palette hier "begradigt", nimmt Kontrast weg.
+   * ------------------------------------------------------------------ */
+  :root[data-theme="dark"] {
+    --folk-bg: 18 17 16;
+    --folk-bg-warm: 23 22 20;
+    --folk-sidebar: 20 19 17;
+    --folk-sidebar-hi: 32 30 26;
+    --folk-card: 26 25 23;
+    --folk-ink: 237 235 230;
+    --folk-ink2: 201 198 191;
+    --folk-ink3: 150 146 137;
+    --folk-ink4: 138 133 124;
+    --folk-ink5: 96 91 83;
+    --folk-line: 43 41 38;
+    --folk-line-soft: 35 33 32;
+    --folk-line-hard: 58 55 51;
+    --folk-coral: 255 138 107;
+    --folk-coral-lite: 74 42 34;
+    --folk-coral-bg: 42 26 22;
+    --folk-violet: 155 138 240;
+    --folk-violet-bg: 36 31 58;
+    --folk-mint: 79 195 164;
+    --folk-mint-bg: 22 48 42;
+    --folk-lemon: 232 192 74;
+    --folk-lemon-bg: 50 41 19;
+    --folk-sky: 107 168 220;
+    --folk-sky-bg: 22 36 47;
+    --folk-rose: 224 123 163;
+    --folk-rose-bg: 46 26 36;
+
+    color-scheme: dark;
   }
 
 }
