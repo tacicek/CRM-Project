@@ -24,6 +24,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 import { LanguageSwitcher } from "@/components/firma/LanguageSwitcher";
+import { CommandPalette } from "@/components/firma/CommandPalette";
+import { BottomTabBar } from "@/components/firma/mobile/BottomTabBar";
+import { Fab } from "@/components/firma/mobile/Fab";
+import { MoreSheet } from "@/components/firma/mobile/MoreSheet";
 import { ThemeMenuItems } from "@/components/firma/ThemeMenuItems";
 import { WikiHelpButton } from "@/features/wiki/components/WikiHelpButton";
 import { useI18n, useT } from "@/i18n/useI18n";
@@ -41,8 +45,6 @@ import {
   BellOff,
   ChevronDown,
   Check,
-  Menu,
-  X,
   Search,
   MoreHorizontal,
 } from "lucide-react";
@@ -89,14 +91,12 @@ const FirmaSidebar = ({
   groups,
   quickLinks,
   onSignOut,
-  onClose,
 }: {
   company: Company;
   user: { email?: string | null };
   groups: MenuGroup[];
   quickLinks: MenuItem[];
   onSignOut: () => void;
-  onClose?: () => void;
 }) => {
   const location = useLocation();
   const t = useT();
@@ -135,11 +135,6 @@ const FirmaSidebar = ({
             <div className="mt-px text-[13px] text-folk-ink3">{t("nav.workspace")}</div>
           </div>
           <ChevronDown className="h-3.5 w-3.5 text-folk-ink3" strokeWidth={1.8} />
-          {onClose && (
-            <button onClick={onClose} className="ml-1 grid h-6 w-6 place-items-center rounded-md text-folk-ink3 hover:bg-folk-bg-warm md:hidden" aria-label={t("nav.closeMenu")}>
-              <X className="h-4 w-4" />
-            </button>
-          )}
         </div>
         <div className="mt-2 flex items-center gap-1.5 rounded-md border border-folk-line bg-folk-card px-2 py-1.5">
           <Search className="h-3.5 w-3.5 text-folk-ink3" strokeWidth={1.8} />
@@ -157,7 +152,6 @@ const FirmaSidebar = ({
               <Link
                 key={item.url}
                 to={item.url}
-                onClick={onClose}
                 className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[15px] transition-colors ${
                   active ? "bg-folk-card font-semibold text-folk-ink shadow-[0_1px_2px_rgba(24,24,26,0.03)]" : "text-folk-ink2 hover:bg-folk-bg-warm"
                 }`}
@@ -186,7 +180,6 @@ const FirmaSidebar = ({
                 <Link
                   key={item.url}
                   to={item.url}
-                  onClick={onClose}
                   className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[15px] transition-colors ${
                     active
                       ? "border border-folk-line bg-folk-card font-semibold text-folk-ink"
@@ -243,7 +236,8 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   const [besichtigungUploadedCount, setBesichtigungUploadedCount] = useState(0);
   const [inboundReviewCount, setInboundReviewCount] = useState(0);
   const [boxUrgentCount, setBoxUrgentCount] = useState(0);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const notifyWithHistory = useCallback((title: string, body?: string, route?: string, type?: string, id?: string, metadata?: Record<string, unknown>) => {
     notify(title, body);
@@ -531,7 +525,9 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   return (
     <div className="flex min-h-screen w-full bg-folk-bg">
       {/* Sidebar (desktop) */}
-      <div ref={sidebarRef} className="hidden md:block print:hidden">
+      {/* shell-tablet: 820px — dieselbe Grenze wie useBreakpoint. Mit md: (768px)
+          widersprächen sich Darstellung und Verhalten im Band dazwischen. */}
+      <div ref={sidebarRef} className="hidden shell-tablet:block print:hidden">
         <FirmaSidebar
           company={company}
           user={user}
@@ -541,36 +537,19 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
         />
       </div>
 
-      {/* Sidebar drawer (mobile) */}
-      {mobileSidebarOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-folk-ink/40 md:hidden"
-            onClick={() => setMobileSidebarOpen(false)}
-            aria-hidden
-          />
-          <div className="fixed inset-y-0 left-0 z-50 md:hidden">
-            <FirmaSidebar
-              company={company}
-              user={user}
-              groups={filteredGroups}
-              quickLinks={quickLinks}
-              onSignOut={handleSignOut}
-              onClose={() => setMobileSidebarOpen(false)}
-            />
-          </div>
-        </>
-      )}
-
       {/* Main column */}
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center gap-2 border-b border-folk-line bg-folk-bg px-3 sm:px-7 print:hidden">
+          {/* Der Hamburger ist entfallen: unter 820px navigiert die Tab-Leiste.
+              An seine Stelle tritt die Suche — Sprachumschalter, Hilfe und
+              Benachrichtigungen bleiben rechts stehen, sie sind auf dem Telefon
+              die einzigen Zugänge zu diesen Funktionen. */}
           <button
-            onClick={() => setMobileSidebarOpen(true)}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-folk-ink2 hover:bg-folk-bg-warm md:hidden"
-            aria-label={t("nav.openMenu")}
+            onClick={() => setSearchOpen(true)}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-folk-ink2 hover:bg-folk-bg-warm shell-tablet:hidden"
+            aria-label={t("nav.mobile.search")}
           >
-            <Menu className="h-5 w-5" />
+            <Search className="h-5 w-5" />
           </button>
 
           {/* Breadcrumb + title */}
@@ -669,8 +648,18 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
           )}
         </header>
 
-        <div className="flex-1 p-3 sm:p-4 md:p-6 print:p-0">{children}</div>
+        {/* pb-24 sind 96px: ohne diesen Bodenabstand verschwindet die letzte
+            Karte unter FAB und Tab-Leiste. Ab 820px entfallen beide. */}
+        <div className="flex-1 p-3 pb-24 sm:p-4 sm:pb-24 md:p-6 md:pb-24 shell-tablet:pb-6 print:p-0">
+          {children}
+        </div>
       </main>
+
+      {/* Mobile Shell — jeweils selbst auf shell-tablet:hidden gestellt. */}
+      <BottomTabBar onOpenMore={() => setMoreOpen(true)} />
+      <Fab onClick={() => navigate("/firma/anfragen")} />
+      <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} />
+      <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 };

@@ -63,6 +63,7 @@ export const nav = {
   "nav.mobile.quickAccess": "Schnellzugriff",
   "nav.mobile.close": "Schliessen",
   "nav.mobile.newAnfrage": "Anfrage erfassen",
+  "nav.mobile.search": "Suchen",
 
   "nav.theme.label": "Erscheinungsbild",
   "nav.theme.light": "Hell",

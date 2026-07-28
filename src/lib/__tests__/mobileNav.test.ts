@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findActiveTabUrl, selectTabItems } from "@/lib/mobileNav";
-import { FIRMA_QUICK_LINKS, type FirmaNavItem } from "@/config/firmaNav";
+import { FIRMA_NAV_GROUPS, FIRMA_QUICK_LINKS, type FirmaNavItem } from "@/config/firmaNav";
 
 /** Alle Module an — als Proxy, damit der Test nicht bei jedem neuen Flag bricht. */
 const ALL_ON: Record<string, boolean> = new Proxy(
@@ -86,5 +86,29 @@ describe("findActiveTabUrl", () => {
 
   it("returns null when nothing matches", () => {
     expect(findActiveTabUrl("/auth", tabs)).toBeNull();
+  });
+});
+
+describe("mobile reachability", () => {
+  it("leaves no destination unreachable once the sidebar is gone", () => {
+    // Unter 820px gibt es keine Seitenleiste mehr. Erreichbar ist ein Ziel
+    // dann ueber die Tab-Leiste ODER ueber das Mehr-Sheet. Faellt eines aus
+    // beiden Listen, ist es auf dem Telefon verloren — ohne dass irgendetwas
+    // bricht. Deshalb dieser Test.
+    const tabs = selectTabItems(FIRMA_QUICK_LINKS, ALL_ON).map((i) => i.url);
+
+    // Das Mehr-Sheet zeigt: Schnellzugriffe ohne Tab + alle Gruppen.
+    const sheet = [
+      ...FIRMA_QUICK_LINKS.filter((i) => i.mobileTab !== true),
+      ...FIRMA_NAV_GROUPS.flatMap((g) => g.items),
+    ].map((i) => i.url);
+
+    const reachable = new Set([...tabs, ...sheet]);
+    const all = [
+      ...FIRMA_QUICK_LINKS,
+      ...FIRMA_NAV_GROUPS.flatMap((g) => g.items),
+    ].map((i) => i.url);
+
+    expect(all.filter((url) => !reachable.has(url))).toEqual([]);
   });
 });
