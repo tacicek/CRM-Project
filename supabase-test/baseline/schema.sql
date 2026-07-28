@@ -2357,6 +2357,59 @@ $$;
 
 
 --
+-- Name: decide_change_request(uuid, boolean, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.decide_change_request(p_id uuid, p_annehmen boolean, p_notiz text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_w RECORD;
+BEGIN
+  SELECT * INTO v_w FROM public.customer_change_requests WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Wunsch nicht gefunden.' USING ERRCODE = 'no_data_found';
+  END IF;
+
+  IF NOT public.is_company_role(v_w.company_id, ARRAY['owner','admin']) THEN
+    RAISE EXCEPTION 'Nur Eigentuemer oder Administrator koennen entscheiden.'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  IF v_w.status <> 'offen' THEN
+    RAISE EXCEPTION 'Ueber diesen Wunsch ist bereits entschieden.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  IF p_annehmen THEN
+    -- Ein dynamisches UPDATE waere hier eine Einladung: `feld` kaeme aus dem
+    -- Portal. Der CHECK begrenzt es zwar, aber die Zuordnung steht trotzdem
+    -- ausgeschrieben da, damit kein spaeter erlaubter Wert stillschweigend
+    -- irgendwohin schreibt.
+    UPDATE public.customers SET
+      first_name    = CASE WHEN v_w.feld = 'first_name'    THEN v_w.neu_wert ELSE first_name END,
+      last_name     = CASE WHEN v_w.feld = 'last_name'     THEN v_w.neu_wert ELSE last_name END,
+      company_name  = CASE WHEN v_w.feld = 'company_name'  THEN v_w.neu_wert ELSE company_name END,
+      primary_email = CASE WHEN v_w.feld = 'primary_email' THEN v_w.neu_wert ELSE primary_email END,
+      primary_phone = CASE WHEN v_w.feld = 'primary_phone' THEN v_w.neu_wert ELSE primary_phone END
+    WHERE id = v_w.customer_id;
+  END IF;
+
+  UPDATE public.customer_change_requests
+  SET status = CASE WHEN p_annehmen THEN 'angenommen' ELSE 'abgelehnt' END,
+      entschieden_von = auth.uid(),
+      entschieden_am  = NOW(),
+      entscheid_notiz = p_notiz
+  WHERE id = p_id;
+
+  RETURN jsonb_build_object('id', p_id,
+    'status', CASE WHEN p_annehmen THEN 'angenommen' ELSE 'abgelehnt' END);
+END;
+$$;
+
+
+--
 -- Name: delete_besichtigung_photo(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5731,6 +5784,394 @@ BEGIN
   ORDER BY o.faellig_am NULLS LAST, o.rechnung_nr
   LIMIT GREATEST(1, LEAST(p_limit, 200)) OFFSET GREATEST(0, p_offset);
 END;
+$$;
+
+
+--
+-- Name: portal_cleanup(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.portal_cleanup() RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_s INTEGER; v_l INTEGER;
+BEGIN
+  DELETE FROM public.portal_sessions
+  WHERE expires_at < NOW() - INTERVAL '30 days'
+     OR (revoked_at IS NOT NULL AND revoked_at < NOW() - INTERVAL '30 days');
+  GET DIAGNOSTICS v_s = ROW_COUNT;
+
+  DELETE FROM public.portal_magic_links
+  WHERE expires_at < NOW() - INTERVAL '30 days'
+    AND NOT EXISTS (SELECT 1 FROM public.portal_sessions s WHERE s.magic_link_id = portal_magic_links.id);
+  GET DIAGNOSTICS v_l = ROW_COUNT;
+
+  RETURN jsonb_build_object('sitzungen', v_s, 'links', v_l);
+END;
+$$;
+
+
+--
+-- Name: portal_create_magic_link(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.portal_create_magic_link(p_customer_id uuid, p_gueltig_tage integer DEFAULT 14) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+DECLARE
+  v_kunde  RECORD;
+  v_token  TEXT;
+  v_id     UUID;
+BEGIN
+  SELECT * INTO v_kunde FROM public.customers WHERE id = p_customer_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Kunde nicht gefunden.' USING ERRCODE = 'no_data_found';
+  END IF;
+
+  IF NOT public.is_company_role(v_kunde.company_id, ARRAY['owner','admin']) THEN
+    RAISE EXCEPTION 'Nur Eigentuemer oder Administrator koennen Portalzugaenge erstellen.'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  IF v_kunde.merged_into_customer_id IS NOT NULL THEN
+    RAISE EXCEPTION 'Dieser Kunde wurde zusammengefuehrt — Zugang beim aktuellen Kunden erstellen.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  -- 32 zufaellige Bytes, hex. Nicht aus der Kunden-ID abgeleitet und nicht
+  -- ratbar; gen_random_bytes kommt aus pgcrypto und nicht aus random().
+  v_token := encode(gen_random_bytes(32), 'hex');
+
+  INSERT INTO public.portal_magic_links
+    (company_id, customer_id, token_hash, expires_at, created_by)
+  VALUES (
+    v_kunde.company_id, p_customer_id,
+    encode(digest(v_token, 'sha256'), 'hex'),
+    NOW() + (GREATEST(1, LEAST(p_gueltig_tage, 90)) || ' days')::INTERVAL,
+    auth.uid()
+  ) RETURNING id INTO v_id;
+
+  RETURN jsonb_build_object(
+    'id',         v_id,
+    'token',      v_token,
+    'expires_at', (SELECT expires_at FROM public.portal_magic_links WHERE id = v_id),
+    'sprache',    v_kunde.language
+  );
+END;
+$$;
+
+
+--
+-- Name: portal_overview(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.portal_overview(p_session text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+DECLARE
+  v_kunde_id UUID;
+  v_kunde    RECORD;
+BEGIN
+  v_kunde_id := public.portal_session_customer(p_session);
+  IF v_kunde_id IS NULL THEN
+    RAISE EXCEPTION 'Zugang ungueltig oder abgelaufen.'
+      USING ERRCODE = 'invalid_authorization_specification';
+  END IF;
+
+  PERFORM public.portal_touch_session(p_session);
+
+  SELECT * INTO v_kunde FROM public.customers WHERE id = v_kunde_id;
+
+  RETURN jsonb_build_object(
+    'kunde', jsonb_build_object(
+      'anzeigename', v_kunde.display_name,
+      'vorname',     v_kunde.first_name,
+      'nachname',    v_kunde.last_name,
+      'firma',       v_kunde.company_name,
+      'email',       v_kunde.primary_email,
+      'telefon',     v_kunde.primary_phone,
+      'sprache',     v_kunde.language
+    ),
+    'firma', (SELECT jsonb_build_object(
+                'name',  c.company_name,
+                'email', c.email,
+                'telefon', c.phone)
+              FROM public.companies c WHERE c.id = v_kunde.company_id),
+
+    'offerten', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+               'id',          o.id,
+               'nummer',      o.offer_number,
+               'titel',       o.title,
+               'status',      o.status,
+               'total',       o.total,
+               'gueltig_bis', o.valid_until,
+               'leistungsdatum', o.service_date,
+               'ueberholt',   (o.superseded_at IS NOT NULL),
+               'fassung',     o.version_number,
+               'token',       o.access_token)
+             ORDER BY o.created_at DESC)
+      FROM public.offers o WHERE o.customer_id = v_kunde_id), '[]'::jsonb),
+
+    'nachtraege', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+               'id',     a.id,
+               'nummer', a.amendment_number,
+               'titel',  a.title,
+               'status', a.status,
+               'total',  a.total,
+               'token',  a.access_token)
+             ORDER BY a.created_at DESC)
+      FROM public.offer_amendments a
+      WHERE a.customer_id = v_kunde_id AND a.status <> 'entwurf'), '[]'::jsonb),
+
+    'termine', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+               'id',     t.id,
+               'datum',  t.appointment_date,
+               'start',  t.start_time,
+               'ende',   t.end_time,
+               'art',    t.appointment_type,
+               'status', t.status,
+               'titel',  t.title,
+               'ort',    NULLIF(TRIM(CONCAT_WS(' ', t.location_address, t.location_plz, t.location_city)), ''))
+             ORDER BY t.appointment_date DESC, t.start_time DESC)
+      FROM public.appointments t
+      WHERE t.customer_id = v_kunde_id AND t.status <> 'cancelled'), '[]'::jsonb),
+
+    'auftraege', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+               'id',     g.id,
+               'nummer', g.auftrag_nummer,
+               'titel',  g.title,
+               'status', g.status,
+               'datum',  g.scheduled_date,
+               'total',  g.total)
+             ORDER BY g.scheduled_date DESC NULLS LAST)
+      FROM public.auftraege g
+      WHERE g.customer_id = v_kunde_id AND g.deleted_at IS NULL), '[]'::jsonb),
+
+    'rechnungen', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+               'id',        r.id,
+               'nummer',    r.rechnung_nr,
+               'datum',     r.datum,
+               'faellig',   r.faellig_am,
+               'total',     COALESCE(r.gesamttotal, r.total, 0),
+               'bezahlt',   r.paid_total,
+               'offen',     r.open_amount,
+               'status',    r.status)
+             ORDER BY r.datum DESC)
+      FROM public.rechnungen r
+      WHERE r.customer_id = v_kunde_id AND r.status <> 'entwurf'), '[]'::jsonb),
+
+    -- Nur lesen. Eine Zahlung ausloesen kann das Portal nicht: dafuer braeuchte
+    -- es einen Zahlungsanbieter, und Zahlungslogik gehoert laut CLAUDE.md
+    -- ausdruecklich nicht in dieses Projekt.
+    'zahlungen', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+               'datum',  z.payment_date,
+               'betrag', z.amount,
+               'weg',    z.method)
+             ORDER BY z.payment_date DESC)
+      FROM public.payments z WHERE z.customer_id = v_kunde_id), '[]'::jsonb),
+
+    'offener_betrag', COALESCE((
+      SELECT SUM(r.open_amount) FROM public.rechnungen r
+      WHERE r.customer_id = v_kunde_id AND r.status <> 'entwurf' AND r.open_amount > 0), 0)
+  );
+END;
+$$;
+
+
+--
+-- Name: FUNCTION portal_overview(p_session text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.portal_overview(p_session text) IS 'Portalansicht eines Kunden. Der Kunde ergibt sich aus dem Sitzungstoken, nie aus einem Argument. Spalten sind einzeln aufgezaehlt — internal_notes und die Kalkulationsfelder duerfen nicht mitwandern.';
+
+
+--
+-- Name: portal_redeem_magic_link(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.portal_redeem_magic_link(p_token text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+DECLARE
+  v_link    RECORD;
+  v_session TEXT;
+BEGIN
+  IF p_token IS NULL OR length(p_token) <> 64 THEN
+    RAISE EXCEPTION 'Zugang ungueltig oder abgelaufen.' USING ERRCODE = 'invalid_authorization_specification';
+  END IF;
+
+  SELECT * INTO v_link
+  FROM public.portal_magic_links
+  WHERE token_hash = encode(digest(p_token, 'sha256'), 'hex')
+  FOR UPDATE;
+
+  IF NOT FOUND
+     OR v_link.used_at IS NOT NULL
+     OR v_link.revoked_at IS NOT NULL
+     OR v_link.expires_at < NOW() THEN
+    RAISE EXCEPTION 'Zugang ungueltig oder abgelaufen.'
+      USING ERRCODE = 'invalid_authorization_specification';
+  END IF;
+
+  UPDATE public.portal_magic_links SET used_at = NOW() WHERE id = v_link.id;
+
+  v_session := encode(gen_random_bytes(32), 'hex');
+
+  INSERT INTO public.portal_sessions
+    (company_id, customer_id, magic_link_id, token_hash, expires_at, last_seen_at)
+  VALUES (
+    v_link.company_id, v_link.customer_id, v_link.id,
+    encode(digest(v_session, 'sha256'), 'hex'),
+    NOW() + INTERVAL '30 days', NOW()
+  );
+
+  RETURN jsonb_build_object(
+    'session',  v_session,
+    'sprache',  (SELECT language FROM public.customers WHERE id = v_link.customer_id)
+  );
+END;
+$$;
+
+
+--
+-- Name: portal_request_change(text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.portal_request_change(p_session text, p_feld text, p_neu_wert text, p_bemerkung text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+DECLARE
+  v_kunde_id UUID;
+  v_kunde    RECORD;
+  v_alt      TEXT;
+  v_id       UUID;
+BEGIN
+  v_kunde_id := public.portal_session_customer(p_session);
+  IF v_kunde_id IS NULL THEN
+    RAISE EXCEPTION 'Zugang ungueltig oder abgelaufen.'
+      USING ERRCODE = 'invalid_authorization_specification';
+  END IF;
+
+  SELECT * INTO v_kunde FROM public.customers WHERE id = v_kunde_id;
+
+  v_alt := CASE p_feld
+             WHEN 'first_name'    THEN v_kunde.first_name
+             WHEN 'last_name'     THEN v_kunde.last_name
+             WHEN 'company_name'  THEN v_kunde.company_name
+             WHEN 'primary_email' THEN v_kunde.primary_email
+             WHEN 'primary_phone' THEN v_kunde.primary_phone
+           END;
+
+  IF TRIM(COALESCE(p_neu_wert, '')) = '' THEN
+    RAISE EXCEPTION 'Der neue Wert fehlt.' USING ERRCODE = 'check_violation';
+  END IF;
+  IF TRIM(p_neu_wert) IS NOT DISTINCT FROM v_alt THEN
+    RAISE EXCEPTION 'Der Wert ist unveraendert.' USING ERRCODE = 'check_violation';
+  END IF;
+
+  INSERT INTO public.customer_change_requests
+    (company_id, customer_id, feld, alt_wert, neu_wert, bemerkung)
+  VALUES (v_kunde.company_id, v_kunde_id, p_feld, v_alt, TRIM(p_neu_wert), p_bemerkung)
+  ON CONFLICT (customer_id, feld) WHERE status = 'offen'
+  DO UPDATE SET neu_wert = EXCLUDED.neu_wert,
+                bemerkung = EXCLUDED.bemerkung,
+                created_at = NOW()
+  RETURNING id INTO v_id;
+
+  -- Die Firma erfaehrt davon ueber die Wiedervorlage und nicht dadurch, dass
+  -- jemand zufaellig in die Tabelle schaut.
+  INSERT INTO public.crm_tasks (company_id, title, description, task_type, priority,
+                                due_at, customer_id)
+  VALUES (
+    v_kunde.company_id,
+    'Aenderungswunsch: ' || COALESCE(v_kunde.display_name, ''),
+    p_feld || ': „' || COALESCE(v_alt, '—') || '" → „' || TRIM(p_neu_wert) || '"',
+    'admin', 'normal', NOW(), v_kunde_id
+  );
+
+  RETURN jsonb_build_object('id', v_id, 'status', 'offen');
+END;
+$$;
+
+
+--
+-- Name: portal_revoke_access(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.portal_revoke_access(p_customer_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_company UUID;
+  v_links   INTEGER;
+  v_sess    INTEGER;
+BEGIN
+  SELECT company_id INTO v_company FROM public.customers WHERE id = p_customer_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Kunde nicht gefunden.' USING ERRCODE = 'no_data_found';
+  END IF;
+
+  IF NOT public.is_company_role(v_company, ARRAY['owner','admin']) THEN
+    RAISE EXCEPTION 'Nur Eigentuemer oder Administrator koennen Zugaenge widerrufen.'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  UPDATE public.portal_magic_links SET revoked_at = NOW()
+  WHERE customer_id = p_customer_id AND revoked_at IS NULL AND used_at IS NULL;
+  GET DIAGNOSTICS v_links = ROW_COUNT;
+
+  UPDATE public.portal_sessions SET revoked_at = NOW()
+  WHERE customer_id = p_customer_id AND revoked_at IS NULL;
+  GET DIAGNOSTICS v_sess = ROW_COUNT;
+
+  RETURN jsonb_build_object('links', v_links, 'sitzungen', v_sess);
+END;
+$$;
+
+
+--
+-- Name: portal_session_customer(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.portal_session_customer(p_session text) RETURNS uuid
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+  SELECT s.customer_id
+  FROM public.portal_sessions s
+  WHERE p_session IS NOT NULL
+    AND length(p_session) = 64
+    AND s.token_hash = encode(digest(p_session, 'sha256'), 'hex')
+    AND s.revoked_at IS NULL
+    AND s.expires_at > NOW();
+$$;
+
+
+--
+-- Name: portal_touch_session(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.portal_touch_session(p_session text) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+  UPDATE public.portal_sessions
+  SET last_seen_at = NOW()
+  WHERE token_hash = encode(digest(p_session, 'sha256'), 'hex')
+    AND revoked_at IS NULL AND expires_at > NOW();
 $$;
 
 
@@ -9678,6 +10119,37 @@ COMMENT ON TABLE public.crm_tasks IS 'Wiedervorlage: was als naechstes zu tun is
 
 
 --
+-- Name: customer_change_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.customer_change_requests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    customer_id uuid NOT NULL,
+    feld text NOT NULL,
+    alt_wert text,
+    neu_wert text NOT NULL,
+    bemerkung text,
+    status text DEFAULT 'offen'::text NOT NULL,
+    entschieden_von uuid,
+    entschieden_am timestamp with time zone,
+    entscheid_notiz text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT customer_change_requests_entscheid_vollstaendig CHECK (((status = 'offen'::text) OR (entschieden_am IS NOT NULL))),
+    CONSTRAINT customer_change_requests_feld_check CHECK ((feld = ANY (ARRAY['first_name'::text, 'last_name'::text, 'company_name'::text, 'primary_email'::text, 'primary_phone'::text]))),
+    CONSTRAINT customer_change_requests_status_check CHECK ((status = ANY (ARRAY['offen'::text, 'angenommen'::text, 'abgelehnt'::text]))),
+    CONSTRAINT customer_change_requests_wert_da CHECK ((length(TRIM(BOTH FROM neu_wert)) > 0))
+);
+
+
+--
+-- Name: TABLE customer_change_requests; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.customer_change_requests IS 'Aenderungswuensche aus dem Kundenportal. Der Kunde schreibt NIE direkt in customers — erst die Annahme durch die Firma uebernimmt den Wert.';
+
+
+--
 -- Name: customer_merges; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11737,6 +12209,56 @@ COMMENT ON VIEW public.pending_team_reminders IS 'Pending team reminders view wi
 
 
 --
+-- Name: portal_magic_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.portal_magic_links (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    customer_id uuid NOT NULL,
+    token_hash text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    used_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT portal_magic_links_hash_laenge CHECK ((length(token_hash) = 64))
+);
+
+
+--
+-- Name: TABLE portal_magic_links; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.portal_magic_links IS 'Einmal-Links fuer das Kundenportal. Enthaelt NUR den sha256-Abdruck; der Klartext verlaesst die DB einmalig als Rueckgabewert und wird nie abgelegt.';
+
+
+--
+-- Name: portal_sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.portal_sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    customer_id uuid NOT NULL,
+    magic_link_id uuid,
+    token_hash text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    revoked_at timestamp with time zone,
+    last_seen_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT portal_sessions_hash_laenge CHECK ((length(token_hash) = 64))
+);
+
+
+--
+-- Name: TABLE portal_sessions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.portal_sessions IS 'Portal-Sitzungen. Wie die Links nur als Abdruck gespeichert. Widerruf durch revoked_at — die Sitzung ist damit sofort tot, ohne dass jemand einen Browser erreichen muesste.';
+
+
+--
 -- Name: pricing_rules; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -12865,6 +13387,14 @@ ALTER TABLE ONLY public.crm_tasks
 
 
 --
+-- Name: customer_change_requests customer_change_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_change_requests
+    ADD CONSTRAINT customer_change_requests_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: customer_merges customer_merges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13278,6 +13808,38 @@ ALTER TABLE ONLY public.payments
 
 ALTER TABLE ONLY public.payments
     ADD CONSTRAINT payments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: portal_magic_links portal_magic_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portal_magic_links
+    ADD CONSTRAINT portal_magic_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: portal_magic_links portal_magic_links_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portal_magic_links
+    ADD CONSTRAINT portal_magic_links_token_hash_key UNIQUE (token_hash);
+
+
+--
+-- Name: portal_sessions portal_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portal_sessions
+    ADD CONSTRAINT portal_sessions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: portal_sessions portal_sessions_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portal_sessions
+    ADD CONSTRAINT portal_sessions_token_hash_key UNIQUE (token_hash);
 
 
 --
@@ -13855,6 +14417,20 @@ CREATE INDEX idx_auftraege_team_leader ON public.auftraege USING btree (team_lea
 --
 
 CREATE INDEX idx_automation_deliveries_company ON public.automation_deliveries USING btree (company_id, delivered_at DESC);
+
+
+--
+-- Name: idx_change_requests_ein_offener_je_feld; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_change_requests_ein_offener_je_feld ON public.customer_change_requests USING btree (customer_id, feld) WHERE (status = 'offen'::text);
+
+
+--
+-- Name: idx_change_requests_offen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_change_requests_offen ON public.customer_change_requests USING btree (company_id, created_at DESC) WHERE (status = 'offen'::text);
 
 
 --
@@ -14611,6 +15187,27 @@ CREATE INDEX idx_payments_offen ON public.payments USING btree (company_id) WHER
 --
 
 CREATE UNIQUE INDEX idx_payments_storno_einmalig ON public.payments USING btree (reverses_payment_id) WHERE (reverses_payment_id IS NOT NULL);
+
+
+--
+-- Name: idx_portal_magic_links_kunde; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_portal_magic_links_kunde ON public.portal_magic_links USING btree (customer_id, created_at DESC);
+
+
+--
+-- Name: idx_portal_sessions_gueltig; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_portal_sessions_gueltig ON public.portal_sessions USING btree (expires_at) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: idx_portal_sessions_kunde; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_portal_sessions_kunde ON public.portal_sessions USING btree (customer_id, created_at DESC);
 
 
 --
@@ -16072,6 +16669,22 @@ ALTER TABLE ONLY public.crm_tasks
 
 
 --
+-- Name: customer_change_requests customer_change_requests_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_change_requests
+    ADD CONSTRAINT customer_change_requests_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customer_change_requests customer_change_requests_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_change_requests
+    ADD CONSTRAINT customer_change_requests_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE CASCADE;
+
+
+--
 -- Name: customer_merges customer_merges_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16501,6 +17114,46 @@ ALTER TABLE ONLY public.payments
 
 ALTER TABLE ONLY public.payments
     ADD CONSTRAINT payments_reverses_payment_id_fkey FOREIGN KEY (reverses_payment_id) REFERENCES public.payments(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: portal_magic_links portal_magic_links_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portal_magic_links
+    ADD CONSTRAINT portal_magic_links_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: portal_magic_links portal_magic_links_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portal_magic_links
+    ADD CONSTRAINT portal_magic_links_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE CASCADE;
+
+
+--
+-- Name: portal_sessions portal_sessions_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portal_sessions
+    ADD CONSTRAINT portal_sessions_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: portal_sessions portal_sessions_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portal_sessions
+    ADD CONSTRAINT portal_sessions_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE CASCADE;
+
+
+--
+-- Name: portal_sessions portal_sessions_magic_link_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portal_sessions
+    ADD CONSTRAINT portal_sessions_magic_link_id_fkey FOREIGN KEY (magic_link_id) REFERENCES public.portal_magic_links(id) ON DELETE SET NULL;
 
 
 --
@@ -17626,6 +18279,13 @@ ALTER TABLE public.blog_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.blog_seo_performance ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: customer_change_requests change_requests_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY change_requests_select_member ON public.customer_change_requests FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
 -- Name: checklist_templates; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -17918,6 +18578,12 @@ CREATE POLICY crm_tasks_select_member ON public.crm_tasks FOR SELECT TO authenti
 
 CREATE POLICY crm_tasks_update_member ON public.crm_tasks FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
 
+
+--
+-- Name: customer_change_requests; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.customer_change_requests ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: customer_merges; Type: ROW SECURITY; Schema: public; Owner: -
@@ -18551,6 +19217,32 @@ CREATE POLICY payments_select_member ON public.payments FOR SELECT TO authentica
 --
 
 CREATE POLICY payments_update_owner_admin ON public.payments FOR UPDATE TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
+-- Name: portal_magic_links; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.portal_magic_links ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: portal_magic_links portal_magic_links_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY portal_magic_links_select_member ON public.portal_magic_links FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: portal_sessions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.portal_sessions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: portal_sessions portal_sessions_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY portal_sessions_select_member ON public.portal_sessions FOR SELECT TO authenticated USING (public.is_company_member(company_id));
 
 
 --
