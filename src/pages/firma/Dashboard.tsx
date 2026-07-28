@@ -5,7 +5,6 @@ import {
   Calendar,
   Phone,
   CalendarCheck,
-  MapPin,
   ChevronRight,
   Package,
   AlertTriangle,
@@ -19,8 +18,31 @@ import { Link } from "react-router-dom";
 import { AcceptBesichtigungDialog } from "@/components/firma/AcceptBesichtigungDialog";
 import { useI18n, useT } from "@/i18n/useI18n";
 import { LOCALE_TAGS, type Locale } from "@/i18n/locale";
-import { formatDate, formatDateTime, formatNumber } from "@/i18n/format";
-import { getAppointmentTypeLabel, getServiceLabel } from "@/i18n/domain";
+import { formatDate, formatDateTime } from "@/i18n/format";
+import { getAppointmentTypeLabel } from "@/i18n/domain";
+import type { MessageKey } from "@/i18n/translator";
+import { useTheme } from "@/hooks/useTheme";
+import { useUebersichtData } from "@/hooks/useUebersichtData";
+import { KpiStrip } from "@/components/firma/uebersicht/KpiStrip";
+import { WorkItems } from "@/components/firma/uebersicht/WorkItems";
+import type { WorkItemStatus } from "@/types/uebersicht";
+
+/**
+ * Die Filterstufen der Vorgangsliste.
+ *
+ * `ueberfaellig` hat bewusst keinen eigenen Knopf: fuer den Benutzer ist eine
+ * ueberfaellige Offerte immer noch eine offerierte, nur eine draengende. Ein
+ * eigener Filter wuerde sie aus 'Offeriert' verschwinden lassen.
+ */
+const VORGANG_FILTER = ["alle", "neu", "offeriert", "gewonnen"] as const;
+type VorgangFilter = (typeof VORGANG_FILTER)[number];
+
+const MATCHES: Record<VorgangFilter, (status: WorkItemStatus) => boolean> = {
+  alle: () => true,
+  neu: (status) => status === "neu",
+  offeriert: (status) => status === "offeriert" || status === "ueberfaellig",
+  gewonnen: (status) => status === "gewonnen",
+};
 
 interface DashboardStats {
   tokenBalance: number;
@@ -33,19 +55,10 @@ interface DashboardStats {
 interface BoxStats {
   total_active: number;
   overdue: number;
+  urgent: number;
   pickup_today: number;
 }
 
-interface RecentLead {
-  id: string;
-  service_type: string;
-  from_city: string;
-  to_city: string | null;
-  distance_km: number | null;
-  estimated_duration_minutes: number | null;
-  created_at: string;
-  status: string;
-}
 
 interface TodayAppointment {
   id: string;
@@ -93,14 +106,19 @@ const FirmaDashboard = () => {
     jobsThisMonth: 0,
     besichtigungCount: 0,
   });
-  const [recentLeads, setRecentLeads] = useState<RecentLead[]>([]);
   const [besichtigungRequests, setBesichtigungRequests] = useState<BesichtigungRequest[]>([]);
   const [todayAppointments, setTodayAppointments] = useState<TodayAppointment[]>([]);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedBesichtigung, setSelectedBesichtigung] = useState<BesichtigungRequest | null>(null);
   const [isAcceptDialogOpen, setIsAcceptDialogOpen] = useState(false);
   const [boxStats, setBoxStats] = useState<BoxStats | null>(null);
+  const { resolvedTheme } = useTheme();
+  const { workItems, kpis } = useUebersichtData();
+  const [vorgangFilter, setVorgangFilter] = useState<VorgangFilter>("alle");
+
+  // Nur clientseitig gefiltert — die Kennzahlen oben bleiben davon unberuehrt,
+  // sonst widerspraeche der Streifen der Liste darunter.
+  const sichtbareVorgaenge = workItems.filter((item) => MATCHES[vorgangFilter](item.status));
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -128,7 +146,6 @@ const FirmaDashboard = () => {
           { data: offertenLeadIds },
           { count: openOffersCount },
           { count: jobsThisMonthCount },
-          { data: distributions },
           { data: besichtigungNotifications },
           { data: appointmentsForOffers },
           { data: todayAppts },
@@ -164,12 +181,6 @@ const FirmaDashboard = () => {
             .lte("appointment_date", format(monthEnd, "yyyy-MM-dd"))
             .neq("status", "cancelled"),
 
-          supabase
-            .from("leads")
-            .select("id, service_type, from_city, to_city, distance_km, estimated_duration_minutes, created_at")
-            .eq("company_id", company.id)
-            .order("created_at", { ascending: false })
-            .limit(5),
 
           supabase
             .from("notifications")
@@ -213,21 +224,6 @@ const FirmaDashboard = () => {
           (offertenLeadIds ?? []).map((o: { lead_id: string | null }) => o.lead_id).filter(Boolean),
         );
 
-        if (distributions && distributions.length > 0) {
-          const recentWithDetails = distributions.map((lead: { id: string; service_type?: string; from_city?: string; to_city?: string; distance_km?: number; estimated_duration_minutes?: number; created_at?: string }) => ({
-            id: lead.id,
-            // Raw DB value — the label is resolved per render via getServiceLabel(…, locale).
-            service_type: lead.service_type || "",
-            from_city: lead.from_city || "",
-            to_city: lead.to_city || null,
-            distance_km: lead.distance_km ? Number(lead.distance_km) : null,
-            estimated_duration_minutes: lead.estimated_duration_minutes || null,
-            created_at: lead.created_at || "",
-            // Kein Verteilungsstatus mehr: entweder es gibt eine Offerte oder nicht.
-            status: mitOfferte.has(lead.id) ? "offer_created" : "new",
-          }));
-          setRecentLeads(recentWithDetails);
-        }
 
         const confirmedOfferIds = new Set(
           appointmentsForOffers?.map(a => a.offer_id).filter(Boolean) || []
@@ -279,8 +275,6 @@ const FirmaDashboard = () => {
         });
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -291,51 +285,6 @@ const FirmaDashboard = () => {
     dateString ? formatDateTime(dateString, locale) : "";
 
   // Folk-style status chip
-  const getStatusChip = (status: string) => {
-    switch (status) {
-      // Seit 2026-07-28 kommen hier nur noch zwei Werte an: "new" (noch keine
-      // Offerte) und "offer_created". Die alten Verteilungsstatus bleiben
-      // vorerst stehen, damit ein zwischengespeicherter Zustand nichts bricht.
-      case "new":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-folk-coral" />
-            {t("dashboard.leadStatus.new")}
-          </span>
-        );
-      case "offer_created":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-2 py-0.5 text-[13px] font-semibold text-folk-mint">
-            ✓ {t("dashboard.leadStatus.offerCreated")}
-          </span>
-        );
-      case "sent":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-folk-coral-bg px-2 py-0.5 text-[13px] font-semibold text-folk-coral">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-folk-coral" />
-            {t("dashboard.leadStatus.sent")}
-          </span>
-        );
-      case "accepted":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-md bg-folk-mint-bg px-2 py-0.5 text-[13px] font-semibold text-folk-mint">
-            ✓ {t("dashboard.leadStatus.accepted")}
-          </span>
-        );
-      case "rejected":
-        return (
-          <span className="inline-flex items-center rounded-md bg-folk-bg-warm px-2 py-0.5 text-[13px] font-medium text-folk-ink3">
-            {t("dashboard.leadStatus.rejected")}
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center rounded-md border border-folk-line bg-folk-card px-2 py-0.5 text-[13px] text-folk-ink2">
-            {status}
-          </span>
-        );
-    }
-  };
 
   const handleOpenAcceptDialog = (request: BesichtigungRequest) => {
     setSelectedBesichtigung(request);
@@ -380,36 +329,6 @@ const FirmaDashboard = () => {
   const totalOpen = stats.pendingLeads + stats.openOffers + stats.besichtigungCount;
 
   // Folk-style KPI tiles — emoji-led, flat color, single coral accent on the highlight
-  const statsConfig = [
-    {
-      emoji: "📥",
-      title: t("dashboard.kpi.newLeads"),
-      value: stats.pendingLeads,
-      link: "/firma/anfragen",
-      highlight: stats.pendingLeads > 0,
-      hint: t("dashboard.kpi.newLeadsHint"),
-    },
-    {
-      emoji: "📄",
-      title: t("dashboard.kpi.openOffers"),
-      value: stats.openOffers,
-      link: "/firma/offerten",
-      hint: t("dashboard.kpi.openOffersHint"),
-    },
-    {
-      emoji: "🚚",
-      title: t("dashboard.kpi.jobsThisMonth"),
-      value: stats.jobsThisMonth,
-      link: "/firma/kalender",
-      hint: t("dashboard.kpi.jobsThisMonthHint"),
-    },
-    {
-      emoji: "🔎",
-      title: t("dashboard.kpi.besichtigungen"),
-      value: stats.besichtigungCount,
-      hint: t("dashboard.kpi.besichtigungenHint"),
-    },
-  ];
 
   return (
     <>
@@ -446,47 +365,10 @@ const FirmaDashboard = () => {
           </div>
         </div>
 
-        {/* KPI Grid — Folk style: flat white cards with single accent */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-          {statsConfig.map((stat) => {
-            const content = (
-              <div
-                className={`group relative h-full overflow-hidden rounded-xl border bg-folk-card p-4 transition-all duration-200 md:p-5 ${
-                  stat.highlight ? "border-folk-coral/30 ring-1 ring-folk-coral/20" : "border-folk-line"
-                } hover:border-folk-ink5`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px] font-semibold uppercase tracking-wider text-folk-ink3">{stat.title}</span>
-                  <span className="text-xl leading-none">{stat.emoji}</span>
-                </div>
-                <div className="mt-3 font-sans text-3xl font-bold tracking-tight text-folk-ink">
-                  {isLoading ? (
-                    <div className="h-8 w-12 animate-pulse rounded bg-folk-bg-warm" />
-                  ) : (
-                    formatNumber(stat.value, locale)
-                  )}
-                </div>
-                {stat.hint && (
-                  <p className="mt-1 text-[13px] text-folk-ink4">{stat.hint}</p>
-                )}
-                {stat.link && (
-                  <div className="mt-2 flex items-center gap-1 text-[13px] text-folk-ink4 transition-colors group-hover:text-folk-coral">
-                    <span>{t("common.details")}</span>
-                    <ArrowRight className="h-3 w-3" />
-                  </div>
-                )}
-              </div>
-            );
-
-            return stat.link ? (
-              <Link key={stat.title} to={stat.link} className="block">
-                {content}
-              </Link>
-            ) : (
-              <div key={stat.title}>{content}</div>
-            );
-          })}
-        </div>
+        {/* Kennzahlen — ein umrandeter Streifen ab 820px, darunter
+            scrollende Kacheln. Werte aus useUebersichtData; Umsatz stammt aus
+            finance_overview, nicht aus einer zweiten Rechnung. */}
+        <KpiStrip kpis={kpis} />
 
         {/* Heute — soft mint accent */}
         {todayAppointments.length > 0 && (
@@ -604,76 +486,54 @@ const FirmaDashboard = () => {
 
         {/* Letzte Anfragen + Right Rail */}
         <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">
-          {/* Letzte Anfragen */}
-          <section className="rounded-xl border border-folk-line bg-folk-card p-5 md:p-6 lg:col-span-2">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl leading-none">⚡</span>
-                <div>
-                  <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">{t("dashboard.recentLeads.title")}</h2>
-                  <p className="text-[11.5px] text-folk-ink3">{t("dashboard.recentLeads.subtitle")}</p>
-                </div>
-              </div>
-              <Link to="/firma/anfragen">
-                <Button variant="outline" size="sm" className="group h-8 rounded-lg border-folk-line bg-folk-card px-3 text-[14px] text-folk-ink2 hover:bg-folk-bg-warm">
-                  {t("dashboard.recentLeads.showAll")}
-                  <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </Button>
+          {/* Aktive Vorgaenge — je Anfrage genau einer, mit den Werten der
+              aktuellen Offerten-Revision. Das Theme entscheidet ueber Raster
+              oder Liste, der Breakpoint ueber die Dichte (CSS, nicht JS). */}
+          <section className="lg:col-span-2">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-[15px] font-semibold tracking-tight text-folk-ink">
+                {t("uebersicht.section.aktiveVorgaenge")}
+              </h2>
+              <Link
+                to="/firma/anfragen"
+                className="shrink-0 text-[12px] font-semibold text-folk-mint"
+              >
+                {t("uebersicht.section.alleAnzeigen", { count: String(workItems.length) })}
               </Link>
             </div>
 
-            {recentLeads.length > 0 ? (
-              <div className="space-y-1.5">
-                {recentLeads.map((lead) => (
-                  <div
-                    key={lead.id}
-                    className="group flex flex-col justify-between gap-2 rounded-lg border border-transparent bg-folk-bg-warm p-3 transition-colors hover:border-folk-line hover:bg-folk-bg sm:flex-row sm:items-center md:p-4"
+            <div className="mb-3 -mx-3 flex gap-2 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {VORGANG_FILTER.map((option) => {
+                const active = option === vorgangFilter;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setVorgangFilter(option)}
+                    aria-pressed={active}
+                    className={`min-h-[34px] shrink-0 whitespace-nowrap rounded-full px-3.5 text-[12px] transition-colors ${
+                      active
+                        ? "bg-folk-ink font-semibold text-folk-bg"
+                        : "border border-folk-line bg-folk-card text-folk-ink3"
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-folk-coral-bg text-[16px]">
-                        📄
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-[15px] font-semibold tracking-tight text-folk-ink">
-                          {getServiceLabel(lead.service_type, locale)}
-                        </p>
-                        <div className="mt-0.5 flex items-center gap-1.5 text-[14px] text-folk-ink3">
-                          <MapPin className="h-3 w-3" />
-                          <span className="truncate">{lead.from_city}</span>
-                          {lead.to_city && (
-                            <>
-                              <ArrowRight className="h-3 w-3" />
-                              <span className="truncate">{lead.to_city}</span>
-                            </>
-                          )}
-                        </div>
-                        {lead.distance_km && (
-                          <div className="mt-0.5 text-[10.5px] text-folk-ink4">
-                            <span className="font-mono font-medium text-folk-coral">{lead.distance_km.toFixed(1)} km</span>
-                            {lead.estimated_duration_minutes && (
-                              <span className="ml-1.5">
-                                (~<span className="font-mono">{Math.round(lead.estimated_duration_minutes)}</span>{" "}
-                                {t("dashboard.minutesShort")})
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 pl-12 sm:pl-0">
-                      {getStatusChip(lead.status)}
-                      <span className="whitespace-nowrap font-mono text-[10.5px] text-folk-ink4">
-                        {formatTimestamp(lead.created_at)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    {t(`uebersicht.filter.${option}` as MessageKey)}
+                  </button>
+                );
+              })}
+            </div>
+
+            {sichtbareVorgaenge.length > 0 ? (
+              <WorkItems
+                items={sichtbareVorgaenge}
+                variant={resolvedTheme === "dark" ? "list" : "grid"}
+              />
             ) : (
-              <div className="py-12 text-center">
-                <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-xl bg-folk-bg-warm text-2xl">📭</div>
-                <p className="text-[15px] text-folk-ink3">{t("dashboard.recentLeads.empty")}</p>
-                <p className="mt-1 text-[13px] text-folk-ink4">{t("dashboard.recentLeads.emptyHint")}</p>
+              <div className="rounded-2xl border border-folk-line bg-folk-card p-8 text-center">
+                <p className="text-[15px] font-semibold text-folk-ink">
+                  {t("uebersicht.empty.title")}
+                </p>
+                <p className="mt-1 text-[12.5px] text-folk-ink3">{t("uebersicht.empty.body")}</p>
               </div>
             )}
           </section>

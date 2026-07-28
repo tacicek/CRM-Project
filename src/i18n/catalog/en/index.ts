@@ -18,6 +18,8 @@ import { finanz } from "@/i18n/catalog/en/finanz";
 import { portal } from "@/i18n/catalog/en/portal";
 import { fall } from "@/i18n/catalog/en/fall";
 import { inbox } from "@/i18n/catalog/en/inbox";
+import { wiki } from "@/i18n/catalog/en/wiki";
+import { uebersicht } from "@/i18n/catalog/en/uebersicht";
 
 export const en: Record<keyof typeof de, string> = {
   ...common,
@@ -39,4 +41,6 @@ export const en: Record<keyof typeof de, string> = {
   ...portal,
   ...fall,
   ...inbox,
+  ...wiki,
+  ...uebersicht,
 };

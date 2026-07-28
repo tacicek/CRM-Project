@@ -27,6 +27,8 @@ import { finanz } from "@/i18n/catalog/de/finanz";
 import { portal } from "@/i18n/catalog/de/portal";
 import { fall } from "@/i18n/catalog/de/fall";
 import { inbox } from "@/i18n/catalog/de/inbox";
+import { wiki } from "@/i18n/catalog/de/wiki";
+import { uebersicht } from "@/i18n/catalog/de/uebersicht";
 
 export const de = {
   ...common,
@@ -48,4 +50,6 @@ export const de = {
   ...portal,
   ...fall,
   ...inbox,
+  ...wiki,
+  ...uebersicht,
 };
