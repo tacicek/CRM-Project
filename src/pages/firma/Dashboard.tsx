@@ -26,6 +26,7 @@ import { useUebersichtData } from "@/hooks/useUebersichtData";
 import { KpiStrip } from "@/components/firma/uebersicht/KpiStrip";
 import { WorkItems } from "@/components/firma/uebersicht/WorkItems";
 import { RevenueBars } from "@/components/firma/uebersicht/RevenueBars";
+import { ActivityPanel } from "@/components/firma/uebersicht/ActivityPanel";
 import type { WorkItemStatus } from "@/types/uebersicht";
 
 /**
@@ -114,12 +115,16 @@ const FirmaDashboard = () => {
   const [isAcceptDialogOpen, setIsAcceptDialogOpen] = useState(false);
   const [boxStats, setBoxStats] = useState<BoxStats | null>(null);
   const { resolvedTheme } = useTheme();
-  const { workItems, kpis, revenueWeeks } = useUebersichtData();
+  const { workItems, activity, kpis, revenueWeeks } = useUebersichtData();
   const [vorgangFilter, setVorgangFilter] = useState<VorgangFilter>("alle");
 
   // Nur clientseitig gefiltert — die Kennzahlen oben bleiben davon unberuehrt,
   // sonst widerspraeche der Streifen der Liste darunter.
-  const sichtbareVorgaenge = workItems.filter((item) => MATCHES[vorgangFilter](item.status));
+  // Die Uebersicht ist eine Uebersicht, keine zweite Anfragenliste: sie zeigt
+  // die neuesten Vorgaenge, der Rest haengt hinter "Alle N".
+  const VORGAENGE_SICHTBAR = 8;
+  const gefilterteVorgaenge = workItems.filter((item) => MATCHES[vorgangFilter](item.status));
+  const sichtbareVorgaenge = gefilterteVorgaenge.slice(0, VORGAENGE_SICHTBAR);
   const offeneNeue = workItems.filter((item) => item.status === "neu").length;
 
   useEffect(() => {
@@ -525,7 +530,7 @@ const FirmaDashboard = () => {
                 to="/firma/anfragen"
                 className="shrink-0 text-[12px] font-semibold text-folk-mint"
               >
-                {t("uebersicht.section.alleAnzeigen", { count: String(workItems.length) })}
+                {t("uebersicht.section.alleAnzeigen", { count: String(gefilterteVorgaenge.length) })}
               </Link>
             </div>
 
@@ -568,6 +573,7 @@ const FirmaDashboard = () => {
           {/* Right rail */}
           <aside className="space-y-4">
             {revenueWeeks.length > 0 && <RevenueBars weeks={revenueWeeks} />}
+            <ActivityPanel events={activity} />
             {boxStats && (boxStats.total_active > 0 || boxStats.overdue > 0) && (
               <section className="rounded-xl border border-folk-line bg-folk-card p-5">
                 <div className="mb-4 flex items-center justify-between">

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { assembleWorkItems, type AuftragRow, type LeadRow, type OfferRow } from "@/lib/uebersichtAssemble";
 import { deltaPercent, groupPaymentsByWeek } from "@/lib/uebersichtKpi";
-import type { Kpi, RevenueWeek, WorkItem } from "@/types/uebersicht";
+import type { ActivityEvent, Kpi, RevenueWeek, WorkItem } from "@/types/uebersicht";
 
 /** Wieviele Wochen das Umsatzdiagramm zeigt. */
 const REVENUE_WEEKS = 5;
@@ -18,6 +18,7 @@ type FinanceOverview = { kassiert_30t?: number };
 
 export type UebersichtData = {
   workItems: WorkItem[];
+  activity: ActivityEvent[];
   kpis: Kpi[];
   revenueWeeks: RevenueWeek[];
   isLoading: boolean;
@@ -43,6 +44,7 @@ export const useUebersichtData = (): UebersichtData => {
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [kpis, setKpis] = useState<Kpi[]>([]);
   const [revenueWeeks, setRevenueWeeks] = useState<RevenueWeek[]>([]);
+  const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [tick, setTick] = useState(0);
 
@@ -66,7 +68,7 @@ export const useUebersichtData = (): UebersichtData => {
         const prevMonthEnd = isoDay(endOfMonth(subDays(startOfMonth(now), 1)));
         const windowStart = isoDay(subDays(now, PAYMENT_WINDOW_DAYS));
 
-        const [leadsResult, offersResult, auftraegeResult, paymentsResult, financeResult] =
+        const [leadsResult, offersResult, auftraegeResult, paymentsResult, financeResult, verlaufResult] =
           await Promise.all([
             supabase
               .from("leads")
@@ -92,6 +94,12 @@ export const useUebersichtData = (): UebersichtData => {
               .eq("company_id", companyId)
               .gte("payment_date", windowStart),
             supabase.rpc("finance_overview", { p_company_id: companyId }),
+            supabase
+              .from("sales_stage_history")
+              .select("id, lead_id, from_stage, to_stage, source, changed_at")
+              .eq("company_id", companyId)
+              .order("changed_at", { ascending: false })
+              .limit(8),
           ]);
 
         if (cancelled) return;
@@ -101,6 +109,19 @@ export const useUebersichtData = (): UebersichtData => {
         const auftraege = (auftraegeResult.data ?? []) as AuftragRow[];
         const payments = (paymentsResult.data ?? []) as PaymentRow[];
         const finance = (financeResult.data ?? {}) as FinanceOverview;
+
+        type VerlaufRow = {
+          id: string; lead_id: string; from_stage: string | null;
+          to_stage: string; source: string; changed_at: string;
+        };
+        setActivity(((verlaufResult.data ?? []) as VerlaufRow[]).map((row) => ({
+          id: row.id,
+          leadId: row.lead_id,
+          fromStage: row.from_stage,
+          toStage: row.to_stage,
+          automatisch: row.source === "trigger",
+          at: row.changed_at,
+        })));
 
         const items = assembleWorkItems(leads, offers, auftraege, now);
         setWorkItems(items);
@@ -186,5 +207,5 @@ export const useUebersichtData = (): UebersichtData => {
     };
   }, [companyId, tick]);
 
-  return { workItems, kpis, revenueWeeks, isLoading, reload };
+  return { workItems, activity, kpis, revenueWeeks, isLoading, reload };
 };

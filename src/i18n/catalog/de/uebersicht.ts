@@ -25,4 +25,7 @@ export const uebersicht = {
   "uebersicht.umsatz.title": "Umsatz · letzte 5 Wochen",
   "uebersicht.banner.warten": "{count} Anfragen warten",
   "uebersicht.banner.hinweis": "Wer zuerst offeriert, gewinnt.",
+  "uebersicht.aktivitaet.title": "Verlauf",
+  "uebersicht.aktivitaet.automatisch": "Vom System gesetzt",
+  "uebersicht.aktivitaet.vonHand": "Von Hand geändert",
 } as const;

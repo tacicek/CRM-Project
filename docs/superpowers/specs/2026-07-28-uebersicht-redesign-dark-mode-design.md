@@ -631,6 +631,26 @@ Dazu 11 weitere Dateien mit je einem Treffer.
 und das Stylesheet von `react-big-calendar` zusammen. Diese Datei bekommt eine eigene
 Aufgabe, keine Sammelbehandlung.
 
+### 7.2 Stand nach der Umsetzung (2026-07-28)
+
+Abgearbeitet: **198 Ersetzungen in 31 Dateien**. Es bleiben 29 Treffer in 13
+Dateien, überwiegend zwei Sorten, die einzeln zu beurteilen sind:
+
+- **Auflagen** wie `bg-white/20` auf farbigem Grund — „20 % Weiss", keine
+  Flächenfarbe. Sie kippen bewusst nicht mit dem Theme.
+- **Sonderfarben**, etwa die Terminfarben im Kalender (`#8b5cf6` und Verwandte).
+  Sie sind semantisch (Besichtigung, Dienstleistung, Nachfassen) und gehören in
+  Tokens überführt, statt einzeln ersetzt zu werden — eigene Aufgabe.
+
+**`ActivityPanel` bleibt offen — mangels Datenquelle, nicht aus Zeitnot.** Die
+Vorlage zeigt einen Verlauf („Offerte gesendet — Privatumzug Umfang → Biel").
+Dafür gibt es keine Tabelle: `offers.sent_at` liefert nur den letzten Versand,
+nicht die Folge der Ereignisse. Es gibt zwar `offer_history` und
+`appointment_history`, beide decken aber nur ihren eigenen Bereich ab. Ein
+ehrlicher Verlauf braucht entweder eine gemeinsame Ereignistabelle oder eine
+bewusste Entscheidung, welche drei Quellen zusammengeführt werden. Das ist eine
+Datenfrage, keine Darstellungsfrage, und wird vorgelegt statt geraten.
+
 **Nicht pauschal ersetzen.** Ein Teil dieser Farben ist bewusst hell —
 `QuittungDetail` und `RechnungDetail` zeigen die gedruckte Fassung eines Belegs; ein
 weisses Blatt bleibt dort richtig, auch im Dunkelmodus. Vor jeder Änderung ist zu

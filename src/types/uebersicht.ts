@@ -58,3 +58,20 @@ export type RevenueWeek = {
   amountChf: number;
   current: boolean;
 };
+
+/**
+ * Ein Eintrag im Verlauf.
+ *
+ * Quelle ist `sales_stage_history` — die einzige Tabelle, die Ereignisse
+ * unternehmensweit und nur anhaengend fuehrt. `offers.sent_at` waere keine
+ * Alternative: es kennt nur den letzten Versand, nicht die Folge.
+ */
+export type ActivityEvent = {
+  id: string;
+  leadId: string;
+  fromStage: string | null;
+  toStage: string;
+  /** "trigger" heisst: das System hat die Stufe gesetzt, nicht ein Mensch. */
+  automatisch: boolean;
+  at: string;
+};
