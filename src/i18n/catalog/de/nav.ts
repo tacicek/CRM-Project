@@ -59,6 +59,8 @@ export const nav = {
   "nav.mobile.more": "Mehr",
   "nav.mobile.openMore": "Weitere Bereiche öffnen",
   "nav.mobile.tabbar": "Hauptnavigation",
+  "nav.mobile.quickAccess": "Schnellzugriff",
+  "nav.mobile.close": "Schliessen",
 
   "nav.theme.label": "Erscheinungsbild",
   "nav.theme.light": "Hell",

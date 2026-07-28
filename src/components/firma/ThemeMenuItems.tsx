@@ -1,31 +1,19 @@
-import { Monitor, Moon, Sun } from "lucide-react";
 import { DropdownMenuItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
+import { THEME_OPTIONS } from "@/components/firma/themeOptions";
 import { useTheme } from "@/hooks/useTheme";
 import { useT } from "@/i18n/useI18n";
-import type { ThemePreference } from "@/lib/theme";
-import type { MessageKey } from "@/i18n/translator";
-
-type Option = {
-  value: ThemePreference;
-  icon: typeof Sun;
-  labelKey: MessageKey;
-};
-
-const OPTIONS: readonly Option[] = [
-  { value: "light", icon: Sun, labelKey: "nav.theme.light" },
-  { value: "dark", icon: Moon, labelKey: "nav.theme.dark" },
-  { value: "system", icon: Monitor, labelKey: "nav.theme.system" },
-];
 
 /**
- * Der Theme-Umschalter als Menüblock.
+ * Der Theme-Umschalter als Block im Aufklappmenü der Kopfleiste.
  *
- * Eigene Datei, weil der Kopfbereich von FirmaLayout zwei sich ausschliessende
+ * Eigene Komponente, weil die Kopfleiste zwei sich ausschliessende
  * Aufklappmenüs hat — eines für den Firmenwechsel, eines für das Profil. Nur
  * eines wird gerendert. Läge der Umschalter nur im Profilmenü, käme ein
  * Benutzer mit Zugriff auf mehrere Firmen nie an ihn heran.
  *
- * Wird in Durchgang 2 auch vom Mehr-Sheet der Mobilansicht benutzt.
+ * Für die Mobilansicht gibt es eine eigene Auszeichnung im Mehr-Sheet:
+ * `DropdownMenuItem` verlangt den Kontext seines Menüs. Geteilt werden die
+ * Daten über `@/components/firma/themeOptions`.
  */
 export const ThemeMenuItems = () => {
   const { theme, setTheme } = useTheme();
@@ -36,7 +24,7 @@ export const ThemeMenuItems = () => {
       <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-folk-ink3">
         {t("nav.theme.label")}
       </DropdownMenuLabel>
-      {OPTIONS.map((option) => (
+      {THEME_OPTIONS.map((option) => (
         <DropdownMenuItem
           key={option.value}
           onClick={() => setTheme(option.value)}
