@@ -50,8 +50,8 @@ const Group = ({
   const t = useT();
   if (items.length === 0) return null;
   return (
-    <section className="mb-4">
-      <h3 className="px-3.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-folk-ink4">
+    <section className="mb-5">
+      <h3 className="px-3.5 pb-2 text-[10.5px] font-bold uppercase tracking-wider text-folk-ink4">
         {t(labelKey)}
       </h3>
       <div className="overflow-hidden rounded-xl border border-folk-line bg-folk-card">
@@ -68,8 +68,8 @@ const ThemeRows = () => {
   const { theme, setTheme } = useTheme();
   const t = useT();
   return (
-    <section className="mb-4">
-      <h3 className="px-3.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-folk-ink4">
+    <section className="mb-5">
+      <h3 className="px-3.5 pb-2 text-[10.5px] font-bold uppercase tracking-wider text-folk-ink4">
         {t("nav.theme.label")}
       </h3>
       <div className="overflow-hidden rounded-xl border border-folk-line bg-folk-card">
@@ -104,11 +104,20 @@ const ThemeRows = () => {
  * Der Inhalt kommt aus `firmaNav.ts`, nicht aus einer zweiten Liste: der
  * Wiki-Validator liest dieselbe Datei, und die MODULES-Flags müssen greifen.
  *
- * `DrawerContent` bringt `mt-24` und den Ziehgriff bereits mit — das Sheet
- * bedeckt nie den ganzen Bildschirm, der abgedunkelte Streifen oben bleibt
- * sichtbar. Deshalb wird hier nichts an der Höhe geschraubt; nur der
- * Innenbereich scrollt, mit `overscroll-contain`, damit die Seite darunter
- * still bleibt.
+ * **Zur Höhe.** `DrawerContent` steht `fixed bottom-0` mit `h-auto` und ohne
+ * `top`; sein `mt-24` begrenzt die Höhe deshalb nicht — es beschreibt nur die
+ * Absicht, oben einen abgedunkelten Streifen zu lassen. Der einzige wirksame
+ * Deckel ist der hier. Er stand auf `70dvh`, einem Bruchteil ohne Bezug zu
+ * jener Absicht: über dem Sheet blieben rund 200px Bildschirm ungenutzt,
+ * während der Inhalt gut das Doppelte des Fensters misst. Zweiundzwanzig
+ * Zeilen, von denen ein Drittel zu sehen ist, lesen sich als Wand.
+ *
+ * Der Deckel ist jetzt an den Streifen gebunden statt an einen Prozentsatz:
+ * volle Höhe minus den `mt-24` des Drawers minus den Ziehgriff. Der Streifen
+ * bleibt, der Rest des Bildschirms wird benutzt.
+ *
+ * Nur der Innenbereich scrollt, mit `overscroll-contain`, damit die Seite
+ * darunter still bleibt.
  */
 export const MoreSheet = ({
   open,
@@ -124,7 +133,10 @@ export const MoreSheet = ({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="border-folk-line bg-folk-bg shell-tablet:hidden">
         <DrawerTitle className="sr-only">{t("nav.menu")}</DrawerTitle>
-        <div className="max-h-[70dvh] overflow-y-auto overscroll-contain px-3 pb-8 pt-4">
+        {/* `pb` traegt die Sicherheitszone mit: auf Geraeten mit Home-Indikator
+            oder unten liegender Adressleiste stand die letzte Zeile sonst
+            darunter. */}
+        <div className="max-h-[calc(100dvh-7.5rem)] overflow-y-auto overscroll-contain px-3 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-4">
           <Group
             labelKey="nav.mobile.quickAccess"
             items={untabbedQuickLinks}
