@@ -88,13 +88,20 @@ export const KpiStrip = ({ kpis }: { kpis: readonly Kpi[] }) => {
             ${index < kpis.length - 1 ? "shell-tablet:border-r shell-tablet:border-folk-line" : ""}
           `}
         >
-          <div className="truncate text-[11px] text-folk-ink3 shell-tablet:text-[11.5px]">
+          {/* Zwei Zeilen statt abschneiden: "Neue Anfragen" und "Offene
+              Offerten" passen auf einem Telefon nicht in eine Zeile, und
+              "Neue Anfrag…" ist keine Beschriftung. */}
+          <div className="line-clamp-2 min-h-[2.2em] text-[11px] leading-tight text-folk-ink3 shell-tablet:line-clamp-none shell-tablet:min-h-0 shell-tablet:truncate shell-tablet:text-[11.5px]">
             {t(LABEL_KEY[kpi.key])}
           </div>
-          <div className="mt-1.5 flex items-baseline gap-2">
+          {/* `min-w-0` und Umbruch: ein Betrag wie CHF 13'475.80 sprengt sonst
+              die Kachel — der Wert lief ueber den Rand hinaus. */}
+          <div className="mt-1.5 flex min-w-0 flex-wrap items-baseline gap-x-2">
             <span
-              className={`font-bold tracking-tight text-folk-ink ${
-                kpi.format === "chf" ? "text-[15px] shell-tablet:text-[22px]" : "text-[24px] shell-tablet:text-[26px]"
+              className={`min-w-0 font-bold tracking-tight text-folk-ink ${
+                kpi.format === "chf"
+                  ? "text-[13px] shell-tablet:text-[22px]"
+                  : "text-[24px] shell-tablet:text-[26px]"
               }`}
             >
               <Value kpi={kpi} />

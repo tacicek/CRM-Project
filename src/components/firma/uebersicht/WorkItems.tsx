@@ -180,6 +180,13 @@ const Row = ({ item, onOpen, onAct }: { item: WorkItem; onOpen: () => void; onAc
           {[item.from, item.to].filter(Boolean).join(" → ")}
           {item.amountChf !== null && ` · chf ${formatAmount(item.amountChf, locale)}`}
         </span>
+        {/* Der Status steht auf dem Telefon unter der Route, nicht rechts
+            daneben. Vorher war er dort mit `hidden` ausgeblendet — damit trug
+            allein die Farbe des Punktes die Bedeutung, was der eigenen Regel
+            widerspricht: Status nie nur ueber Farbe. */}
+        <span className="mt-0.5 block truncate text-[11.5px] text-folk-ink3 shell-tablet:hidden">
+          {statusText}
+        </span>
       </button>
       <span className="hidden shrink-0 text-[12px] text-folk-ink3 shell-tablet:block">
         {statusText}
@@ -228,7 +235,17 @@ export const WorkItems = ({
   }
 
   return (
-    <div className="grid gap-2.5 shell-tablet:grid-cols-2 shell-tablet:gap-3.5 shell-desktop:grid-cols-3">
+    // `grid-cols-1` ist hier nicht kosmetisch: ohne eine ausdrueckliche Spalte
+    // haben Grid-Elemente `min-width: auto` und werden so breit wie ihr
+    // min-content. Die Karte wuchs damit auf 437px in einem 366px-Kasten und
+    // schob die ganze Seite waagrecht. Tailwinds grid-cols-* setzt
+    // minmax(0, 1fr) und deckelt das.
+    // Hoechstens zwei Spalten, nicht drei: die Vorlage rechnete mit der vollen
+    // Breite, hier steht rechts aber die Leiste mit Umzugsboxen und Anfragen
+    // (Spec 5.0 — sie durfte nicht verschwinden). In den verbleibenden zwei
+    // Dritteln blieben von drei Karten je ~200px, und die Titel standen als
+    // "Möb…" und "Priv…" da.
+    <div className="grid grid-cols-1 gap-2.5 shell-tablet:gap-3.5 shell-desktop:grid-cols-2">
       {items.map((item) => (
         <Card key={item.id} item={item} onOpen={() => open(item)} onAct={() => act(item)} />
       ))}

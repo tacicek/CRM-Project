@@ -337,32 +337,40 @@ const FirmaDashboard = () => {
       </Helmet>
 
       <div className="space-y-6 md:space-y-8">
-        {/* Page header — Folk style */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
-          <span className="text-4xl leading-none">🏠</span>
-          <div className="flex-1">
-            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-folk-ink">{t("dashboard.title")}</h1>
-              <span className="text-[15px] text-folk-ink3">
-                {today} · <span className="font-mono">{totalOpen}</span> {t("dashboard.open")}
-              </span>
-            </div>
-            <p className="mt-1 text-[15px] text-folk-ink2">
-              {t("dashboard.subtitle")}
-            </p>
-          </div>
-          <div className="flex gap-2">
+        {/* Seitenkopf.
+         *
+         * Auf dem Telefon war er vorher fast die halbe Bildschirmhöhe:
+         * ein 4xl-Emoji, Titel, zweizeiliger Untertitel und zwei Knöpfe —
+         * rund 470px, bevor die erste Kennzahl kam. Jetzt eine Zeile, der
+         * Untertitel erst ab Tablet.
+         *
+         * Das Emoji ist ersatzlos weg: in dieser Oberfläche tragen Icons die
+         * Bedeutung, nie Emoji (siehe Kopfkommentar in config/firmaNav.ts).
+         * Der Bereich steht ausserdem schon in der Kopfleiste und in der
+         * Tab-Leiste — ein drittes Mal braucht es ihn nicht.
+         */}
+        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-2">
+          <h1 className="text-[22px] font-bold tracking-tight text-folk-ink shell-tablet:text-2xl">
+            {t("dashboard.title")}
+          </h1>
+          <span className="text-[12px] text-folk-ink4 shell-tablet:text-[15px] shell-tablet:text-folk-ink3">
+            {today} · <span className="font-mono">{totalOpen}</span> {t("dashboard.open")}
+          </span>
+          <div className="ml-auto flex shrink-0 gap-2">
             <Link to="/firma/anfragen">
-              <Button className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2">
+              <Button className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[13.5px] font-semibold text-folk-bg hover:bg-folk-ink2 shell-tablet:text-[15px]">
                 <span className="text-[14px] leading-none">+</span> {t("dashboard.action.newLead")}
               </Button>
             </Link>
-            <Link to="/firma/offerten">
+            <Link to="/firma/offerten" className="hidden shell-tablet:block">
               <Button variant="outline" className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[15px] font-medium text-folk-ink2 hover:bg-folk-bg-warm">
                 {t("nav.offerten")}
               </Button>
             </Link>
           </div>
+          <p className="hidden w-full text-[15px] text-folk-ink2 shell-tablet:block">
+            {t("dashboard.subtitle")}
+          </p>
         </div>
 
         {/* Kennzahlen — ein umrandeter Streifen ab 820px, darunter
