@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchCompaniesForUser } from "@/lib/fetchCompaniesForUser";
 import { CompanyContext, type CompanyData } from "@/hooks/useCompanyContext";
 
 // ---------------------------------------------------------------------------
@@ -59,22 +59,16 @@ export const CompanyProvider = ({ children }: { children: React.ReactNode }) => 
     // aus dem no-user-Lauf false und die ~1s DB-Abfrage würde als „keine Firma" fehlinterpretiert.
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("company_members")
-        .select(
-          `company_id, role, companies!inner(id, company_name, logo_url, is_verified, default_language)`
-        )
-        .eq("user_id", userId);
+      // Gemeinsamer Helfer statt einer zweiten Kopie derselben Abfrage: bis
+      // 2026-07-28 stand die Mitgliedschaftsabfrage hier inline UND in
+      // fetchCompaniesForUser — zwei Orte, an denen "welche Firma ist meine"
+      // beantwortet wurde.
+      const { companies: fetchedCompanies, memberships: rows } =
+        await fetchCompaniesForUser<CompanyData>({
+          userId,
+          select: "id, company_name, logo_url, is_verified, default_language",
+        });
 
-      if (error) throw error;
-
-      const rows = (data ?? []) as unknown as Array<{
-        company_id: string;
-        role: string;
-        companies: CompanyData;
-      }>;
-
-      const fetchedCompanies = rows.map((r) => r.companies);
       const roleMap = new Map<string, string>();
       rows.forEach((r) => roleMap.set(r.company_id, r.role));
 

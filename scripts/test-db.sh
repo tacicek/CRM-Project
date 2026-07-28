@@ -113,11 +113,13 @@ set +e
 OUT="$(PSQL < supabase-test/tests/assertions.sql 2>&1)"; RC=$?
 OUT2="$(PSQL < supabase-test/tests/auftrag-contract.sql 2>&1)"; RC2=$?
 OUT3="$(PSQL < supabase-test/tests/customer-360.sql 2>&1)"; RC3=$?
+OUT4="$(PSQL < supabase-test/tests/rollen.sql 2>&1)"; RC4=$?
 printf '%s\n' "$OUT"  | grep -E 'PASS|FAIL|ERROR|ALL DB ASSERTIONS'
 printf '%s\n' "$OUT2" | grep -E 'PASS|FAIL|ERROR|ALL AUFTRAG'
 printf '%s\n' "$OUT3" | grep -E 'PASS|FAIL|ERROR'
+printf '%s\n' "$OUT4" | grep -E 'PASS|FAIL|ERROR'
 set -e
-if [ "$RC" -ne 0 ] || [ "$RC2" -ne 0 ] || [ "$RC3" -ne 0 ]; then
-  echo "DB integration suite FAILED (assertions rc=$RC, auftrag-contract rc=$RC2, customer-360 rc=$RC3)"; exit 1
+if [ "$RC" -ne 0 ] || [ "$RC2" -ne 0 ] || [ "$RC3" -ne 0 ] || [ "$RC4" -ne 0 ]; then
+  echo "DB integration suite FAILED (assertions rc=$RC, auftrag-contract rc=$RC2, customer-360 rc=$RC3, rollen rc=$RC4)"; exit 1
 fi
 echo "DB integration suite passed."
