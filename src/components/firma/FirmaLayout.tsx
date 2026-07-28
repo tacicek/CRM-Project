@@ -6,7 +6,13 @@ import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useNotificationHistory } from "@/hooks/useNotificationHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { firmaImports } from "@/App";
-import { MODULES, type ModuleKey } from "@/config/modules";
+import { MODULES } from "@/config/modules";
+import {
+  FIRMA_FALLBACK_ICON,
+  FIRMA_NAV_GROUPS,
+  FIRMA_QUICK_LINKS,
+  type FirmaNavItem,
+} from "@/config/firmaNav";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +24,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 import { LanguageSwitcher } from "@/components/firma/LanguageSwitcher";
+import { ThemeMenuItems } from "@/components/firma/ThemeMenuItems";
+import { WikiHelpButton } from "@/features/wiki/components/WikiHelpButton";
 import { useI18n, useT } from "@/i18n/useI18n";
 import type { MessageKey } from "@/i18n/translator";
 import { getAppointmentStatusLabel, getAppointmentTypeLabel } from "@/i18n/domain";
@@ -51,19 +59,25 @@ interface Company {
 }
 
 // =============================================================================
-// Menu data — Folk-style nav: each item has an emoji, label, route, moduleKey
+// Menu data — the static shape lives in @/config/firmaNav; this layer only adds the
+// live badge counts, which need Supabase state the config file must not depend on.
 // =============================================================================
 
-type MenuItem = {
-  /** Catalog key — the label is resolved in the operator's dashboard locale at render time. */
-  titleKey: MessageKey;
-  url: string;
-  emoji: string;
-  moduleKey: ModuleKey;
-  badge?: number;
-};
+type MenuItem = FirmaNavItem & { badge?: number };
 
 type MenuGroup = { id: string; labelKey: MessageKey; items: MenuItem[] };
+
+/** Badge counts by route — the only per-render difference from the static config. */
+type BadgeCounts = Readonly<Record<string, number | undefined>>;
+
+const withBadges = (items: readonly FirmaNavItem[], badges: BadgeCounts): MenuItem[] =>
+  items.map((item) => {
+    const count = badges[item.url];
+    return count ? { ...item, badge: count } : item;
+  });
+
+/** A module-less entry (Hilfe) can never be hidden; everything else follows its flag. */
+const isVisible = (item: FirmaNavItem) => item.moduleKey === null || MODULES[item.moduleKey];
 
 // =============================================================================
 // Sidebar
@@ -148,7 +162,7 @@ const FirmaSidebar = ({
                   active ? "bg-folk-card font-semibold text-folk-ink shadow-[0_1px_2px_rgba(24,24,26,0.03)]" : "text-folk-ink2 hover:bg-folk-bg-warm"
                 }`}
               >
-                <span className="text-[14px] leading-none">{item.emoji}</span>
+                <item.icon className="h-4 w-4 shrink-0 text-folk-ink3" strokeWidth={1.8} aria-hidden="true" />
                 <span className="flex-1 truncate">{t(item.titleKey)}</span>
                 {item.badge ? (
                   <span className="font-mono text-[13px] text-folk-ink3">{item.badge}</span>
@@ -179,7 +193,7 @@ const FirmaSidebar = ({
                       : "border border-transparent text-folk-ink2 hover:bg-folk-bg-warm"
                   }`}
                 >
-                  <span className="text-[14px] leading-none">{item.emoji}</span>
+                  <item.icon className="h-4 w-4 shrink-0 text-folk-ink3" strokeWidth={1.8} aria-hidden="true" />
                   <span className="flex-1 truncate">{t(item.titleKey)}</span>
                   {item.badge ? (
                     <span className="font-mono text-[13px] text-folk-ink3">{item.badge}</span>
@@ -228,6 +242,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   const company = activeCompany as Company | null;
   const [besichtigungUploadedCount, setBesichtigungUploadedCount] = useState(0);
   const [inboundReviewCount, setInboundReviewCount] = useState(0);
+  const [boxUrgentCount, setBoxUrgentCount] = useState(0);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const notifyWithHistory = useCallback((title: string, body?: string, route?: string, type?: string, id?: string, metadata?: Record<string, unknown>) => {
@@ -291,6 +306,22 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     if (!companyId) return;
     supabase.from("inbound_emails").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("processing_status", "needs_review").then(({ count }) => setInboundReviewCount(count || 0));
   }, [companyId]);
+
+  // Dringende Boxen-Abholungen
+  //
+  // Ueber die RPC und nicht ueber eine eigene Abfrage: `urgent` ist dort
+  // definiert (20260802100000) und ist dieselbe Zahl, die die Boxenseite im
+  // roten Band zeigt. Eine zweite Filterlogik hier wuerde frueher oder spaeter
+  // eine andere Zahl ergeben als die Seite, auf die das Abzeichen fuehrt.
+  //
+  // Kein Realtime-Kanal: eine Miete wird nicht durch ein Ereignis ueberfaellig,
+  // sondern durch Zeitablauf. Neu geladen wird beim Seitenwechsel.
+  useEffect(() => {
+    if (!companyId) return;
+    supabase
+      .rpc("get_box_rental_stats", { p_company_id: companyId })
+      .then(({ data }) => setBoxUrgentCount(data?.[0]?.urgent ?? 0));
+  }, [companyId, location.pathname]);
 
   // Real-time: notifications
   useEffect(() => {
@@ -384,6 +415,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     "/firma/team": firmaImports.Team,
     "/firma/preisgestaltung": firmaImports.Preisgestaltung,
     "/firma/datenarchiv": firmaImports.Datenarchiv,
+    "/firma/hilfe": firmaImports.Hilfe,
   }), []);
 
   const prefetchedRef = useRef<Set<string>>(new Set());
@@ -408,51 +440,27 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
     else setTimeout(preload, 2000);
   }, [urlToImport]);
 
-  // Folk-style menu: emoji + label, organized in sections
-  const quickLinksRaw: MenuItem[] = useMemo(() => [
-    { titleKey: "nav.overview", url: "/firma", emoji: "🏠", moduleKey: "reports" },
-    { titleKey: "nav.anfragen", url: "/firma/anfragen", emoji: "📥", moduleKey: "manualImport" },
-    { titleKey: "nav.emailImport", url: "/firma/email-import", emoji: "📧", moduleKey: "inboundEmail", badge: inboundReviewCount > 0 ? inboundReviewCount : undefined },
-    { titleKey: "nav.kalender", url: "/firma/kalender", emoji: "📅", moduleKey: "calendar" },
-  ], [inboundReviewCount]);
+  // The nav shape lives in @/config/firmaNav; this layer only adds the live counters.
+  const badges: BadgeCounts = useMemo(() => ({
+    "/firma/email-import": inboundReviewCount > 0 ? inboundReviewCount : undefined,
+    "/firma/besichtigungen": besichtigungUploadedCount > 0 ? besichtigungUploadedCount : undefined,
+    "/firma/umzugsboxen": boxUrgentCount > 0 ? boxUrgentCount : undefined,
+  }), [inboundReviewCount, besichtigungUploadedCount, boxUrgentCount]);
 
-  const menuGroups: MenuGroup[] = useMemo(() => [
-    {
-      id: "hauptbereich", labelKey: "nav.group.hauptbereich", items: [
-        { titleKey: "nav.kunden", url: "/firma/kunden", emoji: "🧑", moduleKey: "contacts" },
-        { titleKey: "nav.aufgaben", url: "/firma/aufgaben", emoji: "🔔", moduleKey: "leads" },
-        { titleKey: "nav.finanzen", url: "/firma/finanzen", emoji: "💰", moduleKey: "invoices" },
-        { titleKey: "nav.faelle", url: "/firma/faelle", emoji: "🛠️", moduleKey: "orders" },
-        { titleKey: "nav.posteingang", url: "/firma/posteingang", emoji: "📬", moduleKey: "leads" },
-        { titleKey: "nav.kennzahlen", url: "/firma/kennzahlen", emoji: "📈", moduleKey: "leads" },
-        { titleKey: "nav.offerten", url: "/firma/offerten", emoji: "📄", moduleKey: "offers" },
-        { titleKey: "nav.auftraege", url: "/firma/auftraege", emoji: "✅", moduleKey: "orders" },
-        { titleKey: "nav.quittungen", url: "/firma/quittungen", emoji: "🧾", moduleKey: "receipts" },
-        { titleKey: "nav.rechnungen", url: "/firma/rechnungen", emoji: "💳", moduleKey: "invoices" },
-      ],
-    },
-    {
-      id: "betrieb", labelKey: "nav.group.betrieb", items: [
-        { titleKey: "nav.besichtigungen", url: "/firma/besichtigungen", emoji: "🔎", moduleKey: "inspections", badge: besichtigungUploadedCount > 0 ? besichtigungUploadedCount : undefined },
-        { titleKey: "nav.umzugsboxen", url: "/firma/umzugsboxen", emoji: "📦", moduleKey: "movingBoxes" },
-        { titleKey: "nav.team", url: "/firma/team", emoji: "👥", moduleKey: "team" },
-        { titleKey: "nav.checkliste", url: "/firma/checkliste", emoji: "☑️", moduleKey: "checklist" },
-      ],
-    },
-    {
-      id: "verwaltung", labelKey: "nav.group.verwaltung", items: [
-        { titleKey: "nav.leistungskatalog", url: "/firma/leistungskatalog", emoji: "🛠️", moduleKey: "serviceCatalog" },
-        { titleKey: "nav.preisgestaltung", url: "/firma/preisgestaltung", emoji: "💰", moduleKey: "pricing" },
-        { titleKey: "nav.archiv", url: "/firma/datenarchiv", emoji: "🗂️", moduleKey: "archive" },
-        { titleKey: "nav.einstellungen", url: "/firma/einstellungen", emoji: "⚙️", moduleKey: "settings" },
-      ],
-    },
-  ], [besichtigungUploadedCount]);
+  const quickLinksRaw: MenuItem[] = useMemo(
+    () => withBadges(FIRMA_QUICK_LINKS, badges),
+    [badges],
+  );
+
+  const menuGroups: MenuGroup[] = useMemo(
+    () => FIRMA_NAV_GROUPS.map(g => ({ ...g, items: withBadges(g.items, badges) })),
+    [badges],
+  );
 
   // Apply module flag filtering
-  const quickLinks = useMemo(() => quickLinksRaw.filter(i => MODULES[i.moduleKey]), [quickLinksRaw]);
+  const quickLinks = useMemo(() => quickLinksRaw.filter(isVisible), [quickLinksRaw]);
   const filteredGroups = useMemo(() => menuGroups
-    .map(g => ({ ...g, items: g.items.filter(i => MODULES[i.moduleKey]) }))
+    .map(g => ({ ...g, items: g.items.filter(isVisible) }))
     .filter(g => g.items.length > 0), [menuGroups]);
 
   // Prefetch on hover (attach via wrapping the sidebar links is complex with the new structure;
@@ -505,15 +513,25 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   );
 
   const hasMultipleCompanies = companies.length > 1;
-  const allItems = [...quickLinks, ...menuGroups.flatMap(g => g.items)];
-  const currentItem = allItems.find(i => i.url === location.pathname);
+  // Unfiltered on purpose: a module flag hides the sidebar link but leaves the route
+  // reachable by URL, so the header must still be able to name the page. (Previously
+  // this mixed the *filtered* quick links with the *unfiltered* groups, so the two
+  // halves of the same lookup disagreed.)
+  const allItems = [...FIRMA_QUICK_LINKS, ...FIRMA_NAV_GROUPS.flatMap(g => g.items)];
+  const currentItem =
+    allItems.find(i => i.url === location.pathname) ??
+    // Detail routes carry no nav entry. The Wiki has one per article, and falling
+    // through to "Übersicht" on every article page is worse than this special case.
+    (location.pathname.startsWith("/firma/hilfe")
+      ? allItems.find(i => i.url === "/firma/hilfe")
+      : undefined);
   const pageTitle = t(currentItem?.titleKey ?? "nav.overview");
-  const pageEmoji = currentItem?.emoji || "🏠";
+  const PageIcon = currentItem?.icon ?? FIRMA_FALLBACK_ICON;
 
   return (
     <div className="flex min-h-screen w-full bg-folk-bg">
       {/* Sidebar (desktop) */}
-      <div ref={sidebarRef} className="hidden md:block">
+      <div ref={sidebarRef} className="hidden md:block print:hidden">
         <FirmaSidebar
           company={company}
           user={user}
@@ -546,7 +564,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
 
       {/* Main column */}
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center gap-2 border-b border-folk-line bg-folk-bg px-3 sm:px-7">
+        <header className="flex h-14 items-center gap-2 border-b border-folk-line bg-folk-bg px-3 sm:px-7 print:hidden">
           <button
             onClick={() => setMobileSidebarOpen(true)}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-folk-ink2 hover:bg-folk-bg-warm md:hidden"
@@ -560,7 +578,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
             <span className="hidden truncate text-[14px] text-folk-ink3 sm:inline">
               {company.company_name} <span className="mx-1.5 text-folk-ink4">/</span>
             </span>
-            <span className="text-base leading-none sm:text-lg">{pageEmoji}</span>
+            <PageIcon className="h-[18px] w-[18px] shrink-0 text-folk-ink2" strokeWidth={1.8} aria-hidden="true" />
             <h1 className="truncate text-[15px] font-semibold tracking-tight text-folk-ink sm:text-base">
               {pageTitle}
             </h1>
@@ -577,6 +595,9 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
 
           {/* Dashboard-Sprache: wirkt nur auf diese Ansicht, nicht auf Kundendokumente */}
           <LanguageSwitcher />
+
+          {/* Führt zur Anleitung für genau diesen Bildschirm, sonst zur Übersicht. */}
+          <WikiHelpButton />
 
           {/* Company switcher / profile */}
           {hasMultipleCompanies ? (
@@ -599,6 +620,8 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
                     {c.id === company.id && <Check className="h-4 w-4 text-folk-coral" />}
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <ThemeMenuItems />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive">
                   <LogOut className="h-4 w-4" />{t("nav.logout")}
@@ -636,6 +659,8 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
                   {pushPermission !== "denied" && <span className={`rounded-full px-1.5 py-0.5 text-xs ${isPushEnabled ? "bg-folk-sky-bg text-folk-sky" : "bg-folk-bg-warm text-folk-ink3"}`}>{isPushEnabled ? t("nav.state.on") : t("nav.state.off")}</span>}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <ThemeMenuItems />
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive">
                   <LogOut className="h-4 w-4" />{t("nav.logout")}
                 </DropdownMenuItem>
@@ -644,7 +669,7 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
           )}
         </header>
 
-        <div className="flex-1 p-3 sm:p-4 md:p-6">{children}</div>
+        <div className="flex-1 p-3 sm:p-4 md:p-6 print:p-0">{children}</div>
       </main>
     </div>
   );

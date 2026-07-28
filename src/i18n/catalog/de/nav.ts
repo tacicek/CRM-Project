@@ -26,6 +26,8 @@ export const nav = {
   "nav.preisgestaltung": "Meine Preise",
   "nav.archiv": "Archiv",
   "nav.einstellungen": "Einstellungen",
+  "nav.hilfe": "Hilfe & Anleitung",
+  "nav.hilfe.open": "Hilfe zu dieser Seite öffnen",
 
   "nav.notifications": "Benachrichtigungen",
   "nav.notifications.empty": "Keine neuen Benachrichtigungen",
@@ -53,6 +55,11 @@ export const nav = {
   "nav.push.on": "Push aktiv",
   "nav.push.off": "Push deaktiviert",
   "nav.push.blocked": "Benachr. blockiert",
+
+  "nav.theme.label": "Erscheinungsbild",
+  "nav.theme.light": "Hell",
+  "nav.theme.dark": "Dunkel",
+  "nav.theme.system": "Wie das System",
 
   "nav.noCompany.title": "Keine Firma gefunden",
   "nav.noCompany.description":

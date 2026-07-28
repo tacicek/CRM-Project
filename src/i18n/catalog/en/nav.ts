@@ -27,6 +27,8 @@ export const nav: Record<keyof typeof de, string> = {
   "nav.preisgestaltung": "My pricing",
   "nav.archiv": "Archive",
   "nav.einstellungen": "Settings",
+  "nav.hilfe": "Help & guide",
+  "nav.hilfe.open": "Open help for this page",
 
   "nav.notifications": "Notifications",
   "nav.notifications.empty": "No new notifications",
@@ -53,6 +55,11 @@ export const nav: Record<keyof typeof de, string> = {
   "nav.push.on": "Push on",
   "nav.push.off": "Push off",
   "nav.push.blocked": "Push blocked",
+
+  "nav.theme.label": "Appearance",
+  "nav.theme.light": "Light",
+  "nav.theme.dark": "Dark",
+  "nav.theme.system": "Match system",
 
   "nav.noCompany.title": "No company found",
   "nav.noCompany.description":
