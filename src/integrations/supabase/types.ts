@@ -2236,6 +2236,117 @@ export type Database = {
         }
         Relationships: []
       }
+      communication_threads: {
+        Row: {
+          assigned_user_id: string | null
+          auftrag_id: string | null
+          case_id: string | null
+          channel: string
+          company_id: string
+          created_at: string
+          customer_id: string | null
+          first_unanswered_at: string | null
+          id: string
+          last_direction: string | null
+          last_message_at: string | null
+          lead_id: string | null
+          offer_id: string | null
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_user_id?: string | null
+          auftrag_id?: string | null
+          case_id?: string | null
+          channel?: string
+          company_id: string
+          created_at?: string
+          customer_id?: string | null
+          first_unanswered_at?: string | null
+          id?: string
+          last_direction?: string | null
+          last_message_at?: string | null
+          lead_id?: string | null
+          offer_id?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_user_id?: string | null
+          auftrag_id?: string | null
+          case_id?: string | null
+          channel?: string
+          company_id?: string
+          created_at?: string
+          customer_id?: string | null
+          first_unanswered_at?: string | null
+          id?: string
+          last_direction?: string | null
+          last_message_at?: string | null
+          lead_id?: string | null
+          offer_id?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      communication_messages: {
+        Row: {
+          channel: string
+          company_id: string
+          created_at: string
+          direction: string
+          external_id: string | null
+          from_address: string | null
+          id: string
+          occurred_at: string
+          preview: string | null
+          read_at: string | null
+          source_id: string | null
+          source_table: string | null
+          subject: string | null
+          thread_id: string
+          to_address: string | null
+        }
+        Insert: {
+          channel?: string
+          company_id: string
+          created_at?: string
+          direction: string
+          external_id?: string | null
+          from_address?: string | null
+          id?: string
+          occurred_at?: string
+          preview?: string | null
+          read_at?: string | null
+          source_id?: string | null
+          source_table?: string | null
+          subject?: string | null
+          thread_id: string
+          to_address?: string | null
+        }
+        Update: {
+          channel?: string
+          company_id?: string
+          created_at?: string
+          direction?: string
+          external_id?: string | null
+          from_address?: string | null
+          id?: string
+          occurred_at?: string
+          preview?: string | null
+          read_at?: string | null
+          source_id?: string | null
+          source_table?: string | null
+          subject?: string | null
+          thread_id?: string
+          to_address?: string | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           company_id: string
@@ -7142,6 +7253,24 @@ export type Database = {
           p_session: string
           p_title: string
         }
+        Returns: Json
+      }
+      lifecycle_kpis: {
+        Args: { p_bis?: string; p_company_id: string; p_von?: string }
+        Returns: Json
+      }
+      resolve_or_create_thread: {
+        Args: {
+          p_channel?: string
+          p_company_id: string
+          p_customer_id: string
+          p_lead_id?: string
+          p_subject?: string
+        }
+        Returns: string
+      }
+      run_communication_backfill: {
+        Args: { p_company_id: string }
         Returns: Json
       }
       search_customers: {

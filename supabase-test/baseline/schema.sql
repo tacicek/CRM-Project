@@ -1200,6 +1200,53 @@ COMMENT ON FUNCTION public.cleanup_inbound_emails(p_rejected_days integer, p_fai
 
 
 --
+-- Name: communication_retention(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.communication_retention() RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE v_n INTEGER;
+BEGIN
+  UPDATE public.communication_messages
+  SET preview = NULL
+  WHERE preview IS NOT NULL
+    AND occurred_at < NOW() - INTERVAL '24 months';
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  RETURN jsonb_build_object('geleert', v_n);
+END;
+$$;
+
+
+--
+-- Name: communication_thread_fortschreiben(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.communication_thread_fortschreiben() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  UPDATE public.communication_threads t
+  SET last_message_at = GREATEST(COALESCE(t.last_message_at, NEW.occurred_at), NEW.occurred_at),
+      last_direction  = NEW.direction,
+      first_unanswered_at = CASE
+        WHEN NEW.direction = 'outbound' THEN NULL
+        ELSE COALESCE(t.first_unanswered_at, NEW.occurred_at)
+      END,
+      status = CASE
+        WHEN t.status = 'erledigt' AND NEW.direction = 'inbound' THEN 'offen'
+        WHEN NEW.direction = 'outbound' THEN 'wartet_auf_kunde'
+        ELSE t.status
+      END
+  WHERE t.id = NEW.thread_id;
+  RETURN NULL;
+END;
+$$;
+
+
+--
 -- Name: companies_ensure_owner_membership(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2575,6 +2622,51 @@ $$;
 --
 
 COMMENT ON FUNCTION public.duplicate_candidates(p_company_id uuid, p_customer_id uuid, p_limit integer, p_offset integer) IS 'Paare mit derselben Telefonnummer. Ohne p_customer_id die Liste fuer die Uebersicht (jedes Paar einmal), mit p_customer_id das Band auf der Kundenkarte. Reine Namensaehnlichkeit gilt bewusst NICHT als Kandidat.';
+
+
+--
+-- Name: email_log_in_faden(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.email_log_in_faden() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_kunde  UUID;
+  v_thread UUID;
+BEGIN
+  IF NEW.company_id IS NULL THEN RETURN NULL; END IF;
+
+  -- `email_logs` traegt keinen customer_id. Ueber die Anfrage oder die
+  -- Empfaengeradresse laesst er sich finden — dieselbe Identitaetsregel wie
+  -- ueberall, ueber find_customer_by_identity.
+  SELECT customer_id INTO v_kunde FROM public.leads WHERE id = NEW.lead_id;
+  IF v_kunde IS NULL THEN
+    -- find_customer_by_identity liefert eine TABELLE (customer_id, matched_on),
+    -- keinen skalaren Wert — deshalb als Unterabfrage.
+    SELECT f.customer_id INTO v_kunde
+    FROM public.find_customer_by_identity(NEW.company_id, NEW.recipient_email, NULL) f
+    LIMIT 1;
+  END IF;
+
+  v_thread := public.resolve_or_create_thread(
+    NEW.company_id, v_kunde, 'email', NEW.subject, NEW.lead_id);
+  IF v_thread IS NULL THEN RETURN NULL; END IF;
+
+  INSERT INTO public.communication_messages
+    (company_id, thread_id, direction, channel, to_address, subject,
+     occurred_at, source_table, source_id)
+  VALUES (NEW.company_id, v_thread, 'outbound', 'email', NEW.recipient_email,
+          NEW.subject, COALESCE(NEW.created_at, NOW()), 'email_logs', NEW.id)
+  ON CONFLICT (source_table, source_id) WHERE source_id IS NOT NULL DO NOTHING;
+
+  RETURN NULL;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'Posteingang: ausgehende Mail nicht eingeordnet: %', SQLERRM;
+  RETURN NULL;
+END;
+$$;
 
 
 --
@@ -5095,6 +5187,37 @@ COMMENT ON FUNCTION public.i18n_text(p_base text, p_translations jsonb, p_locale
 
 
 --
+-- Name: inbound_email_in_faden(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.inbound_email_in_faden() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_thread UUID;
+BEGIN
+  v_thread := public.resolve_or_create_thread(
+    NEW.company_id, NEW.customer_id, 'email', NEW.subject, NEW.lead_id);
+  IF v_thread IS NULL THEN RETURN NULL; END IF;
+
+  INSERT INTO public.communication_messages
+    (company_id, thread_id, direction, channel, from_address, subject, preview,
+     occurred_at, source_table, source_id, external_id)
+  VALUES (NEW.company_id, v_thread, 'inbound', 'email', NEW.from_email, NEW.subject,
+          NEW.body_preview, COALESCE(NEW.received_at, NOW()),
+          'inbound_emails', NEW.id, NEW.provider_message_id)
+  ON CONFLICT (source_table, source_id) WHERE source_id IS NOT NULL DO NOTHING;
+
+  RETURN NULL;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'Posteingang: eingehende Mail nicht eingeordnet: %', SQLERRM;
+  RETURN NULL;
+END;
+$$;
+
+
+--
 -- Name: inbound_emails_set_customer(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5476,6 +5599,186 @@ EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: lifecycle_kpis(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lifecycle_kpis(p_company_id uuid, p_von date DEFAULT NULL::date, p_bis date DEFAULT NULL::date) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_von DATE := COALESCE(p_von, CURRENT_DATE - 365);
+  v_bis DATE := COALESCE(p_bis, CURRENT_DATE);
+  v_erg JSONB;
+BEGIN
+  IF NOT public.is_company_member(p_company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diese Firma.' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  WITH
+  -- Kohorte 1: Anfragen, die IM ZEITRAUM entstanden sind.
+  anfragen AS (
+    SELECT l.* FROM public.leads l
+    WHERE l.company_id = p_company_id
+      AND l.created_at::DATE BETWEEN v_von AND v_bis
+  ),
+  -- Serien statt Zeilen. Eine Serie gilt als versendet, sobald irgendeine
+  -- ihrer Fassungen versendet wurde.
+  serien AS (
+    SELECT o.offer_series_id,
+           MIN(o.lead_id::TEXT)::UUID          AS lead_id,
+           MIN(o.customer_id::TEXT)::UUID      AS customer_id,
+           MIN(o.sent_at)                      AS erst_versand,
+           BOOL_OR(o.status <> 'draft')        AS je_heraus,
+           BOOL_OR(o.status = 'accepted')      AS angenommen,
+           MIN(o.viewed_at)  FILTER (WHERE o.status = 'accepted')   AS angesehen_am,
+           MIN(o.accepted_at) FILTER (WHERE o.status = 'accepted')  AS angenommen_am
+    FROM public.offers o
+    WHERE o.company_id = p_company_id AND o.offer_series_id IS NOT NULL
+    GROUP BY o.offer_series_id
+  ),
+  -- Kohorte 2: Serien, die IM ZEITRAUM zum ersten Mal hinausgingen.
+  serien_im_zeitraum AS (
+    SELECT * FROM serien WHERE erst_versand::DATE BETWEEN v_von AND v_bis
+  ),
+  erstkontakt AS (
+    SELECT a.id,
+           a.created_at,
+           LEAST(
+             (SELECT MIN(m.occurred_at) FROM public.communication_messages m
+              JOIN public.communication_threads t ON t.id = m.thread_id
+              WHERE m.direction = 'outbound'
+                AND (t.lead_id = a.id OR (a.customer_id IS NOT NULL AND t.customer_id = a.customer_id))
+                AND m.occurred_at >= a.created_at),
+             (SELECT MIN(s.erst_versand) FROM serien s WHERE s.lead_id = a.id)
+           ) AS erste_reaktion
+    FROM anfragen a
+  ),
+  zahlung_je_kunde AS (
+    SELECT p.customer_id, SUM(p.amount) AS summe
+    FROM public.payments p
+    WHERE p.company_id = p_company_id AND p.customer_id IS NOT NULL
+    GROUP BY p.customer_id
+  ),
+  -- Vollstaendig bezahlte Rechnungen: Datum der letzten Anrechnung.
+  tilgung AS (
+    SELECT r.id, r.datum,
+           (SELECT MAX(z.payment_date) FROM public.payment_allocations al
+            JOIN public.payments z ON z.id = al.payment_id
+            WHERE al.rechnung_id = r.id) AS getilgt_am
+    FROM public.rechnungen r
+    WHERE r.company_id = p_company_id
+      AND r.status <> 'entwurf'
+      AND r.open_amount <= 0
+      AND r.datum BETWEEN v_von AND v_bis
+  ),
+  abgeschlossene_auftraege AS (
+    SELECT g.* FROM public.auftraege g
+    WHERE g.company_id = p_company_id AND g.deleted_at IS NULL
+      AND g.status = 'abgeschlossen'
+      AND COALESCE(g.completed_at::DATE, g.scheduled_date) BETWEEN v_von AND v_bis
+  )
+  SELECT jsonb_build_object(
+    'zeitraum', jsonb_build_object('von', v_von, 'bis', v_bis),
+
+    'trichter', jsonb_build_object(
+      -- Nenner ausgeschrieben, damit die Zahl lesbar bleibt.
+      'anfragen',            (SELECT COUNT(*) FROM anfragen),
+      'anfragen_mit_offerte', (SELECT COUNT(*) FROM anfragen a
+                               WHERE EXISTS (SELECT 1 FROM serien s
+                                             WHERE s.lead_id = a.id AND s.je_heraus)),
+      'serien_versendet',    (SELECT COUNT(*) FROM serien_im_zeitraum),
+      'serien_angenommen',   (SELECT COUNT(*) FROM serien_im_zeitraum WHERE angenommen)
+    ),
+
+    'dauer_tage', jsonb_build_object(
+      'erste_reaktion', (SELECT ROUND(AVG(EXTRACT(EPOCH FROM (erste_reaktion - created_at)) / 86400)::NUMERIC, 2)
+                         FROM erstkontakt WHERE erste_reaktion IS NOT NULL),
+      'bis_offerte',    (SELECT ROUND(AVG(EXTRACT(EPOCH FROM (s.erst_versand - l.created_at)) / 86400)::NUMERIC, 2)
+                         FROM serien s JOIN public.leads l ON l.id = s.lead_id
+                         WHERE l.company_id = p_company_id
+                           AND s.erst_versand::DATE BETWEEN v_von AND v_bis),
+      'ansicht_bis_annahme', (SELECT ROUND(AVG(EXTRACT(EPOCH FROM (angenommen_am - angesehen_am)) / 86400)::NUMERIC, 2)
+                         FROM serien_im_zeitraum
+                         WHERE angesehen_am IS NOT NULL AND angenommen_am IS NOT NULL),
+      'bis_tilgung',    (SELECT ROUND(AVG(getilgt_am - datum)::NUMERIC, 2)
+                         FROM tilgung WHERE getilgt_am IS NOT NULL)
+    ),
+
+    'verlustgruende', COALESCE((
+      SELECT jsonb_object_agg(grund, n) FROM (
+        SELECT COALESCE(lost_reason_code, 'ohne_angabe') AS grund, COUNT(*) AS n
+        FROM anfragen WHERE sales_stage = 'lost' GROUP BY 1
+      ) x), '{}'::jsonb),
+
+    'kunden', jsonb_build_object(
+      'gesamt',        (SELECT COUNT(*) FROM public.customers
+                        WHERE company_id = p_company_id AND merged_into_customer_id IS NULL),
+      -- Ueber ALLE Zeitraeume: ein Lebenswert, der nur den Zeitraum kennt,
+      -- ist kein Lebenswert.
+      'ltv_schnitt',   (SELECT ROUND(AVG(summe), 2) FROM zahlung_je_kunde),
+      'ltv_summe',     (SELECT COALESCE(SUM(summe), 0) FROM zahlung_je_kunde),
+      'wiederkehrend', (SELECT COUNT(*) FROM (
+                          SELECT customer_id FROM public.leads
+                          WHERE company_id = p_company_id AND customer_id IS NOT NULL
+                            AND sales_stage = 'won'
+                          GROUP BY customer_id HAVING COUNT(*) > 1) x),
+      'cross_sell',    (SELECT COUNT(*) FROM (
+                          SELECT customer_id FROM public.leads
+                          WHERE company_id = p_company_id AND customer_id IS NOT NULL
+                          GROUP BY customer_id HAVING COUNT(DISTINCT service_type) > 1) x)
+    ),
+
+    'geld', jsonb_build_object(
+      'kassiert',      (SELECT COALESCE(SUM(amount), 0) FROM public.payments
+                        WHERE company_id = p_company_id AND payment_date BETWEEN v_von AND v_bis),
+      'offen',         (SELECT COALESCE(SUM(open_amount), 0) FROM public.rechnungen
+                        WHERE company_id = p_company_id AND status <> 'entwurf' AND open_amount > 0),
+      'gutschriften',  (SELECT COALESCE(SUM(amount), 0) FROM public.credit_notes
+                        WHERE company_id = p_company_id AND status = 'versendet'
+                          AND datum BETWEEN v_von AND v_bis)
+    ),
+
+    'qualitaet', jsonb_build_object(
+      'auftraege_abgeschlossen', (SELECT COUNT(*) FROM abgeschlossene_auftraege),
+      'faelle',        (SELECT COUNT(*) FROM public.customer_cases c
+                        WHERE c.company_id = p_company_id
+                          AND c.reported_at::DATE BETWEEN v_von AND v_bis),
+      'schaeden',      (SELECT COUNT(*) FROM public.customer_cases c
+                        WHERE c.company_id = p_company_id AND c.case_type = 'damage'
+                          AND c.reported_at::DATE BETWEEN v_von AND v_bis),
+      'reklamationen', (SELECT COUNT(*) FROM public.customer_cases c
+                        WHERE c.company_id = p_company_id AND c.case_type = 'complaint'
+                          AND c.reported_at::DATE BETWEEN v_von AND v_bis),
+      'nachreinigungen', (SELECT COUNT(*) FROM public.customer_cases c
+                        WHERE c.company_id = p_company_id AND c.case_type = 'recleaning'
+                          AND c.reported_at::DATE BETWEEN v_von AND v_bis)
+    ),
+
+    'posteingang', jsonb_build_object(
+      'faeden_offen',  (SELECT COUNT(*) FROM public.communication_threads
+                        WHERE company_id = p_company_id AND status <> 'erledigt'),
+      'unbeantwortet', (SELECT COUNT(*) FROM public.communication_threads
+                        WHERE company_id = p_company_id AND first_unanswered_at IS NOT NULL),
+      'aeltester_unbeantwortet_tage', (SELECT ROUND(EXTRACT(EPOCH FROM (NOW() - MIN(first_unanswered_at))) / 86400)
+                        FROM public.communication_threads
+                        WHERE company_id = p_company_id AND first_unanswered_at IS NOT NULL)
+    )
+  ) INTO v_erg;
+
+  RETURN v_erg;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION lifecycle_kpis(p_company_id uuid, p_von date, p_bis date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lifecycle_kpis(p_company_id uuid, p_von date, p_bis date) IS 'Kennzahlen des Kundenlebenszyklus. Gezaehlt wird die offer_series_id, nicht die Offertenzeile — sonst senkt jede Ueberarbeitung die Annahmequote. Jeder Quotient traegt Zaehler UND Nenner, damit die Zahl lesbar bleibt.';
 
 
 --
@@ -7063,6 +7366,43 @@ $$;
 
 
 --
+-- Name: resolve_or_create_thread(uuid, uuid, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.resolve_or_create_thread(p_company_id uuid, p_customer_id uuid, p_channel text DEFAULT 'email'::text, p_subject text DEFAULT NULL::text, p_lead_id uuid DEFAULT NULL::uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_id UUID;
+BEGIN
+  IF p_customer_id IS NOT NULL THEN
+    SELECT id INTO v_id FROM public.communication_threads
+    WHERE customer_id = p_customer_id AND channel = p_channel
+    ORDER BY created_at LIMIT 1;
+    IF FOUND THEN RETURN v_id; END IF;
+  ELSIF p_lead_id IS NOT NULL THEN
+    SELECT id INTO v_id FROM public.communication_threads
+    WHERE lead_id = p_lead_id AND channel = p_channel
+    ORDER BY created_at LIMIT 1;
+    IF FOUND THEN RETURN v_id; END IF;
+  ELSE
+    -- Ohne Kunde und ohne Anfrage gibt es nichts, woran ein Faden haengen
+    -- koennte. Lieber keine Zeile als eine, die nirgends auftaucht.
+    RETURN NULL;
+  END IF;
+
+  INSERT INTO public.communication_threads
+    (company_id, customer_id, lead_id, channel, subject)
+  VALUES (p_company_id, p_customer_id, p_lead_id, p_channel, p_subject)
+  RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
+$$;
+
+
+--
 -- Name: reverse_payment(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7115,6 +7455,80 @@ BEGIN
   WHERE payment_id = p_payment_id;
 
   RETURN jsonb_build_object('storno_payment_id', v_storno, 'amount', -v_p.amount);
+END;
+$$;
+
+
+--
+-- Name: run_communication_backfill(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.run_communication_backfill(p_company_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_r RECORD;
+  v_thread UUID;
+  v_ein INTEGER := 0;
+  v_aus INTEGER := 0;
+  v_n   INTEGER;
+BEGIN
+  IF NOT public.is_company_role(p_company_id, ARRAY['owner','admin']) THEN
+    RAISE EXCEPTION 'Nur Eigentuemer oder Administrator.' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  FOR v_r IN
+    SELECT * FROM public.inbound_emails
+    WHERE company_id = p_company_id
+      AND NOT EXISTS (SELECT 1 FROM public.communication_messages m
+                      WHERE m.source_table = 'inbound_emails' AND m.source_id = inbound_emails.id)
+    ORDER BY received_at
+  LOOP
+    v_thread := public.resolve_or_create_thread(
+      v_r.company_id, v_r.customer_id, 'email', v_r.subject, v_r.lead_id);
+    CONTINUE WHEN v_thread IS NULL;
+
+    INSERT INTO public.communication_messages
+      (company_id, thread_id, direction, channel, from_address, subject, preview,
+       occurred_at, source_table, source_id, external_id)
+    VALUES (v_r.company_id, v_thread, 'inbound', 'email', v_r.from_email, v_r.subject,
+            v_r.body_preview, COALESCE(v_r.received_at, v_r.created_at),
+            'inbound_emails', v_r.id, v_r.provider_message_id)
+    ON CONFLICT (source_table, source_id) WHERE source_id IS NOT NULL DO NOTHING;
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    v_ein := v_ein + v_n;
+  END LOOP;
+
+  FOR v_r IN
+    SELECT * FROM public.email_logs
+    WHERE company_id = p_company_id
+      AND NOT EXISTS (SELECT 1 FROM public.communication_messages m
+                      WHERE m.source_table = 'email_logs' AND m.source_id = email_logs.id)
+    ORDER BY created_at
+  LOOP
+    v_thread := public.resolve_or_create_thread(
+      v_r.company_id,
+      COALESCE(
+        (SELECT l.customer_id FROM public.leads l WHERE l.id = v_r.lead_id),
+        (SELECT f.customer_id
+         FROM public.find_customer_by_identity(v_r.company_id, v_r.recipient_email, NULL) f
+         LIMIT 1)),
+      'email', v_r.subject, v_r.lead_id);
+    CONTINUE WHEN v_thread IS NULL;
+
+    INSERT INTO public.communication_messages
+      (company_id, thread_id, direction, channel, to_address, subject,
+       occurred_at, source_table, source_id)
+    VALUES (v_r.company_id, v_thread, 'outbound', 'email', v_r.recipient_email,
+            v_r.subject, v_r.created_at, 'email_logs', v_r.id)
+    ON CONFLICT (source_table, source_id) WHERE source_id IS NOT NULL DO NOTHING;
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    v_aus := v_aus + v_n;
+  END LOOP;
+
+  RETURN jsonb_build_object('eingehend', v_ein, 'ausgehend', v_aus,
+    'faeden', (SELECT COUNT(*) FROM public.communication_threads WHERE company_id = p_company_id));
 END;
 $$;
 
@@ -9915,6 +10329,72 @@ CREATE TABLE public.checklist_templates (
     updated_at timestamp with time zone DEFAULT now(),
     translations jsonb DEFAULT '{}'::jsonb NOT NULL
 );
+
+
+--
+-- Name: communication_messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.communication_messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    thread_id uuid NOT NULL,
+    direction text NOT NULL,
+    channel text DEFAULT 'email'::text NOT NULL,
+    from_address text,
+    to_address text,
+    subject text,
+    preview text,
+    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
+    read_at timestamp with time zone,
+    source_table text,
+    source_id uuid,
+    external_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT communication_messages_channel_check CHECK ((channel = ANY (ARRAY['email'::text, 'sms'::text, 'whatsapp'::text, 'phone'::text, 'note'::text]))),
+    CONSTRAINT communication_messages_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text])))
+);
+
+
+--
+-- Name: COLUMN communication_messages.preview; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.communication_messages.preview IS 'Ausschnitt, NICHT der volle Text. Der bestehende Inbound-Ablauf speichert bewusst keinen Rohtext; diese Schicht kippt das nicht. Nach 24 Monaten leer.';
+
+
+--
+-- Name: communication_threads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.communication_threads (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    customer_id uuid,
+    subject text,
+    channel text DEFAULT 'email'::text NOT NULL,
+    status text DEFAULT 'offen'::text NOT NULL,
+    lead_id uuid,
+    offer_id uuid,
+    auftrag_id uuid,
+    case_id uuid,
+    last_message_at timestamp with time zone,
+    last_direction text,
+    first_unanswered_at timestamp with time zone,
+    assigned_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT communication_threads_channel_check CHECK ((channel = ANY (ARRAY['email'::text, 'sms'::text, 'whatsapp'::text, 'phone'::text, 'note'::text]))),
+    CONSTRAINT communication_threads_direction_check CHECK (((last_direction IS NULL) OR (last_direction = ANY (ARRAY['inbound'::text, 'outbound'::text])))),
+    CONSTRAINT communication_threads_status_check CHECK ((status = ANY (ARRAY['offen'::text, 'wartet_auf_kunde'::text, 'erledigt'::text])))
+);
+
+
+--
+-- Name: TABLE communication_threads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.communication_threads IS 'Gespraechsfaeden. Liegt UEBER inbound_emails und email_logs — beide bleiben, was sie sind, und fuellen diese Schicht per Trigger.';
 
 
 --
@@ -13609,6 +14089,30 @@ ALTER TABLE ONLY public.checklist_templates
 
 
 --
+-- Name: communication_messages communication_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_messages
+    ADD CONSTRAINT communication_messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: communication_threads communication_threads_id_company_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_threads
+    ADD CONSTRAINT communication_threads_id_company_uniq UNIQUE (id, company_id);
+
+
+--
+-- Name: communication_threads communication_threads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_threads
+    ADD CONSTRAINT communication_threads_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: companies companies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14930,6 +15434,34 @@ CREATE INDEX idx_checklist_service ON public.checklist_templates USING btree (se
 
 
 --
+-- Name: idx_comm_messages_faden; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_comm_messages_faden ON public.communication_messages USING btree (thread_id, occurred_at);
+
+
+--
+-- Name: idx_comm_messages_quelle; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_comm_messages_quelle ON public.communication_messages USING btree (source_table, source_id) WHERE (source_id IS NOT NULL);
+
+
+--
+-- Name: idx_comm_threads_kunde; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_comm_threads_kunde ON public.communication_threads USING btree (customer_id, last_message_at DESC);
+
+
+--
+-- Name: idx_comm_threads_offen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_comm_threads_offen ON public.communication_threads USING btree (company_id, first_unanswered_at) WHERE (status <> 'erledigt'::text);
+
+
+--
 -- Name: idx_companies_crm_enabled; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16155,6 +16687,13 @@ CREATE TRIGGER calculate_spam_score_trigger BEFORE INSERT ON public.leads FOR EA
 
 
 --
+-- Name: communication_threads communication_threads_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER communication_threads_updated_at BEFORE UPDATE ON public.communication_threads FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
 -- Name: credit_notes credit_notes_erben; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16386,6 +16925,13 @@ CREATE TRIGGER trigger_case_events_append_only BEFORE DELETE OR UPDATE ON public
 
 
 --
+-- Name: communication_messages trigger_comm_thread_fortschreiben; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_comm_thread_fortschreiben AFTER INSERT ON public.communication_messages FOR EACH ROW EXECUTE FUNCTION public.communication_thread_fortschreiben();
+
+
+--
 -- Name: companies trigger_companies_ensure_owner_membership; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16470,6 +17016,13 @@ CREATE TRIGGER trigger_customers_updated_at BEFORE UPDATE ON public.customers FO
 
 
 --
+-- Name: email_logs trigger_email_log_faden; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_email_log_faden AFTER INSERT ON public.email_logs FOR EACH ROW EXECUTE FUNCTION public.email_log_in_faden();
+
+
+--
 -- Name: offers trigger_generate_offer_number; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16481,6 +17034,13 @@ CREATE TRIGGER trigger_generate_offer_number BEFORE INSERT ON public.offers FOR 
 --
 
 CREATE TRIGGER trigger_gutschrift_hoehe AFTER INSERT OR UPDATE ON public.credit_notes FOR EACH ROW EXECUTE FUNCTION public.guard_gutschrift_hoehe();
+
+
+--
+-- Name: inbound_emails trigger_inbound_email_faden; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_inbound_email_faden AFTER INSERT ON public.inbound_emails FOR EACH ROW EXECUTE FUNCTION public.inbound_email_in_faden();
 
 
 --
@@ -17033,6 +17593,78 @@ ALTER TABLE ONLY public.blog_seo_performance
 
 ALTER TABLE ONLY public.checklist_templates
     ADD CONSTRAINT checklist_templates_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: communication_messages communication_messages_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_messages
+    ADD CONSTRAINT communication_messages_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: communication_messages communication_messages_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_messages
+    ADD CONSTRAINT communication_messages_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.communication_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: communication_threads communication_threads_assigned_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_threads
+    ADD CONSTRAINT communication_threads_assigned_user_id_fkey FOREIGN KEY (assigned_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: communication_threads communication_threads_auftrag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_threads
+    ADD CONSTRAINT communication_threads_auftrag_id_fkey FOREIGN KEY (auftrag_id) REFERENCES public.auftraege(id) ON DELETE SET NULL;
+
+
+--
+-- Name: communication_threads communication_threads_case_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_threads
+    ADD CONSTRAINT communication_threads_case_id_fkey FOREIGN KEY (case_id) REFERENCES public.customer_cases(id) ON DELETE SET NULL;
+
+
+--
+-- Name: communication_threads communication_threads_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_threads
+    ADD CONSTRAINT communication_threads_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: communication_threads communication_threads_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_threads
+    ADD CONSTRAINT communication_threads_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
+-- Name: communication_threads communication_threads_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_threads
+    ADD CONSTRAINT communication_threads_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE SET NULL;
+
+
+--
+-- Name: communication_threads communication_threads_offer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.communication_threads
+    ADD CONSTRAINT communication_threads_offer_id_fkey FOREIGN KEY (offer_id) REFERENCES public.offers(id) ON DELETE SET NULL;
 
 
 --
@@ -19005,6 +19637,60 @@ CREATE POLICY checklist_templates_select_member ON public.checklist_templates FO
 
 CREATE POLICY checklist_templates_write_owner_admin ON public.checklist_templates TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
 
+
+--
+-- Name: communication_messages comm_messages_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comm_messages_select_member ON public.communication_messages FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: communication_messages comm_messages_update_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comm_messages_update_member ON public.communication_messages FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: communication_threads comm_threads_delete_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comm_threads_delete_owner_admin ON public.communication_threads FOR DELETE TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
+-- Name: communication_threads comm_threads_insert_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comm_threads_insert_member ON public.communication_threads FOR INSERT TO authenticated WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: communication_threads comm_threads_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comm_threads_select_member ON public.communication_threads FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: communication_threads comm_threads_update_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY comm_threads_update_member ON public.communication_threads FOR UPDATE TO authenticated USING (public.is_company_member(company_id)) WITH CHECK (public.is_company_member(company_id));
+
+
+--
+-- Name: communication_messages; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.communication_messages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: communication_threads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.communication_threads ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: companies; Type: ROW SECURITY; Schema: public; Owner: -

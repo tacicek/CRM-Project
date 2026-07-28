@@ -423,6 +423,8 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
         { titleKey: "nav.aufgaben", url: "/firma/aufgaben", emoji: "🔔", moduleKey: "leads" },
         { titleKey: "nav.finanzen", url: "/firma/finanzen", emoji: "💰", moduleKey: "invoices" },
         { titleKey: "nav.faelle", url: "/firma/faelle", emoji: "🛠️", moduleKey: "orders" },
+        { titleKey: "nav.posteingang", url: "/firma/posteingang", emoji: "📬", moduleKey: "leads" },
+        { titleKey: "nav.kennzahlen", url: "/firma/kennzahlen", emoji: "📈", moduleKey: "leads" },
         { titleKey: "nav.offerten", url: "/firma/offerten", emoji: "📄", moduleKey: "offers" },
         { titleKey: "nav.auftraege", url: "/firma/auftraege", emoji: "✅", moduleKey: "orders" },
         { titleKey: "nav.quittungen", url: "/firma/quittungen", emoji: "🧾", moduleKey: "receipts" },
