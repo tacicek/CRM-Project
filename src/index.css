@@ -240,20 +240,32 @@
     overflow-wrap: break-word;
   }
 
-  /* Ensure minimum touch target size for mobile */
-  button, 
-  [role="button"],
-  input[type="button"],
-  input[type="submit"],
-  a {
-    min-height: 44px;
-    min-width: 44px;
-  }
+  /* Mindestgroesse fuer Beruehrungsziele — nur dort, wo mit dem Finger
+   * bedient wird.
+   *
+   * Vorher galt die Regel unabhaengig vom Eingabegeraet und blies auch auf
+   * dem Desktop jedes Bedienelement auf 44px auf. Kompakte Steuerelemente
+   * (Segmentknoepfe mit 5px/12px Polsterung, 11px Listenaktionen,
+   * 28px-Avatare) waren dadurch nicht baubar, ohne dass eine Klasse den
+   * Grund gezeigt haette.
+   *
+   * Der Geltungsbereich wird eingegrenzt, die Regel nicht ueberschrieben:
+   * auf Touch-Geraeten gilt sie unveraendert weiter. */
+  @media (pointer: coarse) {
+    button,
+    [role="button"],
+    input[type="button"],
+    input[type="submit"],
+    a {
+      min-height: 44px;
+      min-width: 44px;
+    }
 
-  /* But allow smaller inline elements */
-  a:not(.btn):not([class*="button"]) {
-    min-height: auto;
-    min-width: auto;
+    /* But allow smaller inline elements */
+    a:not(.btn):not([class*="button"]) {
+      min-height: auto;
+      min-width: auto;
+    }
   }
 }
 
