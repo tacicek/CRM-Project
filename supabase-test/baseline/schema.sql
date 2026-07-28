@@ -1908,6 +1908,27 @@ COMMENT ON FUNCTION public.create_offer_revision(p_offer_id uuid, p_reason text)
 
 
 --
+-- Name: credit_notes_von_rechnung_erben(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.credit_notes_von_rechnung_erben() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_r RECORD;
+BEGIN
+  SELECT language, customer_id INTO v_r
+  FROM public.rechnungen WHERE id = NEW.rechnung_id;
+
+  NEW.language    := COALESCE(NEW.language, v_r.language, 'de');
+  NEW.customer_id := COALESCE(NEW.customer_id, v_r.customer_id);
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: customer_backfill_quellen(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2078,20 +2099,30 @@ BEGIN
                              WHERE customer_id = p_customer_id AND deleted_at IS NULL
                                AND status NOT IN ('abgeschlossen','storniert'))
     ),
+    -- Aus dem Zahlungsbuch. Bis 20260729100000 stand hier der Status der
+    -- Rechnung und eine Naeherung ueber 'versendet'; der Kommentar an dieser
+    -- Stelle hat genau diesen Wechsel angekuendigt.
     'finanzen', jsonb_build_object(
-      'fakturiert',  (SELECT COALESCE(SUM(gesamttotal), 0) FROM public.rechnungen
+      'fakturiert',  (SELECT COALESCE(SUM(COALESCE(gesamttotal, total, 0)), 0)
+                      FROM public.rechnungen
                       WHERE customer_id = p_customer_id AND status <> 'entwurf'),
-      'bezahlt',     (SELECT COALESCE(SUM(gesamttotal), 0) FROM public.rechnungen
-                      WHERE customer_id = p_customer_id AND status = 'bezahlt'),
-      -- Naeherung bis zum Zahlungsbuch: "versendet" gilt als offen. Sobald es
-      -- payments/payment_allocations gibt, kommt der Wert von dort.
-      'offen',       (SELECT COALESCE(SUM(gesamttotal), 0) FROM public.rechnungen
-                      WHERE customer_id = p_customer_id AND status = 'versendet'),
-      -- BEWUSST getrennt und NICHT zu 'bezahlt' addiert: eine Quittung belegt
-      -- oft dieselbe Leistung wie eine Rechnung. Zusammenzuzaehlen hiesse den
-      -- Umsatz doppelt zu zaehlen.
-      'quittungen',  (SELECT COALESCE(SUM(gesamttotal), 0) FROM public.quittungen
-                      WHERE customer_id = p_customer_id)
+      -- Alles, was von diesem Kunden hereinkam — gegen Rechnung ODER gegen
+      -- Quittung. Stornos sind negativ und rechnen sich selbst heraus.
+      'bezahlt',     (SELECT COALESCE(SUM(amount), 0) FROM public.payments
+                      WHERE customer_id = p_customer_id),
+      'offen',       (SELECT COALESCE(SUM(open_amount), 0) FROM public.rechnungen
+                      WHERE customer_id = p_customer_id
+                        AND status <> 'entwurf' AND open_amount > 0),
+      -- Kein zweiter Umsatz mehr, sondern ein Anteil des ersten: wie viel des
+      -- Kassierten ueber eine Quittung kam. In 'bezahlt' ist es enthalten.
+      -- Verknuepft ueber quittungen.payment_id und nicht ueber created_via,
+      -- damit die vom Backfill uebernommenen Zeilen mitzaehlen.
+      'davon_quittungen', (SELECT COALESCE(SUM(p.amount), 0)
+                      FROM public.payments p
+                      JOIN public.quittungen q ON q.payment_id = p.id
+                      WHERE p.customer_id = p_customer_id),
+      'gutschriften', (SELECT COALESCE(SUM(amount), 0) FROM public.credit_notes
+                      WHERE customer_id = p_customer_id AND status = 'versendet')
     ),
     'aktivitaet', jsonb_build_object(
       'erster_kontakt',  v_kunde.first_seen_at,
@@ -2125,7 +2156,7 @@ $$;
 -- Name: FUNCTION customer_summary(p_customer_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.customer_summary(p_customer_id uuid) IS 'Kennzahlen der Kundenkarte. finanzen.quittungen steht ABSICHTLICH neben finanzen.bezahlt und wird nicht addiert — sonst zaehlt derselbe Umsatz zweimal. finanzen.offen ist eine Naeherung, bis es ein Zahlungsbuch gibt.';
+COMMENT ON FUNCTION public.customer_summary(p_customer_id uuid) IS 'Kennzahlen der Kundenkarte. finanzen.bezahlt ist die Summe der Zahlungseingaenge; finanzen.davon_quittungen ist ein Anteil davon und wird NICHT dazugezaehlt. finanzen.offen kommt aus rechnungen.open_amount.';
 
 
 --
@@ -2545,6 +2576,65 @@ COMMENT ON FUNCTION public.extend_subscription(p_company_id uuid, p_months integ
 
 
 --
+-- Name: finance_overview(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finance_overview(p_company_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_ergebnis JSONB;
+BEGIN
+  IF NOT public.is_company_member(p_company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diese Firma.' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  SELECT jsonb_build_object(
+    -- Die einzige Umsatzzahl des Systems. Stornos sind negativ und rechnen
+    -- sich von selbst heraus.
+    'kassiert_total', COALESCE((SELECT SUM(amount) FROM public.payments
+                                WHERE company_id = p_company_id), 0),
+    'kassiert_30t',   COALESCE((SELECT SUM(amount) FROM public.payments
+                                WHERE company_id = p_company_id
+                                  AND payment_date >= CURRENT_DATE - 30), 0),
+    'nicht_abgeglichen', COALESCE((SELECT COUNT(*) FROM public.payments
+                                WHERE company_id = p_company_id
+                                  AND reconciliation_status = 'unreconciled'), 0),
+    'offen_total',    COALESCE((SELECT SUM(open_amount) FROM public.rechnungen
+                                WHERE company_id = p_company_id
+                                  AND status <> 'entwurf' AND open_amount > 0), 0),
+    'offen_anzahl',   COALESCE((SELECT COUNT(*) FROM public.rechnungen
+                                WHERE company_id = p_company_id
+                                  AND status <> 'entwurf' AND open_amount > 0), 0),
+    'ueberfaellig_total', COALESCE((SELECT SUM(open_amount) FROM public.rechnungen
+                                WHERE company_id = p_company_id
+                                  AND status <> 'entwurf' AND open_amount > 0
+                                  AND faellig_am < CURRENT_DATE), 0),
+    'ueberfaellig_anzahl', COALESCE((SELECT COUNT(*) FROM public.rechnungen
+                                WHERE company_id = p_company_id
+                                  AND status <> 'entwurf' AND open_amount > 0
+                                  AND faellig_am < CURRENT_DATE), 0),
+    'entwurf_total',  COALESCE((SELECT SUM(COALESCE(gesamttotal, total, 0))
+                                FROM public.rechnungen
+                                WHERE company_id = p_company_id AND status = 'entwurf'), 0),
+    'gutschriften_total', COALESCE((SELECT SUM(amount) FROM public.credit_notes
+                                WHERE company_id = p_company_id AND status = 'versendet'), 0)
+  ) INTO v_ergebnis;
+
+  RETURN v_ergebnis;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION finance_overview(p_company_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.finance_overview(p_company_id uuid) IS 'Eine Umsatzzahl statt zweier: kassiert_total ist die Summe der Zahlungseingaenge — Rechnung und Quittung zaehlen darin je einmal.';
+
+
+--
 -- Name: find_companies_fallback(character varying, character varying, numeric, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2887,6 +2977,35 @@ BEGIN
     AND auftrag_nummer LIKE year_prefix || '-%';
 
   NEW.auftrag_nummer := year_prefix || '-' || LPAD(next_number::TEXT, 4, '0');
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: generate_gutschrift_nr(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.generate_gutschrift_nr() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  next_nr  INTEGER;
+  jahr_int INTEGER;
+BEGIN
+  IF NEW.gutschrift_nr IS NULL THEN
+    jahr_int := EXTRACT(YEAR FROM COALESCE(NEW.datum, CURRENT_DATE))::INTEGER;
+
+    INSERT INTO public.gutschrift_nr_counter AS c (company_id, jahr, letzte_nr)
+    VALUES (NEW.company_id, jahr_int, 1)
+    ON CONFLICT (company_id, jahr)
+      DO UPDATE SET letzte_nr = c.letzte_nr + 1
+    RETURNING c.letzte_nr INTO next_nr;
+
+    NEW.gutschrift_nr := 'GS-' || jahr_int::TEXT || '-' || LPAD(next_nr::TEXT, 4, '0');
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -4173,6 +4292,69 @@ COMMENT ON FUNCTION public.grant_trial(p_company_id uuid, p_days integer, p_gran
 
 
 --
+-- Name: guard_allocation_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_allocation_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.amount      IS DISTINCT FROM OLD.amount
+  OR NEW.payment_id  IS DISTINCT FROM OLD.payment_id
+  OR NEW.rechnung_id IS DISTINCT FROM OLD.rechnung_id
+  OR NEW.company_id  IS DISTINCT FROM OLD.company_id THEN
+    RAISE EXCEPTION
+      'Anrechnung %: Betrag und Bezug sind nicht aenderbar. Loeschen und neu buchen.',
+      OLD.id
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: guard_allocation_within_payment(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_allocation_within_payment() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_payment  RECORD;
+  v_gebucht  NUMERIC(12,2);
+BEGIN
+  SELECT * INTO v_payment
+  FROM public.payments
+  WHERE id = COALESCE(NEW.payment_id, OLD.payment_id)
+  FOR UPDATE;
+
+  SELECT COALESCE(SUM(amount), 0) INTO v_gebucht
+  FROM public.payment_allocations
+  WHERE payment_id = v_payment.id;
+
+  -- Vorzeichenrichtig vergleichen: eine Stornozahlung ist negativ, ihre
+  -- Anrechnungen sind es auch. ABS macht beide Faelle zu derselben Frage.
+  IF ABS(v_gebucht) > ABS(v_payment.amount) THEN
+    RAISE EXCEPTION
+      'Anrechnung uebersteigt die Zahlung: % von % bereits gebucht.',
+      ABS(v_gebucht), ABS(v_payment.amount)
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  IF sign(v_gebucht) <> 0 AND sign(v_gebucht) <> sign(v_payment.amount) THEN
+    RAISE EXCEPTION 'Anrechnung und Zahlung haben verschiedene Vorzeichen.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
 -- Name: guard_amendment_after_send(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4301,6 +4483,58 @@ $$;
 
 
 --
+-- Name: guard_gutschrift_hoehe(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_gutschrift_hoehe() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_rechnungswert NUMERIC(12,2);
+  v_gutgeschrieben NUMERIC(12,2);
+BEGIN
+  SELECT COALESCE(gesamttotal, total, 0) INTO v_rechnungswert
+  FROM public.rechnungen WHERE id = NEW.rechnung_id;
+
+  SELECT COALESCE(SUM(amount), 0) INTO v_gutgeschrieben
+  FROM public.credit_notes
+  WHERE rechnung_id = NEW.rechnung_id AND status = 'versendet';
+
+  IF v_gutgeschrieben > v_rechnungswert THEN
+    RAISE EXCEPTION
+      'Gutschriften (%) uebersteigen den Rechnungsbetrag (%).',
+      v_gutgeschrieben, v_rechnungswert
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: guard_mahnstufe_reihenfolge(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_mahnstufe_reihenfolge() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.level > 1 AND NOT EXISTS (
+    SELECT 1 FROM public.invoice_reminders
+    WHERE rechnung_id = NEW.rechnung_id AND level = NEW.level - 1
+  ) THEN
+    RAISE EXCEPTION 'Mahnstufe % setzt Stufe % voraus.', NEW.level, NEW.level - 1
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: guard_offer_content_after_send(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4372,6 +4606,71 @@ $$;
 
 
 --
+-- Name: guard_payment_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_payment_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  erlaubt TEXT[] := ARRAY['reconciliation_status','reference','note'];
+  spalte  TEXT;
+  alt_j   JSONB := to_jsonb(OLD);
+  neu_j   JSONB := to_jsonb(NEW);
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION
+      'Zahlungen werden nicht geloescht, sondern storniert (Gegenbuchung).'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  FOR spalte IN
+    SELECT a.attname FROM pg_attribute a
+    WHERE a.attrelid = TG_RELID AND a.attnum > 0 AND NOT a.attisdropped
+      AND a.attgenerated = ''
+  LOOP
+    IF NOT (spalte = ANY(erlaubt))
+       AND (alt_j -> spalte) IS DISTINCT FROM (neu_j -> spalte) THEN
+      RAISE EXCEPTION
+        'Zahlung %: "%" ist nicht nachtraeglich aenderbar. Korrektur nur per Storno.',
+        OLD.id, spalte
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  END LOOP;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: guard_quittung_bezahlt_braucht_buchung(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_quittung_bezahlt_braucht_buchung() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF COALESCE(NEW.betrag_noch_offen, TRUE) = TRUE
+     OR COALESCE(OLD.betrag_noch_offen, TRUE) = FALSE THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.payment_id IS NULL THEN
+    RAISE EXCEPTION
+      'Quittung % kann nicht als bezahlt gefuehrt werden: kein Zahlungseingang erfasst.',
+      NEW.quittung_nr
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: guard_quittung_delete(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4414,6 +4713,35 @@ BEGIN
       'Quittung % kann nicht in den Entwurf zurueckgesetzt werden (Status "%").',
       OLD.quittung_nr, OLD.status
       USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: guard_rechnung_bezahlt_braucht_deckung(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.guard_rechnung_bezahlt_braucht_deckung() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_offen NUMERIC(12,2);
+BEGIN
+  IF NEW.status <> 'bezahlt' OR OLD.status = 'bezahlt' THEN
+    RETURN NEW;
+  END IF;
+
+  v_offen := COALESCE(NEW.gesamttotal, NEW.total, 0) - NEW.paid_total - NEW.credited_total;
+
+  IF v_offen > 0 THEN
+    RAISE EXCEPTION
+      'Rechnung % kann nicht als bezahlt gefuehrt werden: % offen. Zahlung erfassen statt Status setzen.',
+      NEW.rechnung_nr, v_offen
+      USING ERRCODE = 'check_violation';
   END IF;
 
   RETURN NEW;
@@ -4669,6 +4997,30 @@ BEGIN
   ) INTO v_result;
 
   RETURN v_result;
+END;
+$$;
+
+
+--
+-- Name: invoice_reminders_sprache_erben(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.invoice_reminders_sprache_erben() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_r RECORD;
+BEGIN
+  SELECT language, faellig_am, open_amount INTO v_r
+  FROM public.rechnungen WHERE id = NEW.rechnung_id;
+
+  NEW.language := COALESCE(NEW.language, v_r.language, 'de');
+  NEW.due_date_snapshot := COALESCE(NEW.due_date_snapshot, v_r.faellig_am);
+  IF NEW.open_amount_snapshot IS NULL THEN
+    NEW.open_amount_snapshot := v_r.open_amount;
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
@@ -5347,6 +5699,42 @@ $$;
 
 
 --
+-- Name: open_receivables(uuid, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.open_receivables(p_company_id uuid, p_limit integer DEFAULT 50, p_offset integer DEFAULT 0) RETURNS TABLE(rechnung_id uuid, rechnung_nr text, customer_id uuid, customer_name text, datum date, faellig_am date, tage_ueberfaellig integer, gesamt numeric, bezahlt numeric, offen numeric, mahnstufe smallint, total_count bigint)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NOT public.is_company_member(p_company_id) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diese Firma.' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN QUERY
+  WITH offen AS (
+    SELECT r.id, r.rechnung_nr, r.customer_id, r.customer_name, r.datum, r.faellig_am,
+           COALESCE(r.gesamttotal, r.total, 0)::NUMERIC(12,2) AS gesamt,
+           r.paid_total, r.open_amount
+    FROM public.rechnungen r
+    WHERE r.company_id = p_company_id
+      AND r.status <> 'entwurf'
+      AND r.open_amount > 0
+  )
+  SELECT o.id, o.rechnung_nr, o.customer_id, o.customer_name, o.datum, o.faellig_am,
+         GREATEST(0, CURRENT_DATE - o.faellig_am)::INTEGER,
+         o.gesamt, o.paid_total, o.open_amount,
+         COALESCE((SELECT MAX(m.level) FROM public.invoice_reminders m
+                   WHERE m.rechnung_id = o.id), 0::SMALLINT),
+         (SELECT COUNT(*) FROM offen)
+  FROM offen o
+  ORDER BY o.faellig_am NULLS LAST, o.rechnung_nr
+  LIMIT GREATEST(1, LEAST(p_limit, 200)) OFFSET GREATEST(0, p_offset);
+END;
+$$;
+
+
+--
 -- Name: preview_customer_backfill(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5423,6 +5811,50 @@ COMMENT ON FUNCTION public.preview_customer_backfill(p_company_id uuid) IS 'Beri
 
 
 --
+-- Name: preview_finance_backfill(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.preview_finance_backfill(p_company_id uuid) RETURNS TABLE(quelle text, beleg_nr text, beleg_datum date, betrag numeric, hinweis text)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NOT public.is_company_role(p_company_id, ARRAY['owner','admin']) THEN
+    RAISE EXCEPTION 'Nur Eigentuemer oder Administrator.' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN QUERY
+  SELECT 'rechnung'::TEXT,
+         r.rechnung_nr,
+         r.datum,
+         COALESCE(r.gesamttotal, r.total, 0)::NUMERIC(12,2),
+         'Status bezahlt, keine Buchung — Datum aus dem Beleg, Weg unbekannt'::TEXT
+  FROM public.rechnungen r
+  WHERE r.company_id = p_company_id
+    AND r.status = 'bezahlt'
+    AND r.paid_total = 0
+    AND COALESCE(r.gesamttotal, r.total, 0) > 0
+
+  UNION ALL
+
+  SELECT 'quittung'::TEXT,
+         q.quittung_nr,
+         q.datum,
+         COALESCE(q.gesamttotal, q.total, 0)::NUMERIC(12,2),
+         'ausgestellt und nicht mehr offen, keine Buchung'::TEXT
+  FROM public.quittungen q
+  WHERE q.company_id = p_company_id
+    AND q.payment_id IS NULL
+    AND q.status <> 'draft'
+    AND COALESCE(q.betrag_noch_offen, TRUE) = FALSE
+    AND COALESCE(q.gesamttotal, q.total, 0) > 0
+
+  ORDER BY 1, 3;
+END;
+$$;
+
+
+--
 -- Name: reap_stuck_inbound_emails(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5489,6 +5921,225 @@ BEGIN
     RAISE LOG '[reap_stuck_sending_offers] recovered % (sent=% revert=%)', v_sent + v_revert, v_sent, v_revert;
   END IF;
   RETURN v_sent + v_revert;
+END;
+$$;
+
+
+--
+-- Name: rechnung_gutschriften_fortschreiben(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.rechnung_gutschriften_fortschreiben() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_rechnung UUID := COALESCE(NEW.rechnung_id, OLD.rechnung_id);
+  v_summe    NUMERIC(12,2);
+  v_zeile    RECORD;
+BEGIN
+  SELECT COALESCE(SUM(amount), 0) INTO v_summe
+  FROM public.credit_notes
+  WHERE rechnung_id = v_rechnung AND status = 'versendet';
+
+  UPDATE public.rechnungen
+  SET credited_total = v_summe
+  WHERE id = v_rechnung
+  RETURNING * INTO v_zeile;
+
+  IF v_zeile.status <> 'entwurf' AND v_zeile.open_amount <= 0
+     AND v_zeile.status <> 'bezahlt' THEN
+    UPDATE public.rechnungen SET status = 'bezahlt' WHERE id = v_rechnung;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: rechnung_zahlungsstand_fortschreiben(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.rechnung_zahlungsstand_fortschreiben() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_rechnung UUID := COALESCE(NEW.rechnung_id, OLD.rechnung_id);
+  v_summe    NUMERIC(12,2);
+  v_zeile    RECORD;
+BEGIN
+  SELECT COALESCE(SUM(amount), 0) INTO v_summe
+  FROM public.payment_allocations
+  WHERE rechnung_id = v_rechnung;
+
+  UPDATE public.rechnungen
+  SET paid_total = v_summe
+  WHERE id = v_rechnung
+  RETURNING * INTO v_zeile;
+
+  IF v_zeile.status = 'entwurf' THEN
+    RETURN NULL;
+  END IF;
+
+  IF v_zeile.open_amount <= 0 AND v_zeile.status <> 'bezahlt' THEN
+    UPDATE public.rechnungen SET status = 'bezahlt' WHERE id = v_rechnung;
+  ELSIF v_zeile.open_amount > 0 AND v_zeile.status = 'bezahlt' THEN
+    UPDATE public.rechnungen
+    SET status = CASE
+                   WHEN v_zeile.faellig_am IS NOT NULL
+                    AND v_zeile.faellig_am < CURRENT_DATE THEN 'ueberfaellig'
+                   ELSE 'versendet'
+                 END
+    WHERE id = v_rechnung;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION rechnung_zahlungsstand_fortschreiben(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.rechnung_zahlungsstand_fortschreiben() IS 'Schreibt paid_total und den Status einer Rechnung aus den Anrechnungen fort.';
+
+
+--
+-- Name: record_payment(uuid, numeric, date, text, uuid, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.record_payment(p_company_id uuid, p_amount numeric, p_payment_date date, p_method text DEFAULT 'bank'::text, p_customer_id uuid DEFAULT NULL::uuid, p_reference text DEFAULT NULL::text, p_note text DEFAULT NULL::text, p_allocations jsonb DEFAULT '[]'::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_payment  UUID;
+  v_zeile    JSONB;
+  v_summe    NUMERIC(12,2) := 0;
+  v_rechnung UUID;
+  v_betrag   NUMERIC(12,2);
+BEGIN
+  IF NOT public.is_company_role(p_company_id, ARRAY['owner','admin']) THEN
+    RAISE EXCEPTION 'Nur Eigentuemer oder Administrator koennen Zahlungen erfassen.'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RAISE EXCEPTION 'Der Zahlbetrag muss groesser als null sein.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  INSERT INTO public.payments (
+    company_id, customer_id, payment_date, amount, method, reference, note,
+    created_via, created_by
+  ) VALUES (
+    p_company_id, p_customer_id, COALESCE(p_payment_date, CURRENT_DATE),
+    p_amount, p_method, p_reference, p_note, 'manual', auth.uid()
+  ) RETURNING id INTO v_payment;
+
+  FOR v_zeile IN SELECT * FROM jsonb_array_elements(COALESCE(p_allocations, '[]'::jsonb))
+  LOOP
+    v_rechnung := (v_zeile ->> 'rechnung_id')::UUID;
+    v_betrag   := (v_zeile ->> 'amount')::NUMERIC(12,2);
+
+    IF v_betrag IS NULL OR v_betrag <= 0 THEN
+      RAISE EXCEPTION 'Anrechnung ohne gueltigen Betrag.' USING ERRCODE = 'check_violation';
+    END IF;
+
+    -- Der mehrspaltige Fremdschluessel faengt eine fremde Rechnung ohnehin ab.
+    -- Die Pruefung hier existiert, damit die Meldung verstaendlich ist statt
+    -- einer Constraint-Verletzung.
+    IF NOT EXISTS (
+      SELECT 1 FROM public.rechnungen
+      WHERE id = v_rechnung AND company_id = p_company_id
+    ) THEN
+      RAISE EXCEPTION 'Rechnung gehoert nicht zu dieser Firma.'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+
+    INSERT INTO public.payment_allocations
+      (company_id, payment_id, rechnung_id, amount, created_by)
+    VALUES (p_company_id, v_payment, v_rechnung, v_betrag, auth.uid());
+
+    v_summe := v_summe + v_betrag;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'payment_id',     v_payment,
+    'amount',         p_amount,
+    'allocated',      v_summe,
+    -- Was ueberzaehlig hereinkam, bleibt sichtbar offen statt still zu
+    -- verschwinden.
+    'unallocated',    p_amount - v_summe
+  );
+END;
+$$;
+
+
+--
+-- Name: record_quittung_payment(uuid, text, date, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.record_quittung_payment(p_quittung_id uuid, p_method text DEFAULT 'cash'::text, p_payment_date date DEFAULT NULL::date, p_reference text DEFAULT NULL::text, p_note text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_q       RECORD;
+  v_payment UUID;
+  v_warnung TEXT := NULL;
+BEGIN
+  SELECT * INTO v_q FROM public.quittungen WHERE id = p_quittung_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Quittung nicht gefunden.' USING ERRCODE = 'no_data_found';
+  END IF;
+
+  IF NOT public.is_company_role(v_q.company_id, ARRAY['owner','admin']) THEN
+    RAISE EXCEPTION 'Nur Eigentuemer oder Administrator koennen Zahlungen erfassen.'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  IF v_q.payment_id IS NOT NULL THEN
+    RAISE EXCEPTION 'Quittung % ist bereits gebucht.', v_q.quittung_nr
+      USING ERRCODE = 'unique_violation';
+  END IF;
+
+  IF v_q.status = 'draft' THEN
+    RAISE EXCEPTION 'Ein Entwurf kann nichts bescheinigen — Quittung zuerst ausstellen.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  IF v_q.offer_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.rechnungen r
+    WHERE r.offer_id = v_q.offer_id AND r.paid_total > 0
+  ) THEN
+    v_warnung := 'Zu dieser Offerte ist bereits eine Zahlung auf eine Rechnung gebucht.';
+  END IF;
+
+  INSERT INTO public.payments (
+    company_id, customer_id, payment_date, amount, method, reference,
+    note, created_via, created_by
+  ) VALUES (
+    v_q.company_id, v_q.customer_id,
+    COALESCE(p_payment_date, v_q.datum, CURRENT_DATE),
+    COALESCE(v_q.gesamttotal, v_q.total),
+    p_method, p_reference,
+    COALESCE(p_note, 'Quittung ' || COALESCE(v_q.quittung_nr, '')),
+    'quittung', auth.uid()
+  ) RETURNING id INTO v_payment;
+
+  UPDATE public.quittungen
+  SET payment_id = v_payment, betrag_noch_offen = FALSE
+  WHERE id = p_quittung_id;
+
+  RETURN jsonb_build_object(
+    'payment_id', v_payment,
+    'amount',     COALESCE(v_q.gesamttotal, v_q.total),
+    'warnung',    v_warnung
+  );
 END;
 $$;
 
@@ -5752,6 +6403,63 @@ COMMENT ON FUNCTION public.resolve_or_create_customer(p_company_id uuid, p_email
 
 
 --
+-- Name: reverse_payment(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reverse_payment(p_payment_id uuid, p_reason text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_p      RECORD;
+  v_storno UUID;
+BEGIN
+  SELECT * INTO v_p FROM public.payments WHERE id = p_payment_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Zahlung nicht gefunden.' USING ERRCODE = 'no_data_found';
+  END IF;
+
+  IF NOT public.is_company_role(v_p.company_id, ARRAY['owner','admin']) THEN
+    RAISE EXCEPTION 'Nur Eigentuemer oder Administrator koennen stornieren.'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  IF v_p.reverses_payment_id IS NOT NULL THEN
+    RAISE EXCEPTION 'Eine Stornobuchung wird nicht storniert.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.payments WHERE reverses_payment_id = p_payment_id) THEN
+    RAISE EXCEPTION 'Diese Zahlung ist bereits storniert.'
+      USING ERRCODE = 'unique_violation';
+  END IF;
+
+  INSERT INTO public.payments (
+    company_id, customer_id, payment_date, amount, method, reference,
+    reconciliation_status, reverses_payment_id, note, created_via, created_by
+  ) VALUES (
+    v_p.company_id, v_p.customer_id, CURRENT_DATE, -v_p.amount, v_p.method,
+    v_p.reference, 'reconciled', p_payment_id,
+    COALESCE(p_reason, 'Storno'), v_p.created_via, auth.uid()
+  ) RETURNING id INTO v_storno;
+
+  INSERT INTO public.payment_allocations
+    (company_id, payment_id, rechnung_id, amount, note)
+  SELECT company_id, v_storno, rechnung_id, -amount, 'Storno'
+  FROM public.payment_allocations
+  WHERE payment_id = p_payment_id;
+
+  -- Eine Quittung, deren Eingang storniert ist, ist wieder offen.
+  UPDATE public.quittungen
+  SET betrag_noch_offen = TRUE
+  WHERE payment_id = p_payment_id;
+
+  RETURN jsonb_build_object('storno_payment_id', v_storno, 'amount', -v_p.amount);
+END;
+$$;
+
+
+--
 -- Name: run_customer_backfill(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6011,6 +6719,151 @@ $$;
 --
 
 COMMENT ON FUNCTION public.run_customer_backfill(p_company_id uuid) IS 'Ordnet Bestandszeilen der kanonischen Kundenidentitaet zu. Idempotent: ruehrt nur customer_id IS NULL an. Wird NICHT aus einer Migration heraus aufgerufen — erst nachdem preview_customer_backfill() gelesen wurde. Ruecknahme: ROLLBACK_20260728140000_kunden_backfill.sql.';
+
+
+--
+-- Name: run_finance_backfill(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.run_finance_backfill(p_company_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_r          RECORD;
+  v_payment    UUID;
+  v_rechnungen INTEGER := 0;
+  v_quittungen INTEGER := 0;
+  v_summe      NUMERIC(12,2) := 0;
+BEGIN
+  IF NOT public.is_company_role(p_company_id, ARRAY['owner']) THEN
+    RAISE EXCEPTION 'Nur der Eigentuemer kann den Finanz-Backfill ausfuehren.'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  FOR v_r IN
+    SELECT id, company_id, customer_id, rechnung_nr, datum,
+           COALESCE(gesamttotal, total, 0)::NUMERIC(12,2) AS betrag
+    FROM public.rechnungen
+    WHERE company_id = p_company_id
+      AND status = 'bezahlt'
+      AND paid_total = 0
+      AND COALESCE(gesamttotal, total, 0) > 0
+    ORDER BY datum
+  LOOP
+    INSERT INTO public.payments (
+      company_id, customer_id, payment_date, amount, method,
+      reconciliation_status, note, created_via
+    ) VALUES (
+      v_r.company_id, v_r.customer_id, v_r.datum, v_r.betrag, 'other',
+      'unreconciled',
+      'Backfill aus Status "bezahlt" — echtes Zahlungsdatum und Zahlungsweg unbekannt.',
+      'backfill'
+    ) RETURNING id INTO v_payment;
+
+    INSERT INTO public.payment_allocations (company_id, payment_id, rechnung_id, amount)
+    VALUES (v_r.company_id, v_payment, v_r.id, v_r.betrag);
+
+    v_rechnungen := v_rechnungen + 1;
+    v_summe := v_summe + v_r.betrag;
+  END LOOP;
+
+  FOR v_r IN
+    SELECT id, company_id, customer_id, quittung_nr, datum,
+           COALESCE(gesamttotal, total, 0)::NUMERIC(12,2) AS betrag
+    FROM public.quittungen
+    WHERE company_id = p_company_id
+      AND payment_id IS NULL
+      AND status <> 'draft'
+      AND COALESCE(betrag_noch_offen, TRUE) = FALSE
+      AND COALESCE(gesamttotal, total, 0) > 0
+    ORDER BY datum
+  LOOP
+    INSERT INTO public.payments (
+      company_id, customer_id, payment_date, amount, method,
+      reconciliation_status, note, created_via
+    ) VALUES (
+      v_r.company_id, v_r.customer_id, v_r.datum, v_r.betrag, 'other',
+      'unreconciled',
+      'Backfill aus Quittung ' || COALESCE(v_r.quittung_nr, '') ||
+      ' — Zahlungsweg unbekannt.',
+      'backfill'
+    ) RETURNING id INTO v_payment;
+
+    -- Keine Anrechnung: eine Quittung steht fuer sich, es gibt keine Rechnung,
+    -- auf die gebucht werden koennte.
+    UPDATE public.quittungen SET payment_id = v_payment WHERE id = v_r.id;
+
+    v_quittungen := v_quittungen + 1;
+    v_summe := v_summe + v_r.betrag;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'rechnungen', v_rechnungen,
+    'quittungen', v_quittungen,
+    'summe',      v_summe
+  );
+END;
+$$;
+
+
+--
+-- Name: run_invoice_automations(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.run_invoice_automations() RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_status INT := 0;
+  v_tasks  INT := 0;
+BEGIN
+  UPDATE public.rechnungen
+  SET status = 'ueberfaellig'
+  WHERE status = 'versendet'
+    AND open_amount > 0
+    AND faellig_am IS NOT NULL
+    AND faellig_am < CURRENT_DATE;
+  GET DIAGNOSTICS v_status = ROW_COUNT;
+
+  WITH faellig AS (
+    SELECT r.id, r.company_id, r.customer_id, r.rechnung_nr, r.customer_name,
+           r.open_amount, r.faellig_am,
+           (CURRENT_DATE - r.faellig_am) AS tage,
+           CASE WHEN CURRENT_DATE - r.faellig_am >= 30 THEN 30
+                WHEN CURRENT_DATE - r.faellig_am >= 10 THEN 10
+                ELSE 1 END AS stufe_tage
+    FROM public.rechnungen r
+    WHERE r.status IN ('versendet', 'ueberfaellig')
+      AND r.open_amount > 0
+      AND r.faellig_am IS NOT NULL
+      AND r.faellig_am < CURRENT_DATE
+  ),
+  geliefert AS (
+    INSERT INTO public.automation_deliveries
+      (company_id, rule_key, entity_type, entity_id, schedule_window, result)
+    SELECT company_id, 'invoice_overdue', 'rechnung', id,
+           faellig_am + stufe_tage, 'task'
+    FROM faellig
+    ON CONFLICT (rule_key, entity_type, entity_id, schedule_window) DO NOTHING
+    RETURNING entity_id, company_id
+  )
+  INSERT INTO public.crm_tasks (company_id, title, description, task_type,
+                                priority, due_at, customer_id)
+  SELECT g.company_id,
+         'Rechnung ' || COALESCE(f.rechnung_nr, '') || ' ueberfaellig',
+         COALESCE(f.customer_name, '') || ' — ' || f.open_amount ||
+           ' offen, faellig war ' || f.faellig_am || ' (' || f.tage || ' Tage).',
+         'admin',
+         CASE WHEN f.stufe_tage >= 30 THEN 'high' ELSE 'normal' END,
+         NOW(), f.customer_id
+  FROM geliefert g JOIN faellig f ON f.id = g.entity_id;
+  GET DIAGNOSTICS v_tasks = ROW_COUNT;
+
+  RETURN jsonb_build_object('status_nachgezogen', v_status, 'aufgaben', v_tasks);
+END;
+$$;
 
 
 --
@@ -6393,9 +7246,13 @@ BEGIN
     SELECT count(*) AS n FROM public.auftraege a
     WHERE a.customer_id = t.id AND a.deleted_at IS NULL
   ) auf ON TRUE
+  -- Offen kommt jetzt aus open_amount statt aus dem Status: eine Rechnung, auf
+  -- die die Haelfte eingegangen ist, war vorher voll offen oder gar nicht.
   LEFT JOIN LATERAL (
-    SELECT COALESCE(SUM(r.gesamttotal) FILTER (WHERE r.status = 'versendet'), 0) AS offen,
-           COALESCE(SUM(r.gesamttotal) FILTER (WHERE r.status = 'bezahlt'),   0) AS bezahlt
+    SELECT COALESCE(SUM(r.open_amount) FILTER (
+             WHERE r.status <> 'entwurf' AND r.open_amount > 0), 0) AS offen,
+           COALESCE((SELECT SUM(p.amount) FROM public.payments p
+                     WHERE p.customer_id = t.id), 0) AS bezahlt
     FROM public.rechnungen r WHERE r.customer_id = t.id
   ) fin ON TRUE
   LEFT JOIN LATERAL (
@@ -8750,6 +9607,40 @@ CREATE TABLE public.cookie_consent_log (
 
 
 --
+-- Name: credit_notes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.credit_notes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    rechnung_id uuid NOT NULL,
+    customer_id uuid,
+    gutschrift_nr text,
+    datum date DEFAULT CURRENT_DATE NOT NULL,
+    amount numeric(12,2) NOT NULL,
+    reason text,
+    positionen jsonb DEFAULT '[]'::jsonb NOT NULL,
+    status text DEFAULT 'entwurf'::text NOT NULL,
+    language text NOT NULL,
+    pdf_url text,
+    note text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT credit_notes_amount_positive CHECK ((amount > (0)::numeric)),
+    CONSTRAINT credit_notes_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
+    CONSTRAINT credit_notes_status_check CHECK ((status = ANY (ARRAY['entwurf'::text, 'versendet'::text, 'storniert'::text])))
+);
+
+
+--
+-- Name: TABLE credit_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.credit_notes IS 'Gutschriften. Ein eigener Beleg gegen eine Rechnung — die Rechnung selbst bleibt unveraendert, ihr offener Betrag sinkt.';
+
+
+--
 -- Name: crm_tasks; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8961,6 +9852,17 @@ CREATE TABLE public.firma_resources (
 
 
 --
+-- Name: gutschrift_nr_counter; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gutschrift_nr_counter (
+    company_id uuid NOT NULL,
+    jahr integer NOT NULL,
+    letzte_nr integer DEFAULT 0 NOT NULL
+);
+
+
+--
 -- Name: inbound_emails; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9037,6 +9939,38 @@ COMMENT ON COLUMN public.inbound_emails.opened_at IS 'Wann die Mail zum ersten M
 --
 
 COMMENT ON COLUMN public.inbound_emails.customer_id IS 'Kanonischer Kunde — NUR gesetzt, wenn die Absenderadresse einen BESTEHENDEN Kunden trifft. Aus einer eingehenden Mail entsteht nie ein Kunde, sonst legte jede Werbemail einen an.';
+
+
+--
+-- Name: invoice_reminders; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.invoice_reminders (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    rechnung_id uuid NOT NULL,
+    level smallint NOT NULL,
+    sent_at timestamp with time zone,
+    open_amount_snapshot numeric(12,2) NOT NULL,
+    due_date_snapshot date,
+    fee numeric(12,2) DEFAULT 0 NOT NULL,
+    interest numeric(12,2) DEFAULT 0 NOT NULL,
+    language text NOT NULL,
+    pdf_url text,
+    note text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT invoice_reminders_fee_check CHECK (((fee >= (0)::numeric) AND (interest >= (0)::numeric))),
+    CONSTRAINT invoice_reminders_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
+    CONSTRAINT invoice_reminders_level_check CHECK (((level >= 1) AND (level <= 3)))
+);
+
+
+--
+-- Name: TABLE invoice_reminders; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.invoice_reminders IS 'Mahnungen je Rechnung und Stufe. Eine Zeile ist ein Beleg, kein Zaehler — der Stand zum Mahnzeitpunkt ist mitgeschrieben.';
 
 
 --
@@ -10507,6 +11441,73 @@ CREATE SEQUENCE public.offer_number_seq
 
 
 --
+-- Name: payment_allocations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.payment_allocations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    payment_id uuid NOT NULL,
+    rechnung_id uuid NOT NULL,
+    amount numeric(12,2) NOT NULL,
+    note text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT payment_allocations_amount_not_zero CHECK ((amount <> (0)::numeric))
+);
+
+
+--
+-- Name: TABLE payment_allocations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.payment_allocations IS 'Worauf ein Zahlungseingang angerechnet wird. n:m — eine Ueberweisung kann mehrere Rechnungen decken, eine Rechnung mehrere Raten haben.';
+
+
+--
+-- Name: payments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.payments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    customer_id uuid,
+    payment_date date NOT NULL,
+    amount numeric(12,2) NOT NULL,
+    currency text DEFAULT 'CHF'::text NOT NULL,
+    method text DEFAULT 'bank'::text NOT NULL,
+    reference text,
+    reconciliation_status text DEFAULT 'unreconciled'::text NOT NULL,
+    reverses_payment_id uuid,
+    note text,
+    created_via text DEFAULT 'manual'::text NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT payments_amount_not_zero CHECK ((amount <> (0)::numeric)),
+    CONSTRAINT payments_created_via_check CHECK ((created_via = ANY (ARRAY['manual'::text, 'backfill'::text, 'quittung'::text, 'portal'::text]))),
+    CONSTRAINT payments_currency_chf_only CHECK ((currency = 'CHF'::text)),
+    CONSTRAINT payments_method_check CHECK ((method = ANY (ARRAY['bank'::text, 'qr'::text, 'cash'::text, 'twint'::text, 'card'::text, 'other'::text]))),
+    CONSTRAINT payments_negative_only_reversal CHECK (((amount > (0)::numeric) OR (reverses_payment_id IS NOT NULL))),
+    CONSTRAINT payments_no_self_reversal CHECK (((reverses_payment_id IS NULL) OR (reverses_payment_id <> id))),
+    CONSTRAINT payments_reconciliation_check CHECK ((reconciliation_status = ANY (ARRAY['unreconciled'::text, 'reconciled'::text, 'disputed'::text])))
+);
+
+
+--
+-- Name: TABLE payments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.payments IS 'Zahlungseingaenge. Append-only: Korrekturen laufen ueber eine Stornozeile mit umgekehrtem Vorzeichen (reverses_payment_id), nicht ueber ein UPDATE.';
+
+
+--
+-- Name: COLUMN payments.payment_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payments.payment_date IS 'Wertstellung. Beim Backfill aus Belegdaten uebernommen — dann steht reconciliation_status auf unreconciled, weil das echte Datum unbekannt ist.';
+
+
+--
 -- Name: umzugsbox_rentals; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10857,6 +11858,7 @@ CREATE TABLE public.quittungen (
     auftrag_id uuid,
     language text DEFAULT 'de'::text NOT NULL,
     customer_id uuid,
+    payment_id uuid,
     CONSTRAINT chk_quittung_gesamt CHECK ((round(gesamttotal, 2) = round((total + mwst_betrag), 2))),
     CONSTRAINT chk_quittung_mwst CHECK ((round(mwst_betrag, 2) = round(((total * mwst_satz) / (100)::numeric), 2))),
     CONSTRAINT chk_quittung_total_from_rabatt CHECK ((round(total, 2) = round(GREATEST((zwischensumme - rabatt), (0)::numeric), 2))),
@@ -10870,6 +11872,13 @@ CREATE TABLE public.quittungen (
 --
 
 COMMENT ON COLUMN public.quittungen.customer_id IS 'Kanonischer Kunde, vom Auftrag geerbt.';
+
+
+--
+-- Name: COLUMN quittungen.payment_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.quittungen.payment_id IS 'Der Zahlungseingang, den diese Quittung bescheinigt. Umsatz wird ueber payments gezaehlt, damit Quittung und Rechnung nicht doppelt zaehlen.';
 
 
 --
@@ -11006,7 +12015,12 @@ CREATE TABLE public.rechnungen (
     zahlungskonditionen text,
     language text DEFAULT 'de'::text NOT NULL,
     customer_id uuid,
+    invoice_type text DEFAULT 'standard'::text NOT NULL,
+    paid_total numeric(12,2) DEFAULT 0 NOT NULL,
+    credited_total numeric(12,2) DEFAULT 0 NOT NULL,
+    open_amount numeric(12,2) GENERATED ALWAYS AS (((COALESCE(gesamttotal, total, (0)::numeric) - paid_total) - credited_total)) STORED,
     CONSTRAINT rechnungen_anrede_check CHECK (((anrede IS NULL) OR (anrede = ANY (ARRAY['Herr'::text, 'Frau'::text])))),
+    CONSTRAINT rechnungen_invoice_type_check CHECK ((invoice_type = ANY (ARRAY['standard'::text, 'deposit'::text, 'interim'::text, 'final'::text]))),
     CONSTRAINT rechnungen_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text]))),
     CONSTRAINT rechnungen_status_check CHECK ((status = ANY (ARRAY['entwurf'::text, 'versendet'::text, 'bezahlt'::text, 'ueberfaellig'::text])))
 );
@@ -11024,6 +12038,27 @@ COMMENT ON TABLE public.rechnungen IS 'Swiss QR-Bill faturaları. abgeschlossen 
 --
 
 COMMENT ON COLUMN public.rechnungen.customer_id IS 'Kanonischer Kunde, vom Auftrag geerbt.';
+
+
+--
+-- Name: COLUMN rechnungen.invoice_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rechnungen.invoice_type IS 'standard | deposit (Anzahlung) | interim (Teilrechnung) | final (Schlussrechnung).';
+
+
+--
+-- Name: COLUMN rechnungen.paid_total; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rechnungen.paid_total IS 'Summe der angerechneten Zahlungen. Vom Trigger gepflegt — nicht von Hand setzen.';
+
+
+--
+-- Name: COLUMN rechnungen.open_amount; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rechnungen.open_amount IS 'Was noch offen ist. Negativ heisst ueberzahlt.';
 
 
 --
@@ -11806,6 +12841,22 @@ ALTER TABLE ONLY public.cookie_consent_log
 
 
 --
+-- Name: credit_notes credit_notes_gutschrift_nr_je_firma; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.credit_notes
+    ADD CONSTRAINT credit_notes_gutschrift_nr_je_firma UNIQUE (company_id, gutschrift_nr);
+
+
+--
+-- Name: credit_notes credit_notes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.credit_notes
+    ADD CONSTRAINT credit_notes_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: crm_tasks crm_tasks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11862,6 +12913,14 @@ ALTER TABLE ONLY public.firma_resources
 
 
 --
+-- Name: gutschrift_nr_counter gutschrift_nr_counter_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gutschrift_nr_counter
+    ADD CONSTRAINT gutschrift_nr_counter_pkey PRIMARY KEY (company_id, jahr);
+
+
+--
 -- Name: inbound_emails inbound_emails_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11875,6 +12934,22 @@ ALTER TABLE ONLY public.inbound_emails
 
 ALTER TABLE ONLY public.inbound_emails
     ADD CONSTRAINT inbound_emails_provider_message_key UNIQUE (provider, provider_message_id);
+
+
+--
+-- Name: invoice_reminders invoice_reminders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_reminders
+    ADD CONSTRAINT invoice_reminders_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: invoice_reminders invoice_reminders_stufe_einmal; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_reminders
+    ADD CONSTRAINT invoice_reminders_stufe_einmal UNIQUE (rechnung_id, level);
 
 
 --
@@ -12182,6 +13257,30 @@ ALTER TABLE ONLY public.offers
 
 
 --
+-- Name: payment_allocations payment_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_allocations
+    ADD CONSTRAINT payment_allocations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payments payments_id_company_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payments
+    ADD CONSTRAINT payments_id_company_uniq UNIQUE (id, company_id);
+
+
+--
+-- Name: payments payments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payments
+    ADD CONSTRAINT payments_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: pricing_rules pricing_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12214,11 +13313,11 @@ ALTER TABLE ONLY public.quittungen
 
 
 --
--- Name: quittungen quittungen_quittung_nr_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: quittungen quittungen_quittung_nr_je_firma; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.quittungen
-    ADD CONSTRAINT quittungen_quittung_nr_key UNIQUE (quittung_nr);
+    ADD CONSTRAINT quittungen_quittung_nr_je_firma UNIQUE (company_id, quittung_nr);
 
 
 --
@@ -12254,6 +13353,14 @@ ALTER TABLE ONLY public.rechnungen
 
 
 --
+-- Name: rechnungen rechnungen_id_company_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rechnungen
+    ADD CONSTRAINT rechnungen_id_company_uniq UNIQUE (id, company_id);
+
+
+--
 -- Name: rechnungen rechnungen_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12262,11 +13369,18 @@ ALTER TABLE ONLY public.rechnungen
 
 
 --
--- Name: rechnungen rechnungen_rechnung_nr_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: rechnungen rechnungen_rechnung_nr_je_firma; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.rechnungen
-    ADD CONSTRAINT rechnungen_rechnung_nr_key UNIQUE (rechnung_nr);
+    ADD CONSTRAINT rechnungen_rechnung_nr_je_firma UNIQUE (company_id, rechnung_nr);
+
+
+--
+-- Name: CONSTRAINT rechnungen_rechnung_nr_je_firma ON rechnungen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT rechnungen_rechnung_nr_je_firma ON public.rechnungen IS 'Je Firma eindeutig — so, wie rechnung_nr_counter (company_id, jahr) zaehlt. Weltweit eindeutig war es, solange es eine Firma gab.';
 
 
 --
@@ -12849,6 +13963,20 @@ CREATE INDEX idx_cookie_consent_visitor ON public.cookie_consent_log USING btree
 
 
 --
+-- Name: idx_credit_notes_company; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_credit_notes_company ON public.credit_notes USING btree (company_id, datum DESC);
+
+
+--
+-- Name: idx_credit_notes_rechnung; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_credit_notes_rechnung ON public.credit_notes USING btree (rechnung_id);
+
+
+--
 -- Name: idx_crm_tasks_kunde; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12972,6 +14100,13 @@ CREATE INDEX idx_inbound_emails_status_created ON public.inbound_emails USING bt
 --
 
 CREATE INDEX idx_inbound_emails_unopened ON public.inbound_emails USING btree (company_id, processing_status) WHERE (opened_at IS NULL);
+
+
+--
+-- Name: idx_invoice_reminders_rechnung; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_invoice_reminders_rechnung ON public.invoice_reminders USING btree (rechnung_id, level);
 
 
 --
@@ -13437,6 +14572,48 @@ CREATE INDEX idx_offers_status ON public.offers USING btree (status);
 
 
 --
+-- Name: idx_payment_allocations_payment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payment_allocations_payment ON public.payment_allocations USING btree (payment_id);
+
+
+--
+-- Name: idx_payment_allocations_rechnung; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payment_allocations_rechnung ON public.payment_allocations USING btree (rechnung_id);
+
+
+--
+-- Name: idx_payments_company_datum; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payments_company_datum ON public.payments USING btree (company_id, payment_date DESC);
+
+
+--
+-- Name: idx_payments_kunde; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payments_kunde ON public.payments USING btree (customer_id) WHERE (customer_id IS NOT NULL);
+
+
+--
+-- Name: idx_payments_offen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payments_offen ON public.payments USING btree (company_id) WHERE (reconciliation_status = 'unreconciled'::text);
+
+
+--
+-- Name: idx_payments_storno_einmalig; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_payments_storno_einmalig ON public.payments USING btree (reverses_payment_id) WHERE (reverses_payment_id IS NOT NULL);
+
+
+--
 -- Name: idx_pricing_audit_changed_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13493,6 +14670,13 @@ CREATE INDEX idx_quittungen_offer_id ON public.quittungen USING btree (offer_id)
 
 
 --
+-- Name: idx_quittungen_payment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_quittungen_payment ON public.quittungen USING btree (payment_id) WHERE (payment_id IS NOT NULL);
+
+
+--
 -- Name: idx_quittungen_status; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13546,6 +14730,13 @@ CREATE INDEX idx_rechnungen_company_id ON public.rechnungen USING btree (company
 --
 
 CREATE INDEX idx_rechnungen_customer ON public.rechnungen USING btree (customer_id, datum DESC) WHERE (customer_id IS NOT NULL);
+
+
+--
+-- Name: idx_rechnungen_offen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_rechnungen_offen ON public.rechnungen USING btree (company_id, faellig_am) WHERE ((open_amount > (0)::numeric) AND (status <> 'entwurf'::text));
 
 
 --
@@ -13850,6 +15041,34 @@ CREATE TRIGGER calculate_spam_score_trigger BEFORE INSERT ON public.leads FOR EA
 
 
 --
+-- Name: credit_notes credit_notes_erben; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER credit_notes_erben BEFORE INSERT ON public.credit_notes FOR EACH ROW EXECUTE FUNCTION public.credit_notes_von_rechnung_erben();
+
+
+--
+-- Name: credit_notes credit_notes_set_nr; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER credit_notes_set_nr BEFORE INSERT ON public.credit_notes FOR EACH ROW EXECUTE FUNCTION public.generate_gutschrift_nr();
+
+
+--
+-- Name: credit_notes credit_notes_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER credit_notes_updated_at BEFORE UPDATE ON public.credit_notes FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+
+--
+-- Name: invoice_reminders invoice_reminders_erben; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER invoice_reminders_erben BEFORE INSERT ON public.invoice_reminders FOR EACH ROW EXECUTE FUNCTION public.invoice_reminders_sprache_erben();
+
+
+--
 -- Name: leads on_lead_high_spam_notify; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -13976,6 +15195,27 @@ CREATE TRIGGER trg_sync_auftrag_status_to_appointment AFTER UPDATE ON public.auf
 
 
 --
+-- Name: payment_allocations trigger_allocation_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_allocation_immutable BEFORE UPDATE ON public.payment_allocations FOR EACH ROW EXECUTE FUNCTION public.guard_allocation_immutable();
+
+
+--
+-- Name: payment_allocations trigger_allocation_rechnung_fortschreiben; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_allocation_rechnung_fortschreiben AFTER INSERT OR DELETE OR UPDATE ON public.payment_allocations FOR EACH ROW EXECUTE FUNCTION public.rechnung_zahlungsstand_fortschreiben();
+
+
+--
+-- Name: payment_allocations trigger_allocation_within_payment; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_allocation_within_payment AFTER INSERT OR UPDATE ON public.payment_allocations FOR EACH ROW EXECUTE FUNCTION public.guard_allocation_within_payment();
+
+
+--
 -- Name: appointments trigger_appointments_set_customer; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14025,6 +15265,13 @@ CREATE TRIGGER trigger_company_secrets_updated_at BEFORE UPDATE ON public.compan
 
 
 --
+-- Name: credit_notes trigger_credit_notes_fortschreiben; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_credit_notes_fortschreiben AFTER INSERT OR DELETE OR UPDATE ON public.credit_notes FOR EACH ROW EXECUTE FUNCTION public.rechnung_gutschriften_fortschreiben();
+
+
+--
 -- Name: crm_tasks trigger_crm_tasks_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14067,6 +15314,13 @@ CREATE TRIGGER trigger_generate_offer_number BEFORE INSERT ON public.offers FOR 
 
 
 --
+-- Name: credit_notes trigger_gutschrift_hoehe; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_gutschrift_hoehe AFTER INSERT OR UPDATE ON public.credit_notes FOR EACH ROW EXECUTE FUNCTION public.guard_gutschrift_hoehe();
+
+
+--
 -- Name: inbound_emails trigger_inbound_emails_set_customer; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14106,6 +15360,13 @@ CREATE TRIGGER trigger_leads_updated_at BEFORE UPDATE ON public.leads FOR EACH R
 --
 
 CREATE TRIGGER trigger_log_appointment_changes AFTER INSERT OR UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.log_appointment_changes();
+
+
+--
+-- Name: invoice_reminders trigger_mahnstufe_reihenfolge; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_mahnstufe_reihenfolge BEFORE INSERT ON public.invoice_reminders FOR EACH ROW EXECUTE FUNCTION public.guard_mahnstufe_reihenfolge();
 
 
 --
@@ -14165,6 +15426,20 @@ CREATE TRIGGER trigger_offers_set_series BEFORE INSERT ON public.offers FOR EACH
 
 
 --
+-- Name: payments trigger_payments_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_payments_append_only BEFORE DELETE OR UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION public.guard_payment_append_only();
+
+
+--
+-- Name: quittungen trigger_quittungen_bezahlt_buchung; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_quittungen_bezahlt_buchung BEFORE UPDATE ON public.quittungen FOR EACH ROW EXECUTE FUNCTION public.guard_quittung_bezahlt_braucht_buchung();
+
+
+--
 -- Name: quittungen trigger_quittungen_guard_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14183,6 +15458,13 @@ CREATE TRIGGER trigger_quittungen_guard_status BEFORE UPDATE OF status ON public
 --
 
 CREATE TRIGGER trigger_quittungen_set_customer BEFORE INSERT ON public.quittungen FOR EACH ROW EXECUTE FUNCTION public.beleg_set_customer();
+
+
+--
+-- Name: rechnungen trigger_rechnungen_bezahlt_deckung; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_rechnungen_bezahlt_deckung BEFORE UPDATE ON public.rechnungen FOR EACH ROW EXECUTE FUNCTION public.guard_rechnung_bezahlt_braucht_deckung();
 
 
 --
@@ -14718,6 +16000,30 @@ ALTER TABLE ONLY public.company_services
 
 
 --
+-- Name: credit_notes credit_notes_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.credit_notes
+    ADD CONSTRAINT credit_notes_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: credit_notes credit_notes_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.credit_notes
+    ADD CONSTRAINT credit_notes_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
+-- Name: credit_notes credit_notes_rechnung_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.credit_notes
+    ADD CONSTRAINT credit_notes_rechnung_fk FOREIGN KEY (rechnung_id, company_id) REFERENCES public.rechnungen(id, company_id) ON DELETE CASCADE;
+
+
+--
 -- Name: crm_tasks crm_tasks_assigned_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14830,6 +16136,14 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: gutschrift_nr_counter gutschrift_nr_counter_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gutschrift_nr_counter
+    ADD CONSTRAINT gutschrift_nr_counter_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
 -- Name: inbound_emails inbound_emails_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14851,6 +16165,22 @@ ALTER TABLE ONLY public.inbound_emails
 
 ALTER TABLE ONLY public.inbound_emails
     ADD CONSTRAINT inbound_emails_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE SET NULL;
+
+
+--
+-- Name: invoice_reminders invoice_reminders_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_reminders
+    ADD CONSTRAINT invoice_reminders_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: invoice_reminders invoice_reminders_rechnung_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_reminders
+    ADD CONSTRAINT invoice_reminders_rechnung_fk FOREIGN KEY (rechnung_id, company_id) REFERENCES public.rechnungen(id, company_id) ON DELETE CASCADE;
 
 
 --
@@ -15126,6 +16456,54 @@ ALTER TABLE ONLY public.offers
 
 
 --
+-- Name: payment_allocations payment_allocations_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_allocations
+    ADD CONSTRAINT payment_allocations_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payment_allocations payment_allocations_payment_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_allocations
+    ADD CONSTRAINT payment_allocations_payment_fk FOREIGN KEY (payment_id, company_id) REFERENCES public.payments(id, company_id) ON DELETE CASCADE;
+
+
+--
+-- Name: payment_allocations payment_allocations_rechnung_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_allocations
+    ADD CONSTRAINT payment_allocations_rechnung_fk FOREIGN KEY (rechnung_id, company_id) REFERENCES public.rechnungen(id, company_id) ON DELETE CASCADE;
+
+
+--
+-- Name: payments payments_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payments
+    ADD CONSTRAINT payments_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payments payments_customer_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payments
+    ADD CONSTRAINT payments_customer_fk FOREIGN KEY (customer_id, company_id) REFERENCES public.customers(id, company_id) ON DELETE SET NULL (customer_id);
+
+
+--
+-- Name: payments payments_reverses_payment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payments
+    ADD CONSTRAINT payments_reverses_payment_id_fkey FOREIGN KEY (reverses_payment_id) REFERENCES public.payments(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: profiles profiles_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15163,6 +16541,14 @@ ALTER TABLE ONLY public.quittungen
 
 ALTER TABLE ONLY public.quittungen
     ADD CONSTRAINT quittungen_offer_id_fkey FOREIGN KEY (offer_id) REFERENCES public.offers(id) ON DELETE SET NULL;
+
+
+--
+-- Name: quittungen quittungen_payment_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quittungen
+    ADD CONSTRAINT quittungen_payment_fk FOREIGN KEY (payment_id, company_id) REFERENCES public.payments(id, company_id) ON DELETE SET NULL (payment_id);
 
 
 --
@@ -16480,6 +17866,26 @@ CREATE POLICY cookie_consent_public_insert ON public.cookie_consent_log FOR INSE
 
 
 --
+-- Name: credit_notes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.credit_notes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: credit_notes credit_notes_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY credit_notes_select_member ON public.credit_notes FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: credit_notes credit_notes_write_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY credit_notes_write_owner_admin ON public.credit_notes TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
 -- Name: crm_tasks; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -16600,6 +18006,12 @@ CREATE POLICY firma_resources_write_owner_admin ON public.firma_resources TO aut
 
 
 --
+-- Name: gutschrift_nr_counter; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gutschrift_nr_counter ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: inbound_emails; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -16617,6 +18029,26 @@ CREATE POLICY inbound_emails_manage_member ON public.inbound_emails USING (publi
 --
 
 CREATE POLICY inbound_emails_select_admin ON public.inbound_emails FOR SELECT USING (public.is_admin(auth.uid()));
+
+
+--
+-- Name: invoice_reminders; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.invoice_reminders ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: invoice_reminders invoice_reminders_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY invoice_reminders_select_member ON public.invoice_reminders FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: invoice_reminders invoice_reminders_write_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY invoice_reminders_write_owner_admin ON public.invoice_reminders TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
 
 
 --
@@ -17065,6 +18497,60 @@ CREATE POLICY offers_select_member ON public.offers FOR SELECT USING (public.is_
 --
 
 CREATE POLICY offers_update_member ON public.offers FOR UPDATE USING (public.is_company_member(company_id));
+
+
+--
+-- Name: payment_allocations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.payment_allocations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: payment_allocations payment_allocations_delete_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payment_allocations_delete_owner_admin ON public.payment_allocations FOR DELETE TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
+-- Name: payment_allocations payment_allocations_insert_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payment_allocations_insert_owner_admin ON public.payment_allocations FOR INSERT TO authenticated WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
+-- Name: payment_allocations payment_allocations_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payment_allocations_select_member ON public.payment_allocations FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: payments; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: payments payments_insert_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payments_insert_owner_admin ON public.payments FOR INSERT TO authenticated WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
+
+
+--
+-- Name: payments payments_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payments_select_member ON public.payments FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
+-- Name: payments payments_update_owner_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY payments_update_owner_admin ON public.payments FOR UPDATE TO authenticated USING (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text])) WITH CHECK (public.is_company_role(company_id, ARRAY['owner'::text, 'admin'::text]));
 
 
 --

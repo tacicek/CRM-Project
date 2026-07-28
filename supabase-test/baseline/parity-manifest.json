@@ -1,7 +1,7 @@
 {
   "generated_from": "read-only prod --schema-only --schema=public dump (PostgreSQL 15.8), sanitized (siehe README)",
   "generated_at": "2026-07-28",
-  "covers_migrations_through": "20260728260000_pipeline_automatik",
+  "covers_migrations_through": "20260729170000_belegnummern_je_firma",
   "counting_recipe": {
     "hinweis": "Bis 2026-07-28 war nicht festgehalten, WIE die Zahlen entstanden — enums stand auf 28, was weder den 15 Enum-Typen noch den 84 Enum-Werten entspricht, und check_constraints auf 388, was weder den 68 echten CHECKs noch den 437 inkl. NOT NULL entspricht. Die alten Werte sind deshalb NICHT mit diesen vergleichbar. Ab hier stehen die Abfragen dabei, damit die naechste Auffrischung nichts raten muss.",
     "enums": "SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typtype='e'  -- Typen, nicht Werte",
@@ -20,15 +20,15 @@
   },
   "counts": {
     "enums": 15,
-    "tables": 81,
+    "tables": 86,
     "views": 6,
-    "indexes": 315,
-    "policies": 198,
-    "triggers": 76,
-    "functions": 170,
-    "foreign_keys": 124,
-    "check_constraints": 81,
-    "rls_enabled_tables": 81
+    "indexes": 335,
+    "policies": 208,
+    "triggers": 89,
+    "functions": 190,
+    "foreign_keys": 137,
+    "check_constraints": 96,
+    "rls_enabled_tables": 86
   },
   "enums": {
     "app_role": [
@@ -146,9 +146,9 @@
       "emergency"
     ]
   },
-  "column_fingerprint_md5": "59730f1e752012a0b8de96fcb44aa5df",
-  "policy_fingerprint_md5": "2f468decc8c1df5ce15daf704e6444cc",
-  "function_fingerprint_md5": "dd2416b07d8c718e7631414fd03f4024",
+  "column_fingerprint_md5": "eeba194f2ecdf333c545acfe16710b1e",
+  "policy_fingerprint_md5": "5ddc76a118f01d715da1fccd49eef389",
+  "function_fingerprint_md5": "6bd4d1e7cc97848e142699bd707bc0c3",
   "deliberate_test_differences": {
     "grants": "standard Supabase default grants re-added (dump used --no-privileges); RLS NOT changed",
     "reason_stubs": "no-op bodies: these made external HTTP/vault/cron calls; signatures preserved so dependents resolve",

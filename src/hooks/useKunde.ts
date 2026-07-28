@@ -20,11 +20,16 @@ export type KundeZusammenfassung = {
   >;
   pipeline: Record<"offerten_offen" | "offerten_akzeptiert" | "auftraege_offen", number>;
   /**
-   * `quittungen` steht bewusst NEBEN `bezahlt` und wird nicht addiert: eine
-   * Quittung belegt oft dieselbe Leistung wie eine Rechnung. `offen` ist eine
-   * Naeherung, bis es ein Zahlungsbuch gibt.
+   * Seit dem Zahlungsbuch (20260729160000) gibt es nur noch EINEN Umsatztopf:
+   * `bezahlt` ist die Summe der Zahlungseingaenge, `davon_quittungen` ein
+   * Ausschnitt daraus. Vorher standen zwei Summen nebeneinander und ein
+   * Kommentar war der einzige Schutz davor, sie zu addieren.
+   * `offen` kommt aus rechnungen.open_amount und kennt Teilzahlungen.
    */
-  finanzen: Record<"fakturiert" | "bezahlt" | "offen" | "quittungen", number>;
+  finanzen: Record<
+    "fakturiert" | "bezahlt" | "offen" | "davon_quittungen" | "gutschriften",
+    number
+  >;
   aktivitaet: {
     erster_kontakt: string | null;
     letzte_aktion: string | null;

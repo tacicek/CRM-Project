@@ -75,10 +75,12 @@ export const kunde = {
   "kunde.finance.invoiced": "Fakturiert",
   "kunde.finance.paid": "Bezahlt",
   "kunde.finance.open": "Offen",
-  "kunde.finance.receipts": "Quittungen",
-  // Erklaert, warum zwei Betraege nebeneinander stehen und nicht addiert werden.
+  "kunde.finance.receipts": "Davon Quittungen",
+  "kunde.finance.credits": "Gutschriften",
+  // Erklaert, dass 'Davon Quittungen' ein Ausschnitt aus 'Bezahlt' ist und
+  // kein zweiter Topf. Vor dem Zahlungsbuch waren es zwei getrennte Summen.
   "kunde.finance.hint":
-    "Quittungen werden separat ausgewiesen und nicht zum bezahlten Betrag addiert — sonst zählt derselbe Umsatz doppelt.",
+    "Bezahlt ist die Summe der erfassten Zahlungseingänge — Rechnung und Quittung zählen darin je einmal. „Davon Quittungen“ ist ein Anteil davon, kein zweiter Betrag.",
 
   "kunde.activity.first": "Erster Kontakt",
   "kunde.activity.last": "Letzte Aktion",

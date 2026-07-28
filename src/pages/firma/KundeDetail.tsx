@@ -256,7 +256,8 @@ export default function FirmaKundeDetail() {
                     ["kunde.finance.invoiced", finanzen?.fakturiert],
                     ["kunde.finance.paid", finanzen?.bezahlt],
                     ["kunde.finance.open", finanzen?.offen],
-                    ["kunde.finance.receipts", finanzen?.quittungen],
+                    ["kunde.finance.receipts", finanzen?.davon_quittungen],
+                    ["kunde.finance.credits", finanzen?.gutschriften],
                   ] as [MessageKey, number | undefined][]
                 ).map(([k, betrag]) => (
                   <div key={k} className="flex justify-between gap-3">

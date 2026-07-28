@@ -19,6 +19,7 @@ import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useQuittungen } from "@/hooks/useQuittungen";
+import { ZahlungErfassenDialog } from "@/components/firma/ZahlungErfassenDialog";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -102,7 +103,9 @@ export default function FirmaQuittungen() {
     bewertungs_url: company.bewertungs_url,
   } : null;
 
-  const { quittungen, loading: isLoading, updateQuittung, deleteQuittung } = useQuittungen(companyId);
+  const { quittungen, loading: isLoading, fetchQuittungen, updateQuittung, deleteQuittung } =
+    useQuittungen(companyId);
+  const [zahlungFuer, setZahlungFuer] = useState<Quittung | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | QuittungStatus>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -140,11 +143,17 @@ export default function FirmaQuittungen() {
     }
   };
 
-  const handleMarkPaid = async (id: string) => {
-    // E: keep the two payment indicators in sync — marking paid also clears the
-    // "noch offen" flag (otherwise the receipt shows "bezahlt" AND "Offen" at once).
-    const updated = await updateQuittung(id, { status: "paid", betrag_noch_offen: false });
-    if (updated) toast({ title: "Als bezahlt markiert" });
+  // Frueher setzte dieser Weg direkt `betrag_noch_offen = false` und der Umsatz
+  // dieser Liste stand neben dem der Rechnungen — dasselbe Geld zweimal. Seit
+  // 20260729130000 bescheinigt eine Quittung einen Zahlungseingang, und der
+  // braucht Datum und Weg. Beides fragt der Dialog; die DB lehnt den Haken ohne
+  // Buchung ab.
+  const handleMarkPaid = (q: Quittung) => setZahlungFuer(q);
+
+  const zahlungGebucht = async (id: string) => {
+    await updateQuittung(id, { status: "paid" });
+    setZahlungFuer(null);
+    fetchQuittungen();
   };
 
   const filtered = quittungen.filter(q => {
@@ -161,7 +170,9 @@ export default function FirmaQuittungen() {
     total: quittungen.length,
     signed: quittungen.filter(q => q.status === "signed").length,
     paid: quittungen.filter(q => q.status === "paid").length,
-    revenue: quittungen.filter(q => q.status === "paid")
+    // Nur was tatsaechlich gebucht ist. Der Status allein sagte frueher
+    // "bezahlt", ohne dass ein Eingang dahinterstand.
+    revenue: quittungen.filter(q => q.payment_id !== null)
       .reduce((s, q) => s + (q.gesamttotal || 0), 0),
   };
 
@@ -338,7 +349,7 @@ export default function FirmaQuittungen() {
                               {q.status !== "paid" && (
                                 <>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => handleMarkPaid(q.id)}>
+                                  <DropdownMenuItem onClick={() => handleMarkPaid(q)}>
                                     <CheckCircle className="mr-2 h-4 w-4 text-folk-mint" />
                                     Als bezahlt markieren
                                   </DropdownMenuItem>
@@ -383,6 +394,20 @@ export default function FirmaQuittungen() {
           </div>
         </section>
       </div>
+
+      {zahlungFuer && companyId && (
+        <ZahlungErfassenDialog
+          open
+          onOpenChange={(o) => !o && setZahlungFuer(null)}
+          companyId={companyId}
+          quittung={{
+            id: zahlungFuer.id,
+            nr: zahlungFuer.quittung_nr,
+            betrag: zahlungFuer.gesamttotal,
+          }}
+          onDone={() => zahlungGebucht(zahlungFuer.id)}
+        />
+      )}
     </>
   );
 }
