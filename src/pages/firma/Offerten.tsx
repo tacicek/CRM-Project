@@ -75,6 +75,28 @@ interface Offer {
   offerte_type?: string;
 }
 
+/**
+ * Die Spalten, die die Liste tatsächlich liest — genau die Felder von `Offer`.
+ *
+ * Vorher stand hier `select("*")`. `offers` hat 103 Spalten, darunter
+ * `calculation_data`, `service_details`, `resources` und `surcharges`: JSON,
+ * das in einer Tabellenzeile nie vorkommt. Das kostete 3,2 kB je Zeile, die
+ * PostgREST erst serialisieren und der Browser dann herunterladen musste.
+ *
+ * Die breite Zeile brauchte ohnehin niemand: `AuftragModal` bekommt nur die
+ * `offerId` und holt sich den Rest selbst, `sendOffer` ebenso, und der
+ * Kalender-Sprung nimmt `lead_id` und `title`. Wer mehr braucht, lädt es im
+ * Moment der Aktion — nicht für alle Zeilen auf Vorrat.
+ *
+ * Ein einziges Zeichenketten-Literal, bewusst in einer Zeile: der typisierte
+ * Client liest diese Zeichenkette beim Übersetzen und leitet daraus die
+ * Zeilenform ab. Ein Tippfehler im Spaltennamen ist damit ein Übersetzungs-
+ * fehler. Weder `[...].join()` noch `"a" + "b"` behalten den Literaltyp — beide
+ * werden zu `string` und nehmen genau diese Prüfung weg.
+ */
+// prettier-ignore
+const OFFER_LIST_SPALTEN = "id, offer_number, title, customer_first_name, customer_last_name, customer_email, subtotal, total, status, created_at, sent_at, valid_until, service_date, viewed_at, accepted_at, rejected_at, checklist_url, lead_id, language, price_model, kostendach_max, offerte_type";
+
 interface LeadInfo {
   id: string;
   service_type: string;
@@ -234,16 +256,31 @@ const FirmaOfferten = () => {
       if (!user || !companyId) return;
 
       try {
-        // Runde 1. Die Offerten und die Checklisten-Vorlagen wissen nichts
-        // voneinander — die Vorlagen haengen nur an der Firma. Nacheinander
-        // geholt kostete das einen Umlauf, den es nie brauchte.
+        // Ein einziger Umlauf.
+        //
+        // Vorher waren es zwei: erst die Offerten, dann vier Abfragen, die auf
+        // deren IDs warteten. Die Wartezeit war der halbe Aufbau der Seite —
+        // gemessen begann die zweite Runde erst nach 830ms.
+        //
+        // Drei der vier brauchten die IDs gar nicht, sie brauchten die Firma:
+        // `leads` und `auftraege` tragen `company_id`, und `email_logs` filterte
+        // ohnehin schon danach. Die vierte, `offer_items`, hat keine
+        // `company_id` — sie haengt jetzt als eingebettete Beziehung an den
+        // Offerten selbst und kommt mit ihnen zusammen an.
         const [
           { data: offersData, error: offersError },
           { data: checklistData },
+          { data: leadsData },
+          { data: auftraegeData },
+          { data: emailLogsData },
         ] = await Promise.all([
           supabase
             .from("offers")
-            .select("*")
+            // `offer_items(amount_basis)` ist keine zweite Abfrage, sondern ein
+            // Join im selben Umlauf. Welche Offerte einen rate-Posten hat, steht
+            // damit schon in der Antwort. amount_basis='rate' ist die exakte
+            // DB-Projektion der resolveAmountBasis-'rate'-Regel.
+            .select(`${OFFER_LIST_SPALTEN}, offer_items(amount_basis)`)
             .eq("company_id", companyId)
             .order("created_at", { ascending: false })
             .limit(200),
@@ -253,12 +290,30 @@ const FirmaOfferten = () => {
             .eq("company_id", companyId)
             .eq("is_active", true)
             .eq("include_in_offerte", true),
+          // Nach Firma statt nach der Liste der lead_ids: dieselbe Zuordnung,
+          // aber ohne auf die Offerten zu warten — und ohne eine URL mit
+          // achtundvierzig UUIDs darin.
+          supabase
+            .from("leads")
+            .select("id, service_type, from_city, from_plz, to_city, to_plz, from_rooms, from_living_space_m2, from_floor, from_has_lift, to_floor, to_has_lift, preferred_date")
+            .eq("company_id", companyId),
+          supabase.from("auftraege").select("offer_id").eq("company_id", companyId),
+          // Ohne den Filter auf `metadata->>offer_id`: ein JSON-Pfad hat keinen
+          // Index, die Bedingung zwang zu einem vollen Durchgang mit
+          // JSON-Auswertung je Zeile. Auf welche Offerten es ankommt, entscheidet
+          // ohnehin erst der Filter unten — das war schon vorher so.
+          supabase
+            .from("email_logs")
+            .select("metadata")
+            .eq("email_type", "offer_sent")
+            .eq("company_id", companyId),
         ]);
 
         if (offersError) throw offersError;
         if (!isMounted) return;
 
-        setOffers(offersData || []);
+        const offersArr = offersData || [];
+        setOffers(offersArr);
 
         if (checklistData) {
           const map: Record<string, string> = {};
@@ -268,70 +323,31 @@ const FirmaOfferten = () => {
           setChecklistMap(map);
         }
 
-        const offersArr = offersData || [];
         const calculatedStats: OfferStats = {
           total: offersArr.length,
-          draft: offersArr.filter((o: Offer) => o.status === 'draft').length,
-          sent: offersArr.filter((o: Offer) => o.status === 'sent').length,
-          viewed: offersArr.filter((o: Offer) => o.status === 'viewed').length,
-          accepted: offersArr.filter((o: Offer) => o.status === 'accepted').length,
-          rejected: offersArr.filter((o: Offer) => o.status === 'rejected').length,
-          totalValue: offersArr.reduce((sum: number, o: Offer) => sum + Number(o.total || 0), 0),
-          acceptedValue: offersArr.filter((o: Offer) => o.status === 'accepted').reduce((sum: number, o: Offer) => sum + Number(o.total || 0), 0),
+          draft: offersArr.filter((o) => o.status === 'draft').length,
+          sent: offersArr.filter((o) => o.status === 'sent').length,
+          viewed: offersArr.filter((o) => o.status === 'viewed').length,
+          accepted: offersArr.filter((o) => o.status === 'accepted').length,
+          rejected: offersArr.filter((o) => o.status === 'rejected').length,
+          totalValue: offersArr.reduce((sum, o) => sum + Number(o.total || 0), 0),
+          acceptedValue: offersArr.filter((o) => o.status === 'accepted').reduce((sum, o) => sum + Number(o.total || 0), 0),
         };
         setStats(calculatedStats);
 
-        // Runde 2. Vier Abfragen, die alle nur IDs aus Runde 1 brauchen und
-        // sonst nichts voneinander. Sie liefen bisher hintereinander: vier
-        // Umlaeufe fuer Daten, die gleichzeitig unterwegs sein koennen.
-        const allOfferIds = offersArr.map((o: Offer) => o.id).filter(Boolean);
-        const leadIds = offersArr.map((o: Offer) => o.lead_id).filter(Boolean);
-        const acceptedOfferIds = offersArr
-          .filter((o: Offer) => o.status === "accepted")
-          .map((o: Offer) => o.id);
-        const sentOfferIds = offersArr.filter((o: Offer) => o.sent_at).map((o: Offer) => o.id);
+        // Die rate-Posten kommen eingebettet mit — kein eigener Zugriff mehr.
+        setRateOfferIds(
+          new Set<string>(
+            offersArr
+              .filter((o) => o.offer_items.some((item) => item.amount_basis === "rate"))
+              .map((o) => o.id),
+          ),
+        );
 
-        // The JSON-path `.in(...)` filter makes the chained builder's return type
-        // excessively deep (TS2589). Stopping the inferred chain at a plain `.select()` and
-        // handing the JSON filter to an untyped-column helper keeps the server-side filter
-        // identical while cutting the generic depth.
-        const emailLogsBase = supabase
-          .from("email_logs")
-          .select("metadata")
-          .eq("email_type", "offer_sent")
-          .eq("company_id", companyId);
-
-        const [rateItemsResult, leadsResult, auftraegeResult, emailLogsResult] = await Promise.all([
-          // Welche dieser Offerten haben mindestens einen rate-Posten? amount_basis='rate' ist die
-          // exakte DB-Projektion der resolveAmountBasis-'rate'-Regel (rate ist immer explizit).
-          allOfferIds.length > 0
-            ? supabase.from("offer_items").select("offer_id").eq("amount_basis", "rate").in("offer_id", allOfferIds)
-            : null,
-          leadIds.length > 0
-            ? supabase
-                .from("leads")
-                .select("id, service_type, from_city, from_plz, to_city, to_plz, from_rooms, from_living_space_m2, from_floor, from_has_lift, to_floor, to_has_lift, preferred_date")
-                .in("id", leadIds)
-            : null,
-          // Welche angenommenen Offerten haben bereits einen Auftrag?
-          acceptedOfferIds.length > 0
-            ? supabase.from("auftraege").select("offer_id").in("offer_id", acceptedOfferIds)
-            : null,
-          sentOfferIds.length > 0 ? emailLogsBase.in("metadata->>offer_id", sentOfferIds) : null,
-        ]);
-
-        if (!isMounted) return;
-
-        if (rateItemsResult?.data) {
-          setRateOfferIds(
-            new Set<string>(rateItemsResult.data.map((r: { offer_id: string }) => r.offer_id).filter(Boolean)),
-          );
-        }
-
-        if (leadsResult?.data) {
+        if (leadsData) {
           const serviceMap: Record<string, string> = {};
           const infoMap: Record<string, LeadInfo> = {};
-          leadsResult.data.forEach((lead: LeadInfo) => {
+          leadsData.forEach((lead: LeadInfo) => {
             serviceMap[lead.id] = lead.service_type;
             infoMap[lead.id] = lead;
           });
@@ -339,15 +355,27 @@ const FirmaOfferten = () => {
           setLeadInfoMap(infoMap);
         }
 
-        if (auftraegeResult?.data) {
+        // Die Abfrage liefert jetzt alle Auftraege der Firma; die Menge wird
+        // hier wieder auf die angenommenen Offerten verengt. So bleibt die
+        // Bedeutung dieselbe wie zuvor: das Menue unterscheidet weiterhin genau
+        // dann, wenn eine angenommene Offerte schon einen Auftrag hat.
+        if (auftraegeData) {
+          const angenommene = new Set(
+            offersArr.filter((o) => o.status === "accepted").map((o) => o.id),
+          );
           setOffersWithAuftrag(
-            new Set<string>(auftraegeResult.data.map((a: { offer_id: string }) => a.offer_id).filter(Boolean)),
+            new Set<string>(
+              auftraegeData
+                .map((a: { offer_id: string | null }) => a.offer_id)
+                .filter((id): id is string => id !== null && angenommene.has(id)),
+            ),
           );
         }
 
-        if (emailLogsResult?.data) {
+        const sentOfferIds = offersArr.filter((o) => o.sent_at).map((o) => o.id);
+        if (emailLogsData) {
           const logsMap: Record<string, EmailLogInfo> = {};
-          emailLogsResult.data
+          emailLogsData
             .filter((log: { metadata: { offer_id?: string; from_email?: string; is_company_email?: boolean } | null }) =>
               log.metadata?.offer_id && sentOfferIds.includes(log.metadata.offer_id)
             )
