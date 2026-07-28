@@ -669,6 +669,17 @@ Umfang:
   Kundendokumenten ändert.
 - **Screenshots neu erzeugen** für Übersicht, Seitenleiste, Kopfzeile und die
   Mobilansichten: `npm run wiki:capture`.
+
+  > **Offen und blockierend für die Bebilderung.** Die beiden Mobil-Abbildungen
+  > (`dashboard-uebersicht-mobile-v1`) zeigten Hamburger und ausklappbare
+  > Seitenleiste — beides gibt es nicht mehr. Sie wurden **entfernt**, nicht
+  > ersetzt: ein Bild, das eine verschwundene Schaltfläche zeigt, schickt genau
+  > die Benutzer in die Irre, für die dieses Wiki geschrieben ist.
+  >
+  > Der Text beschreibt die neue Bedienung vollständig. Die Bilder kommen
+  > zurück, sobald `npm run wiki:capture` gelaufen ist — das braucht die lokale
+  > Wiki-Datenbank (`npm run wiki:db:up`) und liess sich in dieser Sitzung nicht
+  > ausführen.
 - **Aufnahme-Skript festnageln:** die Aufnahme muss `crm:theme` auf `light` erzwingen.
   Sonst entscheidet das Systemtheme der aufnehmenden Maschine, ob die Bilder hell oder
   dunkel werden — und das Wiki bekäme bei jedem Lauf ein anderes Aussehen.

@@ -105,14 +105,6 @@ const body = {
       id: "unterwegs",
       text: "En déplacement, sur téléphone",
     },
-    {
-      kind: "figure",
-      src: "/wiki/screenshots/fr/dashboard-uebersicht-mobile-v1.webp",
-      width: 780,
-      height: 1688,
-      caption: "La même vue d'ensemble sur un téléphone portable.",
-      alt: "La vue d'ensemble sur un écran étroit. Les tuiles sont empilées, le menu latéral est masqué et s'ouvre par une icône en haut à gauche.",
-    },
   ],
 
   whatHappensNext: [

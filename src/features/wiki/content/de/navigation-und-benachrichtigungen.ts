@@ -119,21 +119,47 @@ const body = {
       text: "Am Mobiltelefon",
     },
     {
-      kind: "figure",
-      src: "/wiki/screenshots/de/dashboard-uebersicht-mobile-v1.webp",
-      width: 780,
-      height: 1688,
-      caption: "Am Handy ist die Seitenleiste ausgeblendet.",
-      alt: "Das Programm auf einem schmalen Bildschirm. Oben links ein Menüsymbol mit drei Strichen, das die Seitenleiste einblendet.",
+      kind: "paragraph",
+      text: "Auf einem schmalen Bildschirm gibt es die Seitenleiste nicht. An ihre Stelle tritt eine Leiste am unteren Rand mit den fünf wichtigsten Zielen. Der letzte Knopf heisst «Mehr» und öffnet alle übrigen Bereiche.",
     },
     {
       kind: "steps",
       steps: [
-        { text: "Tippen Sie oben links auf das Symbol mit den drei Strichen." },
-        { text: "Die Seitenleiste schiebt sich über die Seite." },
+        { text: "Tippen Sie unten auf Übersicht, Anfragen, Offerten oder Kalender, um dorthin zu wechseln." },
         {
-          text: "Tippen Sie auf einen Menüpunkt oder daneben, um sie wieder zu schliessen.",
-          note: "Nach dem Antippen eines Menüpunkts schliesst sie sich von selbst.",
+          text: "Für alles andere tippen Sie unten rechts auf «Mehr».",
+          note: "Dort stehen Kundschaft, Finanzen, Aufträge, Rechnungen und die Verwaltung — dieselben Punkte wie in der Seitenleiste am Rechner.",
+        },
+        { text: "Zum Schliessen ziehen Sie das Fenster nach unten oder tippen daneben." },
+        {
+          text: "Oben links suchen Sie mit der Lupe.",
+          note: "Sie durchsucht dieselben Ziele wie das Suchfeld am Rechner.",
+        },
+      ],
+    },
+    {
+      kind: "callout",
+      tone: "tip",
+      title: "Der runde Knopf unten rechts",
+      text: "Er legt eine neue Anfrage an. Er liegt über der Liste und bleibt immer sichtbar.",
+    },
+    {
+      kind: "heading",
+      id: "erscheinungsbild",
+      text: "Helles und dunkles Erscheinungsbild",
+    },
+    {
+      kind: "paragraph",
+      text: "Sie können zwischen einer hellen und einer dunklen Darstellung wählen. Die Einstellung gilt nur für Ihre eigene Ansicht des Programms — an Offerten, Rechnungen und E-Mails an Ihre Kundschaft ändert sich nichts.",
+    },
+    {
+      kind: "steps",
+      steps: [
+        { text: "Am Rechner: oben rechts auf Ihren Namen tippen, dann unter «Erscheinungsbild» wählen." },
+        { text: "Am Mobiltelefon: unten auf «Mehr», dann ganz unten «Erscheinungsbild»." },
+        {
+          text: "«Wie das System» übernimmt die Einstellung Ihres Geräts.",
+          note: "Stellt Ihr Telefon abends automatisch auf dunkel um, folgt das Programm mit.",
         },
       ],
     },

@@ -116,24 +116,50 @@ const body = {
     {
       kind: "heading",
       id: "am-handy",
-      text: "On a phone",
+      text: "On the phone",
     },
     {
-      kind: "figure",
-      src: "/wiki/screenshots/en/dashboard-uebersicht-mobile-v1.webp",
-      width: 780,
-      height: 1688,
-      caption: "On a phone the side menu is hidden.",
-      alt: "The program on a narrow screen. An icon with three lines in the top left brings up the side menu.",
+      kind: "paragraph",
+      text: "On a narrow screen there is no sidebar. A bar along the bottom takes its place, holding the five most important destinations. The last button is called \u201cMore\u201d and opens everything else.",
     },
     {
       kind: "steps",
       steps: [
-        { text: "Tap the icon with three lines in the top left." },
-        { text: "The side menu slides over the page." },
+        { text: "Tap Overview, Requests, Quotes or Calendar at the bottom to go there." },
         {
-          text: "Tap an entry, or beside the menu, to close it again.",
-          note: "After tapping an entry it closes by itself.",
+          text: "For anything else, tap \u201cMore\u201d at the bottom right.",
+          note: "It holds customers, finances, jobs, invoices and administration — the same entries as the sidebar on a computer.",
+        },
+        { text: "To close it, drag the panel down or tap beside it." },
+        {
+          text: "The magnifier at the top left searches.",
+          note: "It covers the same destinations as the search field on a computer.",
+        },
+      ],
+    },
+    {
+      kind: "callout",
+      tone: "tip",
+      title: "The round button at the bottom right",
+      text: "It creates a new request. It floats above the list and stays visible.",
+    },
+    {
+      kind: "heading",
+      id: "erscheinungsbild",
+      text: "Light and dark appearance",
+    },
+    {
+      kind: "paragraph",
+      text: "You can switch between a light and a dark appearance. The setting only affects your own view of the program — quotes, invoices and emails to your customers stay the same.",
+    },
+    {
+      kind: "steps",
+      steps: [
+        { text: "On a computer: tap your name at the top right, then choose under \u201cAppearance\u201d." },
+        { text: "On a phone: tap \u201cMore\u201d at the bottom, then \u201cAppearance\u201d at the very bottom." },
+        {
+          text: "\u201cMatch system\u201d follows your device setting.",
+          note: "If your phone switches to dark in the evening, the program follows.",
         },
       ],
     },

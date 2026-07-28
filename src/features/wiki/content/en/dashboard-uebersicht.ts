@@ -105,14 +105,6 @@ const body = {
       id: "unterwegs",
       text: "On a phone",
     },
-    {
-      kind: "figure",
-      src: "/wiki/screenshots/en/dashboard-uebersicht-mobile-v1.webp",
-      width: 780,
-      height: 1688,
-      caption: "The same overview on a mobile phone.",
-      alt: "The overview on a narrow screen. The tiles are stacked, the side menu is hidden and opens from an icon in the top left.",
-    },
   ],
 
   whatHappensNext: [

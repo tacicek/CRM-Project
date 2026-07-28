@@ -116,24 +116,50 @@ const body = {
     {
       kind: "heading",
       id: "am-handy",
-      text: "Sur téléphone",
+      text: "Sur le téléphone",
     },
     {
-      kind: "figure",
-      src: "/wiki/screenshots/fr/dashboard-uebersicht-mobile-v1.webp",
-      width: 780,
-      height: 1688,
-      caption: "Sur téléphone, le menu latéral est masqué.",
-      alt: "Le programme sur un écran étroit. En haut à gauche, une icône à trois traits fait apparaître le menu latéral.",
+      kind: "paragraph",
+      text: "Sur un écran étroit, la barre latérale n'existe pas. Une barre en bas de l'écran la remplace, avec les cinq destinations principales. Le dernier bouton s'appelle « Plus » et ouvre toutes les autres sections.",
     },
     {
       kind: "steps",
       steps: [
-        { text: "Touchez l'icône à trois traits en haut à gauche." },
-        { text: "Le menu latéral glisse par-dessus la page." },
+        { text: "Touchez en bas Aperçu, Demandes, Offres ou Calendrier pour y aller." },
         {
-          text: "Touchez une entrée ou à côté du menu pour le refermer.",
-          note: "Après avoir touché une entrée, il se referme tout seul.",
+          text: "Pour tout le reste, touchez « Plus » en bas à droite.",
+          note: "Vous y trouvez les clients, les finances, les mandats, les factures et l'administration — les mêmes entrées que dans la barre latérale sur ordinateur.",
+        },
+        { text: "Pour fermer, faites glisser la fenêtre vers le bas ou touchez à côté." },
+        {
+          text: "En haut à gauche, la loupe sert à chercher.",
+          note: "Elle parcourt les mêmes destinations que le champ de recherche sur ordinateur.",
+        },
+      ],
+    },
+    {
+      kind: "callout",
+      tone: "tip",
+      title: "Le bouton rond en bas à droite",
+      text: "Il crée une nouvelle demande. Il flotte au-dessus de la liste et reste toujours visible.",
+    },
+    {
+      kind: "heading",
+      id: "erscheinungsbild",
+      text: "Apparence claire et sombre",
+    },
+    {
+      kind: "paragraph",
+      text: "Vous pouvez choisir entre un affichage clair et un affichage sombre. Ce réglage ne concerne que votre propre vue du programme — les offres, les factures et les courriels envoyés à vos clients restent inchangés.",
+    },
+    {
+      kind: "steps",
+      steps: [
+        { text: "Sur ordinateur : touchez votre nom en haut à droite, puis choisissez sous « Apparence »." },
+        { text: "Sur téléphone : « Plus » en bas, puis « Apparence » tout en bas." },
+        {
+          text: "« Comme le système » reprend le réglage de votre appareil.",
+          note: "Si votre téléphone passe au sombre le soir, le programme suit.",
         },
       ],
     },

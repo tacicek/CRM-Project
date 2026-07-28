@@ -336,6 +336,13 @@ const main = async () => {
     await context.addInitScript(([key, value]) => {
       try { window.localStorage.setItem(key, value); } catch { /* private mode */ }
     }, ["crm_ui_locale", locale]);
+    // Erscheinungsbild festnageln. Ohne das entscheidet die Systemeinstellung
+    // der aufnehmenden Maschine, ob die Bilder hell oder dunkel werden — das
+    // Wiki bekaeme bei jedem Lauf ein anderes Aussehen, je nachdem wer es
+    // startet. Die Artikel beschreiben die helle Darstellung.
+    await context.addInitScript(([key, value]) => {
+      try { window.localStorage.setItem(key, value); } catch { /* private mode */ }
+    }, ["crm:theme", "light"]);
     // Belt and braces on top of [edge_runtime] being disabled: nothing may call out.
     await context.route("**/functions/v1/**", (route) => route.abort("blockedbyclient"));
     return context;
