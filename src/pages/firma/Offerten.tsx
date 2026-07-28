@@ -234,31 +234,38 @@ const FirmaOfferten = () => {
       if (!user || !companyId) return;
 
       try {
-        const { data: offersData, error: offersError } = await supabase
-          .from("offers")
-          .select("*")
-          .eq("company_id", companyId)
-          .order("created_at", { ascending: false })
-          .limit(200);
+        // Runde 1. Die Offerten und die Checklisten-Vorlagen wissen nichts
+        // voneinander — die Vorlagen haengen nur an der Firma. Nacheinander
+        // geholt kostete das einen Umlauf, den es nie brauchte.
+        const [
+          { data: offersData, error: offersError },
+          { data: checklistData },
+        ] = await Promise.all([
+          supabase
+            .from("offers")
+            .select("*")
+            .eq("company_id", companyId)
+            .order("created_at", { ascending: false })
+            .limit(200),
+          supabase
+            .from("checklist_templates")
+            .select("service_type, title")
+            .eq("company_id", companyId)
+            .eq("is_active", true)
+            .eq("include_in_offerte", true),
+        ]);
 
         if (offersError) throw offersError;
         if (!isMounted) return;
 
         setOffers(offersData || []);
 
-        // Welche dieser Offerten haben mindestens einen rate-Posten? amount_basis='rate' ist die
-        // exakte DB-Projektion der resolveAmountBasis-'rate'-Regel (rate ist immer explizit).
-        const allOfferIds = (offersData || []).map((o: Offer) => o.id).filter(Boolean);
-        if (allOfferIds.length > 0) {
-          const { data: rateItemsData } = await supabase
-            .from("offer_items")
-            .select("offer_id")
-            .eq("amount_basis", "rate")
-            .in("offer_id", allOfferIds);
-          if (!isMounted) return;
-          setRateOfferIds(
-            new Set<string>((rateItemsData || []).map((r: { offer_id: string }) => r.offer_id).filter(Boolean)),
-          );
+        if (checklistData) {
+          const map: Record<string, string> = {};
+          checklistData.forEach((template: ChecklistTemplate) => {
+            map[template.service_type] = template.title;
+          });
+          setChecklistMap(map);
         }
 
         const offersArr = offersData || [];
@@ -274,90 +281,86 @@ const FirmaOfferten = () => {
         };
         setStats(calculatedStats);
 
-        const { data: checklistData } = await supabase
-          .from("checklist_templates")
-          .select("service_type, title")
-          .eq("company_id", companyId)
-          .eq("is_active", true)
-          .eq("include_in_offerte", true);
-
-        if (!isMounted) return;
-        if (checklistData) {
-          const map: Record<string, string> = {};
-          checklistData.forEach((template: ChecklistTemplate) => {
-            map[template.service_type] = template.title;
-          });
-          setChecklistMap(map);
-        }
-
-        const leadIds = (offersData || []).map((o: Offer) => o.lead_id).filter(Boolean);
-        if (leadIds.length > 0) {
-          const { data: leadsData } = await supabase
-            .from("leads")
-            .select("id, service_type, from_city, from_plz, to_city, to_plz, from_rooms, from_living_space_m2, from_floor, from_has_lift, to_floor, to_has_lift, preferred_date")
-            .in("id", leadIds);
-
-          if (!isMounted) return;
-          if (leadsData) {
-            const serviceMap: Record<string, string> = {};
-            const infoMap: Record<string, LeadInfo> = {};
-            leadsData.forEach((lead: LeadInfo) => {
-              serviceMap[lead.id] = lead.service_type;
-              infoMap[lead.id] = lead;
-            });
-            setLeadServiceTypes(serviceMap);
-            setLeadInfoMap(infoMap);
-          }
-        }
-
-        // Fetch which accepted offers already have an auftrag
-        const acceptedOfferIds = (offersData || [])
+        // Runde 2. Vier Abfragen, die alle nur IDs aus Runde 1 brauchen und
+        // sonst nichts voneinander. Sie liefen bisher hintereinander: vier
+        // Umlaeufe fuer Daten, die gleichzeitig unterwegs sein koennen.
+        const allOfferIds = offersArr.map((o: Offer) => o.id).filter(Boolean);
+        const leadIds = offersArr.map((o: Offer) => o.lead_id).filter(Boolean);
+        const acceptedOfferIds = offersArr
           .filter((o: Offer) => o.status === "accepted")
           .map((o: Offer) => o.id);
-        if (acceptedOfferIds.length > 0) {
-          const { data: auftraegeData } = await supabase
-            .from("auftraege")
-            .select("offer_id")
-            .in("offer_id", acceptedOfferIds);
-          if (!isMounted) return;
-          const withAuftragSet = new Set<string>(
-            (auftraegeData || []).map((a: { offer_id: string }) => a.offer_id).filter(Boolean)
+        const sentOfferIds = offersArr.filter((o: Offer) => o.sent_at).map((o: Offer) => o.id);
+
+        // The JSON-path `.in(...)` filter makes the chained builder's return type
+        // excessively deep (TS2589). Stopping the inferred chain at a plain `.select()` and
+        // handing the JSON filter to an untyped-column helper keeps the server-side filter
+        // identical while cutting the generic depth.
+        const emailLogsBase = supabase
+          .from("email_logs")
+          .select("metadata")
+          .eq("email_type", "offer_sent")
+          .eq("company_id", companyId);
+
+        const [rateItemsResult, leadsResult, auftraegeResult, emailLogsResult] = await Promise.all([
+          // Welche dieser Offerten haben mindestens einen rate-Posten? amount_basis='rate' ist die
+          // exakte DB-Projektion der resolveAmountBasis-'rate'-Regel (rate ist immer explizit).
+          allOfferIds.length > 0
+            ? supabase.from("offer_items").select("offer_id").eq("amount_basis", "rate").in("offer_id", allOfferIds)
+            : null,
+          leadIds.length > 0
+            ? supabase
+                .from("leads")
+                .select("id, service_type, from_city, from_plz, to_city, to_plz, from_rooms, from_living_space_m2, from_floor, from_has_lift, to_floor, to_has_lift, preferred_date")
+                .in("id", leadIds)
+            : null,
+          // Welche angenommenen Offerten haben bereits einen Auftrag?
+          acceptedOfferIds.length > 0
+            ? supabase.from("auftraege").select("offer_id").in("offer_id", acceptedOfferIds)
+            : null,
+          sentOfferIds.length > 0 ? emailLogsBase.in("metadata->>offer_id", sentOfferIds) : null,
+        ]);
+
+        if (!isMounted) return;
+
+        if (rateItemsResult?.data) {
+          setRateOfferIds(
+            new Set<string>(rateItemsResult.data.map((r: { offer_id: string }) => r.offer_id).filter(Boolean)),
           );
-          setOffersWithAuftrag(withAuftragSet);
         }
 
-        const sentOffers = (offersData || []).filter((o: Offer) => o.sent_at);
-        if (sentOffers.length > 0) {
-          const offerIds = sentOffers.map((o: Offer) => o.id);
-          // The JSON-path `.in(...)` filter makes the chained builder's return type
-          // excessively deep (TS2589). Stopping the inferred chain at a plain `.select()` and
-          // handing the JSON filter to an untyped-column helper keeps the server-side filter
-          // identical while cutting the generic depth.
-          const emailLogsBase = supabase
-            .from("email_logs")
-            .select("metadata")
-            .eq("email_type", "offer_sent")
-            .eq("company_id", companyId);
-          const { data: emailLogsData } = await emailLogsBase.in("metadata->>offer_id", offerIds);
+        if (leadsResult?.data) {
+          const serviceMap: Record<string, string> = {};
+          const infoMap: Record<string, LeadInfo> = {};
+          leadsResult.data.forEach((lead: LeadInfo) => {
+            serviceMap[lead.id] = lead.service_type;
+            infoMap[lead.id] = lead;
+          });
+          setLeadServiceTypes(serviceMap);
+          setLeadInfoMap(infoMap);
+        }
 
-          if (!isMounted) return;
-          if (emailLogsData) {
-            const logsMap: Record<string, EmailLogInfo> = {};
-            emailLogsData
-              .filter((log: { metadata: { offer_id?: string; from_email?: string; is_company_email?: boolean } | null }) =>
-                log.metadata?.offer_id && offerIds.includes(log.metadata.offer_id)
-              )
-              .forEach((log: { metadata: { offer_id?: string; from_email?: string; is_company_email?: boolean } | null }) => {
-                if (log.metadata?.offer_id) {
-                  logsMap[log.metadata.offer_id] = {
-                    offer_id: log.metadata.offer_id,
-                    from_email: log.metadata.from_email || 'System',
-                    is_company_email: log.metadata.is_company_email || false,
-                  };
-                }
-              });
-            setEmailLogs(logsMap);
-          }
+        if (auftraegeResult?.data) {
+          setOffersWithAuftrag(
+            new Set<string>(auftraegeResult.data.map((a: { offer_id: string }) => a.offer_id).filter(Boolean)),
+          );
+        }
+
+        if (emailLogsResult?.data) {
+          const logsMap: Record<string, EmailLogInfo> = {};
+          emailLogsResult.data
+            .filter((log: { metadata: { offer_id?: string; from_email?: string; is_company_email?: boolean } | null }) =>
+              log.metadata?.offer_id && sentOfferIds.includes(log.metadata.offer_id)
+            )
+            .forEach((log: { metadata: { offer_id?: string; from_email?: string; is_company_email?: boolean } | null }) => {
+              if (log.metadata?.offer_id) {
+                logsMap[log.metadata.offer_id] = {
+                  offer_id: log.metadata.offer_id,
+                  from_email: log.metadata.from_email || 'System',
+                  is_company_email: log.metadata.is_company_email || false,
+                };
+              }
+            });
+          setEmailLogs(logsMap);
         }
       } catch (error) {
         console.error("Error fetching offers:", error);
