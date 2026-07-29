@@ -49,6 +49,8 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.list.sender.system": "Système",
   "offer.list.sender.companyTooltip": "E-mail de l'entreprise : {email}",
   "offer.list.sender.systemTooltip": "E-mail système",
+  "offer.list.version.superseded": "remplacée",
+  "offer.list.version.badge": "v{n}",
   "offer.list.badge.blind": "À l'aveugle",
   "offer.list.badge.kostendachMax": "Plafond de coûts {amount}",
   "offer.list.moreOptions": "Plus d'options",

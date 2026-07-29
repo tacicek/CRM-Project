@@ -73,6 +73,10 @@ interface Offer {
   price_model?: string;
   kostendach_max?: number | null;
   offerte_type?: string;
+  /** Fassung innerhalb der Serie. 1, solange niemand eine Revision angelegt hat. */
+  version_number: number;
+  /** Gesetzt, sobald eine neuere Fassung existiert — dann ist DIESE nicht mehr die geltende. */
+  superseded_at: string | null;
 }
 
 /**
@@ -95,7 +99,7 @@ interface Offer {
  * werden zu `string` und nehmen genau diese Prüfung weg.
  */
 // prettier-ignore
-const OFFER_LIST_SPALTEN = "id, offer_number, title, customer_first_name, customer_last_name, customer_email, subtotal, total, status, created_at, sent_at, valid_until, service_date, viewed_at, accepted_at, rejected_at, checklist_url, lead_id, language, price_model, kostendach_max, offerte_type";
+const OFFER_LIST_SPALTEN = "id, offer_number, title, customer_first_name, customer_last_name, customer_email, subtotal, total, status, created_at, sent_at, valid_until, service_date, viewed_at, accepted_at, rejected_at, checklist_url, lead_id, language, price_model, kostendach_max, offerte_type, version_number, superseded_at";
 
 interface LeadInfo {
   id: string;
@@ -413,6 +417,34 @@ const FirmaOfferten = () => {
   const showCurrency = (amount: number) => formatCurrency(amount, locale);
 
   // Status icon (mapped to a Lucide icon for desktop table reusability)
+  /**
+   * Fassung und Ueberholung einer Offerte.
+   *
+   * Erscheint nur, wenn sie etwas zu sagen hat. Eine nie ueberarbeitete Offerte
+   * traegt `version_number = 1` und kein `superseded_at` — dort waere ein "v1"
+   * blosses Rauschen.
+   *
+   * Sobald jemand eine Revision anlegt, tragen BEIDE Zeilen dieselbe
+   * Offertennummer: `create_offer_revision` uebernimmt sie bewusst, denn fuer
+   * den Kunden ist es dieselbe Offerte, nur neu aufgelegt. Ohne diese Marke
+   * standen sie als zwei gleich aussehende Zeilen in der Liste und niemand
+   * konnte sehen, welche gilt — genau daran ist die Liste aufgefallen.
+   */
+  const VersionMarke = ({ offer }: { offer: Offer }) => {
+    const ueberholt = offer.superseded_at !== null;
+    if (!ueberholt && offer.version_number <= 1) return null;
+    return (
+      <span
+        className={`shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[9.5px] font-semibold ${
+          ueberholt ? "bg-folk-bg-warm text-folk-ink4" : "bg-folk-sky-bg text-folk-sky"
+        }`}
+      >
+        {t("offer.list.version.badge", { n: String(offer.version_number) })}
+        {ueberholt && ` · ${t("offer.list.version.superseded")}`}
+      </span>
+    );
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "draft": return FileText;
@@ -431,7 +463,11 @@ const FirmaOfferten = () => {
     return (
       <article
         key={offer.id}
-        className="overflow-hidden rounded-xl border border-folk-line bg-folk-card transition-colors hover:border-folk-ink5"
+        // Ueberholte Fassungen bleiben lesbar, treten aber zurueck: sie sind
+        // Beleg dafuer, was der Kunde gesehen hat, nicht der aktuelle Stand.
+        className={`overflow-hidden rounded-xl border border-folk-line bg-folk-card transition-colors hover:border-folk-ink5 ${
+          offer.superseded_at !== null ? "opacity-65" : ""
+        }`}
       >
         <div className="p-4">
           {/* Header */}
@@ -444,6 +480,7 @@ const FirmaOfferten = () => {
                 <span className="shrink-0 font-mono text-[10.5px] text-folk-ink4">
                   #{offer.offer_number ?? offer.id.slice(0, 6).toUpperCase()}
                 </span>
+                <VersionMarke offer={offer} />
                 <p className="line-clamp-1 min-w-0 text-[15px] font-semibold leading-tight tracking-tight text-folk-ink">
                   {offer.title}
                 </p>
@@ -843,11 +880,18 @@ const FirmaOfferten = () => {
                               return (
                                 <TableRow
                                   key={offer.id}
-                                  className="cursor-pointer border-folk-line-soft transition-colors hover:bg-folk-bg-warm"
+                                  // Ueberholte Fassungen treten zurueck, verschwinden aber nicht:
+                                  // sie belegen, was der Kunde gesehen hat.
+                                  className={`cursor-pointer border-folk-line-soft transition-colors hover:bg-folk-bg-warm ${
+                                    offer.superseded_at !== null ? "opacity-65" : ""
+                                  }`}
                                   onClick={() => navigate(`/firma/offerten/${offer.id}`)}
                                 >
                                   <TableCell className="font-mono text-[12.5px] font-medium text-folk-ink3">
-                                    {offer.offer_number ?? offer.id.slice(0, 6).toUpperCase()}
+                                    <span className="flex flex-wrap items-center gap-1.5">
+                                      {offer.offer_number ?? offer.id.slice(0, 6).toUpperCase()}
+                                      <VersionMarke offer={offer} />
+                                    </span>
                                   </TableCell>
                                   <TableCell className="font-mono text-[12.5px] text-folk-ink2">
                                     {showDate(offer.created_at)}

@@ -61,6 +61,8 @@ export const offer = {
   "offer.list.sender.system": "System",
   "offer.list.sender.companyTooltip": "Firmen-E-Mail: {email}",
   "offer.list.sender.systemTooltip": "System-E-Mail",
+  "offer.list.version.superseded": "überholt",
+  "offer.list.version.badge": "v{n}",
   "offer.list.badge.blind": "Blind",
   "offer.list.badge.kostendachMax": "Kostendach {amount}",
   "offer.list.moreOptions": "Mehr Optionen",
