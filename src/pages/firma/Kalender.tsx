@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Calendar, dateFnsLocalizer, View, Views } from "react-big-calendar";
 import withDragAndDrop, { EventInteractionArgs } from "react-big-calendar/lib/addons/dragAndDrop";
-import { format, parse, startOfWeek, getDay, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays } from "date-fns";
+import { format, parse, startOfWeek, getDay, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, startOfMonth, endOfMonth, differenceInCalendarMonths } from "date-fns";
 import { de, fr, enGB } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
@@ -134,17 +134,34 @@ interface Appointment {
  * kommen im Kalender nicht vor und wurden mit `select("*")` trotzdem fuer jede
  * Zeile mitgeschickt.
  *
- * Was hier NICHT geloest ist: die Abfrage holt weiterhin alle Termine der Firma
- * ohne Zeitgrenze. Ein Kalender zeigt einen Monat — mit den Jahren waechst die
- * Antwort, ohne dass mehr zu sehen waere. Ein Datumsfenster waere die richtige
- * Antwort, aendert aber das Verhalten beim Blaettern zwischen den Monaten und
- * gehoert deshalb in eine eigene Entscheidung.
- *
  * Ein einziges Zeichenketten-Literal, damit der typisierte Client die
  * Spaltennamen beim Uebersetzen prueft.
  */
 // prettier-ignore
 const APPOINTMENT_SPALTEN = "id, company_id, lead_id, offer_id, appointment_type, status, appointment_date, start_time, end_time, duration_minutes, all_day, location_address, location_plz, location_city, location_notes, customer_first_name, customer_last_name, customer_email, customer_phone, title, description, internal_notes, assigned_team_member_ids, required_vehicles, required_equipment, reminder_sent_firma, reminder_sent_customer, confirmed_by_firma, confirmed_by_customer, created_at, is_recurring, parent_appointment_id, recurrence_pattern";
+
+/**
+ * Wie viele Monate vor und nach dem angezeigten Monat geladen werden.
+ *
+ * Die Abfrage holte vorher alle Termine der Firma, ohne Zeitgrenze. Sichtbar
+ * ist aber immer nur ein Monat, und was waechst, ist die Vergangenheit: bei
+ * vierzig Terminen im Monat sind es nach zwei Jahren rund tausend Zeilen, die
+ * bei jedem Oeffnen des Kalenders mitkommen, ohne dass mehr zu sehen waere.
+ *
+ * Zwei Monate Rand sind grosszuegig genug, dass ein Blaettern um einen Monat nie
+ * nachladen muss — und dass das Monatsraster seine ueberstehenden Tage aus dem
+ * Vor- und Folgemonat immer schon hat.
+ */
+const FENSTER_MONATE = 2;
+
+/**
+ * Ab welchem Abstand das Fenster neu ausgerichtet wird.
+ *
+ * Kleiner als `FENSTER_MONATE`: so bleibt der angezeigte Monat immer im
+ * geladenen Bereich, auch waehrend nachgeladen wird. Wer weiterblaettert,
+ * loest erst nach dem zweiten Monat eine neue Abfrage aus.
+ */
+const FENSTER_NACHZIEHEN_AB = 1;
 
 interface CalendarEvent {
   id: string;
@@ -232,25 +249,104 @@ const KalenderPage = () => {
 
   // Company ID loaded from cache - no additional fetch needed
 
+  // Mitte des geladenen Zeitraums. Sie zieht dem angezeigten Monat nach, aber
+  // erst wenn er den Rand erreicht — sonst laege bei jedem Blaettern eine neue
+  // Abfrage an.
+  const [fensterMitte, setFensterMitte] = useState(() => startOfMonth(new Date()));
+
+  useEffect(() => {
+    if (Math.abs(differenceInCalendarMonths(currentDate, fensterMitte)) > FENSTER_NACHZIEHEN_AB) {
+      setFensterMitte(startOfMonth(currentDate));
+    }
+  }, [currentDate, fensterMitte]);
+
+  const fensterVon = format(startOfMonth(subMonths(fensterMitte, FENSTER_MONATE)), "yyyy-MM-dd");
+  const fensterBis = format(endOfMonth(addMonths(fensterMitte, FENSTER_MONATE)), "yyyy-MM-dd");
+
+  /**
+   * Laufende Nummer der juengsten Abfrage.
+   *
+   * Seit das Fenster wandert, sind nacheinander gestellte Abfragen nicht mehr
+   * austauschbar — jede gehoert zu einem anderen Zeitraum. Sie kommen aber
+   * nicht in der Reihenfolge zurueck, in der sie gestellt wurden: beim
+   * schnellen Blaettern wurde nachgemessen, wie vier Abfragen in einer
+   * Sekunde losgingen und die zweite als letzte antwortete. Ohne diese Nummer
+   * schreibt die zuletzt eingetroffene Antwort, nicht die zuletzt gestellte —
+   * der Kalender zeigte dann einen Monat mit den Terminen eines anderen.
+   *
+   * Solange das Fenster fest war, fiel das nicht auf: alle Antworten trugen
+   * dieselben Daten.
+   */
+  const abfrageNummer = useRef(0);
+
   const fetchAppointments = useCallback(async () => {
     if (!companyId) return;
+    const meine = ++abfrageNummer.current;
+    const istVeraltet = () => meine !== abfrageNummer.current;
+
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("appointments")
         .select(APPOINTMENT_SPALTEN)
         .eq("company_id", companyId)
+        .gte("appointment_date", fensterVon)
+        .lte("appointment_date", fensterBis)
         .order("appointment_date", { ascending: true });
 
       if (error) throw error;
+      if (istVeraltet()) return;
       setAppointments((data as Appointment[]) || []);
     } catch (e) {
+      // Auch der Fehler einer ueberholten Abfrage gehoert nicht mehr auf den
+      // Schirm: er beschreibt einen Zeitraum, den niemand mehr ansieht.
+      if (istVeraltet()) return;
       console.error("Error fetching appointments:", e);
       toast.error(t("calendar.toast.loadFailed"));
     } finally {
-      setLoading(false);
+      // `loading` gehoert der juengsten Abfrage. Sonst raeumt eine ueberholte
+      // den Ladezustand weg, waehrend die aktuelle noch unterwegs ist.
+      if (!istVeraltet()) setLoading(false);
     }
-  }, [companyId, t]);
+  }, [companyId, t, fensterVon, fensterBis]);
+
+  /**
+   * Die drei Zahlen der Kopfzeile.
+   *
+   * Eigene Abfragen und nicht aus der geladenen Liste gerechnet: die Liste
+   * kennt nur noch das Fenster. Wer im Kalender ins naechste Jahr blaettert,
+   * haette sonst "0 heute" gelesen, weil heute ausserhalb des Fensters liegt —
+   * und "offen" zaehlt ohnehin ueber alle Zeiten, nicht ueber einen Monat.
+   *
+   * `head: true` heisst: nur zaehlen, keine Zeilen uebertragen. Diese Abfragen
+   * bleiben deshalb gleich gross, egal wie viele Termine dazukommen.
+   */
+  const [kennzahlen, setKennzahlen] = useState({ heute: 0, offen: 0, dieseWoche: 0 });
+
+  const fetchKennzahlen = useCallback(async () => {
+    if (!companyId) return;
+    const jetzt = new Date();
+    const heute = format(jetzt, "yyyy-MM-dd");
+    const wochenStart = startOfWeek(jetzt, { weekStartsOn: 1 });
+    const wochenStartStr = format(wochenStart, "yyyy-MM-dd");
+    const wochenEndeStr = format(addDays(wochenStart, 6), "yyyy-MM-dd");
+
+    const [heuteErgebnis, offenErgebnis, wocheErgebnis] = await Promise.all([
+      supabase.from("appointments").select("*", { count: "exact", head: true })
+        .eq("company_id", companyId).eq("appointment_date", heute),
+      supabase.from("appointments").select("*", { count: "exact", head: true })
+        .eq("company_id", companyId).eq("status", "pending"),
+      supabase.from("appointments").select("*", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .gte("appointment_date", wochenStartStr).lte("appointment_date", wochenEndeStr),
+    ]);
+
+    setKennzahlen({
+      heute: heuteErgebnis.count ?? 0,
+      offen: offenErgebnis.count ?? 0,
+      dieseWoche: wocheErgebnis.count ?? 0,
+    });
+  }, [companyId]);
 
   const fetchTeamMembers = useCallback(async () => {
     if (!companyId) return;
@@ -272,6 +368,25 @@ const KalenderPage = () => {
     fetchAppointments();
     fetchTeamMembers();
   }, [fetchAppointments, fetchTeamMembers]);
+
+  // Eigener Effekt: die Zahlen haengen an der Firma, nicht am Fenster. Beim
+  // Blaettern durch die Monate bleiben sie deshalb stehen, statt dreimal
+  // dasselbe nachzuzaehlen.
+  useEffect(() => {
+    fetchKennzahlen();
+  }, [fetchKennzahlen]);
+
+  /**
+   * Nach einer Aenderung neu laden.
+   *
+   * Beides zusammen: eine neue oder verschobene Buchung aendert die Liste des
+   * Fensters und die Zahlen der Kopfzeile. Wer nur das eine auffrischt,
+   * hinterlaesst einen Zaehler, der nicht mehr zur Ansicht passt.
+   */
+  const neuLaden = useCallback(() => {
+    fetchAppointments();
+    fetchKennzahlen();
+  }, [fetchAppointments, fetchKennzahlen]);
 
   const events: CalendarEvent[] = useMemo(() => {
     return appointments
@@ -523,7 +638,7 @@ const KalenderPage = () => {
 
       if (error) throw error;
       toast.success(t("calendar.toast.confirmed"));
-      fetchAppointments();
+      neuLaden();
       setSelectedEvent(null);
     } catch (e) {
       console.error("Error confirming appointment:", e);
@@ -552,7 +667,7 @@ const KalenderPage = () => {
 
       if (error) throw error;
       toast.success(isSeries ? t("calendar.toast.seriesCancelled") : t("calendar.toast.cancelled"));
-      fetchAppointments();
+      neuLaden();
       setSelectedEvent(null);
     } catch (e) {
       console.error("Error cancelling appointment:", e);
@@ -572,7 +687,7 @@ const KalenderPage = () => {
 
       if (error) throw error;
       toast.success(t("calendar.toast.completed"));
-      fetchAppointments();
+      neuLaden();
       setSelectedEvent(null);
     } catch (e) {
       console.error("Error completing appointment:", e);
@@ -641,27 +756,15 @@ const KalenderPage = () => {
     [t]
   );
 
-  // Stats - using useMemo to avoid recalculation on every render
-  const todayAppointments = useMemo(() =>
-    appointments.filter(a => a.appointment_date === format(new Date(), "yyyy-MM-dd")).length,
-    [appointments]
-  );
-  const pendingAppointments = useMemo(() =>
-    appointments.filter(a => a.status === "pending").length,
-    [appointments]
-  );
-  // FIX: Week calculation was mutating the Date object causing incorrect results
-  const thisWeekAppointments = useMemo(() => {
-    const now = new Date();
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday start
-    const weekEnd = addDays(weekStart, 6); // Sunday end
-
-    // appointment_date is a yyyy-MM-dd string. Comparing strings avoids new Date() parsing
-    // it as UTC midnight (= 02:00 local in CEST), which pushed Sunday past the local weekEnd.
-    const startStr = format(weekStart, "yyyy-MM-dd");
-    const endStr = format(weekEnd, "yyyy-MM-dd");
-    return appointments.filter(a => a.appointment_date >= startStr && a.appointment_date <= endStr).length;
-  }, [appointments]);
+  // Die Zahlen kommen aus `fetchKennzahlen`, nicht mehr aus der geladenen
+  // Liste — die kennt seit dem Fenster nur noch fuenf Monate. Die Woche wird
+  // dort weiterhin ueber Zeichenketten begrenzt: `appointment_date` ist ein
+  // yyyy-MM-dd-Wert, und `new Date()` darauf laese ihn als UTC-Mitternacht
+  // (= 02:00 lokal in MESZ), was den Sonntag hinter das lokale Wochenende
+  // geschoben hatte.
+  const todayAppointments = kennzahlen.heute;
+  const pendingAppointments = kennzahlen.offen;
+  const thisWeekAppointments = kennzahlen.dieseWoche;
 
   return (
     <>
@@ -1188,7 +1291,7 @@ const KalenderPage = () => {
             initialType={modalInitialType}
             initialTitle={modalInitialTitle}
             onSaved={() => {
-              fetchAppointments();
+              neuLaden();
               setIsModalOpen(false);
             }}
           />
