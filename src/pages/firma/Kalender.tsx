@@ -126,6 +126,26 @@ interface Appointment {
   recurrence_pattern: string | null;
 }
 
+/**
+ * Die Spalten, die der Kalender liest — genau die Felder von `Appointment`.
+ *
+ * `appointments` hat achtundvierzig Spalten; vierzehn davon (Absage- und
+ * Verschiebungsvermerke, Erinnerungszeitpunkte, Wiederholungsende, Ort-Verweis)
+ * kommen im Kalender nicht vor und wurden mit `select("*")` trotzdem fuer jede
+ * Zeile mitgeschickt.
+ *
+ * Was hier NICHT geloest ist: die Abfrage holt weiterhin alle Termine der Firma
+ * ohne Zeitgrenze. Ein Kalender zeigt einen Monat — mit den Jahren waechst die
+ * Antwort, ohne dass mehr zu sehen waere. Ein Datumsfenster waere die richtige
+ * Antwort, aendert aber das Verhalten beim Blaettern zwischen den Monaten und
+ * gehoert deshalb in eine eigene Entscheidung.
+ *
+ * Ein einziges Zeichenketten-Literal, damit der typisierte Client die
+ * Spaltennamen beim Uebersetzen prueft.
+ */
+// prettier-ignore
+const APPOINTMENT_SPALTEN = "id, company_id, lead_id, offer_id, appointment_type, status, appointment_date, start_time, end_time, duration_minutes, all_day, location_address, location_plz, location_city, location_notes, customer_first_name, customer_last_name, customer_email, customer_phone, title, description, internal_notes, assigned_team_member_ids, required_vehicles, required_equipment, reminder_sent_firma, reminder_sent_customer, confirmed_by_firma, confirmed_by_customer, created_at, is_recurring, parent_appointment_id, recurrence_pattern";
+
 interface CalendarEvent {
   id: string;
   title: string;
@@ -218,7 +238,7 @@ const KalenderPage = () => {
     try {
       const { data, error } = await supabase
         .from("appointments")
-        .select("*")
+        .select(APPOINTMENT_SPALTEN)
         .eq("company_id", companyId)
         .order("appointment_date", { ascending: true });
 
