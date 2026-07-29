@@ -19,19 +19,34 @@ const untabbedQuickLinks = FIRMA_QUICK_LINKS.filter(
   (item) => item.mobileTab !== true && isVisible(item),
 );
 
+/**
+ * Eine Zeile des Menues.
+ *
+ * Die Hoehe kommt aus der Polsterung und dem Symbolkasten, nicht allein aus
+ * `min-h`: eine Zeile, die ihre Groesse aus dem Inhalt bezieht, laesst sich
+ * nicht von einer fremden Regel flachdruecken. Genau das war passiert — eine
+ * globale Regel setzte auf Touch-Geraeten `min-height: auto` fuer jeden `<a>`,
+ * und die Zeilen fielen auf Texthoehe zusammen (siehe `index.css`).
+ *
+ * Das Symbol sitzt in einem eigenen Kasten. Das ist nicht nur Zierde: er gibt
+ * dem Daumen eine sichtbare Flaeche und trennt die Zeilen voneinander, statt
+ * sie nur durch einen Haarstrich zu scheiden.
+ */
 const NavRow = ({ item, onNavigate }: { item: FirmaNavItem; onNavigate: () => void }) => {
   const t = useT();
   return (
     <Link
       to={item.url}
       onClick={onNavigate}
-      className="flex min-h-[48px] items-center gap-3 border-b border-folk-line-soft px-3.5 text-[13.5px] text-folk-ink2 last:border-b-0 active:bg-folk-bg-warm"
+      className="flex min-h-[56px] items-center gap-3.5 border-b border-folk-line-soft px-4 py-3 text-[14.5px] text-folk-ink2 last:border-b-0 active:bg-folk-bg-warm"
     >
-      <item.icon
-        className="h-4 w-4 shrink-0 text-folk-ink3"
-        strokeWidth={1.8}
-        aria-hidden="true"
-      />
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-folk-bg-warm">
+        <item.icon
+          className="h-[18px] w-[18px] text-folk-ink3"
+          strokeWidth={1.8}
+          aria-hidden="true"
+        />
+      </span>
       <span className="flex-1 truncate">{t(item.titleKey)}</span>
       <ChevronRight className="h-4 w-4 shrink-0 text-folk-ink4" aria-hidden="true" />
     </Link>
@@ -81,13 +96,19 @@ const ThemeRows = () => {
               type="button"
               onClick={() => setTheme(option.value)}
               aria-pressed={active}
-              className="flex min-h-[48px] w-full items-center gap-3 border-b border-folk-line-soft px-3.5 text-left text-[13.5px] text-folk-ink2 last:border-b-0 active:bg-folk-bg-warm"
+              className="flex min-h-[56px] w-full items-center gap-3.5 border-b border-folk-line-soft px-4 py-3 text-left text-[14.5px] text-folk-ink2 last:border-b-0 active:bg-folk-bg-warm"
             >
-              <option.icon
-                className={`h-4 w-4 shrink-0 ${active ? "text-folk-mint" : "text-folk-ink3"}`}
-                strokeWidth={1.8}
-                aria-hidden="true"
-              />
+              <span
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
+                  active ? "bg-folk-mint-bg" : "bg-folk-bg-warm"
+                }`}
+              >
+                <option.icon
+                  className={`h-[18px] w-[18px] ${active ? "text-folk-mint" : "text-folk-ink3"}`}
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+              </span>
               <span className="flex-1">{t(option.labelKey)}</span>
               {active && <Check className="h-4 w-4 shrink-0 text-folk-mint" aria-hidden="true" />}
             </button>

@@ -281,9 +281,25 @@
       min-width: 44px;
     }
 
-    /* But allow smaller inline elements */
-    a:not(.btn):not([class*="button"]) {
+    /* Fliesstext-Links sollen keinen 44px-Kasten bekommen — ein Link mitten im
+     * Satz ist kein Ziel, das man mit dem Daumen sucht.
+     *
+     * Die Ausnahme nimmt aber Links aus, die ihre Hoehe selbst angeben. Vorher
+     * tat sie das nicht, und weil ein Elementselektor mit zwei :not() (0,2,1)
+     * staerker waegt als eine Utility-Klasse (0,1,0), gewann sie gegen jedes
+     * `min-h-*`. Auf dem Telefon verlor damit JEDER `<a>` seine Hoehe: die
+     * Zeilen im Mehr-Sheet fielen auf Texthoehe zusammen, die Ziele der
+     * unteren Leiste ebenso. Am Rechner fiel es nicht auf, weil `pointer:
+     * coarse` dort gar nicht zutrifft — auch nicht beim Verkleinern des
+     * Fensters.
+     *
+     * Getrennt nach Hoehe und Breite, damit ein `min-w-*` nicht die Hoehe
+     * rettet und umgekehrt. */
+    a:not(.btn):not([class*="button"]):not([class*="min-h-"]) {
       min-height: auto;
+    }
+
+    a:not(.btn):not([class*="button"]):not([class*="min-w-"]) {
       min-width: auto;
     }
   }
