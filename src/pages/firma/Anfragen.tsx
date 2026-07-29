@@ -69,6 +69,25 @@ interface Lead {
   detailed_form_data: Record<string, unknown> | null;
 }
 
+/**
+ * Die Spalten, die die Liste liest — genau die Felder von `Lead`.
+ *
+ * Vorher stand hier `select("*")`. `leads` hat 127 Spalten, und das Gewicht lag
+ * nicht einmal in den Werten: bei 66 Zeilen wog allein das Wiederholen der
+ * Spaltennamen mit ihren `null`-Werten den groesseren Teil der 270kB. Die
+ * schmale Auswahl traegt dasselbe, was die Seite anzeigt.
+ *
+ * `detailed_form_data` bleibt drin, obwohl die Liste es nicht zeigt: der
+ * Bearbeiten-Dialog gleicht es beim Speichern ab und bekommt die Zeile von
+ * hier. Es sind rund 52kB — wer die Seite weiter druecken will, laedt es erst
+ * beim Oeffnen des Dialogs.
+ *
+ * Ein einziges Zeichenketten-Literal, damit der typisierte Client die
+ * Spaltennamen beim Uebersetzen prueft.
+ */
+// prettier-ignore
+const LEAD_LIST_SPALTEN = "id, customer_id, sales_stage, next_action_at, customer_first_name, customer_last_name, customer_email, customer_phone, service_type, language, from_plz, from_city, from_rooms, from_living_space_m2, to_plz, to_city, preferred_date, description, status, created_at, detailed_form_data";
+
 // Folk-style service groups — emoji + flat coral/mint/violet/lemon/sky/rose accent.
 // The visible label is no longer stored here: it comes from getServiceLabel(key, locale)
 // so the operator's dashboard language decides it.
@@ -171,34 +190,36 @@ const FirmaAnfragen = () => {
     if (!companyId) return;
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("leads")
-        .select("*")
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
+      // Beide Abfragen zusammen statt nacheinander. Die Offerten hingen an den
+      // IDs der Leads, brauchten aber nur die Firma — `offers` traegt
+      // `company_id`, und die Leads sind ohnehin die derselben Firma. Der
+      // zweite Umlauf begann dadurch erst, wenn der erste fertig war.
+      const [{ data, error }, { data: offers }] = await Promise.all([
+        supabase
+          .from("leads")
+          .select(LEAD_LIST_SPALTEN)
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("offers")
+          .select("id, lead_id, offer_number, status, created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false }),
+      ]);
 
       if (error) throw error;
       const rows = (data as Lead[]) || [];
       setLeads(rows);
 
-      // Fetch offers for these leads → match the most recent offer for each lead
-      const leadIds = rows.map((l) => l.id);
-      if (leadIds.length > 0) {
-        const { data: offers } = await supabase
-          .from("offers")
-          .select("id, lead_id, offer_number, status, created_at")
-          .in("lead_id", leadIds)
-          .order("created_at", { ascending: false });
-        const map: Record<string, { id: string; offer_number: number | null; status: string }> = {};
-        for (const o of offers ?? []) {
-          if (o.lead_id && !map[o.lead_id]) {
-            map[o.lead_id] = { id: o.id, offer_number: o.offer_number, status: o.status };
-          }
+      // Absteigend sortiert, erster Treffer je Lead gewinnt — das ist die
+      // juengste Offerte. Unveraendert gegenueber vorher.
+      const map: Record<string, { id: string; offer_number: number | null; status: string }> = {};
+      for (const o of offers ?? []) {
+        if (o.lead_id && !map[o.lead_id]) {
+          map[o.lead_id] = { id: o.id, offer_number: o.offer_number, status: o.status };
         }
-        setLeadOffers(map);
-      } else {
-        setLeadOffers({});
       }
+      setLeadOffers(map);
     } catch (err) {
       console.error("Error fetching leads:", err);
       toast({
