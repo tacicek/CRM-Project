@@ -9,7 +9,39 @@
 | Coolify path | `/data/coolify/services/aw0c0w440o8k0cccokow0csw/` |
 | DB kullanıcı | `postgres` |
 | DB adı | `postgres` |
-| DB şifre | `9rOpP6kv1FGkRd1Cu4nvNzkKTxO1t6sd` |
+| DB şifre | **burada durmuyor** — aşağıya bak |
+
+
+### DB parolası nerede duruyor (2026-07-30)
+
+**Tek kaynak Coolify'dır.** Bu dosyada, başka bir dokümanda ya da repoda
+herhangi bir yerde parolanın kopyası tutulmaz.
+
+Okumak için (sunucuda):
+```bash
+grep '^SERVICE_PASSWORD_POSTGRES=' \
+  /data/coolify/services/aw0c0w440o8k0cccokow0csw/.env
+```
+
+Compose bu **tek** değişkenden türetiyor: `PGRST_DB_URI` (PostgREST),
+`GOTRUE_DB_DATABASE_URL` (Auth), `DATABASE_URL` (Storage), `DB_PASSWORD`
+(Realtime/Analytics), `PG_META_DB_PASSWORD`, `SUPABASE_DB_URL` (Edge
+Functions). Parolası olan yedi rolün hepsi aynı değeri taşıyor:
+`postgres`, `authenticator`, `pgbouncer`, `supabase_admin`,
+`supabase_auth_admin`, `supabase_functions_admin`, `supabase_storage_admin`.
+
+⚠️ **Aynı `.env` içinde dört yanıltıcı anahtar var:** `POSTGRES_PASSWORD`,
+`DB_PASSWORD`, `PGPASSWORD`, `PG_META_DB_PASSWORD`. Bunlar **eski, artık
+geçersiz** 28 karakterlik bir değer taşıyor ve compose onları kullanmıyor —
+compose her yerde `${SERVICE_PASSWORD_POSTGRES}` yazıyor. Bir sorunu teşhis
+ederken bu dördüne bakıp yanlış sonuca varma.
+
+Parola değiştirme: `scripts/rotate-db-password.sh` (varsayılan kuru
+çalıştırma; yedi rolü, `.env`'i ve yukarıdaki dört kalıntıyı birlikte günceller).
+
+> **Geçmiş not:** Bu dosya 2026-07-30'a kadar canlı parolayı düz metin
+> taşıyordu ve o hâliyle git geçmişinde duruyor. Geçmişi yeniden yazmak
+> gerekmiyor — parola döndürüldüğünde oradaki değer kendiliğinden değersizleşir.
 
 ---
 
@@ -25,7 +57,7 @@ MCP ayarları `~/.cursor/mcp.json` dosyasında tanımlı (iki sunucu var):
       "args": [
         "-y",
         "@modelcontextprotocol/server-postgres",
-        "postgresql://postgres:9rOpP6kv1FGkRd1Cu4nvNzkKTxO1t6sd@localhost:5433/postgres"
+        "postgresql://postgres:<DB_PAROLASI>@localhost:5433/postgres"
       ]
     },
     "selfhosted-supabase": {
@@ -36,7 +68,7 @@ MCP ayarları `~/.cursor/mcp.json` dosyasında tanımlı (iki sunucu var):
         "--url", "http://213.199.45.205:8000",
         "--anon-key", "<ANON_KEY>",
         "--service-key", "<SERVICE_ROLE_KEY>",
-        "--db-url", "postgresql://postgres:<DB_PASS>@localhost:5433/postgres"
+        "--db-url", "postgresql://postgres:<DB_PAROLASI>@localhost:5433/postgres"
       ]
     }
   }
