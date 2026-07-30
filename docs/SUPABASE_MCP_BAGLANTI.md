@@ -39,6 +39,24 @@ ederken bu dördüne bakıp yanlış sonuca varma.
 Parola değiştirme: `scripts/rotate-db-password.sh` (varsayılan kuru
 çalıştırma; yedi rolü, `.env`'i ve yukarıdaki dört kalıntıyı birlikte günceller).
 
+**2026-07-30'da bir kez çalıştırıldı.** Öğrenilenler betiğin içine yazıldı,
+ama tekrar edecek olan bilsin:
+
+- `postgres` bu kurulumda **süperkullanıcı değil** (`rolsuper=f`). `authenticator`
+  gibi ayrılmış rolleri yalnızca `supabase_admin` değiştirebiliyor.
+- `pg_hba`'da `host all all 127.0.0.1/32 trust` var. Container içinden
+  loopback'e bağlanırken Postgres **parola sormuyor** — o yoldan yapılan her
+  doğrulama, uydurma bir parola için bile başarılı döner. Gerçek kontrol için
+  container IP'si üzerinden bağlan (`10.0.0.0/8` → `scram-sha-256`) ve önce
+  kasten yanlış bir parolayla dene.
+- `docker compose up -d --force-recreate <liste>` çağrısında `supabase-db`
+  listede olmasa bile `depends_on` üzerinden kapsama giriyor. Sonrasında
+  `supabase-analytics` sağlık kontrolünde geç kalıp zinciri bloke edebiliyor;
+  ikinci bir `docker compose up -d` kalanları ayağa kaldırıyor.
+- Veritabanı yeniden yaratılınca **IP'si değişiyor** ve 5432'nin önündeki nginx
+  proxy adı yalnızca başlangıçta çözdüğü için boşa bakar kalıyor:
+  `docker restart x0ww444o440wgkkw04s0s8c8-proxy`
+
 > **Geçmiş not:** Bu dosya 2026-07-30'a kadar canlı parolayı düz metin
 > taşıyordu ve o hâliyle git geçmişinde duruyor. Geçmişi yeniden yazmak
 > gerekmiyor — parola döndürüldüğünde oradaki değer kendiliğinden değersizleşir.

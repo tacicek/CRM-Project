@@ -14,6 +14,12 @@
 #   Derselbe Wert steht im versionierten docs/SUPABASE_MCP_BAGLANTI.md und
 #   damit in der Git-Historie. Das ist der Grund fuer diesen Wechsel.
 #
+# WER DIE ROLLEN AENDERN DARF
+#   NICHT `postgres` — der ist hier kein Superuser (nachgemessen: rolsuper=f).
+#   Reservierte Rollen wie `authenticator` weist Postgres sonst mit
+#   "is a reserved role, only superusers can modify it" ab. Superuser ist
+#   allein `supabase_admin`; ueber den laufen die ALTER-Anweisungen.
+#
 # WARUM ES EINE LUECKE GIBT
 #   Postgres kennt pro Rolle genau ein Passwort. Zwischen `ALTER ROLE` und dem
 #   Neustart der Dienste mit dem neuen Wert schlagen NEUE Verbindungen fehl.
@@ -152,15 +158,32 @@ trap 'rm -f "\$d"' EXIT
   echo 'COMMIT;'
 } > "\$d"
 docker cp "\$d" supabase-db-$STACK:/tmp/rot.sql
-docker exec supabase-db-$STACK psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f /tmp/rot.sql
+docker exec supabase-db-$STACK psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -q -f /tmp/rot.sql
 docker exec supabase-db-$STACK rm -f /tmp/rot.sql
 STDIN
   echo "   alle 7 Rollen umgestellt"
 fi
 
 # --- 5. Dienste mit dem neuen Wert hochfahren -------------------------------
-sag "5/6  Stack neu erstellen, damit die Container den neuen Wert bekommen"
-tun "cd /data/coolify/services/$STACK && docker compose up -d --force-recreate"
+sag "5/6  Die CLIENTS neu erstellen — die Datenbank bleibt stehen"
+# supabase-db steht bewusst nicht in der Liste — die Datenbank braucht die
+# neue Umgebung nicht, das Passwort wurde ja in ihr selbst geaendert.
+#
+# ABER: compose zieht sie ueber `depends_on` trotzdem mit hinein. Beim Lauf am
+# 2026-07-30 wurde sie neu erstellt, obwohl sie nicht aufgefuehrt war. Zwei
+# Folgen, auf die man vorbereitet sein muss:
+#   - supabase-analytics braucht danach laenger, als die Healthcheck-Geduld
+#     von compose reicht; der Aufruf bricht mit "dependency failed to start"
+#     ab, obwohl nichts kaputt ist. Ein zweites `docker compose up -d` holt
+#     die uebrigen Container hoch.
+#   - die Datenbank bekommt eine neue Container-IP. Der nginx-Proxy vor 5432
+#     loest den Namen nur beim Start auf und zeigt danach ins Leere; er muss
+#     neu gestartet werden:
+#         docker restart x0ww444o440wgkkw04s0s8c8-proxy
+CLIENTS="supabase-rest supabase-auth supabase-storage supabase-meta \
+         supabase-analytics realtime-dev supabase-edge-functions \
+         supabase-supavisor supabase-kong supabase-studio"
+tun "cd /data/coolify/services/$STACK && docker compose up -d --force-recreate $CLIENTS"
 
 # --- 6. Nachweis ------------------------------------------------------------
 sag "6/6  Nachweis"
@@ -173,25 +196,45 @@ else
 
   # Auch die Pruefung schickt die Passwoerter ueber stdin — sonst stuenden sie
   # ausgerechnet beim Nachweis wieder in der Prozessliste.
+  # NICHT ueber 127.0.0.1 pruefen. In der pg_hba steht
+  #     host all all 127.0.0.1/32 trust
+  # — auf diesem Weg fragt Postgres ueberhaupt kein Passwort ab, und die
+  # Pruefung meldet fuer JEDEN Wert Erfolg, auch fuer einen ausgedachten.
+  # Genau das ist beim ersten Lauf passiert und haette die Rotation faelschlich
+  # als unwirksam gemeldet. Der Weg ueber die Container-IP faellt unter
+  # 10.0.0.0/8 und damit unter scram-sha-256, also echte Pruefung.
+  #
+  # Der Kontrolltest mit einem erfundenen Passwort steht deshalb voran: wird
+  # DER angenommen, ist die Pruefung selbst kaputt und ihr Ergebnis wertlos.
   ergebnis=$(ssh -o ConnectTimeout=20 -o BatchMode=yes "$SERVER" "bash -s" <<STDIN
 neu='$NEU'
 alt='$ALT'
+ip=\$(docker inspect supabase-db-$STACK --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+if docker exec -e PGPASSWORD='kontrolle-muss-scheitern-xyz' supabase-db-$STACK \
+     psql -h "\$ip" -U postgres -d postgres -tAc 'select 1' 2>/dev/null | grep -q '^1\$'; then
+  echo "PRUEFWEG_KAPUTT"
+fi
 for r in ${ROLLEN[*]}; do
   if docker exec -e PGPASSWORD="\$neu" supabase-db-$STACK \
-       psql -h 127.0.0.1 -U "\$r" -d postgres -tAc 'select 1' 2>/dev/null | grep -q '^1\$'; then
+       psql -h "\$ip" -U "\$r" -d postgres -tAc 'select 1' 2>/dev/null | grep -q '^1\$'; then
     echo "NEU_OK \$r"
   else
     echo "NEU_FEHLER \$r"
   fi
 done
 if docker exec -e PGPASSWORD="\$alt" supabase-db-$STACK \
-     psql -h 127.0.0.1 -U postgres -d postgres -tAc 'select 1' 2>/dev/null | grep -q '^1\$'; then
+     psql -h "\$ip" -U postgres -d postgres -tAc 'select 1' 2>/dev/null | grep -q '^1\$'; then
   echo "ALT_GILT_NOCH"
 else
   echo "ALT_ABGELEHNT"
 fi
 STDIN
 )
+  if printf '%s' "$ergebnis" | grep -q 'PRUEFWEG_KAPUTT'; then
+    echo "   ABBRUCH: der Pruefweg nimmt ein erfundenes Passwort an."
+    echo "            Das Ergebnis unten waere wertlos. pg_hba pruefen."
+    exit 1
+  fi
   fehler=0
   echo "   b) nimmt jede Rolle das NEUE Passwort?"
   while read -r marke rolle; do
@@ -217,6 +260,16 @@ STDIN
   echo
   echo "   Nachweis vollstaendig. Noch von Hand: Anmeldung in der Oberflaeche"
   echo "   probieren (GoTrue) und eine Seite laden, die Daten zieht."
+  echo
+  echo "   ===================================================================="
+  echo "   NEUES PASSWORT — jetzt in Coolify eintragen:"
+  echo
+  echo "     SERVICE_PASSWORD_POSTGRES=$NEU"
+  echo
+  echo "   Erst nach bestandener Pruefung ausgegeben. Wird es in Coolify nicht"
+  echo "   hinterlegt, schreibt der naechste Deploy den alten Wert zurueck und"
+  echo "   der Stack faellt aus."
+  echo "   ===================================================================="
 fi
 
 sag "DANACH — zwei Dinge, die dieses Skript NICHT erledigt"
