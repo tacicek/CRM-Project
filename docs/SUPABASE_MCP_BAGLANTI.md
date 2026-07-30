@@ -71,6 +71,49 @@ ssh -F /dev/null -L 5433:localhost:5432 root@213.199.45.205 -N
 - `-N` → sadece tünel, komut çalıştırmaz
 - `-F /dev/null` → CachyOS SSH config uyarısını atlar
 
+### Sunucudaki `localhost:5432` gerçekte nedir (2026-07-30)
+
+Bu tünelin hedefi **doğrudan Postgres değil.** Coolify, veritabanı için
+"herkese açık port" ayarı açıldığında bir nginx TCP proxy'si kuruyor:
+
+```
+sunucu 127.0.0.1:5432
+  → x0ww444o440wgkkw04s0s8c8-proxy   (nginx stream, /data/coolify/databases/x0ww…/proxy/)
+    → supabase-db-aw0c0w440o8k0cccokow0csw:5432
+```
+
+CLAUDE.md'de yıllarca "localhost:5432'ye yönlendirirsen başka bir projenin
+proxy container'ına düşersin" diye duran not **bunu** kastediyordu. Başka bir
+proje değil — CRM veritabanının kendi Coolify kaynağı.
+
+**Bu proxy 2026-07-30'da loopback'e bağlandı.** Öncesinde `0.0.0.0:5432` idi,
+yani veritabanı internetten erişilebilirdi: günlüklerde 5 gün içinde
+**59 749 başarısız giriş denemesi** vardı (`dbadmin`, `dbuser`, `postgres`,
+`ALICE` …), başarılı giriş **yok**. Değiştirilen tek şey port eşlemesi:
+
+```yaml
+# /data/coolify/databases/x0ww444o440wgkkw04s0s8c8/proxy/docker-compose.yaml
+ports:
+  - '127.0.0.1:5432:5432'   # önceden: '5432:5432'
+```
+
+Yedek aynı dizinde: `docker-compose.yaml.vor-loopback`.
+
+⚠️ **Bu, Coolify arayüzünün dışında yapılmış elle bir düzenlemedir.** Coolify
+o veritabanının "Public Port" ayarına dokunulursa dosyayı yeniden üretebilir ve
+port tekrar `0.0.0.0`'a açılabilir. Kalıcı çözüm arayüzden kapatmaktır — ama o
+zaman `localhost:5432` tamamen kaybolur ve bu tünel container IP'sini
+(`10.0.2.14` gibi, restart'larda değişir) hedeflemek zorunda kalır. Şu anki
+durum bilinçli bir tercih: internet kapalı, tünel IP'den bağımsız çalışıyor.
+
+Kontrol:
+```bash
+# sunucuda — yalnızca 127.0.0.1 görünmeli, 0.0.0.0 GÖRÜNMEMELİ
+ss -tlnp | grep :5432
+# dışarıdan — "Connection refused" beklenir
+timeout 5 bash -c 'cat < /dev/null > /dev/tcp/213.199.45.205/5432'
+```
+
 Tünelin çalışıp çalışmadığını test et:
 ```bash
 ss -tlnp | grep 5433
