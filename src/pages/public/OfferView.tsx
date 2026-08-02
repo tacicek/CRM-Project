@@ -589,20 +589,17 @@ const PublicOfferView = () => {
       if (error) throw error;
       if (!updated) throw new Error("Offer update failed");
 
+      // Schmaler Vertrag: nur das, was der Server nicht selbst weiss. Firmen-
+      // und Kundenfelder werden NICHT mehr mitgeschickt — die Funktion liest sie
+      // aus der Offerten-Zeile, die der Token aufschliesst. Frueher bestimmte
+      // dieser Body den Empfaenger, und damit konnte ihn jeder bestimmen.
       await supabase.functions.invoke("notify-besichtigung", {
         body: {
-          offerTitle: offer.title,
-          customerName: `${offer.customer_first_name} ${offer.customer_last_name}`,
-          customerEmail: offer.customer_email,
-          customerPhone: offer.customer_phone,
+          offerId: offer.id,
+          accessToken: token,
           besichtigungDate,
           besichtigungTime: besichtigungTime || null,
           customerNote: responseNote || null,
-          companyEmail: company.email,
-          companyName: company.company_name,
-          companyId: company.id,
-          offerTotal: offer.total,
-          offerId: offer.id,
         },
       });
 
