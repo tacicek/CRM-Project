@@ -15,9 +15,10 @@
  * disabled there; here it is running and owns the table.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { writeRuntimeCredentials } from "./wiki-runtime-credentials.mjs";
 
 const PROJECT = process.env.WIKI_PROJECT ?? "crm-wiki";
 const DB_CONTAINER = process.env.WIKI_DB_CONTAINER ?? `supabase_db_${PROJECT}`;
@@ -33,20 +34,50 @@ const fail = (message) => {
   process.exit(1);
 };
 
-/** `supabase status -o env` → a plain object. Refuses loudly if a key is missing. */
+/**
+ * `supabase status -o env` → a plain object. Refuses loudly if a key is missing —
+ * loudly about WHICH key, never about what the others contain.
+ *
+ * The previous version printed the whole raw output on the missing-key path:
+ *
+ *     console.error(`… missing … Raw output:\n${raw}`)
+ *
+ * That output is the stack's `ANON_KEY` and `SERVICE_ROLE_KEY`. A missing `API_URL` —
+ * the most likely failure, because it just means the stack is not up — dumped both keys
+ * into the terminal, into CI logs, and into whatever anyone pasted afterwards. The
+ * message that was supposed to help debug was the leak.
+ *
+ * Three things follow, and all three are about the same rule: a diagnostic may name a
+ * key, never a value.
+ *   - the missing-key path names only the key;
+ *   - both child streams are captured rather than inherited, so nothing the CLI prints
+ *     reaches our stderr by itself;
+ *   - a non-zero `supabase status` produces a generic message. The thrown error carries
+ *     `stdout`/`stderr` as properties, so it must not be forwarded either.
+ */
 const readStackEnv = () => {
-  const raw = execFileSync("supabase", ["--workdir", WORKDIR, "status", "-o", "env"], {
-    encoding: "utf8",
-  });
+  let raw;
+  try {
+    raw = execFileSync("supabase", ["--workdir", WORKDIR, "status", "-o", "env"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch {
+    // Bewusst OHNE den gefangenen Fehler: er traegt stdout und stderr des Kindes.
+    fail("`supabase status` failed. Is the wiki stack running (`npm run wiki:db:up`)? "
+       + "Output withheld — it carries the stack's anon and service-role keys.");
+  }
+
   const env = {};
-  for (const line of raw.split("\n")) {
+  for (const line of String(raw).split("\n")) {
     const match = /^([A-Z_]+)="?([^"]*)"?$/.exec(line.trim());
     if (match) env[match[1]] = match[2];
   }
   for (const key of ["API_URL", "ANON_KEY", "SERVICE_ROLE_KEY"]) {
     if (!env[key]) {
-      console.error(`wiki-seed: '${key}' missing from \`supabase status -o env\`. Raw output:\n${raw}`);
-      process.exit(1);
+      // Nur der NAME des fehlenden Schluessels. Kein Rohtext, keine Nachbarwerte.
+      fail(`'${key}' missing from \`supabase status -o env\`. `
+         + `Output withheld — it carries the stack's anon and service-role keys.`);
     }
   }
   return env;
@@ -167,13 +198,12 @@ const main = async () => {
   }
 
   // --- hand the credentials to the capture script -----------------------------------
-  mkdirSync(RUNTIME_DIR, { recursive: true });
-  const credentialsPath = path.join(RUNTIME_DIR, "credentials.json");
-  writeFileSync(
-    credentialsPath,
-    `${JSON.stringify({ email: OPERATOR_EMAIL, password, userId, anchor: ANCHOR, apiUrl }, null, 2)}\n`,
-    { mode: 0o600 },
-  );
+  // Ueber writeRuntimeCredentials, weil dort der Modus NACH dem Schreiben noch einmal
+  // gesetzt wird: `writeFileSync(..., { mode })` wirkt nur beim ANLEGEN, und eine aus
+  // einem frueheren Lauf liegengebliebene Datei blieb sonst auf ihren alten Rechten.
+  const credentialsPath = writeRuntimeCredentials(RUNTIME_DIR, {
+    email: OPERATOR_EMAIL, password, userId, anchor: ANCHOR, apiUrl,
+  });
 
   console.log(
     `wiki-seed: probe OK — operator sees company "${companies[0].company_name}" and ${leads.length} requests.`,

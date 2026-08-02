@@ -1,0 +1,3 @@
+# Dedicated wiki-stack CLI runtime state (the config.toml itself IS committed).
+runtime/supabase/.temp/
+runtime/supabase/.branches/

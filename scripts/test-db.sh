@@ -7,7 +7,7 @@
 # could wipe an unrelated project started with default ports):
 #
 #   1. CRM_TEST_ENV=1                      explicit opt-in, never inferred
-#   2. local host                          db port bound to a loopback host
+#   2. loopback ONLY                       every published binding is 127.0.0.1 (never 0.0.0.0/::)
 #   3. dedicated port                      == the port in supabase-test/runtime config (54342)
 #   4. unique container identity           name `supabase_db_crm-test` AND CLI project label
 #   5. in-db identity marker               crm_test_guard.identity == (crm-test, version)
@@ -16,8 +16,9 @@
 # existing env-guard.ts pattern. It NEVER starts/stops a stack, NEVER touches a remote, and
 # NEVER falls back to another port/container.
 #
-# Prerequisite: the dedicated stack is up (its own workdir, NOT the repo root):
-#   supabase --workdir supabase-test/runtime start
+# Prerequisite: the dedicated stack is up. Start it through the wrapper, never with a
+# bare `supabase start` — the wrapper is what pins the publication to 127.0.0.1:
+#   npm run test:db:up
 #
 # Usage:
 #   npm run test:db:bootstrap            # create marker + schema + grants + fixtures (no marker required yet)
@@ -46,21 +47,32 @@ CONTAINER="supabase_db_${EXPECTED_PROJECT}"
 # --- Signal 1: explicit opt-in -------------------------------------------------------------
 [ "${CRM_TEST_ENV:-}" = "1" ] || refuse "CRM_TEST_ENV must be '1' (explicit opt-in; never inferred)."
 
-# --- Signal 4: unique container identity (exact name + CLI project label) ------------------
-LABEL="$(docker inspect -f '{{ index .Config.Labels "com.supabase.cli.project" }}' "$CONTAINER" 2>/dev/null || true)"
-[ -n "$LABEL" ] || refuse "dedicated container '$CONTAINER' not found. Start it: supabase --workdir supabase-test/runtime start"
-[ "$LABEL" = "$EXPECTED_PROJECT" ] || refuse "container '$CONTAINER' label '$LABEL' != expected project '$EXPECTED_PROJECT'."
+# --- Lifecycle lock: taken BEFORE the first docker query, held to the end ------------------
+# Dieselbe Sperre haelt scripts/supabase-stack.sh waehrend `up`/`down`. Ohne sie gibt es ein
+# Fenster: der Waechter unten stellt die Identitaet fest, und WAEHREND danach `DROP SCHEMA`
+# laeuft, faehrt ein `npm run test:db:down` den Stapel herunter oder ein `up` startet einen
+# anderen. Die Pruefung haette dann fuer etwas anderes gegolten als das, was getroffen wird.
+#
+# Deskriptor 9. Der Baseline-Lock weiter unten benutzt 8; beide muessen gleichzeitig halten.
+. scripts/docker-loopback.sh
+loopback_stack_lock "$EXPECTED_PROJECT" || refuse "could not take the crm-test lifecycle lock."
 
-# --- Signals 2 + 3: local host + dedicated port (from the published 5432/tcp mapping) -------
-PORTLINE="$(docker port "$CONTAINER" 5432/tcp 2>/dev/null | head -1 || true)"
-[ -n "$PORTLINE" ] || refuse "container '$CONTAINER' is not running / does not publish 5432/tcp."
-HOST="${PORTLINE%:*}"
-ACTUAL_PORT="${PORTLINE##*:}"
-case "$HOST" in
-  127.0.0.1|0.0.0.0|localhost|::1|::) : ;;
-  *) refuse "db published on non-local host '$HOST'." ;;
-esac
-[ "$ACTUAL_PORT" = "$EXPECTED_PORT" ] || refuse "db port '$ACTUAL_PORT' != dedicated test port '$EXPECTED_PORT' (refusing the 54322 default)."
+# --- Signals 2 + 3 + 4: identity AND loopback-only publication, from ONE inspect -----------
+# Frueher standen hier zwei getrennte Abfragen: das Projektlabel mit einem
+# `docker inspect -f`, die Bindung mit `docker port … | head -1`. Drei Fehler auf einmal.
+#   - `0.0.0.0` und `::` galten als "lokal". Sie sind das Gegenteil: JEDE Schnittstelle
+#     des Rechners — ein Teststapel mit bekanntem Passwort war damit im WLAN erreichbar.
+#   - `head -1` zeigte nur die erste Bindung; eine zweite auf 0.0.0.0 blieb unsichtbar.
+#   - Zwei Abfragen, zwei Zeitpunkte: zwischen ihnen kann sich der Container austauschen,
+#     und geprueft waere dann das Label des einen und die Bindung des anderen.
+#
+# loopback_verify_container (scripts/docker-loopback.sh) beantwortet alles aus GENAU EINEM
+# `docker inspect`: laeuft er, heisst er so, traegt er das Projektlabel, haengt er nur im
+# dafuer angelegten Netz, und liegt JEDE veroeffentlichte Bindung auf 127.0.0.1 — die von
+# 5432/tcp zusaetzlich auf dem erwarteten Hostport.
+LOOPBACK_NETWORK="crm-test-loopback"
+loopback_verify_container "$CONTAINER" "$CONTAINER" "$EXPECTED_PROJECT" "$LOOPBACK_NETWORK" "5432/tcp" "$EXPECTED_PORT" \
+  || refuse "target is not the verified, loopback-only crm-test stack (see above). Start it with: npm run test:db:up"
 
 PSQL() { docker exec -i "$CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 # supabase_admin is the local superuser / auth-schema owner (postgres is unprivileged here).
@@ -90,7 +102,18 @@ else
   fi
 fi
 
-echo "Guard OK ($MODE): container=$CONTAINER host=$HOST port=$ACTUAL_PORT project=$LABEL marker=${MARKER_PROJECT:-<none>}"
+echo "Guard OK ($MODE): container=$CONTAINER bound=${LOOPBACK_HOST_IP}:$EXPECTED_PORT project=$EXPECTED_PROJECT marker=${MARKER_PROJECT:-<none>}"
+
+# --- Signal 6: one generation (BEFORE any DB mutation) -------------------------------------
+# Die eingespielten Rechte-Schnappschuesse muessen aus EINER Auffrischung
+# stammen. Jede Datei prueft ihren eigenen Fingerprint gegen die Datenbank; nur
+# der Manifest-Hash prueft sie gegeneinander. Das laeuft VOR dem `DROP SCHEMA`:
+# eine Absage darf keine leergeraeumte Datenbank hinterlassen.
+. scripts/baseline-artifacts.sh
+echo "==> verifying baseline generation"
+baseline_read_lock supabase-test/baseline || refuse "baseline lock unavailable"
+verify_baseline_artifacts supabase-test/baseline || refuse "baseline generation check failed"
+baseline_check_sequence_transition supabase-test/baseline || refuse "sequence grant transition inconsistent"
 
 # --- Disposable rebuild (identity proven) --------------------------------------------------
 echo "==> wiping public schema (disposable) + applying sanitized baseline"
@@ -98,11 +121,18 @@ PSQL -q -c "DROP SCHEMA IF EXISTS public CASCADE;" >/dev/null
 PSQL_ADMIN -q < supabase-test/baseline/auth-supplement.sql >/dev/null  # auth.jwt() (auth-schema owner)
 PSQL -q < supabase-test/baseline/prereqs.sql     >/dev/null   # test stub for the excluded besichtigung schema
 PSQL -q < supabase-test/baseline/schema.sql      >/dev/null   # recreates public
-PSQL -q < supabase-test/baseline/grants.sql      >/dev/null
-# NACH grants.sql: dort steht der Pauschalzustand, hier die Ausnahmen der
-# Produktion. Ohne diese Datei duerfte anon jede Funktion ausfuehren — nicht
-# weil es jemand erlaubt haette, sondern weil das die Postgres-Vorgabe ist.
-PSQL -q < supabase-test/baseline/function-grants.sql >/dev/null
+# Rechte in der Reihenfolge aus baseline-artifacts.sh — die Liste steht an EINER
+# Stelle, damit test-db.sh und wiki-db.sh nicht auseinanderlaufen koennen.
+#
+# In einer vollstaendigen Generation sind ALLE VIER Rechte-Dateien Pflicht; fehlt
+# eine, bricht baseline_apply_privileges ab. Die einzige Ausnahme ist
+# `sequence-grants.sql`, und auch die nur, wenn das Manifest den Uebergangs-
+# zustand ausdruecklich belegt (`artifact_verification: pending-first-refresh`
+# samt legacy_artifacts/legacy_generation). Ein blosses "die Datei ist nicht da"
+# reicht nicht — sonst waere ihr Fehlen seine eigene Rechtfertigung.
+apply_privilege_file() { PSQL -q < "$1" >/dev/null; }
+baseline_apply_privileges supabase-test/baseline apply_privilege_file \
+  || refuse "applying baseline privileges failed"
 PSQL -q < supabase-test/baseline/guard-marker.sql >/dev/null  # (re)assert identity marker (idempotent)
 echo "==> seeding synthetic two-tenant fixtures"
 PSQL -q < supabase-test/seed/fixtures.sql        >/dev/null

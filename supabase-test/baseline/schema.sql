@@ -13864,6 +13864,66 @@ COMMENT ON TABLE public.umzug_anfragen IS 'Detailed Umzug (Moving) inquiries fro
 
 
 --
+-- Name: undo_20260802110000; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.undo_20260802110000 (
+    table_name text NOT NULL,
+    row_id uuid NOT NULL,
+    old_company_id uuid,
+    noted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE undo_20260802110000; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.undo_20260802110000 IS 'Vorzustand der von 20260802110000 geaenderten Zeilen. Das zugehoerige ROLLBACK-Skript liest hier und entfernt die Tabelle danach.';
+
+
+--
+-- Name: undo_20260802120000; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.undo_20260802120000 (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    role public.app_role NOT NULL,
+    created_at timestamp with time zone,
+    noted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE undo_20260802120000; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.undo_20260802120000 IS 'Die von 20260802120000 entzogene(n) Rollenzeile(n), vollstaendig. Das zugehoerige ROLLBACK-Skript setzt sie zurueck und entfernt die Tabelle danach.';
+
+
+--
+-- Name: undo_20260802130000; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.undo_20260802130000 (
+    func_name text NOT NULL,
+    func_signature text NOT NULL,
+    had_public boolean NOT NULL,
+    had_anon boolean NOT NULL,
+    had_authenticated boolean NOT NULL,
+    noted_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE undo_20260802130000; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.undo_20260802130000 IS 'Vorzustand der von 20260802130000 entzogenen Funktionsrechte. Das zugehoerige ROLLBACK-Skript liest hier und entfernt die Tabelle danach.';
+
+
+--
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -15068,6 +15128,30 @@ ALTER TABLE ONLY public.umzug_anfragen
 
 ALTER TABLE ONLY public.umzugsbox_rentals
     ADD CONSTRAINT umzugsbox_rentals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: undo_20260802110000 undo_20260802110000_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.undo_20260802110000
+    ADD CONSTRAINT undo_20260802110000_pkey PRIMARY KEY (table_name, row_id);
+
+
+--
+-- Name: undo_20260802120000 undo_20260802120000_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.undo_20260802120000
+    ADD CONSTRAINT undo_20260802120000_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: undo_20260802130000 undo_20260802130000_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.undo_20260802130000
+    ADD CONSTRAINT undo_20260802130000_pkey PRIMARY KEY (func_name);
 
 
 --
@@ -20094,6 +20178,13 @@ ALTER TABLE public.edge_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: email_logs email_logs_select_member; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY email_logs_select_member ON public.email_logs FOR SELECT TO authenticated USING (public.is_company_member(company_id));
+
+
+--
 -- Name: fall_nr_counter; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -20973,6 +21064,24 @@ CREATE POLICY umzugsbox_rentals_select_member ON public.umzugsbox_rentals FOR SE
 
 CREATE POLICY umzugsbox_rentals_update_member ON public.umzugsbox_rentals FOR UPDATE USING (public.is_company_member(company_id));
 
+
+--
+-- Name: undo_20260802110000; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.undo_20260802110000 ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: undo_20260802120000; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.undo_20260802120000 ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: undo_20260802130000; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.undo_20260802130000 ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: user_roles; Type: ROW SECURITY; Schema: public; Owner: -

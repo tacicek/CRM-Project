@@ -16,9 +16,16 @@
 #   project_id "crm-wiki" -> containers supabase_db_crm-wiki / supabase_kong_crm-wiki
 #   in-db marker crm_wiki_guard.identity, readable through the proxy over /rest/v1
 #
-# Run it from this workdir, never the repo root:
-#   supabase --workdir supabase-wiki/runtime start
-#   supabase --workdir supabase-wiki/runtime stop
+# Nicht direkt mit `supabase start` starten. Der nackte Aufruf veroeffentlicht die
+# Ports so, wie Docker es voreingestellt tut: auf 0.0.0.0, also auf JEDER
+# Schnittstelle des Rechners — ein Wegwerf-Stapel mit bekanntem Passwort waere
+# damit im WLAN und im VPN erreichbar. Der Wrapper legt ihn stattdessen in ein
+# eigenes Docker-Netz mit
+# `com.docker.network.bridge.host_binding_ipv4=127.0.0.1` und prueft danach
+# jede tatsaechliche Bindung nach (scripts/supabase-stack.sh):
+#
+#   npm run wiki:db:up     # oder: bash scripts/supabase-stack.sh up   wiki
+#   npm run wiki:db:down   # oder: bash scripts/supabase-stack.sh down wiki
 project_id = "crm-wiki"
 
 [api]

@@ -12,7 +12,8 @@
  * a database it can positively prove — by FIVE independent signals — is the CRM test stack:
  *
  *   1. explicit opt-in            CRM_TEST_ENV=1
- *   2. local host                 the db port is bound to a loopback/local host
+ *   2. loopback ONLY              every published binding of the db port is 127.0.0.1
+ *                                 (a wildcard such as 0.0.0.0 or :: is a refusal, not a pass)
  *   3. dedicated port             matches the port from supabase-test/runtime config (54342),
  *                                 never the 54322 default
  *   4. unique container identity  container name + CLI project label == "crm-test"
@@ -23,10 +24,16 @@
  * all five.
  */
 
+import {
+  evaluatePublishedBindings,
+  type PublishedBinding,
+} from "@/test/published-bindings";
+
 export type DbGuardReason =
   | "not_opted_in"
   | "remote_target"
-  | "non_local_host"
+  | "no_published_binding"
+  | "non_loopback_host"
   | "wrong_port"
   | "wrong_project"
   | "container_mismatch"
@@ -39,12 +46,17 @@ export interface DbGuardEvidence {
   testEnvFlag: string | undefined | null;
   /** true if the target was resolved from a remote URL / linked project (never allowed). */
   isRemote: boolean;
-  /** Host the db port is published on (from `docker port`), e.g. "127.0.0.1" / "0.0.0.0". */
-  host: string | undefined | null;
+  /**
+   * EVERY published host binding of the db container port, from
+   * `docker inspect … .NetworkSettings.Ports["5432/tcp"]`.
+   *
+   * A list, not a single value: a container may publish one container port through several
+   * host bindings, and the old single-value shape could not express a second, wildcard one
+   * hiding behind a first, loopback one.
+   */
+  publishedBindings: readonly PublishedBinding[] | undefined | null;
   /** The db port the dedicated test config declares (source of truth), e.g. "54342". */
   expectedPort: string;
-  /** The db port actually published by the container. */
-  actualPort: string | undefined | null;
   /** The project_id the dedicated test config declares, e.g. "crm-test". */
   expectedProject: string;
   /** The container's `com.supabase.cli.project` label. */
@@ -58,9 +70,6 @@ export interface DbGuardEvidence {
   /** The marker version this script generation expects. */
   expectedMarkerVersion: number;
 }
-
-/** Loopback / local hosts a published db port may legitimately bind to. */
-const LOCAL_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "0.0.0.0", "::1", "localhost", "::"]);
 
 type DbGuardMode = "bootstrap" | "run";
 
@@ -77,13 +86,16 @@ export const evaluateDbTarget = (evidence: DbGuardEvidence, mode: DbGuardMode): 
   // Remote / linked targets are categorically refused.
   if (evidence.isRemote) return { ok: false, reason: "remote_target" };
 
-  // 2. Local host only.
-  if (!evidence.host || !LOCAL_HOSTS.has(evidence.host)) return { ok: false, reason: "non_local_host" };
-
-  // 3. Dedicated port — must equal the test config's port (never the 54322 default by luck).
-  if (!evidence.actualPort || evidence.actualPort !== evidence.expectedPort) {
-    return { ok: false, reason: "wrong_port" };
-  }
+  // 2 + 3. Loopback-only publication on the dedicated port. Both signals come from the same
+  //         evidence and are decided by the shared rule in published-bindings.ts, which the
+  //         shell mirrors inside loopback_verify_container: every binding, no exceptions.
+  //         Note the shell checks MORE than this module does — container name, running
+  //         state, project label, network membership, and every other published port —
+  //         because those need a live inspect rather than pure logic.
+  //         The refusal is passed through unchanged — every PublishedBindingReason is also a
+  //         DbGuardReason, so the caller sees which of the two signals failed and why.
+  const bindings = evaluatePublishedBindings(evidence.publishedBindings, evidence.expectedPort);
+  if (!bindings.ok) return bindings;
 
   // 4. Unique container identity: BOTH the CLI project label and the container name must
   //    match the dedicated project. Name alone or label alone is insufficient.

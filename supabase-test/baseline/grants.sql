@@ -1,20 +1,93 @@
--- Standard Supabase privilege layer for the test baseline.
+-- Static privilege foundation for the test baseline.
 --
--- The schema dump was taken with --no-privileges (deliberate: to avoid pulling
--- environment-specific owners/role grants). RLS enforces ROW visibility, but a role
--- still needs TABLE privileges to reach RLS at all — without a GRANT, anon/authenticated
--- get "permission denied", which would make an "anon is denied" test pass for the WRONG
--- reason. This restores Supabase's documented default grant model so the RLS assertions
--- test RLS, not missing privileges. RLS is NOT disabled or loosened here.
+-- The schema dump is taken with --no-privileges (deliberate: it avoids pulling
+-- environment-specific owners and role grants). The privileges come back from
+-- separately generated snapshots instead:
 --
--- This is a DELIBERATE, documented test/prod difference (see parity-manifest.json).
+--   table-grants.sql     production table/view ACLs
+--   sequence-grants.sql  production sequence ACLs
+--   function-grants.sql  production function ACLs
+--
+-- Those snapshots are a "tracked-principal direct-privilege projection": the
+-- DIRECTLY granted privileges of PUBLIC, anon, authenticated and service_role.
+-- Grantor chains, owner privileges, role memberships, other roles, schema ACLs,
+-- default privileges and column ACLs are deliberately out of scope — see
+-- parity-manifest.json > deliberate_test_differences. Keeping them separate is
+-- what stops this file from silently reopening a privilege that production has
+-- since revoked.
+--
+-- What is left here is the part a snapshot cannot supply: the schema-level USAGE
+-- a role needs before any table grant can be reached at all.
+--
+-- RLS is NOT disabled or loosened anywhere in this file.
 
 grant usage on schema public to anon, authenticated, service_role;
 
-grant all privileges on all tables    in schema public to authenticated, service_role;
-grant all privileges on all sequences in schema public to authenticated, service_role, anon;
-grant execute on all functions        in schema public to anon, authenticated, service_role;
-
--- anon: read + the writes public token flows perform (offers accept/update happen via
--- SECURITY DEFINER RPCs, but table-level SELECT is what the token SELECT policy gates).
-grant select on all tables in schema public to anon;
+-- ⚠ HIER STEHT BEWUSST KEIN SEQUENZ-GRANT MEHR.
+--
+-- Bis 2026-08-01 vergab diese Datei saemtliche Sequenzrechte des Schemas
+-- pauschal an alle drei Rollen, weil der dazugehoerige Schnappschuss noch nicht
+-- existierte. Seit der ersten Produktionsaufnahme gibt es
+-- `sequence-grants.sql`: es zieht die Rechte zuerst zurueck und vergibt dann
+-- exakt die Projektion der Produktion.
+--
+-- Die entfernte Anweisung lautete (Rollenreihenfolge wie im Original, siehe
+-- Commit 9232401c — sie ist Teil des buchstabengetreuen Vergleichs):
+--
+--   grant all privileges on all sequences in schema public to authenticated, service_role, anon;
+--
+-- Sie darf NICHT zurueckkommen — und zwar in keiner Fassung. Scope-weit
+-- vergeben hiesse: ein REVOKE in der Produktion bliebe im Teststapel
+-- unsichtbar, und eine Rechtepruefung wuerde bestehen, weil das Recht hier neu
+-- aufgerissen wurde. Genau diese Klasse Fehler war bei den Funktionsrechten
+-- schon einmal offen. `USAGE` allein genuegt dafuer: damit laeuft `nextval()`
+-- auf jeder Sequenz des Schemas.
+--
+-- ── Diese Datei ist EINGEFROREN, und das wird buchstabengetreu geprueft ────
+--
+-- Sie ist keine allgemeine SQL-Datei und wird auch nicht als solche gelesen.
+-- `baseline_has_blanket_sequence_grant` (scripts/baseline-artifacts.sh) haelt
+-- sie Zeile fuer Zeile gegen eine LITERALE Erlaubnisliste. Zugelassen sind NUR:
+--
+--   1. Leerzeilen aus ASCII-Leerzeichen und Tabulatoren
+--   2. GANZE Kommentarzeilen — nach ASCII-Leerzeichen/Tabulatoren beginnt `--`;
+--      der Text dahinter darf Unicode enthalten (⚠, … stehen hier ja auch)
+--   3. buchstabengetreu und genau einmal die kanonische Anweisung oben
+--   4. buchstabengetreu und hoechstens einmal die historische Uebergangszeile
+--      (das Zitat weiter oben) — der Zustand, den die erste Produktions-
+--      aufnahme aufgeloest hat
+--
+-- Verglichen wird, nicht ausgedeutet: keine Kleinschreibung, keine
+-- Normalisierung von Leerraum, keine Kommaglaettung, kein Muster. Um die
+-- beiden Anweisungen herum sind nur ASCII-Leerzeichen und Tabulatoren erlaubt.
+-- Eine Grossschreibung, eine andere Rollenreihenfolge oder ein zusaetzliches
+-- Leerzeichen ergeben "ausserhalb" — nicht weil sie gefaehrlich waeren,
+-- sondern weil diese Datei eingefroren ist und jede Abweichung eine bewusste
+-- Entscheidung sein muss. Wer hier etwas hinzufuegen will, muss die Liste in
+-- baseline-artifacts.sh samt Tests erweitern.
+--
+-- Warum so streng: die Pruefung war vorher DREIMAL etwas anderes und dreimal
+-- nachweislich falsch.
+--   `grep` ueber den Dateiinhalt — da zaehlte das ZITAT oben wie Code und
+--   blockierte das Tor, zweimal.
+--   Ein handgeschriebener SQL-Lexer — der kannte Nicht-ASCII-Dollar-Tags nicht
+--   und liess einen echten GRANT zwischen zwei solchen Literalen verschwinden.
+--   Eine Grammatik mit Normalisierung — die benutzte Pythons Unicode-Begriff
+--   von Leerraum, den PostgreSQL nicht teilt: ein NBSP mitten in der
+--   kanonischen Zeile wurde wegnormalisiert und die Datei galt als sauber,
+--   obwohl PostgreSQL genau dort mit einem Syntaxfehler abbraeche. Ihr Muster
+--   `grant … on all sequences …` nahm ausserdem auch Unsinn als belegten
+--   Uebergang an.
+-- Dreimal dasselbe Muster: eine ANNAEHERUNG an PostgreSQL wurde als Wahrheit
+-- genommen. Ein Vergleich auf Gleichheit kann diese Fehlerklasse nicht haben.
+--
+-- Deshalb darf oben zitiert werden, und das Zitat ist zugleich der Beleg:
+-- scripts/test-baseline-tooling.sh prueft dauerhaft, dass GENAU DIESE Datei den
+-- sauberen Endzustand meldet. Faellt die Pruefung je wieder auf Textsuche oder
+-- Normalisierung zurueck, schlaegt dieser Test sofort an.
+--
+-- Das ist kein Merkzettel, sondern gepruefte Bedingung:
+-- `baseline_check_sequence_transition` (scripts/baseline-artifacts.sh)
+-- verweigert den Start von test-db.sh und wiki-db.sh in BEIDEN falschen
+-- Zustaenden — Schnappschuss UND scope-weiter GRANT gleichzeitig, oder weder
+-- noch.

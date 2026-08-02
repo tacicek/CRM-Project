@@ -1,12 +1,41 @@
 {
-  "generated_from": "read-only prod --schema-only --schema=public dump (PostgreSQL 15.8), sanitized (siehe README)",
-  "generated_at": "2026-07-28",
-  "covers_migrations_through": "20260802100000_boxen_dringend",
+  "generated_from": "read-only prod --schema-only --schema=public dump (database postgres, PostgreSQL 15.8), sanitized (siehe README)",
+  "generated_at": "2026-08-01",
+  "migration_checkpoint": {
+    "declared_through": "20260802130000_funktionsrechte_zurueckgenommen",
+    "declaration": "MANUELLE BEHAUPTUNG, nicht maschinell geprueft. Die Produktion fuehrt KEIN supabase_migrations.schema_migrations. Es gibt damit keine Instanz, die 'bis hierher angewandt' bestaetigen koennte; dieses Feld wird beim Auffrischen von Hand nachgezogen.",
+    "evidence": [
+      {
+        "migration": "20260802110000",
+        "kind": "undo table observed in production",
+        "object": "public.undo_20260802110000",
+        "observed_at": "2026-08-01"
+      },
+      {
+        "migration": "20260802120000",
+        "kind": "undo table observed in production",
+        "object": "public.undo_20260802120000",
+        "observed_at": "2026-08-01"
+      },
+      {
+        "migration": "20260802130000",
+        "kind": "undo table observed in production",
+        "object": "public.undo_20260802130000",
+        "observed_at": "2026-08-01"
+      }
+    ],
+    "evidence_source": "GEMESSEN von scripts/refresh-test-baseline.sh: Aufzaehlung der Tabellen public.undo_<14 Ziffern> in der Produktion. Was dort fehlt, faellt hier heraus.",
+    "evidence_limits": "Die 3 aufgefuehrten undo-Tabellen belegen GENAU die Migrationen, die sie nennen, und sonst keine. Ueber die uebrigen Migrationen der Kette sagen sie nichts — 'declared_through' ist deshalb KEIN Beleg fuer eine lueckenlose Kette. Der Beleg ist ausserdem verhaenglich: laeuft ein ROLLBACK-Skript, verschwindet die Tabelle und mit ihr der Eintrag.",
+    "why_undo_tables_are_in_the_snapshot": "Sie stehen in der Produktion, also stehen sie im schema-only Dump. Herausschneiden hiesse, den Schnappschuss von der Wirklichkeit abweichen zu lassen — und den einzigen vorhandenen Beleg fuer den Migrationsstand wegzuwerfen.",
+    "evidence_observed_at": "2026-08-01"
+  },
   "counting_recipe": {
     "hinweis": "Bis 2026-07-28 war nicht festgehalten, WIE die Zahlen entstanden — enums stand auf 28, was weder den 15 Enum-Typen noch den 84 Enum-Werten entspricht, und check_constraints auf 388, was weder den 68 echten CHECKs noch den 437 inkl. NOT NULL entspricht. Die alten Werte sind deshalb NICHT mit diesen vergleichbar. Ab hier stehen die Abfragen dabei, damit die naechste Auffrischung nichts raten muss.",
     "enums": "SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typtype='e'  -- Typen, nicht Werte",
     "tables": "SELECT count(*) FROM pg_tables WHERE schemaname='public'",
     "views": "SELECT count(*) FROM pg_views WHERE schemaname='public'",
+    "matviews": "SELECT count(*) FROM pg_matviews WHERE schemaname='public'  -- rein informativ; materialisierte Sichten sind relkind 'm' und damit sowohl von 'ALL TABLES IN SCHEMA' als auch vom Tabellen-Exporter erfasst",
+    "sequences": "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='S'",
     "indexes": "SELECT count(*) FROM pg_indexes WHERE schemaname='public'",
     "policies": "SELECT count(*) FROM pg_policies WHERE schemaname='public'",
     "triggers": "SELECT count(*) FROM pg_trigger tg JOIN pg_class c ON c.oid=tg.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT tg.tgisinternal",
@@ -20,15 +49,17 @@
   },
   "counts": {
     "enums": 15,
-    "tables": 95,
+    "tables": 98,
     "views": 6,
-    "indexes": 368,
-    "policies": 226,
+    "matviews": 0,
+    "sequences": 5,
+    "indexes": 371,
+    "policies": 227,
     "triggers": 100,
     "functions": 214,
     "foreign_keys": 169,
     "check_constraints": 118,
-    "rls_enabled_tables": 95
+    "rls_enabled_tables": 98
   },
   "enums": {
     "app_role": [
@@ -146,11 +177,13 @@
       "emergency"
     ]
   },
-  "column_fingerprint_md5": "1e3fd6f89e9b96a1d47eeffb53871b4a",
-  "policy_fingerprint_md5": "36751392f7e16c64678a5fad5c093831",
+  "column_fingerprint_md5": "df2420b5a0888c3c84598751fbadab9f",
+  "policy_fingerprint_md5": "82088247252c477d61e90bf0459b6a0b",
   "function_fingerprint_md5": "b44843d4fed986c2146d6c263f7ad0e7",
   "deliberate_test_differences": {
-    "grants": "standard Supabase default grants re-added (dump used --no-privileges); RLS NOT changed",
+    "grants": "NICHT die exakte Produktions-ACL, sondern eine 'tracked-principal direct-privilege projection': die DIREKT vergebenen Rechte von genau vier Prinzipalen — PUBLIC, anon, authenticated, service_role — je Tabelle/View, Sequenz und Funktion, mit GRANT OPTION, in getrennten erzeugten Dateien und mit Fingerprint-Pruefung nach dem Einspielen. RLS wird NICHT veraendert.",
+    "grants_out_of_scope": "Bewusst NICHT in die Projektion aufgenommen: Grantor-Ketten, Owner-Rechte, Rollenmitgliedschaften, alle weiteren Rollen, Schema-ACLs (ausser dem statischen USAGE in grants.sql), Default Privileges (pg_default_acl), Spalten-ACLs und Rechte auf Typen/Domains. Der Teststapel gleicht sie also NICHT an die Produktion an. Drei davon fuehren beim Auffrischen dennoch zum Abbruch, weil sie das Ergebnis verfaelschen wuerden: Spalten-ACLs, eine fehlende der drei verfolgten Rollen, und ein Grantor ungleich Eigentuemer. Getrennt davon misst die Drift-Sonde waehrend der Aufnahme auch Spalten-, Schema-, Typ- und Default-ACLs sowie Eigentuemer — aber nur, um eine AENDERUNG waehrend der Aufnahme zu erkennen, nicht um Parity herzustellen.",
+    "data_migrations": "schema-only snapshot: structures and ACLs are covered, but production row effects are not replayed",
     "reason_stubs": "no-op bodies: these made external HTTP/vault/cron calls; signatures preserved so dependents resolve",
     "cron_schedules": "no cron jobs (public-only dump excludes cron schema); notification fns are no-op stubs",
     "excluded_schemas": [
@@ -166,6 +199,17 @@
       "trigger_subscription_manager",
       "trigger_team_reminder_for_appointment"
     ],
-    "neutralized_literals": "quoted URL/email/JWT literals replaced with test placeholders"
-  }
+    "neutralized_literals": "Vor dem Schreiben werden externe URLs, Autorisierungswerte, E-Mail-Adressen und IPv4-Adressen durch definierte Testplatzhalter ersetzt. JWT-foermige Werte werden nicht ersetzt, sondern vom Sanitizer abgelehnt. Diese Beschreibung darf keine vom Sanitizer gesperrte Beispielsyntax enthalten — sie wird selbst mitgeprueft, und ein Beispiel der verbotenen Form haette genau deshalb am 2026-08-01 eine fertige Aufnahme kurz vor der Veroeffentlichung abbrechen lassen."
+  },
+  "table_acl_fingerprint_md5": "6290dc15a61059f5f2637b16c6d660c8",
+  "function_acl_fingerprint_md5": "ae46aa110d21ab510d922cb05a817551",
+  "source_identity_fingerprint_sha256": "24de5e196270286526b356e5968fa2c2589bb0f6420ea4a6028d9cce7fe48f0c",
+  "sequence_acl_fingerprint_md5": "c1c387db459127b278080c8834ebae47",
+  "artifacts": {
+    "function-grants.sql": "8f1918dab71ee3dd0dd92360414a444497408f9259c8d68ff1fe3ead896ad4bc",
+    "schema.sql": "57e349d56c3ee90184caa1ede397ad84337fac4d01d5a36ef3fc786b41a9ef4b",
+    "sequence-grants.sql": "71126608c768e33e9fc3c82ff9fc738e4d938c1748a7b2d76c91f638c2909332",
+    "table-grants.sql": "d98cf86ad3c8ce7fb613b4857f683e17405f3434b99b47f46df1e4e4563e1653"
+  },
+  "generation": "c3a6ce7a445fed92"
 }

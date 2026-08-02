@@ -10,13 +10,42 @@
 #   - project_id "crm-test"  -> container name  supabase_db_crm-test  (globally unique)
 #   - db port 54342          -> not 54322/54320 and not the umzungcheck-next 553xx range
 #
-# Run it from this workdir, never the repo root:
-#   supabase --workdir supabase-test/runtime start
-#   supabase --workdir supabase-test/runtime stop
+# Nicht direkt mit `supabase start` starten. Der nackte Aufruf veroeffentlicht die
+# Ports so, wie Docker es voreingestellt tut: auf 0.0.0.0, also auf JEDER
+# Schnittstelle des Rechners — ein Wegwerf-Stapel mit bekanntem Passwort waere
+# damit im WLAN und im VPN erreichbar. Der Wrapper legt ihn stattdessen in ein
+# eigenes Docker-Netz mit
+# `com.docker.network.bridge.host_binding_ipv4=127.0.0.1` und prueft danach
+# jede tatsaechliche Bindung nach (scripts/supabase-stack.sh):
+#
+#   npm run test:db:up     # oder: bash scripts/supabase-stack.sh up   test
+#   npm run test:db:down   # oder: bash scripts/supabase-stack.sh down test
 project_id = "crm-test"
 
 [api]
+# PostgREST bleibt AUS. Diese Sektion legt trotzdem einen Port fest — und das ist
+# kein Widerspruch, sondern das Ergebnis einer Messung.
+#
+# Im ersten echten Lauf (A.5.1a, Supabase CLI 2.98.2) startete der Stapel mit
+# `enabled = false` TROTZDEM einen Gateway-Container `supabase_kong_crm-test`,
+# und der veroeffentlichte 8000/tcp auf dem Host-Port 54321 — dem Supabase-
+# STANDARD-Port, der nirgends in dieser Datei steht. `enabled = false` heisst
+# also: kein PostgREST. Es heisst NICHT: kein Gateway-Container.
+#
+# 54321 ist zugleich der API-Port des Wurzelprojekts (supabase/config.toml).
+# Ein stiller Standard, der genau auf dem Port eines anderen Projekts landet,
+# ist die Sorte Zufall, die dieser ganze Waechter verhindern soll. Deshalb wird
+# der Port hier AUSDRUECKLICH belegt, im reservierten Block dieses Stapels:
+#
+#   Wurzelprojekt : API 54321, DB 54322, shadow 54320
+#   crm-test      : Gateway 54341, DB 54342, shadow 54340
+#   crm-wiki      : API 54421, DB 54422, shadow 54420
+#
+# scripts/supabase-stack.sh liest diesen Wert als GATEWAY_PORT und verlangt vom
+# Gateway-Container exakt 127.0.0.1:54341 auf 8000/tcp — keinen anderen Port,
+# auch keinen anderen Loopback-Port.
 enabled = false
+port = 54341
 
 [db]
 port = 54342

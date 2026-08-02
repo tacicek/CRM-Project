@@ -48,36 +48,46 @@ KONG_CONTAINER="supabase_kong_${EXPECTED_PROJECT}"
 # --- signal 1: explicit opt-in ------------------------------------------------------
 [ "${CRM_WIKI_ENV:-}" = "1" ] || refuse "CRM_WIKI_ENV must be '1' (explicit opt-in; never inferred)."
 
-# --- signal 4: container identity ---------------------------------------------------
-docker inspect "$DB_CONTAINER" >/dev/null 2>&1 \
-  || refuse "container '$DB_CONTAINER' is not running. Start it: npm run wiki:db:up"
+# --- lifecycle lock: taken BEFORE the first docker query, held to the end -----------
+# Dieselbe Sperre haelt scripts/supabase-stack.sh waehrend `up`/`down` — sonst koennte
+# zwischen dieser Pruefung und dem `DROP SCHEMA` weiter unten ein Stapelwechsel liegen.
+# Deskriptor 9; der Baseline-Lock benutzt 8.
+. scripts/docker-loopback.sh
+loopback_stack_lock "$EXPECTED_PROJECT" || refuse "could not take the crm-wiki lifecycle lock."
 
-LABEL="$(docker inspect -f '{{ index .Config.Labels "com.supabase.cli.project" }}' "$DB_CONTAINER" 2>/dev/null || true)"
-[ "$LABEL" = "$EXPECTED_PROJECT" ] \
-  || refuse "container '$DB_CONTAINER' has CLI project label '$LABEL', expected '$EXPECTED_PROJECT'."
+# --- signals 2 + 3 + 4: identity AND loopback-only publication, for BOTH containers --
+# Hier standen drei Fehler. Erstens galten `0.0.0.0` und `::` als "lokal" — sie sind
+# das Gegenteil: JEDE Schnittstelle des Rechners. Zweitens wurde bei Kong ueberhaupt
+# nur der PORT verglichen: weder Host noch Projektlabel, die API stand also ungeprueft
+# im Netz. Drittens lagen Label- und Bindungsabfrage auseinander, sodass beide
+# denselben Container nur vermutlich meinten.
+#
+# loopback_verify_container (scripts/docker-loopback.sh) beantwortet alles aus GENAU
+# EINEM `docker inspect`, und zwar fuer BEIDE Container: laeuft er, heisst er so,
+# traegt er das Projektlabel, haengt er nur im dafuer angelegten Netz, und liegt JEDE
+# veroeffentlichte Bindung auf 127.0.0.1 — die geforderte zusaetzlich auf ihrem Port.
+LOOPBACK_NETWORK="crm-wiki-loopback"
 
-# --- signals 2 + 3: loopback host on the dedicated port -----------------------------
-DB_PUBLISHED="$(docker port "$DB_CONTAINER" 5432/tcp 2>/dev/null | head -1 || true)"
-[ -n "$DB_PUBLISHED" ] || refuse "container '$DB_CONTAINER' does not publish 5432/tcp."
-DB_HOST="${DB_PUBLISHED%:*}"
-DB_PORT="${DB_PUBLISHED##*:}"
+loopback_verify_container "$DB_CONTAINER" "$DB_CONTAINER" "$EXPECTED_PROJECT" "$LOOPBACK_NETWORK" "5432/tcp" "$EXPECTED_DB_PORT" \
+  || refuse "db is not the verified, loopback-only crm-wiki stack (see above). Start it with: npm run wiki:db:up"
 
-case "$DB_HOST" in
-  127.0.0.1|0.0.0.0|localhost|::|::1) : ;;
-  *) refuse "db port is published on non-local host '$DB_HOST'." ;;
-esac
-[ "$DB_PORT" = "$EXPECTED_DB_PORT" ] \
-  || refuse "db port '$DB_PORT' != dedicated wiki port '$EXPECTED_DB_PORT' (refusing the 54322 default and any foreign stack)."
+# --- signal 5: the gateway, in ONE strict check --------------------------------------
+# Der Gateway ist nicht optional: ohne ihn ist der Stapel unvollstaendig, und "die
+# Datenbank ist sicher" sagt nichts ueber die API.
+#
+# Hier stand bis A.5.1b.0 ein eigenes `docker inspect "$KONG_CONTAINER"` als
+# Existenzprobe VOR der eigentlichen Pruefung. Zwei Aufrufe, zwei Zeitpunkte — genau
+# das TOCTOU-Fenster, das A.5.0.1 an anderer Stelle geschlossen hatte: zwischen der
+# Probe und der Pruefung kann der Container ein anderer sein. Und noetig war die Probe
+# nie: ein fehlender Container faellt in loopback_verify_container ohnehin durch.
+#
+# `strict` verlangt zusaetzlich, dass 8000/tcp die EINZIGE veroeffentlichte Bindung
+# des Gateways ist — kein zweiter Port, auch kein loopbacker, und keine Wiederholung
+# derselben Bindung. Nicht veroeffentlichte (`null`) Ports bleiben erlaubt.
+loopback_verify_container "$KONG_CONTAINER" "$KONG_CONTAINER" "$EXPECTED_PROJECT" "$LOOPBACK_NETWORK" "8000/tcp" "$EXPECTED_API_PORT" strict \
+  || refuse "kong is not the verified, loopback-only crm-wiki api (see above). Start it with: npm run wiki:db:up"
 
-# --- signal 5: kong on the dedicated api port ---------------------------------------
-docker inspect "$KONG_CONTAINER" >/dev/null 2>&1 \
-  || refuse "container '$KONG_CONTAINER' is not running; the API is required for screenshots."
-API_PUBLISHED="$(docker port "$KONG_CONTAINER" 8000/tcp 2>/dev/null | head -1 || true)"
-API_PORT="${API_PUBLISHED##*:}"
-[ "$API_PORT" = "$EXPECTED_API_PORT" ] \
-  || refuse "kong publishes api port '$API_PORT' != expected '$EXPECTED_API_PORT'."
-
-echo "wiki-guard: target verified — project '$EXPECTED_PROJECT', db $DB_HOST:$DB_PORT, api :$API_PORT"
+echo "wiki-guard: target verified — project '$EXPECTED_PROJECT', db and api running, labelled and bound to ${LOOPBACK_HOST_IP} only"
 
 # --- helpers ------------------------------------------------------------------------
 psql_run() { docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 "$@"; }
@@ -88,6 +98,15 @@ echo "wiki-db: fixture anchor date = $ANCHOR"
 
 # --- schema rebuild -----------------------------------------------------------------
 if [ "$MODE" = "bootstrap" ]; then
+  # ZUERST, vor jeder Aenderung an der Datenbank: die geteilte Baseline muss
+  # eine geschlossene Generation sein. Frueher stand diese Pruefung hinter dem
+  # Austausch der auth-Funktionen und hinter `DROP SCHEMA` — eine Absage hinterliess
+  # damit eine halb abgeraeumte Datenbank.
+  . scripts/baseline-artifacts.sh
+  baseline_read_lock supabase-test/baseline || refuse "baseline lock unavailable."
+  verify_baseline_artifacts supabase-test/baseline || refuse "shared baseline generation check failed."
+  baseline_check_sequence_transition supabase-test/baseline || refuse "sequence grant transition inconsistent."
+
   echo "wiki-db: probing the auth helper functions…"
   # gotrue runs its own migrations at container start and normally installs auth.uid()
   # reading the PLURAL GUC `request.jwt.claims`, which is what PostgREST sets. Some image
@@ -113,15 +132,47 @@ if [ "$MODE" = "bootstrap" ]; then
   fi
 
   echo "wiki-db: rebuilding schema public (destructive)…"
-  psql_run -c "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS besichtigung CASCADE; CREATE SCHEMA public;"
+  # Nur ABRAEUMEN, nicht anlegen: `public` legt baseline/schema.sql selbst an
+  # (dessen Zeile 23). Beides zusammen ergab "42P06: schema public already
+  # exists" — der Fehler, den der frühere pauschale ON_ERROR_STOP=0 verschluckt
+  # hat. test-db.sh macht es seit jeher so; damit sind beide Verbraucher gleich.
+  psql_run -c "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS besichtigung CASCADE;"
 
   # The schema baseline is SHARED with supabase-test — one snapshot, two consumers, so the
-  # screenshot stack and the DB assertion suite can never drift apart.
+  # screenshot stack and the DB assertion suite can never drift apart. Verified above.
   echo "wiki-db: applying shared baseline (prereqs, schema, grants)…"
-  psql_soft < supabase-test/baseline/prereqs.sql        > /dev/null
-  psql_soft < supabase-test/baseline/schema.sql         > /dev/null
-  psql_soft < supabase-test/baseline/grants.sql         > /dev/null
-  psql_soft < supabase-test/baseline/function-grants.sql > /dev/null
+  # ALLES STRIKT, ohne Ausnahmeliste. Bis 2026-08 liefen prereqs.sql und
+  # schema.sql mit ON_ERROR_STOP=0 — ein beliebiger Schemafehler war damit ein
+  # Logeintrag und der Bootstrap lief weiter. Screenshots sehen danach plausibel
+  # aus und zeigen den falschen Zustand.
+  #
+  # Eine SQLSTATE-Ausnahmeliste stand hier kurz und ist wieder raus: mit
+  # ON_ERROR_STOP=1 bricht psql beim ERSTEN Fehler ab und fuehrt den REST DER
+  # DATEI NICHT MEHR AUS. Einen solchen Fehler zu tolerieren hiesse, ein
+  # halbes Schema als Erfolg zu verbuchen. Dieselbe Funktion spielt ausserdem
+  # die ACL-Dateien ein — eine Ausnahmeliste haette dort die
+  # Fingerprint-Exception verschluckt.
+  #
+  # Ist ein Fehler wirklich erwartet, gehoert die betroffene Anweisung
+  # idempotent gemacht oder als eigener, vollstaendig beschriebener Schritt
+  # behandelt — nicht der ganze Dateilauf durchgewunken.
+  apply_shared() {
+    local datei="$1" ausgabe
+    if ausgabe="$(docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -q \
+                    -v ON_ERROR_STOP=1 -v VERBOSITY=verbose < "$datei" 2>&1)"; then
+      return 0
+    fi
+    printf '%s\n' "$ausgabe" | tail -20 >&2
+    refuse "applying $datei failed — see the SQL error above."
+  }
+
+  apply_shared supabase-test/baseline/prereqs.sql
+  apply_shared supabase-test/baseline/schema.sql
+  # Die Rechte-Schnappschuesse enthalten am Ende einen DO-Block, der den
+  # ACL-Fingerprint gegen die eben eingespielte Datenbank prueft. Schlaegt der
+  # an, muss der Bootstrap stehenbleiben.
+  baseline_apply_privileges supabase-test/baseline apply_shared \
+    || refuse "applying shared baseline privileges failed."
 
   # The shared prereqs stub creates besichtigung.sessions but grants nothing on it. The
   # public view over it is security_invoker, so a browser (role `authenticated`) is denied

@@ -44,3 +44,13 @@ public/sitemap.xml
 
 # Zustand der Supabase-CLI, keine Projektdatei
 supabase/.temp/
+
+# Laufzeitspuren der Baseline-Auffrischung: die Sperre verhindert, dass
+# Auffrischen und Einspielen sich ueberlappen, die Buehne haelt die noch nicht
+# veroeffentlichte Generation. Beides gehoert nicht ins Repo.
+supabase-test/baseline/.baseline.lock
+supabase-test/baseline/.stage.*
+
+# Python-Bytecode der Baseline-Hilfsskripte
+__pycache__/
+*.pyc
