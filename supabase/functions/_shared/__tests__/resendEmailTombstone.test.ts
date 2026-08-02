@@ -205,3 +205,64 @@ describe("resend-email/index.ts — nichts mehr da", () => {
     expect(code).toMatch(/ergebnis\.status|result\.status/);
   });
 });
+
+// ── Die Auslieferungsliste ──────────────────────────────────────────────────
+//
+// Der Grabstein schuetzt nur, solange niemand die Funktion erneut ausliefert.
+// In der Produktion ist sie nicht vorhanden (lesend gemessen am 2026-08-03);
+// ein Auslieferungslauf wuerde die Route also NEU anlegen. Deshalb wird hier
+// das echte Bash-Array ausgewertet — nicht nach einem Wort in der Datei
+// gesucht, das auch in einem Kommentar stehen koennte.
+
+describe("deploy-functions.sh — Auslieferungsliste", () => {
+  const skript = readFileSync(
+    new URL("../../../../migration-scripts/deploy-functions.sh", import.meta.url),
+    "utf8",
+  );
+
+  /** Die Eintraege des `FUNCTIONS=( … )`-Arrays, ohne Kommentarzeilen. */
+  const eintraege: string[] = (() => {
+    const start = skript.indexOf("FUNCTIONS=(");
+    expect(start, "FUNCTIONS-Array nicht gefunden").toBeGreaterThan(-1);
+    const ende = skript.indexOf("\n)", start);
+    expect(ende, "Array-Ende nicht gefunden").toBeGreaterThan(start);
+    const rumpf = skript.slice(start + "FUNCTIONS=(".length, ende);
+    return rumpf
+      .split("\n")
+      .map((z) => z.trim())
+      .filter((z) => z.length > 0 && !z.startsWith("#"))
+      .map((z) => {
+        const m = z.match(/^"([^"]+)"$/);
+        expect(m, `unerwarteter Eintrag: ${z}`).not.toBeNull();
+        return (m as RegExpMatchArray)[1];
+      });
+  })();
+
+  it("liest ein plausibles Array", () => {
+    expect(eintraege.length).toBeGreaterThan(20);
+    // Stichproben, die wirklich ausgeliefert werden sollen.
+    expect(eintraege).toContain("send-offer");
+    expect(eintraege).toContain("notify-appointment-reminder");
+  });
+
+  it("liefert den stillgelegten Endpunkt NICHT aus", () => {
+    expect(eintraege).not.toContain("resend-email");
+  });
+
+  it("enthaelt keinen Eintrag doppelt", () => {
+    expect(new Set(eintraege).size).toBe(eintraege.length);
+  });
+
+  it("nennt den stillgelegten Endpunkt auch nicht in einer anderen Schreibweise", () => {
+    expect(eintraege.filter((n) => n.toLowerCase().includes("resend"))).toEqual([]);
+  });
+
+  // Absichtlich NICHT geprueft: dass jeder Eintrag im Repo existiert. Neun der
+  // Eintraege zeigen auf Funktionen, die der Fork entfernt hat (Marktplatz,
+  // Stripe, Token), und 31 vorhandene Funktionen stehen gar nicht in der Liste
+  // — das Skript ist ein Fossil und nicht der tatsaechliche Auslieferungsweg.
+  // Das ist ein eigener Befund und gehoert nicht in diese Aenderung; ihn hier
+  // als Test festzuschreiben wuerde ihn entweder zementieren oder eine
+  // Aufraeumaktion erzwingen, die mit dem stillgelegten Endpunkt nichts zu tun
+  // hat.
+});

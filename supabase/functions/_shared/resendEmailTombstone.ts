@@ -21,14 +21,29 @@
  * geliefert. Das Produkt hat den echten Weg bereits: `sendOffer` mit
  * `forceResend`, das die Offerte samt PDF neu erzeugt.
  *
- * ── Warum ein Grabstein und keine geloeschte Datei ──────────────────────────
+ * ── Was in der Produktion tatsaechlich steht ────────────────────────────────
  *
- * Die Datei zu loeschen schaltet nichts ab. Auf dem Server liegt der
- * ausgelieferte Stand getrennt von der Quelle; die alte, unsichere Fassung
- * liefe unveraendert weiter. Auch sie aus der Auslieferungsliste zu streichen
- * wuerde sie nur einfrieren — sie kaeme nie wieder ein Update. Deshalb zuerst
- * dieser Grabstein, ausgeliefert an dieselbe Stelle; entfernt wird die Funktion
- * erst, wenn er nachweislich laeuft.
+ * NICHTS. Am 2026-08-03 wurde lesend nachgesehen: unter dem Pfad, den der
+ * Edge-Container als Funktionsverzeichnis eingehaengt hat, liegen 41 Ordner —
+ * `resend-email` ist keiner davon. Weder die alte Fassung noch dieser Grabstein
+ * sind dort ausgeliefert.
+ *
+ * Daraus folgen zwei Dinge:
+ *
+ *   1. Dieser Grabstein wird NICHT ausgeliefert. Es gibt nichts zu ersetzen,
+ *      und eine Auslieferung wuerde eine Route wieder anlegen, die es nicht
+ *      gibt. Der Eintrag ist deshalb aus `migration-scripts/deploy-functions.sh`
+ *      entfernt worden.
+ *
+ *   2. Er bleibt trotzdem im Quelltext stehen — als Sicherung. Laeuft das
+ *      Auslieferungsskript eines Tages doch ueber diesen Ordner, entsteht eine
+ *      wirkungslose 410-Route und nicht die alte, ungeschuetzte Funktion. Die
+ *      Datei ersatzlos zu loeschen haette genau diese Sicherung entfernt: der
+ *      alte Stand stuende dann wieder eine `git revert`-Laenge entfernt vom
+ *      naechsten Auslieferungslauf.
+ *
+ * Die urspruengliche Ueberlegung — erst Grabstein ausliefern, dann entfernen —
+ * galt fuer den Fall, dass die alte Fassung noch laeuft. Sie tut es nicht.
  *
  * ── Was hier NICHT mehr passiert ────────────────────────────────────────────
  *

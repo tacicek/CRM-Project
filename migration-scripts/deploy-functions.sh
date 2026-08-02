@@ -41,7 +41,9 @@ FUNCTIONS=(
     "notify-admin-new-lead"
     "google-places-autocomplete"
     "google-places-details"
-    "resend-email"
+    # resend-email steht hier absichtlich NICHT mehr: der Endpunkt ist
+    # stillgelegt und in der Produktion nachweislich nicht vorhanden.
+    # Ihn auszuliefern wuerde eine Route neu anlegen, die es dort nicht gibt.
     "import-swiss-plz"
 )
 
