@@ -200,6 +200,18 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/cleanup-besichtigung/index.ts"
 
+# `verify_jwt = false` bleibt ABSICHTLICH stehen — und bedeutet genau, was es
+# sagt: der Endpunkt ist oeffentlich erreichbar. Auf dieser Installation wird
+# der Wert ohnehin nicht ausgewertet (der Edge-Container laeuft mit global
+# abgeschalteter Pruefung, und Kong reicht /functions/v1/* ohne Auth-Plugin
+# durch). Ein `true` waere deshalb kein Schutz, sondern eine Zeile, die im Repo
+# wie einer aussieht.
+#
+# Die Zugangskontrolle steht in der Funktion selbst: Bearer-JWT → echter
+# Benutzer → Mitgliedschaft in der Firma des Termins, geprueft VOR jedem
+# Geheimnis und vor jedem Versand (_shared/appointmentConfirmationGuard.ts).
+# Ohne diesen Guard waere der Endpunkt eine anmeldungsfreie Ausloesung
+# kostenpflichtiger Mails im Namen fremder Firmen.
 [functions.send-appointment-confirmation]
 enabled = true
 verify_jwt = false
