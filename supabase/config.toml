@@ -92,7 +92,14 @@ verify_jwt = false
 
 [functions.notify-appointment-cancelled]
 verify_jwt = false
-# Called internally via service_role
+# Oeffentlicher Capability-Endpunkt: der Kunde ruft ihn aus dem Absage-Link
+# heraus auf, ohne Anmeldung. Dass hier kein JWT verlangt wird, ist deshalb
+# Absicht und kein Versehen — die Berechtigung IST das Token aus dem Link.
+# Geaendert wird nichts direkt: der Zustandsuebergang laeuft ausschliesslich
+# ueber die service-role-RPC cancel_appointment_by_action_token, die Token,
+# Frist, Status und den geplanten Beginn unter einer Zeilensperre prueft.
+# (Der fruehere Hinweis "Called internally via service_role" stimmte nicht:
+# der Endpunkt war oeffentlich erreichbar UND glaubte dem Anfragekoerper.)
 
 [functions.send-token-notification]
 verify_jwt = false
