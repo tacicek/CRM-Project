@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getCalendarFrom, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
+import { buildReminderActions, renderCancelAction, showsCancelAction } from "../_shared/appointmentReminderActions.ts";
 import {
   createTranslator,
   formatDateLong,
@@ -62,6 +63,24 @@ interface Appointment {
    * only source, which is precisely why appointments.language exists.
    */
   language: string | null;
+}
+
+/**
+ * Die Zeilen der HEUTE-Abfrage — und nur die. Sie holt zusaetzlich das
+ * Capability-Token, weil daran der Absage-Link der Ein-Stunden-Erinnerung
+ * haengt.
+ *
+ * Der Basistyp traegt das Feld ausdruecklich NICHT: die Abfrage fuer morgen
+ * waehlt es nicht aus, und ein gemeinsamer Typ wuerde etwas zusagen, was in
+ * jenen Zeilen gar nicht steht. Weniger Rechte und weniger Daten dort, wo sie
+ * nicht gebraucht werden — und ein Typ, der das auch sagt.
+ *
+ * NULL heisst WIDERRUFEN und ist keine Luecke: dann bekommt die Mail schlicht
+ * keinen Absage-Knopf. Das Token wird nie erzeugt, nie protokolliert und nie
+ * weitergereicht.
+ */
+interface TodayAppointment extends Appointment {
+  customer_action_token: string | null;
 }
 
 interface Company {
@@ -296,7 +315,8 @@ const handler = async (req: Request): Promise<Response> => {
         reminder_sent_firma,
         reminder_sent_customer,
         company_id,
-        language
+        language,
+        customer_action_token
       `)
       .eq("appointment_date", todayStr)
       .in("status", ["pending", "confirmed"]);
@@ -348,7 +368,7 @@ const handler = async (req: Request): Promise<Response> => {
     const siteUrl = getSiteUrl();
 
     // Process today's appointments (2-hour and 1-hour reminders)
-    for (const appointment of appointments as Appointment[]) {
+    for (const appointment of appointments as TodayAppointment[]) {
       const appointmentDateTime = zonedWallClockToUtc(appointment.appointment_date, appointment.start_time);
       const timeUntilMs = appointmentDateTime.getTime() - now.getTime();
       const hoursUntil = timeUntilMs / (1000 * 60 * 60);
@@ -392,11 +412,6 @@ const handler = async (req: Request): Promise<Response> => {
       const typeLabelCompany = translateAppointmentType(
         appointment.appointment_type, tCompany, appointment.appointment_type);
 
-      // The public cancel/reschedule pages read everything from the URL — carry the locale so a
-      // French e-mail does not land the customer on a German page.
-      const cancelUrl = `${siteUrl}/termin/${appointment.id}/absagen?email=${encodeURIComponent(appointment.customer_email || "")}&lang=${customerLocale}`;
-      const rescheduleUrl = `${siteUrl}/termin/${appointment.id}/verschieben?email=${encodeURIComponent(appointment.customer_email || "")}&lang=${customerLocale}`;
-
       // 1-hour reminder with cancel option (between 0.5 and 1.5 hours before)
       if (hoursUntil > 0.5 && hoursUntil <= 1.5) {
         // Check if 1-hour reminder was already sent
@@ -415,6 +430,31 @@ const handler = async (req: Request): Promise<Response> => {
           const icsContent = generateIcsContent(appointment, company as Company);
           const icsBase64 = stringToBase64(icsContent);
 
+          // Erst hier, und nur hier, wird das Token angefasst: an genau dieser
+          // Stelle entsteht die eine Mail, die einen Absage-Knopf bekommt. Die
+          // Zwei-Stunden-Erinnerung und die Vortagsmail sehen es nie.
+          //
+          // Der Link traegt das Token im Fragment, die Abfrage nur noch die
+          // Sprache. Fehlt das Token oder taugt ein anderer Teil nicht, entsteht
+          // KEIN Link — die Erinnerung geht trotzdem raus, nur ohne Knopf.
+          const aktionen = buildReminderActions({
+            baseUrl: siteUrl,
+            appointmentId: appointment.id,
+            actionToken: appointment.customer_action_token,
+            locale: customerLocale,
+          });
+          if (!showsCancelAction(aktionen)) {
+            // Nur der Grund, nie der Wert.
+            console.log(
+              `[notify-appointment-reminder] No cancel link for ${appointment.id}: ${aktionen.reason}`,
+            );
+          }
+          const aktionsHtml = renderCancelAction(aktionen, {
+            title: tCustomer("email.reminder.oneHour.actionsTitle"),
+            cta: tCustomer("email.reminder.oneHour.cancelCta"),
+            note: tCustomer("email.reminder.oneHour.actionsNote"),
+          });
+
           try {
             await activeResend.client.emails.send({
               from: activeResend.from,
@@ -424,7 +464,7 @@ const handler = async (req: Request): Promise<Response> => {
                 title: appointment.title,
                 timeUntil: timeUntilText,
               })}`,
-              html: generateOneHourReminderEmail(appointment, company as Company, timeUntilText, typeLabelCustomer, cancelUrl, rescheduleUrl, customerLocale),
+              html: generateOneHourReminderEmail(appointment, company as Company, timeUntilText, typeLabelCustomer, aktionsHtml, customerLocale),
               attachments: [
                 {
                   filename: `termin-${appointment.appointment_date}.ics`,
@@ -934,8 +974,12 @@ function generateOneHourReminderEmail(
   company: Company,
   timeUntil: string,
   appointmentType: string,
-  cancelUrl: string,
-  rescheduleUrl: string,
+  /**
+   * Der fertige Aktionsabschnitt aus `renderCancelAction` — leer, wenn es
+   * keinen gueltigen Absage-Link gibt. Hier wird er nur noch eingesetzt; ob es
+   * ihn gibt, ist an einer Stelle entschieden, die sich ausfuehren laesst.
+   */
+  actionSectionHtml: string,
   locale: Locale,
 ): string {
   const t = createTranslator(locale);
@@ -958,7 +1002,6 @@ function generateOneHourReminderEmail(
         .action-section { background: #F3F4F6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
         .action-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
         .cancel-btn { display: inline-block; background: #EF4444; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; }
-        .reschedule-btn { display: inline-block; background: #3B82F6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; }
       </style>
     </head>
     <body>
@@ -996,14 +1039,7 @@ function generateOneHourReminderEmail(
             </div>
           </div>
 
-          <div class="action-section">
-            <p style="margin: 0 0 15px; color: #374151; font-weight: 600;">${t("email.reminder.oneHour.actionsTitle")}</p>
-            <div class="action-btns">
-              <a href="${rescheduleUrl}" class="reschedule-btn">📅 ${t("email.reminder.oneHour.rescheduleCta")}</a>
-              <a href="${cancelUrl}" class="cancel-btn">❌ ${t("email.reminder.oneHour.cancelCta")}</a>
-            </div>
-            <p style="margin: 15px 0 0; font-size: 12px; color: #6B7280;">${t("email.reminder.oneHour.actionsNote")}</p>
-          </div>
+${actionSectionHtml}
 
           <div class="footer">
             <p>${t("common.autoReminderSent")}</p>
