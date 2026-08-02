@@ -6972,6 +6972,17 @@ export type Database = {
         Args: { modifier_id: string; target_user_id: string }
         Returns: boolean
       }
+      cancel_appointment_by_action_token: {
+        Args: { p_appointment_id: string; p_reason?: string; p_token: string }
+        Returns: {
+          appointment_id: string
+          cancellation_reason: string
+          cancelled_at: string
+          company_id: string
+          result_code: string
+          status: Database["public"]["Enums"]["appointment_status"]
+        }[]
+      }
       check_besichtigung_storage_access: {
         Args: { folder_token: string }
         Returns: boolean
@@ -7103,6 +7114,23 @@ export type Database = {
           customer_b_email: string | null
           customer_b_phone: string | null
           match_reason: string
+        }[]
+      }
+      get_appointment_by_action_token: {
+        Args: { p_appointment_id: string; p_token: string }
+        Returns: {
+          all_day: boolean
+          appointment_date: string
+          appointment_type: Database["public"]["Enums"]["appointment_type"]
+          company_name: string
+          company_phone: string
+          end_time: string
+          id: string
+          language: string
+          location_city: string
+          start_time: string
+          status: Database["public"]["Enums"]["appointment_status"]
+          title: string
         }[]
       }
       get_amendment_by_token: {

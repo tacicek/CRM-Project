@@ -161,13 +161,31 @@ export const publicPages: Record<keyof typeof de, string> = {
   "public.cancel.submitting": "Cancelling…",
   "public.cancel.done": "Your appointment has been cancelled. We have received your cancellation.",
   "public.cancel.doneTitle": "Appointment cancelled",
-  "public.cancel.doneBody": "The appointment has been cancelled. {company} has been notified.",
+  "public.cancel.doneBody":
+    "Your cancellation is recorded. {company} now sees this appointment as cancelled in their own calendar.",
   "public.cancel.alreadyCancelled": "This appointment has already been cancelled.",
-  "public.cancel.companyInformed": "{company} will be informed of the cancellation.",
+  // Honest wording: the cancellation is stored the moment this page reports success.
+  // The e-mail to the company is best effort and may not arrive.
+  "public.cancel.alreadyCancelledTitle":
+    "Already cancelled",
+  "public.cancel.alreadyCancelledBody":
+    "This appointment was already cancelled. Nothing was triggered again.",
+  "public.cancel.notCancellableTitle":
+    "Cancellation no longer possible",
+  "public.cancel.notCancellableBody":
+    "This appointment can no longer be cancelled through this link — it has already started or is completed. Please contact {company} directly.",
+  "public.cancel.serviceUnavailableTitle":
+    "Temporarily unavailable",
+  "public.cancel.serviceUnavailableBody":
+    "The cancellation could not be processed. Please try again in a few minutes.",
+  "public.cancel.retry":
+    "Try again",
+  "public.cancel.reasonTooLong":
+    "The reason may be at most 2000 characters long.",
+  "public.cancel.companyInformed":
+    "After you submit, the appointment will show as cancelled for {company}.",
   "public.cancel.toastSuccess": "Appointment cancelled",
   "public.cancel.toastFailed": "The appointment could not be cancelled.",
-  // Written into appointments.cancellation_reason and read by the COMPANY — company language.
-  "public.cancel.defaultReason": "Cancelled by the customer",
 
   // --- Appointment reschedule (/termin/:id/verschieben) ---------------------------------
   "public.reschedule.title": "Reschedule appointment",

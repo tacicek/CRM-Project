@@ -162,13 +162,33 @@ export const publicPages = {
   "public.cancel.submitting": "Wird abgesagt…",
   "public.cancel.done": "Ihr Termin wurde abgesagt. Wir haben Ihre Absage erhalten.",
   "public.cancel.doneTitle": "Termin abgesagt",
-  "public.cancel.doneBody": "Der Termin wurde erfolgreich abgesagt. {company} wurde benachrichtigt.",
+  "public.cancel.doneBody":
+    "Ihre Absage ist eingetragen. {company} sieht den Termin ab sofort als abgesagt im eigenen Kalender.",
   "public.cancel.alreadyCancelled": "Dieser Termin wurde bereits abgesagt.",
-  "public.cancel.companyInformed": "{company} wird über die Absage informiert.",
+  // Ehrliche Formulierung: die Absage steht in der Datenbank, sobald diese Seite
+  // Erfolg meldet. Die E-Mail an die Firma ist bestes Bemuehen und kann ausbleiben —
+  // deshalb sagt der Text, dass der Termin im Kalender der Firma abgesagt ist, und
+  // nicht, dass eine Nachricht angekommen ist.
+  "public.cancel.alreadyCancelledTitle":
+    "Bereits abgesagt",
+  "public.cancel.alreadyCancelledBody":
+    "Dieser Termin war schon abgesagt. Es wurde nichts erneut ausgelöst.",
+  "public.cancel.notCancellableTitle":
+    "Absage nicht mehr möglich",
+  "public.cancel.notCancellableBody":
+    "Dieser Termin lässt sich nicht mehr über diesen Link absagen — er hat bereits begonnen oder ist abgeschlossen. Bitte wenden Sie sich direkt an {company}.",
+  "public.cancel.serviceUnavailableTitle":
+    "Gerade nicht erreichbar",
+  "public.cancel.serviceUnavailableBody":
+    "Die Absage konnte nicht verarbeitet werden. Bitte versuchen Sie es in ein paar Minuten noch einmal.",
+  "public.cancel.retry":
+    "Erneut versuchen",
+  "public.cancel.reasonTooLong":
+    "Der Grund darf höchstens 2000 Zeichen lang sein.",
+  "public.cancel.companyInformed":
+    "Nach dem Absenden ist der Termin für {company} als abgesagt sichtbar.",
   "public.cancel.toastSuccess": "Termin erfolgreich abgesagt",
   "public.cancel.toastFailed": "Der Termin konnte nicht abgesagt werden.",
-  // Written into appointments.cancellation_reason and read by the COMPANY — company language.
-  "public.cancel.defaultReason": "Vom Kunden abgesagt",
 
   // --- Appointment reschedule (/termin/:id/verschieben) ---------------------------------
   "public.reschedule.title": "Termin verschieben",

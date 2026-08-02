@@ -165,13 +165,32 @@ export const publicPages: Record<keyof typeof de, string> = {
   "public.cancel.submitting": "Annulation en cours…",
   "public.cancel.done": "Votre rendez-vous a été annulé. Nous avons bien reçu votre annulation.",
   "public.cancel.doneTitle": "Rendez-vous annulé",
-  "public.cancel.doneBody": "Le rendez-vous a bien été annulé. {company} en a été informée.",
+  "public.cancel.doneBody":
+    "Votre annulation est enregistrée. {company} voit désormais ce rendez-vous comme annulé dans son agenda.",
   "public.cancel.alreadyCancelled": "Ce rendez-vous a déjà été annulé.",
-  "public.cancel.companyInformed": "{company} sera informée de votre annulation.",
+  // Formulation honnete : l'annulation est enregistree des que cette page annonce
+  // un succes. L'e-mail a l'entreprise reste un simple effort et peut manquer.
+  "public.cancel.alreadyCancelledTitle":
+    "Déjà annulé",
+  "public.cancel.alreadyCancelledBody":
+    "Ce rendez-vous était déjà annulé. Rien n'a été déclenché à nouveau.",
+  "public.cancel.notCancellableTitle":
+    "Annulation plus possible",
+  "public.cancel.notCancellableBody":
+    "Ce rendez-vous ne peut plus être annulé via ce lien — il a déjà commencé ou il est terminé. Veuillez contacter directement {company}.",
+  "public.cancel.serviceUnavailableTitle":
+    "Momentanément indisponible",
+  "public.cancel.serviceUnavailableBody":
+    "L'annulation n'a pas pu être traitée. Merci de réessayer dans quelques minutes.",
+  "public.cancel.retry":
+    "Réessayer",
+  "public.cancel.reasonTooLong":
+    "Le motif ne peut pas dépasser 2000 caractères.",
+  "public.cancel.companyInformed":
+    "Après l'envoi, le rendez-vous apparaîtra comme annulé pour {company}.",
   "public.cancel.toastSuccess": "Rendez-vous annulé",
   "public.cancel.toastFailed": "Le rendez-vous n'a pas pu être annulé.",
   // Enregistré dans appointments.cancellation_reason et lu par l'ENTREPRISE — langue de l'entreprise.
-  "public.cancel.defaultReason": "Annulé par le client",
 
   // --- Report de rendez-vous (/termin/:id/verschieben) ---------------------------------
   "public.reschedule.title": "Reporter le rendez-vous",
