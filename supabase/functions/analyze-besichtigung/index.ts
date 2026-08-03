@@ -191,17 +191,26 @@ serve(async (req: Request) => {
       p_status: "analyzing",
     });
 
-    // ── Generate public URLs for each photo (bucket is public) ──
+    // ── Befristete Adressen fuer jedes Foto ──
+    //
+    // Der Bucket ist privat (20260803040000). Die Adresse geht an die
+    // Anthropic-API, die sie ihrerseits abruft — dafuer genuegt eine Signatur,
+    // und sie verfaellt danach wieder. Vorher stand hier eine dauerhaft
+    // oeffentliche Adresse, die niemand je zurueckziehen konnte.
+    //
+    // Diese Funktion laeuft auf `service_role`; das Signieren haengt hier also
+    // nicht an den Storage-Policies.
+    const SIGNATUR_SEKUNDEN = 600;
     const imageContents: Array<{ type: string; source: { type: string; url: string } }> = [];
     const roomMapping: string[] = [];
 
     for (const photo of photoList) {
-      const { data } = supabase.storage
+      const { data, error: signError } = await supabase.storage
         .from("besichtigung-uploads")
-        .getPublicUrl(photo.storage_path);
+        .createSignedUrl(photo.storage_path, SIGNATUR_SEKUNDEN);
 
-      if (!data?.publicUrl) {
-        console.warn(`[analyze-besichtigung] Skipping photo ${photo.id}: no public URL`);
+      if (signError || !data?.signedUrl) {
+        console.warn(`[analyze-besichtigung] Skipping photo ${photo.id}: no signed URL`);
         continue;
       }
 
@@ -210,7 +219,7 @@ serve(async (req: Request) => {
 
       imageContents.push({
         type: "image",
-        source: { type: "url", url: data.publicUrl },
+        source: { type: "url", url: data.signedUrl },
       });
     }
 

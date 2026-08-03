@@ -17,7 +17,11 @@ DROP SCHEMA IF EXISTS besichtigung CASCADE;
 CREATE SCHEMA besichtigung;
 
 CREATE TABLE besichtigung.sessions (
-  id              uuid,
+  -- Primaerschluessel wie produktiv (20260127100000). Er ist nicht Zierrat: an
+  -- ihm haengt der Fremdschluessel von `photos`, und ohne den kann eine lokale
+  -- Pruefung des Aufraeumens das CASCADE nicht sehen — sie wuerde geloeschte
+  -- Sitzungen melden und stehengebliebene Fotos uebersehen.
+  id              uuid PRIMARY KEY,
   token           text,
   company_id      uuid,
   lead_id         uuid,
@@ -37,4 +41,24 @@ CREATE TABLE besichtigung.sessions (
   customer_notes  text,
   created_by      uuid,
   data_expires_at timestamptz
+);
+
+-- Ergaenzt fuer die S2-Runde (2026-08-03): `delete_besichtigung_photo` loescht
+-- aus `besichtigung.photos`, und ohne diese Tabelle liesse sich die
+-- Sitzungsbindung lokal ueberhaupt nicht pruefen — die Zusicherung waere dann
+-- eine Behauptung. Die Spalten sind aus der Migration
+-- 20260127100000_virtual_besichtigung.sql abgeschrieben, nicht erfunden;
+-- weggelassen sind nur die AI-Felder, die keine Rolle spielen.
+--
+-- Weiterhin ein Wegwerf-Geruest, KEIN echtes besichtigung-Schema. Der richtige
+-- Weg bleibt eine Baseline mit `--schema=besichtigung`.
+CREATE TABLE besichtigung.photos (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id    uuid NOT NULL REFERENCES besichtigung.sessions(id) ON DELETE CASCADE,
+  storage_path  text NOT NULL,
+  filename      text NOT NULL,
+  file_size     bigint,
+  mime_type     text,
+  room_type     text,
+  uploaded_at   timestamptz DEFAULT now()
 );

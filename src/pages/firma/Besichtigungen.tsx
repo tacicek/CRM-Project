@@ -50,6 +50,7 @@ import { BesichtigungAnalysisView } from "@/components/firma/BesichtigungAnalysi
 import { useI18n, useT } from "@/i18n/useI18n";
 import { formatDate as formatDateI18n } from "@/i18n/format";
 import { getAppointmentStatusLabel } from "@/i18n/domain";
+import { signPhotoUrls } from "@/lib/besichtigungPhotoUrls";
 
 interface BesichtigungRequest {
   id: string;
@@ -1152,21 +1153,19 @@ const FirmaBesichtigungen = () => {
                         onClick={() => {
                           setSelectedVirtualSession(session);
                           setIsVirtualDetailOpen(true);
-                          // Load public photo URLs (bucket is public, paths contain random tokens)
+                          // Der Bucket ist privat; gelesen wird ueber befristete
+                          // Signaturen. Der Dialog oeffnet sofort, die Bilder
+                          // kommen nach — ein Foto ohne Signatur bleibt aus.
                           if (session.photos?.length > 0) {
-                            const newUrls: Record<string, string> = {};
-                            for (const photo of session.photos) {
-                              if (photoUrls[photo.id]) continue;
-                              const { data } = supabase.storage
+                            void signPhotoUrls(session.photos, photoUrls, (pfad, ttl) =>
+                              supabase.storage
                                 .from("besichtigung-uploads")
-                                .getPublicUrl(photo.storage_path);
-                              if (data?.publicUrl) {
-                                newUrls[photo.id] = data.publicUrl;
+                                .createSignedUrl(pfad, ttl),
+                            ).then(neue => {
+                              if (Object.keys(neue).length > 0) {
+                                setPhotoUrls(prev => ({ ...prev, ...neue }));
                               }
-                            }
-                            if (Object.keys(newUrls).length > 0) {
-                              setPhotoUrls(prev => ({ ...prev, ...newUrls }));
-                            }
+                            });
                           }
                         }}
                       >

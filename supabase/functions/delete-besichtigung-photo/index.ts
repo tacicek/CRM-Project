@@ -46,10 +46,15 @@ serve(async (req) => {
       );
     }
 
-    // Delete photo via RPC (returns storage_path for cleanup)
+    // Loeschen ueber die RPC — mit der Sitzung, die der Token oben nachgewiesen
+    // hat, NICHT mit einer aus dem Anfragekoerper. Vorher stand hier nur die
+    // Foto-id: die Pruefung beantwortete damit „gehoert dieser Token zu einer
+    // gueltigen Sitzung?" und nicht „gehoert dieses Foto zu DIESER Sitzung?".
+    // Wer einen gueltigen Token fuer irgendeine Besichtigung hatte, konnte die
+    // Fotos jeder anderen loeschen.
     const { data: deleted, error: deleteError } = await supabase.rpc(
       "delete_besichtigung_photo",
-      { p_photo_id: photo_id }
+      { p_photo_id: photo_id, p_session_id: session.id }
     );
 
     if (deleteError || !deleted) {
