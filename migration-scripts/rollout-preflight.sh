@@ -296,28 +296,72 @@ done
 trenner "4. Aufbewahrung: Cron"
 # ═══════════════════════════════════════════════════════════════════════════
 
-CRON_SQL='SELECT j.jobname || $$|$$ || j.active::text || $$|$$ || j.schedule || $$|$$ || (j.command LIKE $$%cleanup-besichtigung%$$)::text || $$|$$ || coalesce(round(extract(epoch from (now() - max(r.end_time) FILTER (WHERE r.status = $$succeeded$$)))/3600.0, 2)::text, $$-$$) FROM cron.job j LEFT JOIN cron.job_run_details r ON r.jobid = j.jobid WHERE j.jobname = $$daily-besichtigung-cleanup$$ GROUP BY j.jobname, j.active, j.schedule, j.command'
+# Alle Wahrheitswerte kommen als 1/0 aus der Datenbank, nicht als Text.
+#
+# Der Grund steht in der Produktionsmessung vom 2026-08-03: die vorige Fassung
+# castete den Wahrheitswert nach text und verglich gegen die Kurzform — und
+# hielt einen aktiven Job fuer inaktiv. Postgres gibt eine Boolean-SPALTE
+# kurz aus (ein Buchstabe), der Cast nach text dagegen ausgeschrieben. Zwei
+# verschiedene Ausgabewege desselben Wertes; lokal nachgemessen, nicht
+# angenommen. Die Attrappe hatte die falsche Annahme mitgeschrieben, statt sie
+# zu pruefen — deshalb war sie gruen.
+#
+# Deshalb entscheidet jetzt die Datenbank und nicht die Textdarstellung:
+# `CASE WHEN … THEN 1 ELSE 0 END` gibt es nur in zwei Auspraegungen, und alles
+# andere ist ein Messfehler.
+#
+# Der Befehl wird EXAKT verglichen, nicht mit LIKE. `format(%L)` baut den
+# Vertragstext aus 20260704170000 zusammen, ohne dass ein einfaches
+# Anfuehrungszeichen durch die Ferne muss. Ein Befehl, der den Namen nur
+# erwaehnt, und einer mit angehaengtem zweiten Statement fallen damit durch.
+#
+# Die Frische entscheidet ebenfalls die Datenbank: 36 Stunden werden als
+# Intervall verglichen, nicht als abgeschnittene Zahl. Die Zahl daneben ist
+# nur zum Mitlesen.
+CRON_SQL='SELECT j.jobname
+    || $$|$$ || CASE WHEN j.active THEN $$1$$ ELSE $$0$$ END
+    || $$|$$ || j.schedule
+    || $$|$$ || CASE WHEN j.command = format($$SELECT public.invoke_edge_function(%L)$$, $$cleanup-besichtigung$$) THEN $$1$$ ELSE $$0$$ END
+    || $$|$$ || CASE WHEN max(r.end_time) FILTER (WHERE r.status = $$succeeded$$) IS NULL THEN $$NONE$$
+                     WHEN now() - max(r.end_time) FILTER (WHERE r.status = $$succeeded$$) <= make_interval(hours => 36) THEN $$1$$
+                     ELSE $$0$$ END
+    || $$|$$ || coalesce(round(extract(epoch from (now() - max(r.end_time) FILTER (WHERE r.status = $$succeeded$$)))/3600.0, 2)::text, $$-$$)
+  FROM cron.job j
+  LEFT JOIN cron.job_run_details r ON r.jobid = j.jobid
+ WHERE j.jobname = $$daily-besichtigung-cleanup$$
+ GROUP BY j.jobid, j.jobname, j.active, j.schedule, j.command'
 
-CRON_ZEILE="$(mess_sql "$CRON_SQL" 'Cron-Eintrag')"
-[ -n "$CRON_ZEILE" ] || abbruch_befund "Es gibt keinen Job 'daily-besichtigung-cleanup'."
+CRON_ROH="$(mess_sql "$CRON_SQL" 'Cron-Eintrag')"
 
-IFS='|' read -r C_NAME C_AKTIV C_PLAN C_CMD C_ALTER <<< "$CRON_ZEILE"
-echo "  Job:          ${C_NAME:-?}"
-echo "  aktiv:        ${C_AKTIV:-?}"
-echo "  Zeitplan:     ${C_PLAN:-?}"
-echo "  ruft cleanup: ${C_CMD:-?}"
-echo "  letzter Erfolg vor: ${C_ALTER:-?} h"
+# Genau eine Zeile. Keine heisst: es gibt den Job nicht. Mehrere heissen: es
+# gibt ihn mehrfach, und dann ist nicht bestimmbar, welcher laeuft — die erste
+# zu nehmen und den Rest zu verschweigen waere geraten, nicht gemessen.
+CRON_ZEILEN="$(printf '%s' "$CRON_ROH" | grep -c '' )"
+case "$CRON_ZEILEN" in
+  0) abbruch_befund "Es gibt keinen Job 'daily-besichtigung-cleanup'." ;;
+  1) : ;;
+  *) abbruch_befund "Es gibt $CRON_ZEILEN Jobs namens 'daily-besichtigung-cleanup' — nicht entscheidbar, welcher gilt." ;;
+esac
 
-[ "$C_AKTIV" = "t" ] || abbruch_befund "Der Cron-Job ist nicht aktiv."
+IFS='|' read -r C_NAME C_AKTIV C_PLAN C_CMD C_FRISCH C_ALTER <<< "$CRON_ROH"
+echo "  Job:                ${C_NAME:-?}"
+echo "  aktiv:              ${C_AKTIV:-?}   (1=ja, 0=nein)"
+echo "  Zeitplan:           ${C_PLAN:-?}"
+echo "  Vertragsbefehl:     ${C_CMD:-?}   (1=exakt, 0=abweichend)"
+echo "  innerhalb 36 h:     ${C_FRISCH:-?}   (1=ja, 0=nein, NONE=nie gelaufen)"
+echo "  letzter Erfolg vor: ${C_ALTER:-?} h   (nur zum Mitlesen)"
+
+# Erst pruefen, ob die Antwort ueberhaupt die vereinbarte Form hat. Ein Wert
+# ausserhalb von 1/0 ist kein "nein", sondern eine misslungene Messung.
+case "$C_AKTIV" in 0|1) : ;; *) abbruch_messung "Feld 'aktiv' ist weder 1 noch 0: '$C_AKTIV'" ;; esac
+case "$C_CMD"   in 0|1) : ;; *) abbruch_messung "Feld 'Vertragsbefehl' ist weder 1 noch 0: '$C_CMD'" ;; esac
+case "$C_FRISCH" in 0|1|NONE) : ;; *) abbruch_messung "Feld 'Frische' ist weder 1, 0 noch NONE: '$C_FRISCH'" ;; esac
+
+[ "$C_AKTIV" = "1" ] || abbruch_befund "Der Cron-Job ist nicht aktiv."
 [ "$C_PLAN" = "0 3 * * *" ] || abbruch_befund "Zeitplan ist '$C_PLAN', erwartet '0 3 * * *'."
-[ "$C_CMD" = "t" ] || abbruch_befund "Der Job ruft cleanup-besichtigung nicht auf."
-[ "$C_ALTER" != "-" ] || abbruch_befund "Kein einziger erfolgreicher Lauf verzeichnet."
-if ! printf '%s' "$C_ALTER" | grep -qE '^[0-9]+(\.[0-9]+)?$'; then
-  abbruch_messung "Cron-Alter ist keine Zahl: '$C_ALTER'"
-fi
-if [ "${C_ALTER%%.*}" -gt 36 ]; then
-  abbruch_befund "Letzter Erfolg liegt ${C_ALTER} h zurueck, erlaubt sind 36."
-fi
+[ "$C_CMD" = "1" ] || abbruch_befund "Der Job fuehrt nicht den Vertragsbefehl aus."
+[ "$C_FRISCH" != "NONE" ] || abbruch_befund "Kein einziger erfolgreicher Lauf verzeichnet."
+[ "$C_FRISCH" = "1" ] || abbruch_befund "Letzter Erfolg liegt ${C_ALTER} h zurueck, erlaubt sind 36."
 echo -e "  ${GRUEN}Cron in Ordnung.${AUS}"
 
 # ═══════════════════════════════════════════════════════════════════════════

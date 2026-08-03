@@ -38,7 +38,10 @@ cat > "$WERKBANK/ssh" <<'STUB'
 #!/bin/bash
 # Attrappe. Letztes Argument ist der Fernbefehl.
 BEFEHL="${!#}"
-printf '%s\n' "$BEFEHL" >> "$STUB_LOG"
+# Ein Befehl, eine Protokollzeile. Mehrzeiliges SQL wird zusammengezogen —
+# sonst zaehlten Fortsetzungszeilen als eigene Fernbefehle, und sowohl die
+# Erlaubnisliste als auch die SSH-Zaehlung laesen Unsinn.
+printf '%s\n' "$(printf '%s' "$BEFEHL" | tr '\n' ' ')" >> "$STUB_LOG"
 
 hash_von() { printf 'HASH %s\n' "$1"; }
 
@@ -77,7 +80,7 @@ esac
 case "$BEFEHL" in
   *cron.job*)
     [ "${STUB_CRON_RC:-0}" = "0" ] || exit "$STUB_CRON_RC"
-    printf '%s\n' "${STUB_CRON-daily-besichtigung-cleanup|t|0 3 * * *|t|4.50}"; exit 0 ;;
+    printf '%s\n' "${STUB_CRON-$STUB_CRON_PROD}"; exit 0 ;;
 esac
 
 # ── Edge-Protokoll ──
@@ -101,6 +104,26 @@ export STUB_HELFER_HASH;   STUB_HELFER_HASH="$(sha256sum "$FN_SRC/_shared/retire
 export STUB_ADMIN1_HASH;   STUB_ADMIN1_HASH="$(sha256sum "$FN_SRC/admin-create-user/index.ts" | cut -d' ' -f1)"
 export STUB_CLEAN_HASH;    STUB_CLEAN_HASH="$(sha256sum "$FN_SRC/cleanup-besichtigung/index.ts" | cut -d' ' -f1)"
 export STUB_CRONAUTH_HASH; STUB_CRONAUTH_HASH="$(sha256sum "$FN_SRC/_shared/cronAuth.ts" | cut -d' ' -f1)"
+
+# Der Cron-Satz, wie ihn die Produktionsmessung vom 2026-08-03 ergeben hat,
+# uebersetzt in die kanonische Form, die das Skript jetzt anfordert:
+# aktiv, Zeitplan 0 3 * * *, exakter Vertragsbefehl, 3.81 h alt und damit frisch.
+#
+# WARUM KANONISCH: die erste Fassung liess die Datenbank den Wahrheitswert als
+# Text ausgeben und verglich im Skript dagegen. Postgres hat dafuer zwei Wege —
+# eine Boolean-Spalte kommt kurz heraus (ein Buchstabe), ein Cast nach text
+# ausgeschrieben. Diese Attrappe hatte die kurze Form eingesetzt, das Skript
+# erzeugte die lange, und beide waren sich einig, dass sie recht haben. Die
+# Produktion entschied den Streit: der Job war aktiv und wurde als inaktiv
+# gemeldet.
+#
+# Deshalb liefert die Datenbank jetzt 1/0 aus einem CASE. Das hat nur zwei
+# Auspraegungen und keinen zweiten Ausgabeweg, an dem sich Code und Vorgabe
+# auseinanderleben koennten. Lokal gegen echtes Postgres nachgemessen:
+#   SELECT true;        -> t
+#   SELECT true::text;  -> true
+#   CASE WHEN true ...  -> 1
+export STUB_CRON_PROD="daily-besichtigung-cleanup|1|0 3 * * *|1|1|3.81"
 
 # ── Testgeruest ────────────────────────────────────────────────────────────
 BESTANDEN=0; GESCHEITERT=0
@@ -213,21 +236,82 @@ lauf; pruefe "cronAuth driftet"                                                 
 sauber; export STUB_CLEAN_RC=255 ; lauf; pruefe "cleanup nicht messbar"                   2
 
 echo
-echo "══ Cron ══"
-sauber; export STUB_CRON=""; lauf; pruefe "kein Cron-Job"                                 1
-sauber; export STUB_CRON="daily-besichtigung-cleanup|f|0 3 * * *|t|4.50"
-lauf; pruefe "Cron inaktiv"                                                               1
-sauber; export STUB_CRON="daily-besichtigung-cleanup|t|0 5 * * *|t|4.50"
-lauf; pruefe "falscher Zeitplan"                                                          1
-sauber; export STUB_CRON="daily-besichtigung-cleanup|t|0 3 * * *|f|4.50"
-lauf; pruefe "Job ruft cleanup nicht auf"                                                 1
-sauber; export STUB_CRON="daily-besichtigung-cleanup|t|0 3 * * *|t|-"
-lauf; pruefe "nie erfolgreich gelaufen"                                                   1
-sauber; export STUB_CRON="daily-besichtigung-cleanup|t|0 3 * * *|t|72.00"
-lauf; pruefe "letzter Erfolg zu alt (72 h)"                                               1
+echo "══ Cron: Zeilenzahl ══"
+sauber; export STUB_CRON=""; lauf; pruefe "kein Job gefunden"                             1
+sauber; export STUB_CRON="daily-besichtigung-cleanup|1|0 3 * * *|1|1|3.81
+daily-besichtigung-cleanup|1|0 3 * * *|1|1|9.20"
+lauf; pruefe "zwei gleichnamige Jobs -> fail-closed"                                      1
+enthaelt "und die zweite Zeile wird nicht verschwiegen" "Es gibt 2 Jobs"
+
+echo
+echo "══ Cron: kanonische Wahrheitswerte ══"
+sauber; export STUB_CRON="daily-besichtigung-cleanup|0|0 3 * * *|1|1|3.81"
+lauf; pruefe "aktiv=0 blockiert"                                                          1
+sauber; export STUB_CRON="daily-besichtigung-cleanup|1|0 3 * * *|0|1|3.81"
+lauf; pruefe "Vertragsbefehl=0 blockiert"                                                 1
+sauber; export STUB_CRON="daily-besichtigung-cleanup|1|0 5 * * *|1|1|3.81"
+lauf; pruefe "falscher Zeitplan blockiert"                                                1
+
+# Die Regression zur Produktionsmessung: die alte Textform darf nicht mehr
+# stillschweigend als "nein" durchgehen. Sie ist eine misslungene Messung.
+sauber; export STUB_CRON="daily-besichtigung-cleanup|true|0 3 * * *|1|1|3.81"
+lauf; pruefe "aktiv='true' ist Messfehler, nicht inaktiv"                                 2
+sauber; export STUB_CRON="daily-besichtigung-cleanup|t|0 3 * * *|1|1|3.81"
+lauf; pruefe "aktiv='t' ist Messfehler, nicht inaktiv"                                    2
+sauber; export STUB_CRON="daily-besichtigung-cleanup|1|0 3 * * *|f|1|3.81"
+lauf; pruefe "Befehlsfeld='f' ist Messfehler"                                             2
+sauber; export STUB_CRON="daily-besichtigung-cleanup|1|0 3 * * *|1|ja|3.81"
+lauf; pruefe "Frische='ja' ist Messfehler"                                                2
 sauber; export STUB_CRON_RC=255; lauf; pruefe "Cron nicht messbar"                        2
 
 echo
+echo "══ Cron: die 36-Stunden-Grenze entscheidet die Datenbank ══"
+sauber; export STUB_CRON="daily-besichtigung-cleanup|1|0 3 * * *|1|1|36.00"
+lauf; pruefe "genau 36.00 h -> frisch, laeuft durch"                                      0
+sauber; export STUB_CRON="daily-besichtigung-cleanup|1|0 3 * * *|1|0|36.01"
+lauf; pruefe "36.01 h -> abgelehnt"                                                       1
+sauber; export STUB_CRON="daily-besichtigung-cleanup|1|0 3 * * *|1|0|72.00"
+lauf; pruefe "72 h -> abgelehnt"                                                          1
+sauber; export STUB_CRON="daily-besichtigung-cleanup|1|0 3 * * *|1|NONE|-"
+lauf; pruefe "nie erfolgreich gelaufen -> eigener Zustand, abgelehnt"                     1
+enthaelt "und wird als solcher benannt" "Kein einziger erfolgreicher Lauf"
+
+echo
+echo "══ Der Vertragsbefehl wird in SQL exakt verglichen ══"
+# Der Vergleich selbst passiert in der Datenbank, nicht in der Shell. Geprueft
+# wird deshalb, dass das Skript die exakte Gleichheit anfordert und nicht mehr
+# das alte Enthaeltsein. Die drei Faelle sind lokal gegen echtes Postgres
+# gemessen: exakter Befehl 1, blosse Erwaehnung 0, angehaengtes Statement 0.
+PF_SQL="$(cat "$PREFLIGHT")"
+if printf '%s' "$PF_SQL" | grep -qF 'format($$SELECT public.invoke_edge_function(%L)$$'; then
+  printf "  ${GRUEN}✓${AUS} baut den Vertragstext mit format(%%L)\n"; BESTANDEN=$((BESTANDEN + 1))
+else
+  printf "  ${ROT}✗${AUS} format(%%L) fehlt\n"; GESCHEITERT=$((GESCHEITERT + 1))
+fi
+if printf '%s' "$PF_SQL" | grep -qF 'j.command = format('; then
+  printf "  ${GRUEN}✓${AUS} vergleicht auf Gleichheit\n"; BESTANDEN=$((BESTANDEN + 1))
+else
+  printf "  ${ROT}✗${AUS} kein Gleichheitsvergleich des Befehls\n"; GESCHEITERT=$((GESCHEITERT + 1))
+fi
+if printf '%s' "$PF_SQL" | grep -q 'j.command LIKE'; then
+  printf "  ${ROT}✗${AUS} vergleicht immer noch mit LIKE\n"; GESCHEITERT=$((GESCHEITERT + 1))
+else
+  printf "  ${GRUEN}✓${AUS} kein LIKE mehr auf dem Befehl\n"; BESTANDEN=$((BESTANDEN + 1))
+fi
+if printf '%s' "$PF_SQL" | grep -qF 'GROUP BY j.jobid'; then
+  printf "  ${GRUEN}✓${AUS} gruppiert je Job, damit Doppelte sichtbar bleiben\n"; BESTANDEN=$((BESTANDEN + 1))
+else
+  printf "  ${ROT}✗${AUS} gruppiert nicht je jobid — Doppelte fielen zusammen\n"; GESCHEITERT=$((GESCHEITERT + 1))
+fi
+
+echo
+echo "══ Der in Produktion gemessene Satz wird angenommen ══"
+sauber; lauf; pruefe "Produktionsformat (aktiv, 0 3 * * *, exakt, 3.81 h)"                0
+enthaelt "aktiv kanonisch gemeldet" "aktiv:              1"
+enthaelt "Vertragsbefehl kanonisch gemeldet" "Vertragsbefehl:     1"
+enthaelt "Frische kanonisch gemeldet" "innerhalb 36 h:     1"
+enthaelt "Alter nur zum Mitlesen" "letzter Erfolg vor: 3.81 h"
+
 echo "══ Ende zu Ende: hat die Funktion selbst gemeldet? ══"
 sauber; export STUB_E2E="E2E 0 NA -"; lauf; pruefe "Cron gruen, aber keine Abschlussmeldung" 1
 enthaelt "wird als unbelegt gemeldet" "END_TO_END_UNPROVEN"
