@@ -51,7 +51,7 @@ import { useI18n, useT } from "@/i18n/useI18n";
 import { formatDate as formatDateI18n } from "@/i18n/format";
 import { getAppointmentStatusLabel } from "@/i18n/domain";
 import {
-  signPhotoUrls,
+  signPhotoBatch,
   sichtbareUrls,
   verbleibendeGueltigkeitMs,
   type PhotoUrlBatch,
@@ -1194,22 +1194,25 @@ const FirmaBesichtigungen = () => {
                           setPhotoBatch(null);
 
                           if (session.photos?.length > 0) {
-                            void signPhotoUrls(session.photos, (pfad, ttl) =>
-                              supabase.storage
-                                .from("besichtigung-uploads")
-                                .createSignedUrl(pfad, ttl),
-                            ).then(urls => {
+                            // Der Zeitstempel entsteht in `signPhotoBatch` VOR
+                            // dem Signieren — sonst waere die zuerst
+                            // ausgestellte Adresse aelter, als der Satz behauptet.
+                            void signPhotoBatch(
+                              session.photos,
+                              (pfad, ttl) =>
+                                supabase.storage
+                                  .from("besichtigung-uploads")
+                                  .createSignedUrl(pfad, ttl),
+                              lauf,
+                              session.id,
+                              Date.now,
+                            ).then(satz => {
                               // Nachzuegler einer frueheren Oeffnung landen hier
                               // ebenfalls — sie duerfen den aktuellen Dialog
                               // nicht mehr anfassen.
+                              if (!satz) return;
                               if (laufRef.current !== lauf) return;
-                              if (Object.keys(urls).length === 0) return;
-                              setPhotoBatch({
-                                lauf,
-                                sessionId: session.id,
-                                erzeugtUm: Date.now(),
-                                urls,
-                              });
+                              setPhotoBatch(satz);
                             });
                           }
                         }}

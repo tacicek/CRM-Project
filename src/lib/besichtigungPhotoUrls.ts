@@ -106,6 +106,38 @@ export const signPhotoUrls = async (
 };
 
 /**
+ * Signiert einen Satz und stempelt ihn — der Zeitstempel entsteht VOR dem
+ * Signieren.
+ *
+ * Das ist der ganze Zweck dieser Funktion. Wuerde erst nach dem Warten
+ * gestempelt, liefe die Rechnung an der Wirklichkeit vorbei: die Frist der
+ * Adressen laeuft ab dem Moment, in dem der Speicher sie ausstellt, nicht ab
+ * dem Moment, in dem die letzte von ihnen eintrifft. Bei einer langsamen
+ * Verbindung — acht Fotos, mehrere Sekunden — waere die zuerst ausgestellte
+ * Adresse laengst aelter, als der Stempel behauptet, und die Oberflaeche
+ * zeigte sie noch, wenn sie schon tot ist.
+ *
+ * Genommen wird der fruehestmoegliche Zeitpunkt. Damit ist der Stempel
+ * hoechstens zu alt, nie zu jung — die Adressen gelten uns also eher zu kurz
+ * als zu lang, und das ist die Richtung, in die ein Irrtum fallen darf.
+ *
+ * Gibt `null` zurueck, wenn nichts signiert werden konnte: ein leerer Satz ist
+ * kein Satz, und der Aufrufer soll dann nichts anzeigen.
+ */
+export const signPhotoBatch = async (
+  photos: readonly PhotoRef[],
+  sign: SignFn,
+  lauf: number,
+  sessionId: string,
+  jetzt: () => number,
+): Promise<PhotoUrlBatch | null> => {
+  const erzeugtUm = jetzt();
+  const urls = await signPhotoUrls(photos, sign);
+  if (Object.keys(urls).length === 0) return null;
+  return { lauf, sessionId, erzeugtUm, urls };
+};
+
+/**
  * Darf ein eingetroffenes Ergebnis noch angewendet werden?
  *
  * Nein, wenn inzwischen ein weiterer Lauf gestartet ist (der Nutzer hat den

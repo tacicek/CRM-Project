@@ -6,6 +6,7 @@ import {
   SIGNED_URL_TTL_SECONDS,
   darfUebernehmen,
   sichtbareUrls,
+  signPhotoBatch,
   signPhotoUrls,
   verbleibendeGueltigkeitMs,
   type PhotoRef,
@@ -106,6 +107,93 @@ describe("signPhotoUrls — fail-closed", () => {
   it("erfindet bei einem Fehlschlag keinen Ersatz", async () => {
     const urls = await signPhotoUrls([foto("a")], async () => ({ data: null, error: new Error("nein") }));
     expect(Object.prototype.hasOwnProperty.call(urls, "a")).toBe(false);
+  });
+});
+
+// ── Der Zeitstempel ─────────────────────────────────────────────────────────
+
+describe("signPhotoBatch — gestempelt wird vor dem Signieren", () => {
+  /** Uhr, die bei jedem Ablesen um `schritt` ms weiterspringt. */
+  const uhr = (start: number, schritt: number) => {
+    let t = start;
+    return () => {
+      const jetzt = t;
+      t += schritt;
+      return jetzt;
+    };
+  };
+
+  it("nimmt den Zeitpunkt VOR dem Signieren, nicht danach", async () => {
+    // Langsames Signieren: die Uhr laeuft waehrenddessen um 5 Sekunden weiter.
+    const takt = uhr(1_000_000, 5000);
+    const langsam = async (p: string) => {
+      takt(); // die Zeit vergeht waehrend des Wartens
+      return gelingt(`https://s/${p}`);
+    };
+
+    const satz = await signPhotoBatch([foto("a")], langsam, 1, "s1", takt);
+    expect(satz?.erzeugtUm).toBe(1_000_000);
+  });
+
+  it("rechnet die Gueltigkeit dadurch eher zu kurz als zu lang", async () => {
+    // Der Kern des Befunds: wuerde nach dem Warten gestempelt, gaebe die
+    // Oberflaeche der zuerst ausgestellten Adresse mehr Leben, als sie hat.
+    const VERZOEGERUNG = 30_000;
+    let t = 1_000_000;
+    const takt = () => t;
+    const langsam = async (p: string) => {
+      t += VERZOEGERUNG; // Signieren dauert
+      return gelingt(`https://s/${p}`);
+    };
+
+    const satz = await signPhotoBatch([foto("a")], langsam, 1, "s1", takt);
+    expect(satz).not.toBeNull();
+    // Gestempelt auf den Beginn — nicht auf 1_030_000.
+    expect(satz!.erzeugtUm).toBe(1_000_000);
+    // Und damit ist der Satz zum Zeitpunkt des Eintreffens bereits um die
+    // Wartezeit gealtert, statt wieder bei null zu beginnen.
+    expect(verbleibendeGueltigkeitMs(satz!, t)).toBe(
+      (SIGNED_URL_TTL_SECONDS - ABLAUF_PUFFER_SEKUNDEN) * 1000 - VERZOEGERUNG,
+    );
+  });
+
+  it("liest die Uhr genau einmal", async () => {
+    const takt = vi.fn(() => 1_000_000);
+    await signPhotoBatch([foto("a"), foto("b")], async (p) => gelingt(`https://s/${p}`), 1, "s1", takt);
+    expect(takt).toHaveBeenCalledTimes(1);
+  });
+
+  it("reicht Lauf und Besichtigung unveraendert durch", async () => {
+    const satz = await signPhotoBatch(
+      [foto("a")],
+      async (p) => gelingt(`https://s/${p}`),
+      7,
+      "s42",
+      () => 1_000_000,
+    );
+    expect(satz).toEqual({
+      lauf: 7,
+      sessionId: "s42",
+      erzeugtUm: 1_000_000,
+      urls: { a: "https://s/tok/raum/a.jpg" },
+    });
+  });
+
+  it("gibt null zurueck, wenn keine einzige Adresse zustande kam", async () => {
+    const satz = await signPhotoBatch(
+      [foto("a")],
+      async () => ({ data: null, error: new Error("nein") }),
+      1,
+      "s1",
+      () => 1_000_000,
+    );
+    // Ein leerer Satz ist kein Satz — sonst zeigte der Dialog eine leere
+    // Galerie an, die nach zehn Minuten "ablaeuft".
+    expect(satz).toBeNull();
+  });
+
+  it("gibt null zurueck, wenn es gar keine Fotos gab", async () => {
+    expect(await signPhotoBatch([], async () => gelingt("x"), 1, "s1", () => 1)).toBeNull();
   });
 });
 
@@ -211,7 +299,7 @@ describe("besichtigung-uploads — kein Leser erzeugt mehr dauerhafte Adressen",
 
   it("die Oberflaeche geht ueber den geprueften Helfer", () => {
     const quelle = lies(LESER[0]);
-    expect(quelle).toContain("signPhotoUrls(");
+    expect(quelle).toContain("signPhotoBatch(");
     // Und sie zeigt nur, was der Helfer freigibt — nicht den Rohsatz.
     expect(quelle).toContain("sichtbareUrls(");
     expect(quelle).toContain("sichtbarePhotoUrls[photo.id]");
@@ -221,6 +309,10 @@ describe("besichtigung-uploads — kein Leser erzeugt mehr dauerhafte Adressen",
     const quelle = lies(LESER[0]);
     expect(quelle).toContain("laufRef");
     expect(quelle).toContain("verbleibendeGueltigkeitMs(");
+    // Der Stempel entsteht in signPhotoBatch, nicht im Then-Zweig: nach dem
+    // Warten darf die Zeit nicht erneut abgelesen werden.
+    const nachDemWarten = quelle.slice(quelle.indexOf(").then(satz =>"));
+    expect(nachDemWarten.slice(0, 400)).not.toContain("Date.now()");
     // Kein angesammelter Dauerzustand mehr.
     expect(quelle).not.toContain("setPhotoUrls");
   });
