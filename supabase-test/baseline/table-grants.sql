@@ -1,6 +1,6 @@
 -- ERZEUGT von scripts/refresh-test-baseline.sh — nicht von Hand aendern.
 -- Tabellen-/View-ACLs (tracked-principal direct-privilege projection: PUBLIC, anon,
--- authenticated, service_role). Fingerprint: 6290dc15a61059f5f2637b16c6d660c8
+-- authenticated, service_role). Fingerprint: 0dbd516842d3026febd464b20030ff7d
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM PUBLIC, anon, authenticated, service_role;
 GRANT DELETE ON TABLE public.admin_activity_log TO anon;
 GRANT INSERT ON TABLE public.admin_activity_log TO anon;
@@ -1073,13 +1073,6 @@ GRANT SELECT ON TABLE public.lead_forms TO service_role;
 GRANT TRIGGER ON TABLE public.lead_forms TO service_role;
 GRANT TRUNCATE ON TABLE public.lead_forms TO service_role;
 GRANT UPDATE ON TABLE public.lead_forms TO service_role;
-GRANT DELETE ON TABLE public.leads TO anon;
-GRANT INSERT ON TABLE public.leads TO anon;
-GRANT REFERENCES ON TABLE public.leads TO anon;
-GRANT SELECT ON TABLE public.leads TO anon;
-GRANT TRIGGER ON TABLE public.leads TO anon;
-GRANT TRUNCATE ON TABLE public.leads TO anon;
-GRANT UPDATE ON TABLE public.leads TO anon;
 GRANT DELETE ON TABLE public.leads TO authenticated;
 GRANT INSERT ON TABLE public.leads TO authenticated;
 GRANT REFERENCES ON TABLE public.leads TO authenticated;
@@ -1675,13 +1668,6 @@ GRANT SELECT ON TABLE public.quittungen TO service_role;
 GRANT TRIGGER ON TABLE public.quittungen TO service_role;
 GRANT TRUNCATE ON TABLE public.quittungen TO service_role;
 GRANT UPDATE ON TABLE public.quittungen TO service_role;
-GRANT DELETE ON TABLE public.raeumung_anfragen TO anon;
-GRANT INSERT ON TABLE public.raeumung_anfragen TO anon;
-GRANT REFERENCES ON TABLE public.raeumung_anfragen TO anon;
-GRANT SELECT ON TABLE public.raeumung_anfragen TO anon;
-GRANT TRIGGER ON TABLE public.raeumung_anfragen TO anon;
-GRANT TRUNCATE ON TABLE public.raeumung_anfragen TO anon;
-GRANT UPDATE ON TABLE public.raeumung_anfragen TO anon;
 GRANT DELETE ON TABLE public.raeumung_anfragen TO authenticated;
 GRANT INSERT ON TABLE public.raeumung_anfragen TO authenticated;
 GRANT REFERENCES ON TABLE public.raeumung_anfragen TO authenticated;
@@ -2200,7 +2186,7 @@ WITH relevante_acl AS (
     ',' ORDER BY relname COLLATE "C", grantee_name COLLATE "C", privilege_type COLLATE "C", is_grantable
   ), '')) INTO ist FROM relevante_acl;
 
-  IF ist IS DISTINCT FROM '6290dc15a61059f5f2637b16c6d660c8' THEN
+  IF ist IS DISTINCT FROM '0dbd516842d3026febd464b20030ff7d' THEN
     RAISE EXCEPTION 'Tabellen-/View-ACLs — ACL-Fingerprint weicht ab: %', ist;
   END IF;
 END

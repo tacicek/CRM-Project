@@ -8,13 +8,51 @@
 \set A '''a0000000-0000-4000-8000-000000000001'''
 \set B '''b0000000-0000-4000-8000-000000000002'''
 
--- 1) Anonymous cannot read CRM tables (RLS, not missing grant — anon HAS select grant).
+-- 1) Anonymous cannot read CRM tables.
+--
+-- Bis 20260803010000 hatte `anon` auf `leads` ein SELECT-Recht und wurde allein
+-- von RLS abgehalten; diese Zusicherung war entsprechend formuliert. Die
+-- Migration hat das Recht entzogen — es stammte aus einem
+-- `--no-privileges`-Rueckstand und war nie beabsichtigt. Seitdem endet derselbe
+-- Versuch mit `permission denied` statt mit null Zeilen.
+--
+-- Beide Ausgaenge sind richtig, und der Rechteentzug ist der staerkere: er
+-- greift, bevor eine Policy ueberhaupt ausgewertet wird. Geprueft wird deshalb
+-- die Aussage, auf die es ankommt — `anon` bekommt keine Zeile —, und nicht der
+-- Weg dorthin. Ein Ergebnis mit Zeilen faellt in beiden Faellen durch.
 begin;
   set local role anon;
-  do $$ begin
-    if (select count(*) from leads) <> 0 then raise exception 'FAIL 1: anon can read leads'; end if;
-    if (select count(*) from offers) <> 0 then raise exception 'FAIL 1: anon can read offers'; end if;
+  do $$
+  declare v_n bigint;
+  begin
+    begin
+      select count(*) into v_n from leads;
+      if v_n <> 0 then raise exception 'FAIL 1: anon can read leads'; end if;
+    exception when insufficient_privilege then
+      null;  -- Recht entzogen: erst recht keine Zeile
+    end;
+
+    begin
+      select count(*) into v_n from offers;
+      if v_n <> 0 then raise exception 'FAIL 1: anon can read offers'; end if;
+    exception when insufficient_privilege then
+      null;
+    end;
+
     raise notice 'PASS 1: anonymous denied on CRM tables';
+  end $$;
+rollback;
+
+-- 1b) Und der Entzug selbst, damit er nicht unbemerkt zurueckkehrt.
+begin;
+  do $$ begin
+    if has_table_privilege('anon','public.leads','INSERT')
+       or has_table_privilege('anon','public.leads','TRUNCATE')
+       or has_table_privilege('anon','public.raeumung_anfragen','INSERT')
+       or has_table_privilege('anon','public.raeumung_anfragen','TRUNCATE') then
+      raise exception 'FAIL 1b: anon hat wieder Schreibrechte auf leads/raeumung_anfragen';
+    end if;
+    raise notice 'PASS 1b: anon ohne Schreibrechte auf leads und raeumung_anfragen';
   end $$;
 rollback;
 

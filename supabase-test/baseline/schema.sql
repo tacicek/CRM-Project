@@ -1058,29 +1058,188 @@ $$;
 
 
 --
+-- Name: cancel_appointment_by_action_token(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cancel_appointment_by_action_token(p_appointment_id uuid, p_token uuid, p_reason text DEFAULT NULL::text) RETURNS TABLE(result_code text, appointment_id uuid, company_id uuid, status public.appointment_status, cancelled_at timestamp with time zone, cancellation_reason text)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+  -- Bewusst alle mit v_/k_ benannt: die OUT-Parameter oben heissen wie Spalten
+  -- von `appointments`. Jede Spalte wird zusaetzlich mit `a.` qualifiziert, damit
+  -- kein Bezeichner versehentlich auf einen OUT-Parameter zeigt.
+  k_max_reason  constant integer := 2000;
+  k_startbar    constant public.appointment_status[] :=
+                  ARRAY['pending','confirmed','rescheduled']::public.appointment_status[];
+  -- Fest verdrahtet und NICHT aus der Sitzung uebernommen: die Zeitzone
+  -- entscheidet hier ueber ein Recht. Eine Verbindung mit `SET timezone =
+  -- 'UTC'` wuerde einen Schweizer Termin im Sommer zwei Stunden zu spaet fuer
+  -- abgesagt halten.
+  k_zone        constant text := 'Europe/Zurich';
+  v_reason      text;
+  v_status      public.appointment_status;
+  v_company     uuid;
+  v_cancelled   timestamptz;
+  v_ist_grund   text;
+  v_beginn      timestamptz;
+  v_jetzt       timestamptz;
+BEGIN
+  -- Ohne beides gibt es nichts zu pruefen. Kein Fehler, sondern schlicht kein
+  -- Treffer — genau wie bei einem falschen Token.
+  IF p_appointment_id IS NULL OR p_token IS NULL THEN
+    RETURN;
+  END IF;
+
+  IF p_reason IS NOT NULL AND length(p_reason) > k_max_reason THEN
+    RAISE EXCEPTION 'cancellation_reason is longer than % characters', k_max_reason
+      USING ERRCODE = '22001';
+  END IF;
+
+  -- Nur-Leerraum ist keine Begruendung. NULL ist die ehrlichere Ablage dafuer
+  -- als eine Zeichenkette aus Leerzeichen.
+  v_reason := nullif(btrim(p_reason, E' \t\r\n'), '');
+
+  -- Der eine Zugriff, der ueber alles entscheidet. Die vier Bedingungen sind
+  -- dieselben wie in der Vorschau-Funktion: passende Zeile, Token gesetzt,
+  -- Token gleich, Frist nicht abgelaufen. FOR UPDATE haelt die Zeile bis zum
+  -- Ende der Transaktion — ein zweiter Aufruf wartet hier, statt parallel
+  -- dieselbe Entscheidung zu treffen.
+  SELECT a.status, a.company_id, a.cancelled_at, a.cancellation_reason,
+         (a.appointment_date + a.start_time) AT TIME ZONE k_zone
+    INTO v_status, v_company, v_cancelled, v_ist_grund, v_beginn
+    FROM public.appointments a
+   WHERE a.id = p_appointment_id
+     AND a.customer_action_token IS NOT NULL
+     AND a.customer_action_token = p_token
+     AND CURRENT_DATE <= a.customer_action_token_expires_on
+   FOR UPDATE;
+
+  -- Falsches Token, falsche id, fremdes Token, abgelaufen, widerrufen: alles
+  -- dasselbe leere Ergebnis. Wer von aussen probiert, soll nicht unterscheiden
+  -- koennen, WARUM es nicht geht.
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  -- Der Entscheidungszeitpunkt, genau einmal genommen, und zwar ERST JETZT.
+  --
+  -- `now()` waere hier falsch, und der Fehler ist nicht theoretisch: `now()`
+  -- ist `transaction_timestamp()` und steht schon fest, bevor diese Funktion
+  -- ueberhaupt angelaufen ist. Zwischen dem Beginn der Transaktion und der
+  -- Zeile darueber kann beliebig viel Zeit vergehen — genau dafuer ist
+  -- `FOR UPDATE` ja da. Ein zweiter Aufrufer, der eine Minute in der Sperre
+  -- haengt, wuerde mit `now()` die Welt so beurteilen, wie sie beim Warten
+  -- ANFING: ein Termin, der inzwischen begonnen hat, gaelte ihm noch als
+  -- kuenftig. `statement_timestamp()` verschiebt das Problem nur an den
+  -- Anfang der Anweisung; auch der liegt vor dem Warten.
+  --
+  -- `clock_timestamp()` liest die Uhr in dem Moment, in dem die Entscheidung
+  -- faellt — nach der Sperre. Derselbe Wert traegt beides, die Pruefung gegen
+  -- den geplanten Beginn und den Zeitstempel der Absage, damit beide dieselbe
+  -- Sekunde meinen.
+  v_jetzt := clock_timestamp();
+
+  -- Ab hier ist das Token gueltig. Der zweite Klick auf denselben Link ist der
+  -- Normalfall, nicht der Fehlerfall: keine Aenderung, keine Historie, kein
+  -- erneutes Ausloesen des Auftrags-Triggers — nur die Auskunft, dass es
+  -- bereits erledigt ist.
+  IF v_status = 'cancelled' THEN
+    RETURN QUERY SELECT 'already_cancelled'::text, p_appointment_id, v_company,
+                        v_status, v_cancelled, v_ist_grund;
+    RETURN;
+  END IF;
+
+  -- Erledigt oder nicht erschienen: der Termin hat stattgefunden bzw. ist
+  -- abgerechnet worden. Den Ausgang nachtraeglich per Kundenlink umzuschreiben,
+  -- waere Datenverlust. Auch jeder kuenftige Status, der nicht ausdruecklich in
+  -- k_startbar steht, faellt hier hinein — die Liste ist eine Erlaubnisliste.
+  IF NOT (v_status = ANY (k_startbar)) THEN
+    RETURN QUERY SELECT 'not_cancellable'::text, p_appointment_id, v_company,
+                        v_status, v_cancelled, v_ist_grund;
+    RETURN;
+  END IF;
+
+  -- Zwei Fristen, die nichts miteinander zu tun haben — sie hier zu verwechseln
+  -- waere der eigentliche Fehler:
+  --
+  --   * Die Token-Frist (`customer_action_token_expires_on`, Termindatum + 7)
+  --     sagt, wie lange der LINK ueberhaupt noch etwas beantwortet. Sie ist
+  --     absichtlich laenger als der Termin, damit ein Kunde nach der Absage
+  --     noch nachsehen kann, dass sie angekommen ist, und damit ein zweiter
+  --     Klick `already_cancelled` bekommt statt einer Fehlerseite. Es ist eine
+  --     Lese- und Wiederholungsfrist.
+  --
+  --   * Der geplante Beginn ist die Grenze fuer eine NEUE Absage. Wer nicht
+  --     erscheint, waehrend der Termin laeuft oder nachdem er vorbei ist, sagt
+  --     nicht mehr ab — er ist nicht erschienen. Das ist eine fachliche
+  --     Feststellung des Betriebs (`no_show`, Ausfallhonorar, bereits
+  --     angefahrene Monteure) und keine Entscheidung des Links.
+  --
+  -- Deshalb steht diese Pruefung NACH `already_cancelled`: eine bereits
+  -- eingegangene Absage bleibt auch dann eine Absage, wenn der Termin
+  -- inzwischen begonnen haette. Die Wiederholung ist Idempotenz, kein neuer
+  -- Uebergang.
+  --
+  -- Ganztaegige Termine bekommen hier bewusst KEINE Sonderregel: `start_time`
+  -- ist NOT NULL, also gilt fuer sie dieselbe Rechnung wie fuer jeden anderen
+  -- Termin. Eine stille zweite Regel waere schwerer zu pruefen als eine, die
+  -- man sieht.
+  IF v_jetzt >= v_beginn THEN
+    RETURN QUERY SELECT 'not_cancellable'::text, p_appointment_id, v_company,
+                        v_status, v_cancelled, v_ist_grund;
+    RETURN;
+  END IF;
+
+  -- Der Uebergang. Abgelegt wird derselbe Entscheidungszeitpunkt, gegen den
+  -- eben geprueft wurde — Serverzeit; eine vom Aufrufer mitgegebene Zeit waere
+  -- manipulierbar.
+  --
+  -- Das Token bleibt ausdruecklich stehen. Es auf NULL zu setzen waere
+  -- verlockend ("verbraucht"), wuerde aber den zweiten Klick von
+  -- `already_cancelled` in ein leeres Ergebnis verwandeln — der Kunde saehe
+  -- statt "ist abgesagt" eine Fehlerseite. Die Frist begrenzt das Token
+  -- ohnehin.
+  UPDATE public.appointments a
+     SET status              = 'cancelled'::public.appointment_status,
+         cancelled_at        = v_jetzt,
+         cancelled_by        = 'customer',
+         cancellation_reason = v_reason
+   WHERE a.id = p_appointment_id
+  RETURNING a.status, a.company_id, a.cancelled_at, a.cancellation_reason
+       INTO v_status, v_company, v_cancelled, v_ist_grund;
+
+  RETURN QUERY SELECT 'cancelled_now'::text, p_appointment_id, v_company,
+                      v_status, v_cancelled, v_ist_grund;
+END
+$$;
+
+
+--
+-- Name: FUNCTION cancel_appointment_by_action_token(p_appointment_id uuid, p_token uuid, p_reason text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.cancel_appointment_by_action_token(p_appointment_id uuid, p_token uuid, p_reason text) IS 'Sagt einen Termin anhand des Capability-Tokens ab. Pruefen, Entscheiden und Schreiben passieren unter einer Zeilensperre in einem Aufruf, damit gleichzeitige Klicks nicht zwei Absagen erzeugen. result_code: cancelled_now (dieser Aufruf hat abgesagt — nur hier darf spaeter eine Mail folgen), already_cancelled (war es schon), not_cancellable (completed oder no_show, oder der geplante Beginn ist erreicht — danach ist es ein Nichterscheinen, keine Absage). Ungueltiges, fremdes, abgelaufenes oder widerrufenes Token: kein Ergebnis. Nur fuer service_role; der oeffentliche Weg fuehrt ueber eine Edge Function.';
+
+
+--
 -- Name: check_besichtigung_storage_access(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.check_besichtigung_storage_access(folder_token text) RETURNS boolean
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public', 'besichtigung'
     AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1
-    FROM besichtigung.sessions s
-    WHERE s.token = folder_token
-      AND s.company_id IN (
-        SELECT c.id
-        FROM public.companies c
-        WHERE c.user_id = auth.uid()
-        UNION
-        SELECT tm.company_id
-        FROM public.team_members tm
-        WHERE tm.user_id = auth.uid()
-          AND s.status = 'active'
-      )
+      FROM besichtigung.sessions s
+     WHERE s.token = folder_token
+       AND ( public.is_company_owner(s.company_id, auth.uid())
+          OR public.is_company_member(s.company_id, auth.uid()) )
   );
+-- Bleibt bewusst erhalten: schlaegt hier etwas fehl, ist die Antwort "nein".
+-- Ein Fehler in einer Zugriffsfunktion darf nicht zum Zugriff fuehren.
 EXCEPTION WHEN OTHERS THEN
   RETURN false;
 END;
@@ -2550,18 +2709,26 @@ $$;
 
 
 --
--- Name: delete_besichtigung_photo(uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: delete_besichtigung_photo(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.delete_besichtigung_photo(p_photo_id uuid) RETURNS json
+CREATE FUNCTION public.delete_besichtigung_photo(p_photo_id uuid, p_session_id uuid) RETURNS json
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 DECLARE
   v_result JSON;
 BEGIN
+  -- Ohne eines von beidem gibt es nichts zu tun. Ausdruecklich vor dem DELETE:
+  -- `WHERE session_id = NULL` traefe keine Zeile, aber der Grund waere Zufall
+  -- und nicht Absicht.
+  IF p_photo_id IS NULL OR p_session_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
   DELETE FROM besichtigung.photos
-  WHERE id = p_photo_id
+   WHERE id = p_photo_id
+     AND session_id = p_session_id
   RETURNING json_build_object(
     'id', id,
     'storage_path', storage_path
@@ -3649,6 +3816,46 @@ COMMENT ON FUNCTION public.get_amendment_by_token(p_token text) IS 'Oeffentliche
 
 
 --
+-- Name: get_appointment_by_action_token(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_appointment_by_action_token(p_appointment_id uuid, p_token uuid) RETURNS TABLE(id uuid, appointment_date date, start_time time without time zone, end_time time without time zone, all_day boolean, title text, appointment_type public.appointment_type, status public.appointment_status, location_city text, language text, company_name character varying, company_phone character varying)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  SELECT
+    a.id,
+    a.appointment_date,
+    a.start_time,
+    a.end_time,
+    a.all_day,
+    a.title,
+    a.appointment_type,
+    a.status,
+    a.location_city,
+    a.language,
+    c.company_name,
+    c.phone
+  FROM public.appointments a
+  JOIN public.companies    c ON c.id = a.company_id
+  -- Ein NULL-Token ist ein Widerruf und darf niemals treffen. Ohne diese Zeile
+  -- wuerde `a.customer_action_token = p_token` bei NULL zwar auch nicht wahr,
+  -- aber die Absicht stuende nirgends.
+  WHERE p_token IS NOT NULL
+    AND a.id = p_appointment_id
+    AND a.customer_action_token = p_token
+    AND CURRENT_DATE <= a.customer_action_token_expires_on;
+$$;
+
+
+--
+-- Name: FUNCTION get_appointment_by_action_token(p_appointment_id uuid, p_token uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.get_appointment_by_action_token(p_appointment_id uuid, p_token uuid) IS 'Liest einen Termin fuer die oeffentliche Absage-/Verschiebe-Seite anhand des Capability-Tokens. Gibt bei falscher ID, falschem, abgelaufenem oder widerrufenem Token gleichermassen NULL Zeilen zurueck — die Faelle sind von aussen nicht unterscheidbar.';
+
+
+--
 -- Name: get_archivable_leads(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4489,47 +4696,6 @@ CREATE FUNCTION public.get_user_company_ids() RETURNS SETOF uuid
     SET search_path TO 'public'
     AS $$
   SELECT company_id FROM public.company_members WHERE user_id = auth.uid();
-$$;
-
-
---
--- Name: get_user_overview(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.get_user_overview() RETURNS TABLE(user_id uuid, email text, first_name text, last_name text, role text, user_type text, last_sign_in_at timestamp with time zone, created_at timestamp with time zone)
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'auth', 'public'
-    AS $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM auth.users u
-    WHERE u.id = auth.uid() 
-    AND u.email = 'test@test.invalid'
-  ) THEN
-    RAISE EXCEPTION 'Unauthorized: Owner access required';
-  END IF;
-  
-  RETURN QUERY
-  SELECT 
-    u.id as user_id,
-    u.email::text,
-    p.first_name,
-    p.last_name,
-    COALESCE(ur.role::text, 'user') as role,
-    CASE 
-      WHEN ur.role IS NOT NULL THEN 'staff'
-      WHEN c.id IS NOT NULL THEN 'company'
-      ELSE 'unknown'
-    END as user_type,
-    u.last_sign_in_at,
-    u.created_at
-  FROM auth.users u
-  LEFT JOIN public.profiles p ON p.id = u.id
-  LEFT JOIN public.user_roles ur ON ur.user_id = u.id
-  LEFT JOIN public.companies c ON c.user_id = u.id
-  WHERE u.email != 'test@test.invalid'
-  ORDER BY u.last_sign_in_at DESC NULLS LAST;
-END;
 $$;
 
 
@@ -5802,19 +5968,34 @@ COMMENT ON FUNCTION public.lifecycle_kpis(p_company_id uuid, p_von date, p_bis d
 
 CREATE FUNCTION public.log_appointment_changes() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'pg_catalog', 'public'
     AS $$
+DECLARE
+  -- Werte, die fuer sich genommen einen Zugang oeffnen. Nie in die Historie.
+  k_capability constant text[] := ARRAY[
+    'customer_action_token',
+    'customer_action_token_expires_on',
+    'reschedule_token',
+    'reschedule_token_expires_at'
+  ];
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO appointment_history (appointment_id, change_type, new_data, changed_by)
-    VALUES (NEW.id, 'created', to_jsonb(NEW), auth.uid());
+    INSERT INTO public.appointment_history (appointment_id, change_type, new_data, changed_by)
+    VALUES (NEW.id, 'created', to_jsonb(NEW) - k_capability, auth.uid());
   ELSIF TG_OP = 'UPDATE' THEN
-    INSERT INTO appointment_history (appointment_id, change_type, old_data, new_data, changed_by)
-    VALUES (NEW.id, 'updated', to_jsonb(OLD), to_jsonb(NEW), auth.uid());
+    INSERT INTO public.appointment_history (appointment_id, change_type, old_data, new_data, changed_by)
+    VALUES (NEW.id, 'updated', to_jsonb(OLD) - k_capability, to_jsonb(NEW) - k_capability, auth.uid());
   END IF;
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: FUNCTION log_appointment_changes(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.log_appointment_changes() IS 'Schreibt Termin-Aenderungen nach appointment_history. Capability-Felder (customer_action_token, customer_action_token_expires_on, reschedule_token, reschedule_token_expires_at) werden dabei aus old_data/new_data entfernt: die Historie soll nachvollziehbar machen, was sich geaendert hat, nicht Zugangsgeheimnisse aufbewahren.';
 
 
 --
@@ -9883,6 +10064,8 @@ CREATE TABLE public.appointments (
     language text DEFAULT 'de'::text NOT NULL,
     customer_id uuid,
     location_id uuid,
+    customer_action_token uuid DEFAULT gen_random_uuid(),
+    customer_action_token_expires_on date GENERATED ALWAYS AS ((appointment_date + 7)) STORED,
     CONSTRAINT appointments_language_check CHECK ((language = ANY (ARRAY['de'::text, 'fr'::text, 'en'::text])))
 );
 
@@ -9894,6 +10077,20 @@ ALTER TABLE ONLY public.appointments REPLICA IDENTITY FULL;
 --
 
 COMMENT ON COLUMN public.appointments.customer_id IS 'Kanonischer Kunde, vom Auftrag bzw. Lead geerbt.';
+
+
+--
+-- Name: COLUMN appointments.customer_action_token; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.customer_action_token IS 'Capability fuer die oeffentlichen Kunden-Links (absagen/verschieben). gen_random_uuid() liefert eine UUIDv4 mit 122 Zufallsbits. NULL bedeutet WIDERRUFEN, nicht "fehlt" — Migrationen duerfen NULL deshalb nie als "nachzutragen" behandeln.';
+
+
+--
+-- Name: COLUMN appointments.customer_action_token_expires_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.customer_action_token_expires_on IS 'Termindatum + 7 Tage. Generiert und gespeichert: wird der Termin verschoben, verschiebt sich die Frist mit.';
 
 
 --
@@ -15218,6 +15415,13 @@ ALTER TABLE ONLY public.website_settings
 
 
 --
+-- Name: appointments_customer_action_token_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX appointments_customer_action_token_uniq ON public.appointments USING btree (customer_action_token) WHERE (customer_action_token IS NOT NULL);
+
+
+--
 -- Name: auftraege_appointment_id_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -19316,13 +19520,6 @@ CREATE POLICY "Anyone can insert klaviertransport anfragen" ON public.klaviertra
 
 
 --
--- Name: raeumung_anfragen Anyone can insert raeumung requests; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Anyone can insert raeumung requests" ON public.raeumung_anfragen FOR INSERT TO authenticated, anon WITH CHECK (true);
-
-
---
 -- Name: service_detail_templates Anyone can read service templates; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -20323,13 +20520,6 @@ ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY leads_delete_company_or_admin ON public.leads FOR DELETE TO authenticated USING ((public.is_admin(auth.uid()) OR public.is_company_member(company_id, auth.uid())));
-
-
---
--- Name: leads leads_public_insert_v2; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY leads_public_insert_v2 ON public.leads FOR INSERT TO authenticated, anon WITH CHECK (true);
 
 
 --

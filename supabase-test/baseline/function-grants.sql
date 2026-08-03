@@ -1,6 +1,6 @@
 -- ERZEUGT von scripts/refresh-test-baseline.sh — nicht von Hand aendern.
 -- Funktions-ACLs (tracked-principal direct-privilege projection: PUBLIC, anon,
--- authenticated, service_role). Fingerprint: ae46aa110d21ab510d922cb05a817551
+-- authenticated, service_role). Fingerprint: aafff89f86f54f74ca30d6a13a5a3772
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.activate_manual_import(p_company_id uuid, p_admin_id uuid) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION public.activate_manual_import(p_company_id uuid, p_admin_id uuid) TO anon;
@@ -59,8 +59,7 @@ GRANT EXECUTE ON FUNCTION public.can_modify_role(modifier_id uuid, target_user_i
 GRANT EXECUTE ON FUNCTION public.can_modify_role(modifier_id uuid, target_user_id uuid) TO anon;
 GRANT EXECUTE ON FUNCTION public.can_modify_role(modifier_id uuid, target_user_id uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.can_modify_role(modifier_id uuid, target_user_id uuid) TO service_role;
-GRANT EXECUTE ON FUNCTION public.check_besichtigung_storage_access(folder_token text) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.check_besichtigung_storage_access(folder_token text) TO anon;
+GRANT EXECUTE ON FUNCTION public.cancel_appointment_by_action_token(p_appointment_id uuid, p_token uuid, p_reason text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.check_besichtigung_storage_access(folder_token text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.check_besichtigung_storage_access(folder_token text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.cleanup_archived_boxes() TO service_role;
@@ -124,7 +123,7 @@ GRANT EXECUTE ON FUNCTION public.debug_storage_objects() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.debug_storage_objects() TO service_role;
 GRANT EXECUTE ON FUNCTION public.decide_change_request(p_id uuid, p_annehmen boolean, p_notiz text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.decide_change_request(p_id uuid, p_annehmen boolean, p_notiz text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.delete_besichtigung_photo(p_photo_id uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.delete_besichtigung_photo(p_photo_id uuid, p_session_id uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.duplicate_candidates(p_company_id uuid, p_customer_id uuid, p_limit integer, p_offset integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.duplicate_candidates(p_company_id uuid, p_customer_id uuid, p_limit integer, p_offset integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.email_log_in_faden() TO PUBLIC;
@@ -204,6 +203,9 @@ GRANT EXECUTE ON FUNCTION public.get_agb_sections_by_offer_token(p_access_token 
 GRANT EXECUTE ON FUNCTION public.get_amendment_by_token(p_token text) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_amendment_by_token(p_token text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_amendment_by_token(p_token text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.get_appointment_by_action_token(p_appointment_id uuid, p_token uuid) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_appointment_by_action_token(p_appointment_id uuid, p_token uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_appointment_by_action_token(p_appointment_id uuid, p_token uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_archivable_leads(retention_days integer) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_archivable_leads(retention_days integer) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_archivable_leads(retention_days integer) TO authenticated;
@@ -297,10 +299,6 @@ GRANT EXECUTE ON FUNCTION public.get_user_company_ids() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_user_company_ids() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_user_company_ids() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_user_company_ids() TO service_role;
-GRANT EXECUTE ON FUNCTION public.get_user_overview() TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_user_overview() TO anon;
-GRANT EXECUTE ON FUNCTION public.get_user_overview() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_user_overview() TO service_role;
 GRANT EXECUTE ON FUNCTION public.grant_trial(p_company_id uuid, p_days integer, p_granted_by uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.guard_allocation_immutable() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION public.guard_allocation_immutable() TO anon;
@@ -731,7 +729,7 @@ WITH relevante_acl AS (
     ',' ORDER BY proname COLLATE "C", argumente COLLATE "C", grantee_name COLLATE "C", privilege_type COLLATE "C", is_grantable
   ), '')) INTO ist FROM relevante_acl;
 
-  IF ist IS DISTINCT FROM 'ae46aa110d21ab510d922cb05a817551' THEN
+  IF ist IS DISTINCT FROM 'aafff89f86f54f74ca30d6a13a5a3772' THEN
     RAISE EXCEPTION 'Funktions-ACLs — ACL-Fingerprint weicht ab: %', ist;
   END IF;
 END
