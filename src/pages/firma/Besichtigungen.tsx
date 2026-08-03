@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
 import { getCachedCompany } from "@/hooks/useCachedCompany";
@@ -50,7 +50,12 @@ import { BesichtigungAnalysisView } from "@/components/firma/BesichtigungAnalysi
 import { useI18n, useT } from "@/i18n/useI18n";
 import { formatDate as formatDateI18n } from "@/i18n/format";
 import { getAppointmentStatusLabel } from "@/i18n/domain";
-import { signPhotoUrls } from "@/lib/besichtigungPhotoUrls";
+import {
+  signPhotoUrls,
+  sichtbareUrls,
+  verbleibendeGueltigkeitMs,
+  type PhotoUrlBatch,
+} from "@/lib/besichtigungPhotoUrls";
 
 interface BesichtigungRequest {
   id: string;
@@ -145,7 +150,34 @@ const FirmaBesichtigungen = () => {
   const [virtualSessions, setVirtualSessions] = useState<VirtualSession[]>([]);
   const [selectedVirtualSession, setSelectedVirtualSession] = useState<VirtualSession | null>(null);
   const [isVirtualDetailOpen, setIsVirtualDetailOpen] = useState(false);
-  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+
+  // Signierte Fotoadressen gelten nur befristet. Sie werden deshalb nicht
+  // angesammelt, sondern gehoeren zu genau einer Oeffnung des Dialogs:
+  // `photoBatch` traegt Laufnummer, Besichtigung und Erzeugungszeit mit sich.
+  // `laufRef` zaehlt die Oeffnungen — ein Ergebnis, das nach dem Schliessen
+  // eintrifft, erkennt daran, dass es nicht mehr gebraucht wird.
+  const [photoBatch, setPhotoBatch] = useState<PhotoUrlBatch | null>(null);
+  const laufRef = useRef(0);
+
+  // Der Satz raeumt sich selbst weg, sobald er abgelaufen ist. Ohne diese Uhr
+  // bliebe er stehen, bis der Nutzer etwas anklickt — und zeigte in der
+  // Zwischenzeit Adressen, die niemand mehr abrufen kann.
+  useEffect(() => {
+    if (!photoBatch) return;
+    const rest = verbleibendeGueltigkeitMs(photoBatch, Date.now());
+    if (rest <= 0) {
+      setPhotoBatch(null);
+      return;
+    }
+    const uhr = setTimeout(() => setPhotoBatch(null), rest);
+    return () => clearTimeout(uhr);
+  }, [photoBatch]);
+
+  const sichtbarePhotoUrls = sichtbareUrls(
+    photoBatch,
+    selectedVirtualSession?.id ?? null,
+    Date.now(),
+  );
 
   // Company ID is loaded from cache - no useEffect needed for company fetch
 
@@ -1151,20 +1183,33 @@ const FirmaBesichtigungen = () => {
                             session.status === "pending" ? "#f59e0b" : "#6b7280"
                         }}
                         onClick={() => {
+                          // Jede Oeffnung ist ein eigener Lauf und signiert neu.
+                          // Der alte Satz geht sofort weg: waehrend die neuen
+                          // Adressen unterwegs sind, soll keine abgelaufene
+                          // Adresse mehr zu sehen sein.
+                          const lauf = laufRef.current + 1;
+                          laufRef.current = lauf;
                           setSelectedVirtualSession(session);
                           setIsVirtualDetailOpen(true);
-                          // Der Bucket ist privat; gelesen wird ueber befristete
-                          // Signaturen. Der Dialog oeffnet sofort, die Bilder
-                          // kommen nach — ein Foto ohne Signatur bleibt aus.
+                          setPhotoBatch(null);
+
                           if (session.photos?.length > 0) {
-                            void signPhotoUrls(session.photos, photoUrls, (pfad, ttl) =>
+                            void signPhotoUrls(session.photos, (pfad, ttl) =>
                               supabase.storage
                                 .from("besichtigung-uploads")
                                 .createSignedUrl(pfad, ttl),
-                            ).then(neue => {
-                              if (Object.keys(neue).length > 0) {
-                                setPhotoUrls(prev => ({ ...prev, ...neue }));
-                              }
+                            ).then(urls => {
+                              // Nachzuegler einer frueheren Oeffnung landen hier
+                              // ebenfalls — sie duerfen den aktuellen Dialog
+                              // nicht mehr anfassen.
+                              if (laufRef.current !== lauf) return;
+                              if (Object.keys(urls).length === 0) return;
+                              setPhotoBatch({
+                                lauf,
+                                sessionId: session.id,
+                                erzeugtUm: Date.now(),
+                                urls,
+                              });
                             });
                           }
                         }}
@@ -1256,7 +1301,19 @@ const FirmaBesichtigungen = () => {
         </div>
 
         {/* Virtual Session Detail Dialog */}
-        <Dialog open={isVirtualDetailOpen} onOpenChange={setIsVirtualDetailOpen}>
+        <Dialog
+          open={isVirtualDetailOpen}
+          onOpenChange={(offen) => {
+            setIsVirtualDetailOpen(offen);
+            if (!offen) {
+              // Schliessen beendet den Lauf: die Adressen werden verworfen, und
+              // ein noch unterwegs befindliches Ergebnis findet beim
+              // Zurueckkommen eine andere Laufnummer vor.
+              laufRef.current += 1;
+              setPhotoBatch(null);
+            }
+          }}
+        >
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -1377,10 +1434,10 @@ const FirmaBesichtigungen = () => {
                           key={photo.id}
                           className="relative group rounded-xl overflow-hidden border bg-muted aspect-square"
                         >
-                          {photoUrls[photo.id] ? (
-                            <a href={photoUrls[photo.id]} target="_blank" rel="noopener noreferrer">
+                          {sichtbarePhotoUrls[photo.id] ? (
+                            <a href={sichtbarePhotoUrls[photo.id]} target="_blank" rel="noopener noreferrer">
                               <img
-                                src={photoUrls[photo.id]}
+                                src={sichtbarePhotoUrls[photo.id]}
                                 alt={photo.filename}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                               />

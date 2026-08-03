@@ -7351,7 +7351,10 @@ export type Database = {
           info_type: string
         }[]
       }
-      delete_besichtigung_photo: { Args: { p_photo_id: string }; Returns: Json }
+      delete_besichtigung_photo: {
+        Args: { p_photo_id: string; p_session_id: string }
+        Returns: Json
+      }
       execute_sql: {
         Args: { query: string; read_only?: boolean }
         Returns: Json
@@ -7686,19 +7689,6 @@ export type Database = {
         Returns: number
       }
       get_user_company_ids: { Args: never; Returns: string[] }
-      get_user_overview: {
-        Args: never
-        Returns: {
-          created_at: string
-          email: string
-          first_name: string
-          last_name: string
-          last_sign_in_at: string
-          role: string
-          user_id: string
-          user_type: string
-        }[]
-      }
       grant_trial: {
         Args: { p_company_id: string; p_days?: number; p_granted_by?: string }
         Returns: boolean

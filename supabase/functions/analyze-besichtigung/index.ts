@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { bereiteAnalyseVor, type SignaturErgebnis } from "../_shared/besichtigungAnalyse.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 
 const corsHeaders = {
@@ -185,12 +186,6 @@ serve(async (req: Request) => {
 
     console.log(`[analyze-besichtigung] Found ${photoList.length} photos to analyze`);
 
-    // ── Update session status to 'analyzing' ──
-    await supabase.rpc("update_besichtigung_session_status", {
-      p_session_id: session_id,
-      p_status: "analyzing",
-    });
-
     // ── Befristete Adressen fuer jedes Foto ──
     //
     // Der Bucket ist privat (20260803040000). Die Adresse geht an die
@@ -201,31 +196,57 @@ serve(async (req: Request) => {
     // Diese Funktion laeuft auf `service_role`; das Signieren haengt hier also
     // nicht an den Storage-Policies.
     const SIGNATUR_SEKUNDEN = 600;
-    const imageContents: Array<{ type: string; source: { type: string; url: string } }> = [];
-    const roomMapping: string[] = [];
+    const signaturen: SignaturErgebnis[] = [];
 
     for (const photo of photoList) {
-      const { data, error: signError } = await supabase.storage
-        .from("besichtigung-uploads")
-        .createSignedUrl(photo.storage_path, SIGNATUR_SEKUNDEN);
-
-      if (signError || !data?.signedUrl) {
-        console.warn(`[analyze-besichtigung] Skipping photo ${photo.id}: no signed URL`);
-        continue;
+      let signedUrl: string | null = null;
+      try {
+        const { data, error: signError } = await supabase.storage
+          .from("besichtigung-uploads")
+          .createSignedUrl(photo.storage_path, SIGNATUR_SEKUNDEN);
+        if (!signError && data?.signedUrl) signedUrl = data.signedUrl;
+      } catch (signException) {
+        // Ein geworfener Fehler ist dasselbe Ergebnis wie ein gemeldeter: keine
+        // Adresse. Er darf den ganzen Lauf nicht abbrechen — die uebrigen Fotos
+        // sind davon unabhaengig.
+        console.warn(`[analyze-besichtigung] Signing threw for photo ${photo.id}:`, signException);
       }
-
-      const roomName = ROOM_NAMES[photo.room_type || "sonstiges"] ?? "Sonstiges";
-      roomMapping.push(roomName);
-
-      imageContents.push({
-        type: "image",
-        source: { type: "url", url: data.signedUrl },
-      });
+      signaturen.push({ photoId: photo.id, roomType: photo.room_type ?? null, signedUrl });
     }
 
-    if (imageContents.length === 0) {
+    const { bilder: imageContents, raeume: roomMapping, uebersprungen, darfAnalyseBeginnen } =
+      bereiteAnalyseVor(signaturen, ROOM_NAMES, "Sonstiges");
+
+    if (uebersprungen.length > 0) {
+      console.warn(
+        `[analyze-besichtigung] ${uebersprungen.length} photo(s) without signed URL: ${uebersprungen.join(", ")}`
+      );
+    }
+
+    // Konnte NICHTS signiert werden, bleibt die Sitzung, wo sie ist. Frueher
+    // stand der Statuswechsel vor dieser Stelle — die Sitzung hing dann fuer
+    // immer auf 'analyzing', ohne dass je eine Analyse lief.
+    if (!darfAnalyseBeginnen) {
       return new Response(
         JSON.stringify({ error: "Fotos konnten nicht aus dem Speicher geladen werden" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Jetzt erst: Sitzung auf 'analyzing' ──
+    //
+    // Der Fehler wird geprueft. Bleibt der Statuswechsel unbemerkt liegen,
+    // laeuft die Analyse zwar durch, aber die Oberflaeche zeigt weiter den
+    // alten Zustand — und ein zweiter Aufruf startet dasselbe noch einmal.
+    const { error: statusError } = await supabase.rpc("update_besichtigung_session_status", {
+      p_session_id: session_id,
+      p_status: "analyzing",
+    });
+
+    if (statusError) {
+      console.error("[analyze-besichtigung] Could not set status to analyzing:", statusError.message);
+      return new Response(
+        JSON.stringify({ error: "Analyse konnte nicht gestartet werden" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
