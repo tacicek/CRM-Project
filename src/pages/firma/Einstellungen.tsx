@@ -6,10 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Building2, Bell, FileText, MessageSquare, CheckCircle, Mail, Bot, Languages } from "lucide-react";
+import { Loader2, Save, Building2, Bell, FileText, MessageSquare, CheckCircle, Mail, Bot, Languages, Inbox, Copy } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SecretKeyField, type SecretStatus } from "@/components/firma/SecretKeyField";
+import { INBOUND_WEBHOOK_EVENT, buildInboundWebhookUrl } from "@/lib/inboundEmailWebhook";
 import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
@@ -88,6 +89,18 @@ const FirmaEinstellungen = () => {
    * Zeichen. Die Werte selbst verlassen den Server nicht mehr.
    */
   const [secretStatus, setSecretStatus] = useState<Record<string, SecretStatus>>({});
+  /** Empfangsadresse des E-Mail-Eingangs. Kein Geheimnis, sondern eine Zuordnung. */
+  const [inboundAlias, setInboundAlias] = useState<string | null>(null);
+
+  /**
+   * Die Webhook-Adresse wird abgeleitet, nicht gespeichert: sie ergibt sich aus
+   * der Serveradresse und dem festen Namen der Edge Function. Zwei Ablagen fuer
+   * denselben Wert waeren zwei Wahrheiten.
+   */
+  const webhookUrl = useMemo(
+    () => buildInboundWebhookUrl(import.meta.env.VITE_SUPABASE_URL),
+    [],
+  );
   const [anthropicModel, setAnthropicModel] = useState("");
   const [openaiModel, setOpenaiModel] = useState("");
   const [geminiModel, setGeminiModel] = useState("");
@@ -127,6 +140,22 @@ const FirmaEinstellungen = () => {
    * vier Zeichen — nie mit dem Wert. Deshalb gibt es hier auch keinen State,
    * in dem ein Klartext-Schluessel liegen koennte.
    */
+  /**
+   * Adresse in die Zwischenablage legen.
+   *
+   * `navigator.clipboard` gibt es nur in sicheren Kontexten; ohne HTTPS wirft
+   * der Aufruf. Statt dann still nichts zu tun, sagt die Oberflaeche es —
+   * markieren und von Hand kopieren geht immer noch.
+   */
+  const kopieren = useCallback(async (wert: string) => {
+    try {
+      await navigator.clipboard.writeText(wert);
+      toast({ title: t("settings.inbound.copied") });
+    } catch {
+      toast({ title: t("settings.inbound.copyFailed"), variant: "destructive" });
+    }
+  }, [t, toast]);
+
   const loadSecretStatus = useCallback(async (companyId: string) => {
     const { data, error } = await supabase.functions.invoke("company-secrets", {
       body: { company_id: companyId, action: "status" },
@@ -136,6 +165,7 @@ const FirmaEinstellungen = () => {
     if (typeof data.ai_provider === "string") {
       setAiProvider(data.ai_provider as "anthropic" | "openai" | "gemini");
     }
+    setInboundAlias(typeof data.inbound_email_alias === "string" ? data.inbound_email_alias : null);
   }, []);
 
   useEffect(() => {
@@ -958,6 +988,69 @@ const FirmaEinstellungen = () => {
                       {isSavingResend ? t("common.saving") : t("common.save")}
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Eingehende Mails. Die Webhook-Adresse stand bisher nirgends im
+                  CRM — wer sie brauchte, musste sie aus der Dokumentation holen. */}
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Inbox className="w-5 h-5" />
+                    {t("settings.inbound.title")}
+                  </CardTitle>
+                  <CardDescription>{t("settings.inbound.description")}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <Label>{t("settings.inbound.webhookUrl")}</Label>
+                    {webhookUrl ? (
+                      <div className="flex gap-2 mt-1">
+                        <Input readOnly value={webhookUrl} className="font-mono text-xs" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label={t("settings.inbound.webhookUrl")}
+                          onClick={() => kopieren(webhookUrl)}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-sm text-destructive">
+                        {t("settings.inbound.webhookUrlMissing")}
+                      </p>
+                    )}
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {t("settings.inbound.webhookUrlHint")}
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label>{t("settings.inbound.event")}</Label>
+                    <Input readOnly value={INBOUND_WEBHOOK_EVENT} className="font-mono text-xs mt-1" />
+                  </div>
+
+                  <div>
+                    <Label>{t("settings.inbound.alias")}</Label>
+                    <Input
+                      readOnly
+                      value={inboundAlias ?? ""}
+                      placeholder={t("settings.inbound.aliasMissing")}
+                      className="font-mono text-xs mt-1"
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {t("settings.inbound.aliasHint")}
+                    </p>
+                  </div>
+
+                  <SecretKeyField
+                    label={t("settings.inbound.secret")}
+                    status={secretStatus.inbound_webhook_secret}
+                    placeholder="whsec_…"
+                    onSave={(value) => saveSecret("inbound_webhook_secret", value)}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>

@@ -162,4 +162,22 @@ export const settings = {
   "settings.ki.save": "KI-Einstellungen speichern",
   "settings.ki.saved": "KI-Einstellungen wurden gespeichert.",
   "settings.ki.saveFailed": "KI-Einstellungen konnten nicht gespeichert werden.",
+
+  // --- E-Mail-Eingang (Resend-Webhook) ---------------------------------------
+  "settings.inbound.title": "E-Mail-Eingang",
+  "settings.inbound.description":
+    "Mails an Ihre Anfrageadresse landen automatisch im E-Mail-Eingang. Damit Resend sie hierher meldet, braucht es einen Webhook.",
+  "settings.inbound.webhookUrl": "Webhook-Adresse",
+  "settings.inbound.webhookUrlHint":
+    "Diese Adresse im Resend-Dashboard unter Webhooks eintragen, Ereignis «email.received».",
+  "settings.inbound.webhookUrlMissing":
+    "Die Adresse laesst sich nicht bilden — die Serveradresse fehlt in dieser Installation.",
+  "settings.inbound.event": "Ereignis",
+  "settings.inbound.alias": "Empfangsadresse",
+  "settings.inbound.aliasHint":
+    "Ordnet eingehende Mails dieser Firma zu. Aenderungen daran nimmt der Betreiber vor.",
+  "settings.inbound.aliasMissing": "Noch keine Adresse hinterlegt",
+  "settings.inbound.secret": "Webhook-Secret",
+  "settings.inbound.copied": "In die Zwischenablage kopiert",
+  "settings.inbound.copyFailed": "Kopieren nicht moeglich — bitte von Hand markieren",
 } as const;

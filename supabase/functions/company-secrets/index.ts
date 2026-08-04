@@ -35,7 +35,16 @@ const log = createLogger("company-secrets");
 const SECRET_COLUMNS = ["resend_api_key", "twilio_account_sid", "twilio_auth_token"] as const;
 
 /** Schlüssel, die in `api_keys` liegen (Name = key_name). */
-const API_KEY_NAMES = ["anthropic_api_key", "openai_api_key", "gemini_api_key"] as const;
+const API_KEY_NAMES = [
+  "anthropic_api_key",
+  "openai_api_key",
+  "gemini_api_key",
+  // Das Secret, mit dem Resend seine Webhook-Aufrufe signiert. Es liegt aus
+  // demselben Grund hier wie die uebrigen: der Edge-Container bekommt seine
+  // Variablen aus einer festen Liste im Compose-File, ein Schalter dort waere
+  // im Ernstfall nicht umzulegen.
+  "inbound_webhook_secret",
+] as const;
 
 type SecretColumn = (typeof SECRET_COLUMNS)[number];
 type ApiKeyName = (typeof API_KEY_NAMES)[number];
@@ -119,7 +128,13 @@ serve(async (req) => {
       // Kein Geheimnis, sondern eine Einstellung — der Wert darf raus.
       const provider = rows.find((r) => r.key_name === "ai_provider")?.key_value ?? "anthropic";
 
-      return json({ status, ai_provider: provider });
+      // Ebenso die Empfangsadresse des E-Mail-Eingangs: sie ordnet eingehende
+      // Mails der Firma zu und steht ohnehin in jeder Signatur. Ein Geheimnis
+      // ist sie nicht — und ohne sie kann niemand nachsehen, welche Adresse
+      // ueberhaupt angeschlossen ist.
+      const alias = rows.find((r) => r.key_name === "inbound_email_alias")?.key_value ?? null;
+
+      return json({ status, ai_provider: provider, inbound_email_alias: alias });
     }
 
     // -------------------------------------------------------------------------

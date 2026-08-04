@@ -145,4 +145,22 @@ export const settings: Record<keyof typeof de, string> = {
   "settings.ki.save": "Save AI settings",
   "settings.ki.saved": "AI settings have been saved.",
   "settings.ki.saveFailed": "The AI settings could not be saved.",
+
+  // --- Email inbox (Resend webhook) -------------------------------------------
+  "settings.inbound.title": "Email inbox",
+  "settings.inbound.description":
+    "Mail sent to your enquiry address lands in the email inbox automatically. For Resend to report it here, a webhook is required.",
+  "settings.inbound.webhookUrl": "Webhook address",
+  "settings.inbound.webhookUrlHint":
+    "Enter this address in the Resend dashboard under Webhooks, event «email.received».",
+  "settings.inbound.webhookUrlMissing":
+    "The address cannot be built — the server address is missing in this installation.",
+  "settings.inbound.event": "Event",
+  "settings.inbound.alias": "Receiving address",
+  "settings.inbound.aliasHint":
+    "Assigns incoming mail to this company. Changes are made by the operator.",
+  "settings.inbound.aliasMissing": "No address configured yet",
+  "settings.inbound.secret": "Webhook secret",
+  "settings.inbound.copied": "Copied to clipboard",
+  "settings.inbound.copyFailed": "Could not copy — please select manually",
 };

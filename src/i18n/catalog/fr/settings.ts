@@ -153,4 +153,22 @@ export const settings: Record<keyof typeof de, string> = {
   "settings.ki.save": "Enregistrer les paramètres IA",
   "settings.ki.saved": "Les paramètres IA ont été enregistrés.",
   "settings.ki.saveFailed": "Les paramètres IA n'ont pas pu être enregistrés.",
+
+  // --- Boite de reception e-mail (webhook Resend) -----------------------------
+  "settings.inbound.title": "Boîte de réception e-mail",
+  "settings.inbound.description":
+    "Les messages envoyés à votre adresse de demande arrivent automatiquement dans la boîte de réception. Pour que Resend les signale ici, un webhook est nécessaire.",
+  "settings.inbound.webhookUrl": "Adresse du webhook",
+  "settings.inbound.webhookUrlHint":
+    "Saisissez cette adresse dans le tableau de bord Resend sous Webhooks, événement « email.received ».",
+  "settings.inbound.webhookUrlMissing":
+    "L'adresse ne peut pas être formée — l'adresse du serveur manque dans cette installation.",
+  "settings.inbound.event": "Événement",
+  "settings.inbound.alias": "Adresse de réception",
+  "settings.inbound.aliasHint":
+    "Associe les messages entrants à cette entreprise. Les modifications sont effectuées par l'exploitant.",
+  "settings.inbound.aliasMissing": "Aucune adresse enregistrée",
+  "settings.inbound.secret": "Secret du webhook",
+  "settings.inbound.copied": "Copié dans le presse-papiers",
+  "settings.inbound.copyFailed": "Copie impossible — veuillez sélectionner manuellement",
 };
