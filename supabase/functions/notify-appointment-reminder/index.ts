@@ -12,6 +12,7 @@ import {
   type Translator,
 } from "../_shared/i18n/index.ts";
 import { isCronRequest, unauthorizedResponse } from "../_shared/cronAuth.ts";
+import { nextDateString, zonedDateString, zonedWallClockToUtc } from "../_shared/appointmentDay.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 
 const corsHeaders = {
@@ -19,22 +20,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Appointments store a naive Swiss wall-clock (date + time, no offset). The Deno runtime is UTC,
-// so `new Date("2026-07-03T14:00:00")` would be read as 14:00 UTC and overstate "hours until" by
-// the CET/CEST offset. Convert the wall-clock as Europe/Zurich to the correct UTC instant.
-const APP_TIME_ZONE = "Europe/Zurich";
-const zonedWallClockToUtc = (dateStr: string, timeStr: string, timeZone = APP_TIME_ZONE): Date => {
-  const naiveAsUtc = new Date(`${dateStr}T${timeStr}Z`);
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone, hourCycle: "h23",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-  });
-  const p = Object.fromEntries(dtf.formatToParts(naiveAsUtc).map((x) => [x.type, x.value]));
-  const asSeenInZone = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
-  const offsetMs = asSeenInZone - naiveAsUtc.getTime();
-  return new Date(naiveAsUtc.getTime() - offsetMs);
-};
+// Appointments store a naive Swiss wall-clock (date + time, no offset) and the Deno runtime is
+// UTC. Beide Übersetzungsrichtungen liegen jetzt in `_shared/appointmentDay.ts` und sind dort
+// getestet — die frühere Kopie an dieser Stelle kannte nur die eine Richtung, und für die
+// andere stand `toISOString()` da (siehe die Datumsherleitung im Handler).
 
 // BUG-8: PII masking helpers — logs are DSG/DSGVO compliant
 const maskEmail = (e: string) => e.replace(/(?<=.{2}).+(?=@)/, "***");
@@ -285,12 +274,22 @@ const handler = async (req: Request): Promise<Response> => {
     };
 
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
-    
-    // Calculate tomorrow's date for day-before reminders
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
+    // "Heute" ist der Zürcher Kalendertag, nicht der UTC-Tag.
+    //
+    // Hier stand `now.toISOString().split("T")[0]`. Das ist der UTC-Tag, während unten
+    // `zonedWallClockToUtc` die Zeile korrekt als Zürcher Wanduhr liest — Auswahl und
+    // Bewertung lagen also in verschiedenen Welten. Zürich ist UTC+1/+2, deshalb meldete
+    // die UTC-Uhr zwischen lokaler Mitternacht und 01:00/02:00 noch den Vortag, und
+    // `.eq("appointment_date", todayStr)` griff in dieser Nachtspanne die Termine von
+    // gestern ab.
+    //
+    // Die Folge war kein schiefer Zeitpunkt, sondern gar keine Mail: ein Termin um 01:00
+    // ist genau dann 0.5–2.5 Stunden entfernt — also im Fenster beider Erinnerungsbänder —,
+    // wenn die Abfrage noch auf dem Vortag steht. Termine vor etwa 02:30 verloren ihre
+    // Zwei- und Ein-Stunden-Erinnerung vollständig.
+    const todayStr = zonedDateString(now);
+    const tomorrowStr = nextDateString(todayStr);
 
     console.log(`[notify-appointment-reminder] Checking appointments for today: ${todayStr}, tomorrow: ${tomorrowStr}`);
 
