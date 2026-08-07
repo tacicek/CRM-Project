@@ -158,6 +158,7 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.placeholder.kostendach": "p. ex. 1800",
   "offer.form.kostendach.hint":
     "Le client ne paie jamais plus que ce montant, quel que soit le temps effectif.",
+  "offer.form.discount.title": "Remise",
   "offer.form.field.discount": "Remise globale (%)",
   "offer.form.placeholder.discount": "p. ex. 10 (facultatif)",
   "offer.form.offerType.title": "Type de devis",

@@ -171,6 +171,7 @@ export const offer = {
   "offer.form.placeholder.kostendach": "z.B. 1800",
   "offer.form.kostendach.hint":
     "Der Kunde zahlt maximal diesen Betrag, unabhängig vom Zeitaufwand.",
+  "offer.form.discount.title": "Rabatt",
   "offer.form.field.discount": "Rabatt gesamt (%)",
   "offer.form.placeholder.discount": "z.B. 10 (optional)",
   "offer.form.offerType.title": "Offerte-Art",

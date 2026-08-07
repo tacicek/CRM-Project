@@ -40,8 +40,8 @@ import {
 } from "@/lib/offerSurcharges";
 import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import type { Json } from "@/integrations/supabase/types";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
-import { parsePriceModel, type PriceModel } from "@/lib/offerPriceModel";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, priceTypeFixesUnit, priceTypeShape, toAmountBasis, type PriceModelItem } from "@/lib/offerPricing";
+import { priceTypeOptions } from "@/components/offerte/priceTypeOptions";
 import { cn } from "@/lib/utils";
 import { getServiceOptions, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
@@ -108,7 +108,6 @@ const inferPriceType = (unit: string, unitPrice: number): string => {
   return "per_unit";
 };
 
-// PriceModel is the canonical union from @/lib/offerPriceModel (imported above).
 
 interface Offer {
   id: string;
@@ -129,7 +128,6 @@ interface Offer {
   vat_amount: number;
   total: number;
   status: string;
-  price_model?: PriceModel | null;
   hourly_rate?: number | null;
   kostendach_max?: number | null;
   discount_percent?: number | null;
@@ -207,40 +205,14 @@ const FirmaOfferteBearbeiten = () => {
     }
   };
 
-  // Price model state
-  const [priceModel, setPriceModel] = useState<PriceModel>('pauschal');
+  // Kein Preismodell-Zustand mehr (ADR_offerte_preismodell, Entscheidung 1): das Modell wird
+  // aus den Positionen abgeleitet. Der Stundensatz lebt je Servicegruppe in den
+  // Service-Details (updateGroupMeta oben) — dort, wo der Beleg ihn ohnehin liest.
   const [discountPercent, setDiscountPercent] = useState<string>('');
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
-  const [hourlyRate, setHourlyRate] = useState<string>('');
-  const [kostendachMax, setKostendachMax] = useState<string>('');
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
   const [offerteType, setOfferteType] = useState<'normal' | 'blind'>('normal');
-
-  // Offer-level Stundenansatz (Preismodell) — offer-wide top-down: fills every hourly
-  // position (Zeitschätzung / per_hour) AND mirrors into each effort group's Service-Details
-  // Stundensatz, so the single rate drives price and PDF badge alike.
-  const applyGlobalHourlyRate = (value: string) => {
-    setHourlyRate(value);
-    if (value.trim() === "") return;
-    const n = Number(value.replace(",", "."));
-    setItems((prev) =>
-      prev.map((it) => {
-        if (it.timeEstimate) return { ...it, timeEstimate: { ...it.timeEstimate, hourlyRate: value } };
-        if (it.price_type === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n };
-        return it;
-      }),
-    );
-    setGroupMeta((prev) => {
-      const next = { ...prev };
-      for (const it of items) {
-        if (metaKindForService(it.serviceType) !== "effort") continue;
-        const k = serviceGroupKey(it.serviceType);
-        next[k] = { ...EMPTY_META_DRAFT, ...next[k], hourlyRate: value };
-      }
-      return next;
-    });
-  };
 
   // Payment terms — DOCUMENT content: this text is stored on the offer and printed on the
   // customer's PDF. It is therefore written in the CUSTOMER's language (offerLanguage), never
@@ -341,20 +313,10 @@ const FirmaOfferteBearbeiten = () => {
         // constraint guarantees validity; parse defensively instead of casting or
         // silently defaulting to 'pauschal'. An out-of-range value is a data-integrity
         // problem, so fail closed rather than edit an offer under the wrong model.
-        const parsedPriceModel = parsePriceModel(offerData.price_model);
-        if (!parsedPriceModel.ok) {
-          toast({
-            title: t("common.error"),
-            description: t("offer.edit.toast.loadFailed"),
-            variant: "destructive",
-          });
-          navigate("/firma/offerten");
-          return;
-        }
-
-        // Narrow the only view-model-incompatible column: price_model (Row string → PriceModel),
-        // validated fail-closed just above. Every other Row column is compatible with Offer.
-        setOffer({ ...offerData, price_model: parsedPriceModel.value });
+        // Die frühere fail-closed Prüfung von price_model ist mit F1 entfallen: die Spalte
+        // wird weder geschrieben noch gelesen (ADR_offerte_preismodell). Eine Bestandszeile
+        // mit einem Altwert darf das Bearbeiten nicht mehr blockieren — er hat keine Wirkung.
+        setOffer(offerData);
         setTitle(offerData.title || "");
         setDescription(offerData.description || "");
         setServiceDate(offerData.service_date || "");
@@ -376,10 +338,7 @@ const FirmaOfferteBearbeiten = () => {
             ? String(offerData.payment_terms)
             : documentI18nFor(offerLocale).t("offer.doc.payment.cash"),
         );
-        setPriceModel(parsedPriceModel.value);
         setDiscountPercent(offerData.discount_percent !== null && offerData.discount_percent !== undefined ? String(offerData.discount_percent) : '');
-        if (offerData.hourly_rate !== null && offerData.hourly_rate !== undefined) setHourlyRate(String(offerData.hourly_rate));
-        if (offerData.kostendach_max !== null && offerData.kostendach_max !== undefined) setKostendachMax(String(offerData.kostendach_max));
         setBriefLayout(offerData.brief_layout ?? false);
         const ot = offerData.offerte_type;
         setOfferteType(ot === 'blind' ? 'blind' : 'normal');
@@ -514,18 +473,50 @@ const FirmaOfferteBearbeiten = () => {
         // rate, else the group's Service-Details rate). Without this the top-down fill only
         // works for fields that already exist when the rate is typed — ordering trap.
         if (field === "timeEstimate" && v && typeof v === "object" && !(v as ItemTimeEstimate).hourlyRate) {
-          const seed =
-            (priceModel === "stundenansatz" || priceModel === "kostendach") && hourlyRate.trim() !== ""
-              ? hourlyRate
-              : groupMeta[serviceGroupKey(prev[index]?.serviceType)]?.hourlyRate ?? "";
+          const seed = groupMeta[serviceGroupKey(prev[index]?.serviceType)]?.hourlyRate ?? "";
           if (seed.trim() !== "") v = { ...(v as ItemTimeEstimate), hourlyRate: seed };
         }
         newItems[index] = { ...newItems[index], [field]: v };
         return newItems;
       });
     },
-    [priceModel, hourlyRate, groupMeta]
+    [groupMeta]
   );
+
+  /**
+   * Preistyp-Wechsel — bis F1 fehlte dieser Wähler hier ganz. Der Bediener konnte nur die
+   * Einheit umstellen; `price_type` blieb, was es beim Anlegen war, weil der Speicherpfad
+   * `item.price_type || inferPriceType(...)` schreibt und die linke Seite bei einer geladenen
+   * Zeile IMMER gefüllt ist. Der Kunde las „Stunden", das System rechnete „pauschale".
+   *
+   * Dieselbe Regel wie im Erstellen-Formular: priceTypeShape ist die einzige Stelle, die
+   * entscheidet, wie eine Position nach dem Wechsel aussieht.
+   */
+  const applyPriceType = useCallback((index: number, value: string) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const it = next[index];
+      if (!it) return prev;
+      const te = it.timeEstimate;
+      const shape = priceTypeShape(value, {
+        unit: it.unit,
+        quantity: Number(it.quantity),
+        kostendachMax: it.kostendach_max ?? null,
+        hasValidTimeEstimate: !!(
+          te && Number(te.minHours) > 0 && Number(te.maxHours) > 0 && Number(te.hourlyRate) > 0
+        ),
+      });
+      next[index] = {
+        ...it,
+        price_type: value,
+        unit: shape.unit,
+        amount_basis: shape.amountBasis,
+        quantity: shape.quantity,
+        kostendach_max: shape.kostendachMax,
+      };
+      return next;
+    });
+  }, []);
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -539,7 +530,8 @@ const FirmaOfferteBearbeiten = () => {
 
   // Convert the form item shape into the helper's SubtotalItem. Exclusion is now SEMANTIC
   // via price_type (the old unit==="inkl." string guard was removed → optional is also excluded).
-  const toSubtotalItems = (): SubtotalItem[] =>
+  // Traegt zusaetzlich Kostendach und Gruppen-Ansatz, weil dieselbe Liste das Preismodell ableitet.
+  const toSubtotalItems = (): PriceModelItem[] =>
     items.map((item) => ({
       priceType: item.price_type ?? "",
       quantity: Number(item.quantity),
@@ -552,7 +544,10 @@ const FirmaOfferteBearbeiten = () => {
           }
         : null,
       amountBasis: toAmountBasis(item.amount_basis),
+      kostendachMax: item.kostendach_max ?? null,
+      metaRate: Number(groupMeta[serviceGroupKey(item.serviceType)]?.hourlyRate) || null,
     }));
+
 
   const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
 
@@ -665,36 +660,6 @@ const FirmaOfferteBearbeiten = () => {
       return;
     }
 
-    if (priceModel === 'stundenansatz' || priceModel === 'kostendach') {
-      if (!hourlyRate || Number(hourlyRate) <= 0) {
-        toast({
-          title: t("common.error"),
-          description: t("offer.form.toast.hourlyRateRequired"),
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    if (priceModel === 'kostendach') {
-      if (!kostendachMax || Number(kostendachMax) <= 0) {
-        toast({
-          title: t("common.error"),
-          description: t("offer.form.toast.kostendachRequired"),
-          variant: "destructive",
-        });
-        return;
-      }
-      if (Number(kostendachMax) < Number(hourlyRate)) {
-        toast({
-          title: t("common.error"),
-          description: t("offer.form.toast.kostendachTooLow"),
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
     // Blind Offerte — per-item time estimate validation
     for (const item of items) {
       const te = item.timeEstimate;
@@ -784,11 +749,8 @@ const FirmaOfferteBearbeiten = () => {
           // status/sent_at NICHT hier setzen — die "sent"-Transition gehört
           // ausschliesslich der send-offer Edge Function (nur bei erfolgreichem Versand).
           updated_at: new Date().toISOString(),
-          price_model: priceModel,
-          hourly_rate: (priceModel === 'stundenansatz' || priceModel === 'kostendach') && hourlyRate
-            ? Number(hourlyRate) : null,
-          kostendach_max: priceModel === 'kostendach' && kostendachMax
-            ? Number(kostendachMax) : null,
+          // price_model / hourly_rate / kostendach_max werden NICHT mehr geschrieben
+          // (ADR_offerte_preismodell): das Etikett leitet sich aus den Positionen ab.
           payment_terms: paymentTerms?.trim() || null,
           brief_layout: briefLayout,
           offerte_type: offerteType,
@@ -1127,35 +1089,16 @@ const FirmaOfferteBearbeiten = () => {
                 </CardContent>
               </Card>
 
-              {/* Preismodell */}
+              {/* Rabatt auf die ganze Offerte.
+                  Die frühere Preismodell-Auswahl stand hier und ist mit F1 entfallen: sie
+                  beschrieb ein Modell, das die Summe nicht beeinflusst hat. Stundenansatz und
+                  Kostendach werden jetzt an der Position gesetzt (Betragsbasis „Ansatz"), und
+                  das Etikett auf dem Beleg leitet sich daraus ab. */}
               <Card>
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                  <CardTitle className="text-sm sm:text-base">{t("offer.form.priceModel.title")}</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.form.discount.title")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {(
-                      [
-                        { value: 'pauschal', labelKey: 'offer.form.priceModel.pauschal' },
-                        { value: 'stundenansatz', labelKey: 'domain.priceModel.stundenansatz' },
-                        { value: 'kostendach', labelKey: 'offer.form.priceModel.kostendach' },
-                      ] as const satisfies readonly { value: PriceModel; labelKey: MessageKey }[]
-                    ).map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setPriceModel(opt.value)}
-                        className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors text-left ${
-                          priceModel === opt.value
-                            ? 'border-primary bg-primary/5 text-primary'
-                            : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                        }`}
-                      >
-                        {t(opt.labelKey)}
-                      </button>
-                    ))}
-                  </div>
-
                   {/* Offer-level Rabatt (%) — editable (#7: was missing in edit) */}
                   <div className="space-y-1 pt-1 sm:max-w-[50%]">
                     <Label className="text-xs sm:text-sm">{t("offer.form.field.discount")}</Label>
@@ -1170,40 +1113,6 @@ const FirmaOfferteBearbeiten = () => {
                       className="h-9 sm:h-10 text-sm"
                     />
                   </div>
-
-                  {(priceModel === 'stundenansatz' || priceModel === 'kostendach') && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
-                      <div className="space-y-1">
-                        <Label className="text-xs sm:text-sm">{t("offer.form.field.hourlyRate")}</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={hourlyRate}
-                          onChange={(e) => applyGlobalHourlyRate(e.target.value)}
-                          placeholder={t("offer.form.placeholder.hourlyRate")}
-                          className="h-9 sm:h-10 text-sm"
-                        />
-                      </div>
-                      {priceModel === 'kostendach' && (
-                        <div className="space-y-1">
-                          <Label className="text-xs sm:text-sm">{t("offer.form.field.kostendach")}</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={kostendachMax}
-                            onChange={(e) => setKostendachMax(e.target.value)}
-                            placeholder={t("offer.form.placeholder.kostendach")}
-                            className="h-9 sm:h-10 text-sm"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            {t("offer.form.kostendach.hint")}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
@@ -1374,31 +1283,16 @@ const FirmaOfferteBearbeiten = () => {
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                                       <div className="space-y-1">
-                                        <Label className="text-xs sm:text-sm">{t("common.quantity")}</Label>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          value={item.quantity}
-                                          onChange={(e) =>
-                                            updateItem(index, "quantity", Number(e.target.value))
-                                          }
-                                          onFocus={(e) => e.target.select()}
-                                          className="h-8 sm:h-10 text-sm"
-                                        />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <Label className="text-xs sm:text-sm">{t("common.unit")}</Label>
+                                        <Label className="text-xs sm:text-sm">{t("offer.item.label.priceType")}</Label>
                                         <Select
-                                          value={item.unit}
-                                          onValueChange={(value) =>
-                                            updateItem(index, "unit", value)
-                                          }
+                                          value={item.price_type ?? "pauschale"}
+                                          onValueChange={(value) => applyPriceType(index, value)}
                                         >
                                           <SelectTrigger className="h-8 sm:h-10 text-sm">
-                                            <SelectValue placeholder={t("common.unit")} />
+                                            <SelectValue />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            {unitOptions.map((option) => (
+                                            {priceTypeOptions.map((option) => (
                                               <SelectItem key={option.value} value={option.value}>
                                                 {t(option.labelKey)}
                                               </SelectItem>
@@ -1406,6 +1300,45 @@ const FirmaOfferteBearbeiten = () => {
                                           </SelectContent>
                                         </Select>
                                       </div>
+                                      {item.price_type !== "pauschale" && item.price_type !== "inkl" && (
+                                        <div className="space-y-1">
+                                          <Label className="text-xs sm:text-sm">{t("common.quantity")}</Label>
+                                          <Input
+                                            type="number"
+                                            min={0}
+                                            value={item.quantity}
+                                            onChange={(e) =>
+                                              updateItem(index, "quantity", Number(e.target.value))
+                                            }
+                                            onFocus={(e) => e.target.select()}
+                                            className="h-8 sm:h-10 text-sm"
+                                          />
+                                        </div>
+                                      )}
+                                      {/* Einheit nur, wo der Preistyp sie freilässt — sonst
+                                          widerspräche eine gewählte Einheit dem Typ. */}
+                                      {!priceTypeFixesUnit(item.price_type) && (
+                                        <div className="space-y-1">
+                                          <Label className="text-xs sm:text-sm">{t("common.unit")}</Label>
+                                          <Select
+                                            value={item.unit}
+                                            onValueChange={(value) =>
+                                              updateItem(index, "unit", value)
+                                            }
+                                          >
+                                            <SelectTrigger className="h-8 sm:h-10 text-sm">
+                                              <SelectValue placeholder={t("common.unit")} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {unitOptions.map((option) => (
+                                                <SelectItem key={option.value} value={option.value}>
+                                                  {t(option.labelKey)}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      )}
                                       <div className="space-y-1">
                                         <Label className="text-xs sm:text-sm">{t("offer.form.item.unitPrice")}</Label>
                                         <Input
