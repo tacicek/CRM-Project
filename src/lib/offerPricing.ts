@@ -151,6 +151,48 @@ export const rateUnitForService = (serviceType: string | null | undefined): stri
 export const priceTypeForRateUnit = (rateUnit: string): string =>
   rateUnit === "Stunden" ? "per_hour" : "per_unit";
 
+/** Die Felder, die eine Preismodell-Umstellung auf einer Position schreibt. */
+export interface UmstellungsErgebnis {
+  id: string;
+  priceType: string;
+  unit: string;
+  amountBasis: AmountBasis;
+  quantity: number;
+  unitPrice: number;
+  kostendachMax: number | null;
+}
+
+const gleicheZahl = (a: number | null, b: number | null): boolean =>
+  a === null || b === null ? a === b : Math.abs(a - b) < 0.005;
+
+/**
+ * Steht die Gruppe noch exakt so da, wie die Umstellung sie hinterlassen hat?
+ *
+ * Entscheidet, ob „Rückgängig" noch angeboten werden darf. Die Umkehr schreibt ALLE
+ * Positionen der Gruppe auf ihre alten Werte zurueck — sobald der Bediener danach etwas von
+ * Hand geaendert hat, wuerde sie diese Aenderung still verwerfen. Der Streifen ist deshalb
+ * genau so lange ehrlich, wie es nichts zu verlieren gibt.
+ */
+export const umstellungUnveraendert = (
+  erwartet: UmstellungsErgebnis[],
+  jetzt: UmstellungsErgebnis[],
+): boolean => {
+  if (erwartet.length !== jetzt.length) return false;
+  const nachId = new Map(jetzt.map((p) => [p.id, p]));
+  return erwartet.every((e) => {
+    const p = nachId.get(e.id);
+    return (
+      p !== undefined &&
+      p.priceType === e.priceType &&
+      p.unit === e.unit &&
+      p.amountBasis === e.amountBasis &&
+      gleicheZahl(p.quantity, e.quantity) &&
+      gleicheZahl(p.unitPrice, e.unitPrice) &&
+      gleicheZahl(p.kostendachMax, e.kostendachMax)
+    );
+  });
+};
+
 /**
  * Misst diese Einheit Zeit?
  *

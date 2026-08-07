@@ -16,6 +16,7 @@ import {
   isFreeItem,
   priceTypeForRateUnit,
   priceTypeShape,
+  umstellungUnveraendert,
   type AmountBasis,
   type PriceModelName,
 } from "@/lib/offerPricing";
@@ -126,11 +127,21 @@ export const GruppenPreismodell = ({
   const [einheit, setEinheit] = useState(rateUnit);
   const [ansatz, setAnsatz] = useState("");
   const [deckel, setDeckel] = useState("");
-  /** Der Zustand VOR der letzten Umstellung — die Grundlage von „Rückgängig". */
+  /**
+   * Der Zustand VOR der letzten Umstellung — die Grundlage von „Rückgängig".
+   *
+   * `erwartet` ist der Zustand, den dieselbe Umstellung ERZEUGT hat. Nur solange die Gruppe
+   * noch so aussieht, ist das Angebot ehrlich: „Rückgängig" schreibt alle Positionen der
+   * Gruppe auf `werte` zurueck, also wuerde es jede Handaenderung dazwischen still
+   * ueberschreiben. Der Streifen blieb bisher stehen, bis jemand ihn drueckte — nach einer
+   * von Hand auf „Fester Betrag" gestellten Position sagte er weiter „2 Positionen auf
+   * ‚Nach Ansatz' gesetzt", waehrend die Knoepfe darueber schon „Pauschalpreis" zeigten.
+   */
   const [rueckgaengig, setRueckgaengig] = useState<{
     anzahl: number;
     modell: PriceModelName;
     werte: PositionsAenderung[];
+    erwartet: PositionsAenderung[];
   } | null>(null);
 
   /**
@@ -214,10 +225,23 @@ export const GruppenPreismodell = ({
       kostendachMax: p.kostendachMax,
     }));
 
+  /**
+   * Ist der Rueckweg noch verlustfrei? Sobald die Gruppe nicht mehr so aussieht, wie die
+   * Umstellung sie hinterliess, hat der Bediener von Hand nachgebessert — dann verschwindet
+   * das Angebot, statt diese Arbeit auf Klick zu verwerfen.
+   */
+  const rueckgaengigGueltig =
+    rueckgaengig !== null && umstellungUnveraendert(rueckgaengig.erwartet, jetzigerZustand());
+
+  /** Umstellen und den Rueckweg merken — der einzige Weg, `rueckgaengig` zu setzen. */
+  const uebernehmen = (modell: PriceModelName, neu: PositionsAenderung[]) => {
+    setRueckgaengig({ anzahl: bezahlt.length, modell, werte: jetzigerZustand(), erwartet: neu });
+    onAnwenden(neu);
+  };
+
   const anwenden = (modell: PriceModelName, satz = ansatzZahl, cap = deckelZahl) => {
     if (gesperrt || bezahlt.length === 0) return;
-    setRueckgaengig({ anzahl: bezahlt.length, modell, werte: jetzigerZustand() });
-    onAnwenden(berechne(modell, satz, cap));
+    uebernehmen(modell, berechne(modell, satz, cap));
   };
 
   // Ein Ansatz ohne Zahl kann nichts setzen. Statt still nichts zu tun, bleibt der Knopf
@@ -279,10 +303,7 @@ export const GruppenPreismodell = ({
               // Eine andere Einheit ist eine andere Aussage — sie zieht die Positionen
               // sofort nach, genau wie ein geaenderter Ansatz.
               if (aktuell.model !== "pauschal" && ansatzZahl > 0) {
-                setRueckgaengig({ anzahl: bezahlt.length, modell: aktuell.model, werte: jetzigerZustand() });
-                onAnwenden(
-                  berechne(aktuell.model, ansatzZahl, deckelZahl, v),
-                );
+                uebernehmen(aktuell.model, berechne(aktuell.model, ansatzZahl, deckelZahl, v));
               }
             }}
           >
@@ -342,7 +363,7 @@ export const GruppenPreismodell = ({
 
       {/* Die Umkehr des letzten Klicks — mit den EXAKTEN alten Werten, nicht mit einer
           Näherung. Ohne sie wäre ein Fehlklick nur von Hand zu reparieren. */}
-      {rueckgaengig && !gesperrt && (
+      {rueckgaengig && rueckgaengigGueltig && !gesperrt && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
           <span className="text-[12px] text-amber-900">
             {t("offer.form.groupPriceModel.applied", {

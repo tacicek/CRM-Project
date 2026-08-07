@@ -17,6 +17,7 @@ import {
   priceTypeForRateUnit,
   rateUnitForService,
   istStundenEinheit,
+  umstellungUnveraendert,
   derivePriceModel,
   type SubtotalItem,
   type PriceModelItem,
@@ -743,6 +744,54 @@ describe("Produktionsbeleg 10056 — F1 darf ihn nicht verändern", () => {
       quantity: 1,
       kostendachMax: 1560,
     });
+  });
+});
+
+describe("umstellungUnveraendert — die Umkehr wird nur angeboten, solange nichts zu verlieren ist", () => {
+  const pos = (id: string, over: Partial<Parameters<typeof umstellungUnveraendert>[0][number]> = {}) => ({
+    id,
+    priceType: "per_unit",
+    unit: "m³",
+    amountBasis: "rate" as const,
+    quantity: 1,
+    unitPrice: 60,
+    kostendachMax: 1200,
+    ...over,
+  });
+
+  it("gilt, solange die Gruppe so dasteht wie die Umstellung sie hinterliess", () => {
+    const erwartet = [pos("a"), pos("b")];
+    expect(umstellungUnveraendert(erwartet, [pos("a"), pos("b")])).toBe(true);
+    expect(umstellungUnveraendert(erwartet, [pos("b"), pos("a")])).toBe(true);
+  });
+
+  it("faellt weg, sobald eine Position von Hand auf 'Fester Betrag' gestellt wurde", () => {
+    // Genau der reproduzierte Fall: der Streifen sagte weiter "auf Nach Ansatz gesetzt",
+    // waehrend die Knoepfe darueber schon "Pauschalpreis" zeigten.
+    const erwartet = [pos("a"), pos("b")];
+    expect(umstellungUnveraendert(erwartet, [pos("a", { amountBasis: "fixed" }), pos("b")])).toBe(false);
+  });
+
+  it.each([
+    ["Preis", { unitPrice: 70 }],
+    ["Menge", { quantity: 3 }],
+    ["Einheit", { unit: "Stunden" }],
+    ["Preistyp", { priceType: "pauschale" }],
+    ["Kostendach", { kostendachMax: 900 }],
+    ["Kostendach geloescht", { kostendachMax: null }],
+  ])("faellt weg, wenn %s von Hand geaendert wurde", (_name, over) => {
+    expect(umstellungUnveraendert([pos("a")], [pos("a", over)])).toBe(false);
+  });
+
+  it("faellt weg, wenn Positionen dazukommen oder verschwinden", () => {
+    expect(umstellungUnveraendert([pos("a")], [pos("a"), pos("b")])).toBe(false);
+    expect(umstellungUnveraendert([pos("a"), pos("b")], [pos("a")])).toBe(false);
+    expect(umstellungUnveraendert([pos("a")], [pos("c")])).toBe(false);
+  });
+
+  it("stoert sich nicht an Rundung auf Rappen", () => {
+    expect(umstellungUnveraendert([pos("a", { unitPrice: 60 })], [pos("a", { unitPrice: 60.001 })])).toBe(true);
+    expect(umstellungUnveraendert([pos("a", { unitPrice: 60 })], [pos("a", { unitPrice: 60.01 })])).toBe(false);
   });
 });
 
