@@ -1,4 +1,12 @@
 import { Helmet } from "react-helmet-async";
+import {
+  derivePriceModel,
+  offerHasRateItem,
+  toAmountBasis,
+  type DerivedPriceModel,
+  type PriceModelItem,
+} from "@/lib/offerPricing";
+import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import { AuftragModal } from "@/components/firma/AuftragModal";
 import { Button } from "@/components/ui/button";
 import {
@@ -167,6 +175,8 @@ const FirmaOfferten = () => {
   // Offerten mit mindestens einem rate-Posten (amount_basis='rate') — Betrag-Spalte zeigt dann
   // „nach Aufwand" statt einer irreführenden Fix-Summe (spiegelt offerHasRateItem).
   const [rateOfferIds, setRateOfferIds] = useState<Set<string>>(new Set());
+  // Abgeleitetes Preismodell je Offerte — offers.price_model wird nicht mehr gelesen.
+  const [priceModelById, setPriceModelById] = useState<Record<string, DerivedPriceModel>>({});
   const [_checklistMap, setChecklistMap] = useState<Record<string, string>>({});
   const [_leadServiceTypes, setLeadServiceTypes] = useState<Record<string, string>>({});
   const [leadInfoMap, setLeadInfoMap] = useState<Record<string, LeadInfo>>({});
@@ -284,7 +294,9 @@ const FirmaOfferten = () => {
             // Join im selben Umlauf. Welche Offerte einen rate-Posten hat, steht
             // damit schon in der Antwort. amount_basis='rate' ist die exakte
             // DB-Projektion der resolveAmountBasis-'rate'-Regel.
-            .select(`${OFFER_LIST_SPALTEN}, offer_items(amount_basis)`)
+            .select(
+              `${OFFER_LIST_SPALTEN}, offer_items(price_type, amount_basis, kostendach_max, quantity, unit_price, time_estimate)`,
+            )
             .eq("company_id", companyId)
             .order("created_at", { ascending: false })
             .limit(200),
@@ -339,13 +351,36 @@ const FirmaOfferten = () => {
         };
         setStats(calculatedStats);
 
-        // Die rate-Posten kommen eingebettet mit — kein eigener Zugriff mehr.
+        // Die Positionen kommen eingebettet mit — kein eigener Zugriff mehr.
+        // time_estimate ist Json; parseTimeEstimate ist die vorhandene Parse-Grenze.
+        type EingebettetePosition = {
+          price_type: string | null;
+          amount_basis: string | null;
+          kostendach_max: number | null;
+          quantity: number | null;
+          unit_price: number | null;
+          time_estimate: unknown;
+        };
+        const positionen = (o: { offer_items?: EingebettetePosition[] | null }): PriceModelItem[] =>
+          (o.offer_items ?? []).map((item) => {
+            const te = parseTimeEstimate(item.time_estimate);
+            return {
+              priceType: item.price_type ?? "",
+              quantity: Number(item.quantity ?? 0),
+              unitPrice: Number(item.unit_price ?? 0),
+              timeEstimate: te
+                ? { minHours: te.minHours, maxHours: te.maxHours, hourlyRate: te.hourlyRate }
+                : null,
+              amountBasis: toAmountBasis(item.amount_basis),
+              kostendachMax: item.kostendach_max ?? null,
+            };
+          });
+
         setRateOfferIds(
-          new Set<string>(
-            offersArr
-              .filter((o) => o.offer_items.some((item) => item.amount_basis === "rate"))
-              .map((o) => o.id),
-          ),
+          new Set<string>(offersArr.filter((o) => offerHasRateItem(positionen(o))).map((o) => o.id)),
+        );
+        setPriceModelById(
+          Object.fromEntries(offersArr.map((o) => [o.id, derivePriceModel(positionen(o))])),
         );
 
         if (leadsData) {
@@ -560,23 +595,31 @@ const FirmaOfferten = () => {
                 {t("offer.list.badge.blind")}
               </span>
             )}
-            {offer.price_model === 'stundenansatz' && (
-              <span className="inline-flex items-center rounded-md bg-folk-sky-bg px-2 py-0.5 text-[13px] font-semibold text-folk-sky">
-                {t("domain.priceModel.stundenansatz")}
-              </span>
-            )}
-            {offer.price_model === 'kostendach' && (
-              <span className="inline-flex items-center rounded-md bg-folk-mint-bg px-2 py-0.5 text-[13px] font-semibold text-folk-mint">
-                {offer.kostendach_max !== null && offer.kostendach_max !== undefined
-                  ? t("offer.list.badge.kostendachMax", { amount: showCurrency(Number(offer.kostendach_max)) })
-                  : t("domain.priceModel.kostendach")}
-              </span>
-            )}
-            {(!offer.price_model || offer.price_model === 'pauschal') && (
-              <span className="inline-flex items-center rounded-md bg-folk-bg-warm px-2 py-0.5 text-[13px] font-medium text-folk-ink3">
-                {t("domain.priceModel.pauschal")}
-              </span>
-            )}
+            {(() => {
+              // Abgeleitet aus den Positionen, nicht aus offers.price_model.
+              const pm = priceModelById[offer.id];
+              if (pm?.model === "stundenansatz") {
+                return (
+                  <span className="inline-flex items-center rounded-md bg-folk-sky-bg px-2 py-0.5 text-[13px] font-semibold text-folk-sky">
+                    {t("domain.priceModel.stundenansatz")}
+                  </span>
+                );
+              }
+              if (pm?.model === "kostendach") {
+                return (
+                  <span className="inline-flex items-center rounded-md bg-folk-mint-bg px-2 py-0.5 text-[13px] font-semibold text-folk-mint">
+                    {pm.kostendachMax !== null
+                      ? t("offer.list.badge.kostendachMax", { amount: showCurrency(pm.kostendachMax) })
+                      : t("domain.priceModel.kostendach")}
+                  </span>
+                );
+              }
+              return (
+                <span className="inline-flex items-center rounded-md bg-folk-bg-warm px-2 py-0.5 text-[13px] font-medium text-folk-ink3">
+                  {t("domain.priceModel.pauschal")}
+                </span>
+              );
+            })()}
           </div>
 
           {/* Amount + Date */}
