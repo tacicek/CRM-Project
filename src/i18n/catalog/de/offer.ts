@@ -182,6 +182,12 @@ export const offer = {
   "offer.form.groupPriceModel.dialogHint":
     "Diese Positionen werden geändert. Nehmen Sie einzelne heraus, wenn sie so bleiben sollen.",
   "offer.form.groupPriceModel.rate": "Stundenansatz (CHF/Std.)",
+  "offer.form.groupPriceModel.rateGeneric": "Nach Ansatz",
+  "offer.form.groupPriceModel.capGeneric": "Nach Ansatz mit Kostendach",
+  "offer.form.groupPriceModel.unit": "Einheit",
+  "offer.form.groupPriceModel.unitHours": "pro Stunde",
+  "offer.form.groupPriceModel.unitM3": "pro m³",
+  "offer.form.groupPriceModel.unitMonth": "pro Monat",
   "offer.form.groupPriceModel.rateByM3": "Ansatz pro m³",
   "offer.form.groupPriceModel.capByM3": "Ansatz pro m³ mit Kostendach",
   "offer.form.groupPriceModel.rateFieldM3": "Ansatz (CHF/m³)",

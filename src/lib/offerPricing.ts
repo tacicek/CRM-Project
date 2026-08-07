@@ -125,12 +125,16 @@ export const priceTypeFixesUnit = (priceType: string | null | undefined): boolea
   FIXED_UNIT_BY_PRICE_TYPE[priceType ?? ""] !== undefined;
 
 /**
- * Die Einheit, in der ein Service seinen offenen Ansatz misst.
+ * Die NAHELIEGENDE Ansatz-Einheit eines Services — eine Vorbelegung, keine Vorschrift.
  *
- * "Stundenansatz" ist eine Frage der TAXIERUNG, nicht des Preismodells: Entsorgung wird pro
- * m³ abgerechnet, Lagerung pro Monat. Dem Bediener dort einen Stundensatz abzuverlangen ist
- * dieselbe Sorte Fehler wie ein Kaestchen, das die Summe nicht erreicht — die Frage passt
- * nicht zur Sache.
+ * "Stundenansatz" ist eine Frage der TAXIERUNG, nicht des Preismodells: Entsorgung wird
+ * ueblicherweise pro m³ abgerechnet, Lagerung pro Monat. Dem Bediener dort ZUERST einen
+ * Stundensatz abzuverlangen ist dieselbe Sorte Fehler wie ein Kaestchen, das die Summe nicht
+ * erreicht — die Frage passt nicht zur Sache.
+ *
+ * ABER: die anderen Einheiten bleiben waehlbar. Eine Firma kann eine Entsorgung sehr wohl
+ * nach Stunden anbieten; ihr das zu verbieten waere Bevormundung. Das Formular schlaegt vor,
+ * die Firma entscheidet (GruppenPreismodell: Einheiten-Auswahl neben dem Ansatzfeld).
  *
  * Spiegelt die Servicezuordnung aus metaKindForService (offerItemMeta.ts); dort entscheidet
  * dieselbe Liste, welche Service-Details-Karte erscheint.

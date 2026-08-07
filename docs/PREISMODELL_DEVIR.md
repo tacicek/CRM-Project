@@ -277,8 +277,15 @@ Model seçenekleri servis türünden türetilmeli:
 
 Teknik olarak yeni bir eksen **gerekmiyor**: "pro m³" demek kalem düzeyinde
 `price_type='per_unit'` + `amount_basis='rate'` + `unit='m³'` demektir. Yani `rate` ekseni
-aynı kalır, yalnızca **birim** servise göre seçilir. `priceTypeShape`'e birim parametresi
-eklemek yeterli.
+aynı kalır, yalnızca **birim** değişir. `priceTypeShape`'e `alsAnsatz` bayrağı eklemek yeterli
+(o olmadan `per_unit` yalnızca sabit tutar olabiliyor).
+
+> **Bu tabloyu kısıt yapma — varsayılan yap.** Tablo yalnızca hangi birimin *önce* önerileceğini
+> söyler; üçü de seçilebilir kalmalı. Bir firma çöp işini pekâlâ saatlik teklif edebilir. Uygulama:
+> model düğmeleri **birim-nötr** ("Nach Ansatz" / "Nach Ansatz mit Kostendach"), yanlarında bir
+> **birim seçici** (pro Stunde | pro m³ | pro Monat) servisin varsayılanıyla dolu. Kalemler zaten
+> bir ansatz taşıyorsa **onların birimi** kazanır, servis varsayılanı değil — yoksa alan
+> "CHF/m³" gösterirken belge "CHF/Stunden" basar.
 
 Bunu yapınca meta'daki `rate` alanı da ayrı bir yazı olmaktan çıkıp kalemin `unit_price`'ına
 bağlanır — iki ücret alanı **teke** iner. Meta kartında yalnızca ölçü (`volume_m3`, `area_m2`)

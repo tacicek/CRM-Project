@@ -3,6 +3,13 @@ import { Lock, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useT } from "@/i18n/useI18n";
 import {
   derivePriceModel,
@@ -38,27 +45,19 @@ export interface PositionsAenderung {
 }
 
 /**
- * Die Beschriftung folgt der Ansatz-Einheit des Services: "Stundenansatz" fuer Umzug,
- * "pro m³" fuer Entsorgung, "pro Monat" fuer Lagerung. Der gespeicherte Wert
- * (amount_basis='rate') ist derselbe — nur die FRAGE an den Bediener passt sich an.
+ * Die waehlbaren Ansatz-Einheiten.
+ *
+ * `rateUnitForService` liefert nur die VORBELEGUNG — welche Einheit fuer diesen Service die
+ * naheliegende ist. Die anderen bleiben waehlbar: eine Firma kann eine Entsorgung sehr wohl
+ * nach Stunden anbieten, und ihr das zu verbieten waere dieselbe Bevormundung wie die Frage
+ * nach einem Stundensatz fuer eine m³-Leistung. Die Firma entscheidet, das Formular schlaegt
+ * nur vor.
  */
-const ANSATZ_LABEL: Record<string, { rate: MessageKey; cap: MessageKey; feld: MessageKey }> = {
-  Stunden: {
-    rate: "domain.priceModel.stundenansatz",
-    cap: "offer.form.priceModel.kostendach",
-    feld: "offer.form.groupPriceModel.rate",
-  },
-  "m³": {
-    rate: "offer.form.groupPriceModel.rateByM3",
-    cap: "offer.form.groupPriceModel.capByM3",
-    feld: "offer.form.groupPriceModel.rateFieldM3",
-  },
-  Monat: {
-    rate: "offer.form.groupPriceModel.rateByMonth",
-    cap: "offer.form.groupPriceModel.capByMonth",
-    feld: "offer.form.groupPriceModel.rateFieldMonth",
-  },
-};
+const EINHEITEN: { wert: string; labelKey: MessageKey; feldKey: MessageKey }[] = [
+  { wert: "Stunden", labelKey: "offer.form.groupPriceModel.unitHours", feldKey: "offer.form.groupPriceModel.rate" },
+  { wert: "m³", labelKey: "offer.form.groupPriceModel.unitM3", feldKey: "offer.form.groupPriceModel.rateFieldM3" },
+  { wert: "Monat", labelKey: "offer.form.groupPriceModel.unitMonth", feldKey: "offer.form.groupPriceModel.rateFieldMonth" },
+];
 
 const zahl = (wert: string): number => {
   const n = Number(wert.trim().replace(",", "."));
@@ -123,6 +122,8 @@ export const GruppenPreismodell = ({
     [bezahlt],
   );
 
+  /** Die gewaehlte Ansatz-Einheit. Vorbelegt vom Service, danach Sache des Bedieners. */
+  const [einheit, setEinheit] = useState(rateUnit);
   const [ansatz, setAnsatz] = useState("");
   const [deckel, setDeckel] = useState("");
   /** Der Zustand VOR der letzten Umstellung — die Grundlage von „Rückgängig". */
@@ -143,7 +144,12 @@ export const GruppenPreismodell = ({
           : "",
     );
     setDeckel(aktuell.kostendachMax !== null ? String(aktuell.kostendachMax) : "");
-  }, [aktuell.hourlyRate, aktuell.kostendachMax, metaAnsatz]);
+    // Tragen die Positionen bereits einen Ansatz, gilt DEREN Einheit — nicht die
+    // Vorbelegung des Services. Sonst zeigte das Feld "CHF/m³", waehrend der Beleg
+    // "CHF/Stunden" druckt.
+    const vorhandene = bezahlt.find((p) => p.amountBasis === "rate")?.unit;
+    setEinheit(vorhandene && vorhandene.trim() !== "" ? vorhandene : rateUnit);
+  }, [aktuell.hourlyRate, aktuell.kostendachMax, metaAnsatz, bezahlt, rateUnit]);
 
   const ansatzZahl = zahl(ansatz);
   const deckelZahl = zahl(deckel);
@@ -153,14 +159,15 @@ export const GruppenPreismodell = ({
     modell: PriceModelName,
     satz: number,
     cap: number,
+    mitEinheit: string = einheit,
   ): PositionsAenderung[] => {
     const zielPriceType =
-      modell === "pauschal" ? "pauschale" : priceTypeForRateUnit(rateUnit);
+      modell === "pauschal" ? "pauschale" : priceTypeForRateUnit(mitEinheit);
     const ersteId = bezahlt[0]?.id;
     return bezahlt.map((p) => {
       const shape = priceTypeShape(zielPriceType, {
         // Bei m³/Monat gibt der Service die Einheit vor, nicht die alte Zeile.
-        unit: modell === "pauschal" ? p.unit : rateUnit,
+        unit: modell === "pauschal" ? p.unit : mitEinheit,
         quantity: p.quantity,
         kostendachMax: p.kostendachMax,
         // Beim Umstellen entscheidet das Modell, nicht eine alte Zeitschätzung:
@@ -208,11 +215,11 @@ export const GruppenPreismodell = ({
   const erlaubt = (m: PriceModelName) =>
     !gesperrt && (m === "pauschal" || (m === "stundenansatz" ? kannAnsatz : kannDeckel));
 
-  const labels = ANSATZ_LABEL[rateUnit] ?? ANSATZ_LABEL.Stunden;
+  const einheitDef = EINHEITEN.find((e) => e.wert === einheit) ?? EINHEITEN[0];
   const modelle: { wert: PriceModelName; labelKey: MessageKey }[] = [
     { wert: "pauschal", labelKey: "offer.form.priceModel.pauschal" },
-    { wert: "stundenansatz", labelKey: labels.rate },
-    { wert: "kostendach", labelKey: labels.cap },
+    { wert: "stundenansatz", labelKey: "offer.form.groupPriceModel.rateGeneric" },
+    { wert: "kostendach", labelKey: "offer.form.groupPriceModel.capGeneric" },
   ];
 
   if (bezahlt.length === 0) return null;
@@ -247,10 +254,37 @@ export const GruppenPreismodell = ({
       {/* Ansatz und Kostendach stehen NEBEN den Knöpfen, nicht in einem Fenster.
           Eine Änderung hier zieht die Positionen sofort nach — dieselbe Top-down-Idee,
           die der Bediener vom alten Kästchen kennt. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[11px] text-muted-foreground">
+            {t("offer.form.groupPriceModel.unit")}
+          </Label>
+          <Select
+            value={einheit}
+            disabled={!!gesperrt}
+            onValueChange={(v) => {
+              setEinheit(v);
+              // Eine andere Einheit ist eine andere Aussage — sie zieht die Positionen
+              // sofort nach, genau wie ein geaenderter Ansatz.
+              if (aktuell.model !== "pauschal" && ansatzZahl > 0) {
+                setRueckgaengig({ anzahl: bezahlt.length, modell: aktuell.model, werte: jetzigerZustand() });
+                onAnwenden(
+                  berechne(aktuell.model, ansatzZahl, deckelZahl, v),
+                );
+              }
+            }}
+          >
+            <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {EINHEITEN.map((e) => (
+                <SelectItem key={e.wert} value={e.wert}>{t(e.labelKey)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1">
           <Label htmlFor={`gpm-rate-${gruppenLabel}`} className="text-[11px] text-muted-foreground">
-            {t(labels.feld)}
+            {t(einheitDef.feldKey)}
           </Label>
           <Input
             id={`gpm-rate-${gruppenLabel}`}
