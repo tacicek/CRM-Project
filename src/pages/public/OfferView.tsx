@@ -38,8 +38,6 @@ import {
   itemAmountDisplay,
   offerHasRateItem,
   toAmountBasis,
-  deriveOfferPriceModel,
-  type PriceModelItem,
   type SubtotalItem,
 } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
@@ -1136,35 +1134,36 @@ const PublicOfferView = () => {
                 </div>
               )}
 
-              {/* Preismodell — ABGELEITET aus den Positionen (ADR_offerte_preismodell).
-                  Bis F1 stand hier offer.price_model: das Etikett konnte „Kostendach" sagen,
-                  während die Summe pauschal gerechnet war. Der Kunde las beides auf
-                  derselben Seite. */}
-              {(() => {
-                const preismodell = deriveOfferPriceModel(
-                  items.map((it): PriceModelItem => ({
-                    priceType: it.price_type ?? "",
-                    quantity: Number(it.quantity),
-                    unitPrice: Number(it.unit_price),
-                    timeEstimate: it.time_estimate ?? null,
-                    amountBasis: toAmountBasis(it.amount_basis),
-                    kostendachMax: it.kostendach_max ?? null,
-                  })),
-                );
-                // Das Kostendach steht als Notiz an der Position, die es trägt — hier
-                // erscheint nur noch der reine Stundenansatz.
-                if (preismodell.model !== "stundenansatz" || preismodell.hourlyRate === null) {
-                  return null;
-                }
-                return (
-                  <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
+              {/* Price model info block */}
+              {offer.price_model === 'stundenansatz' && offer.hourly_rate !== null && offer.hourly_rate !== undefined && (
+                <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
+                  <span className="font-medium">{t("domain.priceModel.stundenansatz")}:</span>{" "}
+                  {t("public.offer.perHour", {
+                    amount: formatCurrency(Number(offer.hourly_rate), locale),
+                  })}
+                </div>
+              )}
+              {offer.price_model === 'kostendach' && offer.hourly_rate !== null && offer.hourly_rate !== undefined && offer.kostendach_max !== null && offer.kostendach_max !== undefined && !items.some((it) => (it.kostendach_max ?? null) !== null) && (
+                <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-1">
+                  <div>
                     <span className="font-medium">{t("domain.priceModel.stundenansatz")}:</span>{" "}
                     {t("public.offer.perHour", {
-                      amount: formatCurrency(preismodell.hourlyRate, locale),
+                      amount: formatCurrency(Number(offer.hourly_rate), locale),
                     })}
                   </div>
-                );
-              })()}
+                  <div>
+                    <span className="font-medium">{t("doc.offer.costCap")}</span>{" "}
+                    {t("doc.offer.costCapMax", {
+                      cap: formatAmount(Number(offer.kostendach_max), locale),
+                    })}
+                  </div>
+                  <p className="text-emerald-700 text-xs pt-0.5">
+                    {t("doc.offer.costCapNote", {
+                      cap: formatAmount(Number(offer.kostendach_max), locale),
+                    })}
+                  </p>
+                </div>
+              )}
 
               <div className="flex justify-end">
                 <div className="w-72 space-y-3">

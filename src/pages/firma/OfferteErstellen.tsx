@@ -79,7 +79,7 @@ import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, surchargesToJson, type OfferSurcharge } from "@/lib/offerSurcharges";
 import type { Json } from "@/integrations/supabase/types";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, deriveOfferPriceModel, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerHasRateItem, type PriceModelItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerHasRateItem, type SubtotalItem } from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -416,8 +416,10 @@ const FirmaOfferteErstellen = () => {
   };
   const [offerNumber, setOfferNumber] = useState<number | undefined>(undefined);
 
-  // Kein Preismodell-Zustand mehr (ADR_offerte_preismodell, Entscheidung 1): das Modell wird
-  // aus den Positionen abgeleitet (deriveOfferPriceModel), nicht auf der Offerte gesetzt.
+  // Price model state
+  const [priceModel, setPriceModel] = useState<'pauschal' | 'stundenansatz' | 'kostendach'>('pauschal');
+  const [hourlyRate, setHourlyRate] = useState<string>('');
+  const [kostendachMax, setKostendachMax] = useState<string>('');
   // Offer-level Rabatt (%). F1a: only captured+saved; totals integration is F3.
   const [discountPercent, setDiscountPercent] = useState<string>('');
   // Per-service dates (multi-service offers): ONE date per service group, keyed by the
@@ -461,6 +463,30 @@ const FirmaOfferteErstellen = () => {
     }
   };
 
+  // Offer-level Stundenansatz (Preismodell) — same top-down idea, offer-wide: fills every
+  // hourly position (Zeitschätzung / per_hour) AND mirrors into each effort group's
+  // Service-Details Stundensatz, so the single rate drives price and PDF badge alike.
+  const applyGlobalHourlyRate = (value: string) => {
+    setHourlyRate(value);
+    if (value.trim() === "") return;
+    const n = Number(value.replace(",", "."));
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.timeEstimate) return { ...it, timeEstimate: { ...it.timeEstimate, hourlyRate: value } };
+        if (it.priceType === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n, amountBasis: "rate" as const };
+        return it;
+      }),
+    );
+    setGroupMeta((prev) => {
+      const next = { ...prev };
+      for (const it of items) {
+        if (metaKindForService(it.serviceType) !== "effort") continue;
+        const k = serviceGroupKey(it.serviceType);
+        next[k] = { ...EMPTY_META_DRAFT, ...next[k], hourlyRate: value };
+      }
+      return next;
+    });
+  };
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
   const [offerteType, setOfferteType] = useState<'normal' | 'blind'>('normal');
@@ -915,17 +941,20 @@ const FirmaOfferteErstellen = () => {
     setItems((prev) => {
       const newItems = [...prev];
       let v = value;
-      // A freshly added Zeitschätzung inherits the group's Service-Details Stundensatz.
-      // Without this the top-down fill only works for fields that already exist when the
-      // rate is typed — ordering trap.
+      // A freshly added Zeitschätzung inherits the known Stundensatz (global Preismodell
+      // rate, else the group's Service-Details rate). Without this the top-down fill only
+      // works for fields that already exist when the rate is typed — ordering trap.
       if (field === "timeEstimate" && v && typeof v === "object" && !(v as ItemTimeEstimate).hourlyRate) {
-        const seed = groupMeta[serviceGroupKey(prev[index]?.serviceType)]?.hourlyRate ?? "";
+        const seed =
+          (priceModel === "stundenansatz" || priceModel === "kostendach") && hourlyRate.trim() !== ""
+            ? hourlyRate
+            : groupMeta[serviceGroupKey(prev[index]?.serviceType)]?.hourlyRate ?? "";
         if (seed.trim() !== "") v = { ...(v as ItemTimeEstimate), hourlyRate: seed };
       }
       newItems[index] = { ...newItems[index], [field]: v };
       return newItems;
     });
-  }, [groupMeta]);
+  }, [priceModel, hourlyRate, groupMeta]);
 
   const addDetail = (itemIndex: number) => {
     setItems((prev) => {
@@ -993,8 +1022,7 @@ const FirmaOfferteErstellen = () => {
   };
 
   // Convert the form item shape (timeEstimate string) into the helper's SubtotalItem (in the parse map).
-  // Traegt zusaetzlich Kostendach und Gruppen-Ansatz, weil dieselbe Liste das Preismodell ableitet.
-  const toSubtotalItems = (): PriceModelItem[] =>
+  const toSubtotalItems = (): SubtotalItem[] =>
     items.map((item) => ({
       priceType: item.priceType,
       quantity: Number(item.quantity),
@@ -1007,8 +1035,6 @@ const FirmaOfferteErstellen = () => {
           }
         : null,
       amountBasis: item.amountBasis ?? null,
-      kostendachMax: item.kostendachMax ?? null,
-      metaRate: Number(groupMeta[serviceGroupKey(item.serviceType)]?.hourlyRate) || null,
     }));
 
   const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
@@ -1021,10 +1047,6 @@ const FirmaOfferteErstellen = () => {
   };
 
   const hasRateItem = () => offerHasRateItem(toSubtotalItems());
-
-  // Das Preismodell der Offerte — abgeleitet, nicht gesetzt (ADR_offerte_preismodell).
-  // Vorschau, Beleg, Kunden-E-Mail und Liste lesen alle dieselbe Ableitung.
-  const abgeleitetesPreismodell = deriveOfferPriceModel(toSubtotalItems());
 
   // Steuerbare Basis = Positionen + Zuschläge. Entspricht offers.subtotal →
   // GENERATED vat_amount/total (subtotal * vat_rate / 100). Vorschau = gespeicherte Offerte.
@@ -1144,6 +1166,36 @@ const FirmaOfferteErstellen = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    if (priceModel === 'stundenansatz' || priceModel === 'kostendach') {
+      if (!hourlyRate || Number(hourlyRate) <= 0) {
+        toast({
+          title: t("common.error"),
+          description: t("offer.form.toast.hourlyRateRequired"),
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    if (priceModel === 'kostendach') {
+      if (!kostendachMax || Number(kostendachMax) <= 0) {
+        toast({
+          title: t("common.error"),
+          description: t("offer.form.toast.kostendachRequired"),
+          variant: "destructive",
+        });
+        return;
+      }
+      if (Number(kostendachMax) < Number(hourlyRate)) {
+        toast({
+          title: t("common.error"),
+          description: t("offer.form.toast.kostendachTooLow"),
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // Blind Offerte — per-item time estimate validation
@@ -1279,8 +1331,11 @@ const FirmaOfferteErstellen = () => {
         payment_method: offerDetails.paymentMethod || null,
         payment_terms: paymentTerms?.trim() || null,
         internal_notes: offerDetails.internalNotes || null,
-        // price_model / hourly_rate / kostendach_max werden NICHT mehr geschrieben
-        // (ADR_offerte_preismodell): das Etikett leitet sich aus den Positionen ab.
+        price_model: priceModel,
+        hourly_rate: (priceModel === 'stundenansatz' || priceModel === 'kostendach') && hourlyRate
+          ? Number(hourlyRate) : null,
+        kostendach_max: priceModel === 'kostendach' && kostendachMax
+          ? Number(kostendachMax) : null,
         brief_layout: briefLayout,
         offerte_type: offerteType,
       };
@@ -1967,16 +2022,69 @@ const FirmaOfferteErstellen = () => {
                 </CardContent>
               </Card>
 
-              {/* Rabatt auf die ganze Offerte.
-                  Die frühere Preismodell-Auswahl stand hier und ist mit F1 entfallen: sie
-                  beschrieb ein Modell, das die Summe nicht beeinflusst hat. Stundenansatz und
-                  Kostendach werden jetzt an der Position gesetzt (Betragsbasis „Ansatz"), und
-                  das Etikett auf dem Beleg leitet sich daraus ab. */}
+              {/* Preismodell */}
               <Card>
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                  <CardTitle className="text-sm sm:text-base">{t("offer.form.discount.title")}</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.form.priceModel.title")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {(
+                      [
+                        { value: 'pauschal', labelKey: 'offer.form.priceModel.pauschal' },
+                        { value: 'stundenansatz', labelKey: 'domain.priceModel.stundenansatz' },
+                        { value: 'kostendach', labelKey: 'offer.form.priceModel.kostendach' },
+                      ] as const satisfies readonly { value: 'pauschal' | 'stundenansatz' | 'kostendach'; labelKey: MessageKey }[]
+                    ).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setPriceModel(opt.value)}
+                        className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors text-left ${
+                          priceModel === opt.value
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                        }`}
+                      >
+                        {t(opt.labelKey)}
+                      </button>
+                    ))}
+                  </div>
+
+                  {(priceModel === 'stundenansatz' || priceModel === 'kostendach') && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
+                      <div className="space-y-1">
+                        <Label className="text-xs sm:text-sm">{t("offer.form.field.hourlyRate")}</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={hourlyRate}
+                          onChange={(e) => applyGlobalHourlyRate(e.target.value)}
+                          placeholder={t("offer.form.placeholder.hourlyRate")}
+                          className="h-9 sm:h-10 text-sm"
+                        />
+                      </div>
+                      {priceModel === 'kostendach' && (
+                        <div className="space-y-1">
+                          <Label className="text-xs sm:text-sm">{t("offer.form.field.kostendach")}</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={kostendachMax}
+                            onChange={(e) => setKostendachMax(e.target.value)}
+                            placeholder={t("offer.form.placeholder.kostendach")}
+                            className="h-9 sm:h-10 text-sm"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {t("offer.form.kostendach.hint")}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Offer-level Rabatt (%) — F1a: captured+saved, totals integration is F3 */}
                   <div className="space-y-1 pt-1 sm:max-w-[50%]">
                     <Label className="text-xs sm:text-sm">{t("offer.form.field.discount")}</Label>
@@ -2517,9 +2625,9 @@ const FirmaOfferteErstellen = () => {
                           maxVat={calculateMaxVat()}
                           maxTotal={calculateMaxTotal()}
                           hasRateItem={hasRateItem()}
-                          priceModel={abgeleitetesPreismodell.model}
-                          hourlyRate={abgeleitetesPreismodell.hourlyRate}
-                          kostendachMax={abgeleitetesPreismodell.kostendachMax}
+                          priceModel={priceModel}
+                          hourlyRate={hourlyRate ? Number(hourlyRate) : null}
+                          kostendachMax={kostendachMax ? Number(kostendachMax) : null}
                           serviceDate={serviceDate}
                           validUntil={validUntil}
                           paymentTerms={paymentTerms}
@@ -2616,9 +2724,9 @@ const FirmaOfferteErstellen = () => {
                       maxVat={calculateMaxVat()}
                       maxTotal={calculateMaxTotal()}
                       hasRateItem={hasRateItem()}
-                      priceModel={abgeleitetesPreismodell.model}
-                      hourlyRate={abgeleitetesPreismodell.hourlyRate}
-                      kostendachMax={abgeleitetesPreismodell.kostendachMax}
+                      priceModel={priceModel}
+                      hourlyRate={hourlyRate ? Number(hourlyRate) : null}
+                      kostendachMax={kostendachMax ? Number(kostendachMax) : null}
                       serviceDate={serviceDate}
                       validUntil={validUntil}
                       paymentTerms={paymentTerms}

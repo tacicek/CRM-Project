@@ -156,7 +156,6 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.placeholder.kostendach": "e.g. 1800",
   "offer.form.kostendach.hint":
     "The customer pays no more than this amount, regardless of the time spent.",
-  "offer.form.discount.title": "Discount",
   "offer.form.field.discount": "Overall discount (%)",
   "offer.form.placeholder.discount": "e.g. 10 (optional)",
   "offer.form.offerType.title": "Offer type",

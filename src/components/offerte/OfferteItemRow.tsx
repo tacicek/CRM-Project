@@ -12,16 +12,10 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { getServiceOptions } from "@/lib/offerServiceType";
-import {
-  itemAmountDisplay,
-  priceTypeFixesUnit,
-  priceTypeShape,
-  type AmountBasis,
-} from "@/lib/offerPricing";
+import { itemAmountDisplay, type AmountBasis } from "@/lib/offerPricing";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useI18n, useT } from "@/i18n/useI18n";
 import type { MessageKey } from "@/i18n/translator";
-import { priceTypeOptions } from "@/components/offerte/priceTypeOptions";
 
 export interface ItemTimeEstimate {
   minHours: string;
@@ -45,6 +39,18 @@ export interface OfferItem {
   kostendachMax?: number | null; // Item-/Service-level Kostendach (nur bei rate relevant)
 }
 
+// Price type options with their auto-derived units. `value`/`defaultUnit` are the stored
+// enum/unit tokens and stay exactly as-is; only `labelKey` (the operator-facing dropdown
+// text) is resolved with the dashboard locale at render time.
+// fixedUnit = true means the unit is always derived from the price type (Einheit hidden)
+// fixedUnit = false means the user picks the unit themselves (Einheit shown)
+const priceTypeOptions = [
+  { value: "pauschale", labelKey: "offer.item.priceType.pauschale" as MessageKey, defaultUnit: "Pauschal",  fixedUnit: true  },
+  { value: "per_unit",  labelKey: "offer.item.priceType.perUnit" as MessageKey,   defaultUnit: "Stk.",      fixedUnit: false },
+  { value: "per_hour",  labelKey: "offer.item.priceType.perHour" as MessageKey,   defaultUnit: "Stunden",   fixedUnit: true  },
+  { value: "inkl",      labelKey: "offer.item.priceType.inkl" as MessageKey,      defaultUnit: "",          fixedUnit: true  },
+  { value: "optional",  labelKey: "common.optional" as MessageKey,                defaultUnit: "Stk.",      fixedUnit: false },
+] as const;
 
 // Unit options shown only when priceType has fixedUnit = false (Pro Einheit / Optional).
 // `value` is the customer-facing snapshot stored on offer_items.unit — stays as-is.
@@ -132,7 +138,8 @@ export const OfferteItemRow = ({
     }
   }, [item.unit_price]);
 
-  const unitIsFixed = priceTypeFixesUnit(item.priceType);
+  const currentPriceType = priceTypeOptions.find(o => o.value === item.priceType);
+  const unitIsFixed = currentPriceType?.fixedUnit ?? true;
 
   // Kostendach-Eingabe: Std oder CHF. Gespeichert wird IMMER CHF (= Std × Ansatz/unit_price),
   // kein Schema-Change. Std wird beim Anzeigen aus CHF/Ansatz zurueckgerechnet.
@@ -204,20 +211,12 @@ export const OfferteItemRow = ({
                   <Select
                     value={item.priceType}
                     onValueChange={(value) => {
-                      // Ein Preistyp-Wechsel zieht die ganze Position nach — Einheit,
-                      // Betragsbasis, Menge und Kostendach. Bis F1 wurde nur die Einheit
-                      // synchronisiert; die Position sah danach anders aus, als sie rechnete.
-                      const shape = priceTypeShape(value, {
-                        unit: item.unit,
-                        quantity: item.quantity,
-                        kostendachMax: item.kostendachMax,
-                        hasValidTimeEstimate: teValid,
-                      });
+                      const option = priceTypeOptions.find(o => o.value === value);
                       onUpdate(index, "priceType", value);
-                      onUpdate(index, "unit", shape.unit);
-                      onUpdate(index, "amountBasis", shape.amountBasis);
-                      onUpdate(index, "quantity", shape.quantity);
-                      onUpdate(index, "kostendachMax", shape.kostendachMax);
+                      // Always sync unit to the canonical default for this price type
+                      if (option) {
+                        onUpdate(index, "unit", option.defaultUnit);
+                      }
                     }}
                   >
                     <SelectTrigger className="h-9 sm:h-10 text-sm">
