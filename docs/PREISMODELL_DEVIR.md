@@ -130,6 +130,15 @@ aynı listeyi bir pencerede tekrar göstermek boş tıklama. Karşılığında y
 kendine dönmez (Pauschal 2'080 → Ansatz 290 → geri Pauschal = 290, 2'080 değil), bu yüzden
 **tam eski değerleri** tutan bir "Rückgängig" şeridi var.
 
+**Şeridin ömrü değil, geçerlilik koşulu olmalı.** İlk hâli basılana kadar duruyordu. Operatör
+uygulamadan sonra bir kalemi elle düzeltince kart kendi kendisiyle çelişiyordu: şerit
+„2 Positionen auf ‚Nach Ansatz' gesetzt" derken üstteki buton „Pauschalpreis" yanıyordu — çünkü
+rozet kalemlerden okunur (K2), şerit ise okumuyordu. Kozmetik değil: geri alma grubun **tüm**
+kalemlerini uygulama anındaki değerlere yazar, yani aradaki her el emeği tek tıkla sessizce
+gider. Çözüm: uygulama, eskisinin yanında **ürettiği** durumu da saklar; grup hâlâ o durumdaysa
+şerit durur, değilse kendiliğinden kaybolur (`umstellungUnveraendert`, saf + testli). Kendi
+CRM'inde bir "geri al" sunuyorsan aynı soruyu sor: *bu tıklama şu an neyi kaybettirir?*
+
 ### K6 — Hiçbir mevcut offerte'ye dokunulmaz
 Çelişkili durumdaki 13 offerte olduğu gibi bırakıldı. **Düzeltme migration'ı, backfill, script
 yok.** Gerekirse yalnızca *okunur liste* çıkarılır; düzeltme kararı firmaya aittir.
@@ -236,6 +245,15 @@ taşır — taşıma, grubun mevcut yuvaları içinde yapılmalı, diğer grupla
    kolon yazılmayı bırakınca kutu **sessizce kaybolur**. Ya aynı türetimi aynala ya deploy'u
    aynı ana bağla.
 6. **Ölçmeden onarım önerme.** "Kaç satır bozuk" sorusunun cevabı yoksa düzeltme önerilmez.
+7. **"Std." sabitini yalnız bir yerde arama.** Sistem saat-eksenli doğduğu için birim adı
+   kodun her katmanına yazılmıştı: belgede, grup ipucunda ve **kalem satırındaki Kostendach
+   yardımcısında** ayrı ayrı çıktı. Hesap üçünde de birim-nötrdü (tutar ÷ ansatz), yanlış olan
+   yalnızca **etiket** — bu yüzden testler yakalamadı, ekranda görüldü: m³ ansatzlı bir kalem
+   „= CHF 1'200.00 (20 Std × CHF 60.00)" diyordu. Süpürürken metni ara, hesabı değil:
+   ```
+   grep -rn "Std\.\|Stunden\|hourlyRate\|/ h\b" src supabase/functions
+   ```
+   Ve saat testini **tek bir yerde** tut (`istStundenEinheit`); iki ayrı liste er geç ayrışır.
 
 ---
 
