@@ -84,7 +84,7 @@ import { OfferteLivePreview } from "@/components/offerte/OfferteLivePreview";
 import { SurchargeEditor } from "@/components/offerte/SurchargeEditor";
 import { computeSurchargeAmount, surchargesTotal, withComputedAmounts, surchargesToJson, type OfferSurcharge } from "@/lib/offerSurcharges";
 import type { Json } from "@/integrations/supabase/types";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceModel, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerHasRateItem, type PriceModelItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, derivePriceModel, derivePriceTypeFromCatalog, defaultAmountBasisForPriceType, isFreeItem, offerHasRateItem, type PriceModelItem, rateUnitForService} from "@/lib/offerPricing";
 import { ServiceDetailsSection } from "@/components/offerte/ServiceDetailsSection";
 import { CatalogServiceSelector } from "@/components/offerte/CatalogServiceSelector";
 import { BesichtigungAIPanel, type AIOfferItem } from "@/components/offerte/BesichtigungAIPanel";
@@ -2182,6 +2182,7 @@ const FirmaOfferteErstellen = () => {
                                 <div className="rounded-lg border border-dashed px-3 py-2">
                                   <GruppenPreismodell
                                     gruppenLabel={group.label}
+                                    rateUnit={rateUnitForService(group.serviceType)}
                                     positionen={items
                                       .filter((it) => serviceGroupKey(it.serviceType) === serviceKey)
                                       .map((it): GruppenPosition => ({

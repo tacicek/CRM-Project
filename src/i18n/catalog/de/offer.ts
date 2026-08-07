@@ -182,6 +182,12 @@ export const offer = {
   "offer.form.groupPriceModel.dialogHint":
     "Diese Positionen werden geändert. Nehmen Sie einzelne heraus, wenn sie so bleiben sollen.",
   "offer.form.groupPriceModel.rate": "Stundenansatz (CHF/Std.)",
+  "offer.form.groupPriceModel.rateByM3": "Ansatz pro m³",
+  "offer.form.groupPriceModel.capByM3": "Ansatz pro m³ mit Kostendach",
+  "offer.form.groupPriceModel.rateFieldM3": "Ansatz (CHF/m³)",
+  "offer.form.groupPriceModel.rateByMonth": "Ansatz pro Monat",
+  "offer.form.groupPriceModel.capByMonth": "Ansatz pro Monat mit Kostendach",
+  "offer.form.groupPriceModel.rateFieldMonth": "Ansatz (CHF/Monat)",
   "offer.form.groupPriceModel.cap": "Kostendach (CHF)",
   "offer.form.groupPriceModel.capHint": "Höchstbetrag für diese Servicegruppe.",
   "offer.form.groupPriceModel.capShort": "Kostendach {cap}.–",

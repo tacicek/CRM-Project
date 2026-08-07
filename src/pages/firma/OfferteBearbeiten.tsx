@@ -40,7 +40,7 @@ import {
 } from "@/lib/offerSurcharges";
 import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import type { Json } from "@/integrations/supabase/types";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type PriceModelItem } from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type PriceModelItem, rateUnitForService} from "@/lib/offerPricing";
 import { parsePriceModel, type PriceModel } from "@/lib/offerPriceModel";
 import { cn } from "@/lib/utils";
 import { getServiceOptions, groupItemsByService } from "@/lib/offerServiceType";
@@ -1262,6 +1262,7 @@ const FirmaOfferteBearbeiten = () => {
 
                           <GruppenPreismodell
                             gruppenLabel={getServiceLabel(g.serviceType, locale)}
+                            rateUnit={rateUnitForService(g.serviceType)}
                             gesperrt={preismodellGesperrt}
                             positionen={gruppenItems.map(({ it }): GruppenPosition => ({
                               id: it.id,

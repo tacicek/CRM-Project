@@ -166,6 +166,12 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.groupPriceModel.dialogHint":
     "Ces positions seront modifiées. Décochez celles qui doivent rester telles quelles.",
   "offer.form.groupPriceModel.rate": "Tarif horaire (CHF/h)",
+  "offer.form.groupPriceModel.rateByM3": "Tarif au m³",
+  "offer.form.groupPriceModel.capByM3": "Tarif au m³ avec plafond",
+  "offer.form.groupPriceModel.rateFieldM3": "Tarif (CHF/m³)",
+  "offer.form.groupPriceModel.rateByMonth": "Tarif mensuel",
+  "offer.form.groupPriceModel.capByMonth": "Tarif mensuel avec plafond",
+  "offer.form.groupPriceModel.rateFieldMonth": "Tarif (CHF/mois)",
   "offer.form.groupPriceModel.cap": "Plafond (CHF)",
   "offer.form.groupPriceModel.capHint": "Montant maximal pour ce groupe de prestations.",
   "offer.form.groupPriceModel.capShort": "Plafond {cap}.–",

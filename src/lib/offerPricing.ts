@@ -124,6 +124,29 @@ const CHOSEN_UNIT_DEFAULT = "Stk.";
 export const priceTypeFixesUnit = (priceType: string | null | undefined): boolean =>
   FIXED_UNIT_BY_PRICE_TYPE[priceType ?? ""] !== undefined;
 
+/**
+ * Die Einheit, in der ein Service seinen offenen Ansatz misst.
+ *
+ * "Stundenansatz" ist eine Frage der TAXIERUNG, nicht des Preismodells: Entsorgung wird pro
+ * m³ abgerechnet, Lagerung pro Monat. Dem Bediener dort einen Stundensatz abzuverlangen ist
+ * dieselbe Sorte Fehler wie ein Kaestchen, das die Summe nicht erreicht — die Frage passt
+ * nicht zur Sache.
+ *
+ * Spiegelt die Servicezuordnung aus metaKindForService (offerItemMeta.ts); dort entscheidet
+ * dieselbe Liste, welche Service-Details-Karte erscheint.
+ */
+export const rateUnitForService = (serviceType: string | null | undefined): string => {
+  const s = (serviceType ?? "").trim().toLowerCase();
+  if (s === "entsorgung" || s === "raeumung" || s === "räumung") return "m³";
+  if (s === "lagerung") return "Monat";
+  // Umzug, Transport, Moebellift, Reinigung, Allgemein: Aufwand = Zeit.
+  return "Stunden";
+};
+
+/** Welcher Preistyp diese Ansatz-Einheit traegt. */
+export const priceTypeForRateUnit = (rateUnit: string): string =>
+  rateUnit === "Stunden" ? "per_hour" : "per_unit";
+
 export interface PriceTypeShape {
   unit: string;
   amountBasis: AmountBasis;
@@ -148,6 +171,15 @@ export interface PriceTypeShapeInput {
    * wegwerfen.
    */
   hasValidTimeEstimate?: boolean;
+  /**
+   * Wird die Position als OFFENER Ansatz gepreist, obwohl ihr Preistyp `per_unit` ist?
+   *
+   * Entsorgung rechnet pro m³, Lagerung pro Monat — dieselbe Betrags-Achse wie der
+   * Stundenansatz ('rate': Einheitspreis bekannt, Menge offen), nur mit einer anderen
+   * Einheit. Ohne diesen Schalter waere "pro m³" nur als fester Betrag abbildbar, und der
+   * Beleg muesste eine Menge nennen, die niemand kennt.
+   */
+  alsAnsatz?: boolean;
 }
 
 /**
@@ -177,14 +209,21 @@ export const priceTypeShape = (
         })();
 
   const amountBasis: AmountBasis =
-    typ === "per_hour" ? (current.hasValidTimeEstimate ? "range" : "rate") : "fixed";
+    typ === "per_hour"
+      ? current.hasValidTimeEstimate
+        ? "range"
+        : "rate"
+      : typ === "per_unit" && current.alsAnsatz
+        ? "rate"
+        : "fixed";
 
   // Menge nur dort, wo das Formular sie auch zeigt und sie etwas bedeutet.
   // - pauschale: die Menge ist begrifflich 1 (das Feld ist ausgeblendet). Bliebe die alte 3
   //   stehen, ergäbe der eingetippte Pauschalpreis 400 in der Summe 1200 — ohne sichtbaren Grund.
   // - inkl: keine Berechnung.
   // - per_hour: die Dauer steckt im Ansatz bzw. in der Zeitschätzung, nicht in der Menge.
-  const behaeltMenge = typ === "per_unit" || typ === "optional";
+  // Ein offener Ansatz kennt keine Menge — sie ist ja gerade das Unbestimmte.
+  const behaeltMenge = (typ === "per_unit" && !current.alsAnsatz) || typ === "optional";
   const rohMenge = Number(current.quantity);
   const quantity = behaeltMenge && Number.isFinite(rohMenge) && rohMenge > 0 ? rohMenge : 1;
 

@@ -7,6 +7,7 @@ import { useT } from "@/i18n/useI18n";
 import {
   derivePriceModel,
   isFreeItem,
+  priceTypeForRateUnit,
   priceTypeShape,
   type AmountBasis,
   type PriceModelName,
@@ -36,11 +37,28 @@ export interface PositionsAenderung {
   kostendachMax: number | null;
 }
 
-const MODELLE: { wert: PriceModelName; labelKey: MessageKey }[] = [
-  { wert: "pauschal", labelKey: "offer.form.priceModel.pauschal" },
-  { wert: "stundenansatz", labelKey: "domain.priceModel.stundenansatz" },
-  { wert: "kostendach", labelKey: "offer.form.priceModel.kostendach" },
-];
+/**
+ * Die Beschriftung folgt der Ansatz-Einheit des Services: "Stundenansatz" fuer Umzug,
+ * "pro m³" fuer Entsorgung, "pro Monat" fuer Lagerung. Der gespeicherte Wert
+ * (amount_basis='rate') ist derselbe — nur die FRAGE an den Bediener passt sich an.
+ */
+const ANSATZ_LABEL: Record<string, { rate: MessageKey; cap: MessageKey; feld: MessageKey }> = {
+  Stunden: {
+    rate: "domain.priceModel.stundenansatz",
+    cap: "offer.form.priceModel.kostendach",
+    feld: "offer.form.groupPriceModel.rate",
+  },
+  "m³": {
+    rate: "offer.form.groupPriceModel.rateByM3",
+    cap: "offer.form.groupPriceModel.capByM3",
+    feld: "offer.form.groupPriceModel.rateFieldM3",
+  },
+  Monat: {
+    rate: "offer.form.groupPriceModel.rateByMonth",
+    cap: "offer.form.groupPriceModel.capByMonth",
+    feld: "offer.form.groupPriceModel.rateFieldMonth",
+  },
+};
 
 const zahl = (wert: string): number => {
   const n = Number(wert.trim().replace(",", "."));
@@ -69,12 +87,15 @@ const zahl = (wert: string): number => {
  */
 export const GruppenPreismodell = ({
   gruppenLabel,
+  rateUnit,
   positionen,
   metaAnsatz,
   gesperrt,
   onAnwenden,
 }: {
   gruppenLabel: string;
+  /** Ansatz-Einheit dieses Services: "Stunden" | "m³" | "Monat" (rateUnitForService). */
+  rateUnit: string;
   positionen: GruppenPosition[];
   /** Stundensatz aus den Service-Details dieser Gruppe — Vorbelegung, keine Wahrheit. */
   metaAnsatz?: number | null;
@@ -133,16 +154,19 @@ export const GruppenPreismodell = ({
     satz: number,
     cap: number,
   ): PositionsAenderung[] => {
-    const zielPriceType = modell === "pauschal" ? "pauschale" : "per_hour";
+    const zielPriceType =
+      modell === "pauschal" ? "pauschale" : priceTypeForRateUnit(rateUnit);
     const ersteId = bezahlt[0]?.id;
     return bezahlt.map((p) => {
       const shape = priceTypeShape(zielPriceType, {
-        unit: p.unit,
+        // Bei m³/Monat gibt der Service die Einheit vor, nicht die alte Zeile.
+        unit: modell === "pauschal" ? p.unit : rateUnit,
         quantity: p.quantity,
         kostendachMax: p.kostendachMax,
         // Beim Umstellen entscheidet das Modell, nicht eine alte Zeitschätzung:
-        // „Stundenansatz" heisst offene Dauer ('rate').
+        // ein Ansatz heisst offene Menge ('rate').
         hasValidTimeEstimate: false,
+        alsAnsatz: modell !== "pauschal",
       });
       return {
         id: p.id,
@@ -184,6 +208,13 @@ export const GruppenPreismodell = ({
   const erlaubt = (m: PriceModelName) =>
     !gesperrt && (m === "pauschal" || (m === "stundenansatz" ? kannAnsatz : kannDeckel));
 
+  const labels = ANSATZ_LABEL[rateUnit] ?? ANSATZ_LABEL.Stunden;
+  const modelle: { wert: PriceModelName; labelKey: MessageKey }[] = [
+    { wert: "pauschal", labelKey: "offer.form.priceModel.pauschal" },
+    { wert: "stundenansatz", labelKey: labels.rate },
+    { wert: "kostendach", labelKey: labels.cap },
+  ];
+
   if (bezahlt.length === 0) return null;
 
   return (
@@ -196,7 +227,7 @@ export const GruppenPreismodell = ({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        {MODELLE.map((m) => (
+        {modelle.map((m) => (
           <button
             key={m.wert}
             type="button"
@@ -219,7 +250,7 @@ export const GruppenPreismodell = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label htmlFor={`gpm-rate-${gruppenLabel}`} className="text-[11px] text-muted-foreground">
-            {t("offer.form.groupPriceModel.rate")}
+            {t(labels.feld)}
           </Label>
           <Input
             id={`gpm-rate-${gruppenLabel}`}
@@ -271,7 +302,7 @@ export const GruppenPreismodell = ({
             {t("offer.form.groupPriceModel.applied", {
               count: String(rueckgaengig.anzahl),
               model: t(
-                MODELLE.find((m) => m.wert === rueckgaengig.modell)?.labelKey ??
+                modelle.find((m) => m.wert === rueckgaengig.modell)?.labelKey ??
                   "offer.form.priceModel.pauschal",
               ),
             })}

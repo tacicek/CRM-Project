@@ -164,6 +164,12 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.groupPriceModel.dialogHint":
     "These positions will change. Uncheck any that should stay as they are.",
   "offer.form.groupPriceModel.rate": "Hourly rate (CHF/h)",
+  "offer.form.groupPriceModel.rateByM3": "Rate per m³",
+  "offer.form.groupPriceModel.capByM3": "Rate per m³ with cost cap",
+  "offer.form.groupPriceModel.rateFieldM3": "Rate (CHF/m³)",
+  "offer.form.groupPriceModel.rateByMonth": "Rate per month",
+  "offer.form.groupPriceModel.capByMonth": "Rate per month with cost cap",
+  "offer.form.groupPriceModel.rateFieldMonth": "Rate (CHF/month)",
   "offer.form.groupPriceModel.cap": "Cost cap (CHF)",
   "offer.form.groupPriceModel.capHint": "Maximum amount for this service group.",
   "offer.form.groupPriceModel.capShort": "cap {cap}.–",

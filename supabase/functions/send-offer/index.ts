@@ -577,6 +577,27 @@ const handler = async (req: Request): Promise<Response> => {
     // wird die gesamte Total-/Zwischensumme-Box ausgeblendet und stattdessen der Hinweis
     // email.offer.rateAggregateNote gezeigt.
     const hasRateItem = billableItems.some((it) => itemBasis(it) === "rate");
+
+    // Preismodell — ABGELEITET, nicht von der Offerte gelesen.
+    // Gespiegelt aus derivePriceModel (src/lib/offerPricing.ts). Das Formular schreibt
+    // offers.price_model / hourly_rate / kostendach_max nicht mehr; wuerde die E-Mail sie
+    // weiter lesen, verschwaende das Kaestchen hier, waehrend das PDF es zeigt.
+    // Deno kann src/ nicht importieren, daher dupliziert — die Regel bleibt drueben.
+    const rateItems = billableItems.filter((it) => itemBasis(it) === "rate");
+    const preisSaetze = [
+      ...new Set(
+        rateItems
+          .map((it) => Number(it.unit_price))
+          .filter((wert) => Number.isFinite(wert) && wert > 0),
+      ),
+    ];
+    const abgeleiteterAnsatz = preisSaetze.length === 1 ? preisSaetze[0] : null;
+    // Nur ZEIT-Ansaetze bekommen das Offerte-Kaestchen. Entsorgung rechnet pro m³,
+    // Lagerung pro Monat — dort stuende "Stundenansatz" falsch da, und die Positionszeile
+    // nennt "CHF X / m³" ohnehin schon.
+    const nurStundenAnsatz =
+      rateItems.length > 0 && rateItems.every((it) => it.price_type === "per_hour");
+    const hatPositionsKostendach = (items ?? []).some((i) => i.kostendach_max != null);
     const rateAggregateNoteHtml = `<div style="text-align: right; margin: 24px 0; font-size: 13px; color: #6b7280;">${tCustomer("email.offer.rateAggregateNote")}</div>`;
     // First description line = bold main title, remaining lines = muted sub-line.
     const descHtml = (desc: string) => {
@@ -867,14 +888,14 @@ const handler = async (req: Request): Promise<Response> => {
           </div>`;
           })()}
 
-          ${offer.price_model === 'stundenansatz' && offer.hourly_rate != null ? `
+          ${nurStundenAnsatz && !hatPositionsKostendach && abgeleiteterAnsatz !== null ? `
           <!-- Preismodell: Stundenansatz -->
           <div style="margin: 0 0 24px 0; padding: 16px; background-color: #eff6ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
             <p style="margin: 0 0 6px 0; font-weight: 700; color: #1e40af; font-size: 14px;">
               ${tCustomer("email.offer.priceModelHourlyTitle")}
             </p>
             <p style="margin: 0 0 4px 0; font-size: 15px; color: #1e3a8a; font-weight: 700;">
-              ${tCustomer("email.offer.priceModelHourlyRate", { rate: formatNumber(Number(offer.hourly_rate), customerLocale) })}
+              ${tCustomer("email.offer.priceModelHourlyRate", { rate: formatNumber(abgeleiteterAnsatz, customerLocale) })}
             </p>
             <p style="margin: 0; font-size: 13px; color: #3b82f6;">
               ${tCustomer("email.offer.priceModelHourlyNote")}
@@ -882,23 +903,11 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
           ` : ''}
 
-          ${offer.price_model === 'kostendach' && offer.hourly_rate != null && offer.kostendach_max != null && !(items ?? []).some((i) => i.kostendach_max != null) ? `
-          <!-- Preismodell: Kostendach (offer-level, nur Fallback ohne item-level Cap) -->
-          <div style="margin: 0 0 24px 0; padding: 16px; background-color: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b;">
-            <p style="margin: 0 0 6px 0; font-weight: 700; color: #92400e; font-size: 14px;">
-              ${tCustomer("email.offer.priceModelKostendachTitle")}
-            </p>
-            <p style="margin: 0 0 4px 0; font-size: 15px; color: #92400e; font-weight: 700;">
-              ${tCustomer("email.offer.priceModelKostendachRate", {
-                rate: formatNumber(Number(offer.hourly_rate), customerLocale),
-                max: formatNumber(Number(offer.kostendach_max), customerLocale),
-              })}
-            </p>
-            <p style="margin: 0; font-size: 13px; color: #d97706;">
-              ${tCustomer("email.offer.priceModelKostendachNote", { max: formatNumber(Number(offer.kostendach_max), customerLocale) })}
-            </p>
-          </div>
-          ` : ''}
+          <!-- Das frueher offerte-weite Kostendach-Kaestchen ist entfallen: es rendert
+               ohnehin nur ohne Positions-Kostendach, und "kostendach" entsteht jetzt
+               ausschliesslich AUS Positions-Kostendaechern. Die stehen als Notiz an ihrer
+               eigenen Zeile (email.offer.kostendachLabel weiter oben). -->
+
 
           ${paymentTerms ? `
           <!-- Zahlungskondition -->

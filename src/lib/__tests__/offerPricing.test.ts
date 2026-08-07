@@ -14,6 +14,8 @@ import {
   itemAmountDisplay,
   offerHasRateItem,
   priceTypeShape,
+  priceTypeForRateUnit,
+  rateUnitForService,
   derivePriceModel,
   type SubtotalItem,
   type PriceModelItem,
@@ -739,6 +741,78 @@ describe("Produktionsbeleg 10056 — F1 darf ihn nicht verändern", () => {
       amountBasis: "rate",
       quantity: 1,
       kostendachMax: 1560,
+    });
+  });
+});
+
+describe("rateUnitForService — die Frage passt sich dem Service an", () => {
+  it("Zeit-Services rechnen in Stunden", () => {
+    for (const s of ["umzug", "transport", "moebellift", "reinigung", null, "sonstiges"]) {
+      expect(rateUnitForService(s)).toBe("Stunden");
+    }
+  });
+
+  it("Entsorgung und Raeumung rechnen in m³", () => {
+    expect(rateUnitForService("entsorgung")).toBe("m³");
+    expect(rateUnitForService("raeumung")).toBe("m³");
+    expect(rateUnitForService("räumung")).toBe("m³");
+  });
+
+  it("Lagerung rechnet pro Monat", () => {
+    expect(rateUnitForService("lagerung")).toBe("Monat");
+  });
+
+  it("die Einheit bestimmt den Preistyp", () => {
+    expect(priceTypeForRateUnit("Stunden")).toBe("per_hour");
+    expect(priceTypeForRateUnit("m³")).toBe("per_unit");
+    expect(priceTypeForRateUnit("Monat")).toBe("per_unit");
+  });
+});
+
+describe("priceTypeShape — per_unit als offener Ansatz (m³ / Monat)", () => {
+  it("setzt 'rate' und behaelt die Service-Einheit", () => {
+    expect(priceTypeShape("per_unit", { unit: "m³", quantity: 20, alsAnsatz: true })).toEqual({
+      unit: "m³",
+      amountBasis: "rate",
+      quantity: 1,
+      kostendachMax: null,
+    });
+  });
+
+  it("behaelt das Kostendach, weil der Betrag offen ist", () => {
+    expect(
+      priceTypeShape("per_unit", { unit: "m³", kostendachMax: 1200, alsAnsatz: true })
+        .kostendachMax,
+    ).toBe(1200);
+  });
+
+  it("ohne alsAnsatz bleibt per_unit ein fester Betrag mit Menge", () => {
+    // Regression: die normale Stueckposition darf sich nicht mitaendern.
+    expect(priceTypeShape("per_unit", { unit: "m³", quantity: 20 })).toEqual({
+      unit: "m³",
+      amountBasis: "fixed",
+      quantity: 20,
+      kostendachMax: null,
+    });
+  });
+
+  it("eine m³-Ansatzposition zaehlt NICHT zur Summe und traegt das Etikett", () => {
+    const pos: PriceModelItem[] = [
+      {
+        priceType: "per_unit",
+        amountBasis: "rate",
+        quantity: 1,
+        unitPrice: 60,
+        timeEstimate: null,
+        kostendachMax: 1200,
+      },
+    ];
+    expect(computeItemsSubtotal(pos, "min")).toBe(0);
+    expect(offerHasRateItem(pos)).toBe(true);
+    expect(derivePriceModel(pos)).toEqual({
+      model: "kostendach",
+      hourlyRate: 60,
+      kostendachMax: 1200,
     });
   });
 });
