@@ -16,6 +16,7 @@ import {
   priceTypeShape,
   priceTypeForRateUnit,
   rateUnitForService,
+  istStundenEinheit,
   derivePriceModel,
   type SubtotalItem,
   type PriceModelItem,
@@ -742,6 +743,22 @@ describe("Produktionsbeleg 10056 — F1 darf ihn nicht verändern", () => {
       quantity: 1,
       kostendachMax: 1560,
     });
+  });
+});
+
+describe("istStundenEinheit — die Menge hinter dem Kostendach traegt die Einheit der Position", () => {
+  it.each(["Stunden", "Stunde", "Std.", "Std", "h", "STUNDEN", " stunden "])("erkennt %s als Zeit", (u) => {
+    expect(istStundenEinheit(u)).toBe(true);
+  });
+
+  it.each(["m³", "Monat", "Stk.", "Pauschal", "km", "", null, undefined])("erkennt %s NICHT als Zeit", (u) => {
+    expect(istStundenEinheit(u)).toBe(false);
+  });
+
+  it("trennt m³-Ansatz von Stundenansatz: 1200 / 60 sind 20 m³, keine 20 Std", () => {
+    // Die Rechnung war immer einheitenneutral — nur die Beschriftung war fest verdrahtet.
+    expect(istStundenEinheit("m³")).toBe(false);
+    expect(1200 / 60).toBe(20);
   });
 });
 

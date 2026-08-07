@@ -151,6 +151,19 @@ export const rateUnitForService = (serviceType: string | null | undefined): stri
 export const priceTypeForRateUnit = (rateUnit: string): string =>
   rateUnit === "Stunden" ? "per_hour" : "per_unit";
 
+/**
+ * Misst diese Einheit Zeit?
+ *
+ * Die MENGE hinter einem Kostendach traegt die Einheit der Position, nicht immer Stunden:
+ * ein Kostendach von 1200 auf einem m³-Ansatz von 60 sind 20 m³, keine 20 Std. Die Rechnung
+ * (Betrag / Ansatz) war schon einheitenneutral, nur die BESCHRIFTUNG war fest verdrahtet —
+ * dieselbe Falle wie die frueheren "Std."-Reste im Beleg.
+ */
+export const istStundenEinheit = (unit: string | null | undefined): boolean => {
+  const u = (unit ?? "").trim().toLowerCase();
+  return u === "stunden" || u === "stunde" || u === "std." || u === "std" || u === "h";
+};
+
 export interface PriceTypeShape {
   unit: string;
   amountBasis: AmountBasis;

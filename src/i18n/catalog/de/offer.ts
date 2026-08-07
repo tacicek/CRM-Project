@@ -418,6 +418,7 @@ export const offer = {
   "offer.form.item.kostendachPlaceholderChf": "z.B. 3105",
   "offer.form.item.kdUnitHours": "Std",
   "offer.form.item.kostendachHint": "= {amount} ({hours} Std × {rate})",
+  "offer.form.item.kostendachHintGeneric": "= {amount} ({hours} {unit} × {rate})",
   "offer.form.item.kostendachHintPlain": "= {amount}",
   "offer.form.item.serviceGroup": "Service (Gruppierung)",
   "offer.form.item.unnamed": "Ohne Bezeichnung",

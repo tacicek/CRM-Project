@@ -395,6 +395,7 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.item.kostendachPlaceholderChf": "p. ex. 3105",
   "offer.form.item.kdUnitHours": "h",
   "offer.form.item.kostendachHint": "= {amount} ({hours} h × {rate})",
+  "offer.form.item.kostendachHintGeneric": "= {amount} ({hours} {unit} × {rate})",
   "offer.form.item.kostendachHintPlain": "= {amount}",
   "offer.form.item.serviceGroup": "Service (regroupement)",
   "offer.form.item.unnamed": "Sans désignation",

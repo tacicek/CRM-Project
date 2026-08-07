@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { getServiceOptions } from "@/lib/offerServiceType";
-import { itemAmountDisplay, type AmountBasis } from "@/lib/offerPricing";
+import { istStundenEinheit, itemAmountDisplay, type AmountBasis } from "@/lib/offerPricing";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useI18n, useT } from "@/i18n/useI18n";
 import type { MessageKey } from "@/i18n/translator";
@@ -415,7 +415,12 @@ export const OfferteItemRow = ({
                 )}
 
                 {/* Item-/Service-level Kostendach — nur bei Preisbasis 'Ansatz' (rate). Std ODER CHF. */}
-                {item.priceType !== "inkl" && item.amountBasis === "rate" && (
+                {item.priceType !== "inkl" && item.amountBasis === "rate" && (() => {
+                  // Die Mengeneinheit hinter dem Kostendach ist die der POSITION:
+                  // 1200 auf einem m³-Ansatz von 60 sind 20 m³, keine 20 Std.
+                  const istStd = istStundenEinheit(item.unit);
+                  const mengenEinheit = istStd || !item.unit ? t("offer.form.item.kdUnitHours") : item.unit;
+                  return (
                   <div className="space-y-1 max-w-[340px]">
                     <Label className="text-[10px] sm:text-xs text-muted-foreground">{t("offer.form.item.kostendach")}</Label>
                     <div className="flex gap-2 items-center">
@@ -440,7 +445,7 @@ export const OfferteItemRow = ({
                               kdUnit === u ? "bg-secondary text-secondary-foreground" : "bg-background text-muted-foreground",
                             )}
                           >
-                            {u === "std" ? t("offer.form.item.kdUnitHours") : "CHF"}
+                            {u === "std" ? mengenEinheit : "CHF"}
                           </button>
                         ))}
                       </div>
@@ -448,10 +453,11 @@ export const OfferteItemRow = ({
                     {(item.kostendachMax ?? null) !== null && (
                       <p className="text-[10px] text-muted-foreground">
                         {item.unit_price > 0
-                          ? t("offer.form.item.kostendachHint", {
+                          ? t(istStd ? "offer.form.item.kostendachHint" : "offer.form.item.kostendachHintGeneric", {
                               amount: formatCurrency(Number(item.kostendachMax)),
                               hours: +(Number(item.kostendachMax) / item.unit_price).toFixed(2),
                               rate: formatCurrency(item.unit_price),
+                              unit: mengenEinheit,
                             })
                           : t("offer.form.item.kostendachHintPlain", {
                               amount: formatCurrency(Number(item.kostendachMax)),
@@ -459,7 +465,8 @@ export const OfferteItemRow = ({
                       </p>
                     )}
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Blind Offerte — per-item Zeitschätzung */}
                 {offerteType === 'blind' && (

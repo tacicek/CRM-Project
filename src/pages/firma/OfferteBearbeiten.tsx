@@ -40,7 +40,7 @@ import {
 } from "@/lib/offerSurcharges";
 import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import type { Json } from "@/integrations/supabase/types";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type PriceModelItem, rateUnitForService} from "@/lib/offerPricing";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, istStundenEinheit, itemAmountDisplay, offerHasRateItem, toAmountBasis, type PriceModelItem, rateUnitForService} from "@/lib/offerPricing";
 import { cn } from "@/lib/utils";
 import { getServiceOptions, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
@@ -107,7 +107,7 @@ const unitOptions: { value: string; labelKey: MessageKey }[] = [
 // Helper to infer price_type from unit and price for backward compatibility
 const inferPriceType = (unit: string, unitPrice: number): string => {
   if (unit === "inkl." || unitPrice === 0) return "inkl";
-  if (unit === "Stunden" || unit === "Stunde" || unit === "Std." || unit === "h") return "per_hour";
+  if (istStundenEinheit(unit)) return "per_hour";
   if (unit === "Pauschal") return "pauschale";
   return "per_unit";
 };
@@ -1414,6 +1414,12 @@ const FirmaOfferteBearbeiten = () => {
                                         </div>
                                         {item.amount_basis === "rate" && (() => {
                                           const kdUnit = kdUnitById[item.id] ?? "std";
+                                          // Die Mengeneinheit hinter dem Kostendach ist die der POSITION:
+                                          // 1200 auf einem m³-Ansatz von 60 sind 20 m³, keine 20 Std.
+                                          const istStd = istStundenEinheit(item.unit);
+                                          const mengenEinheit = istStd || !item.unit
+                                            ? t("offer.form.item.kdUnitHours")
+                                            : item.unit;
                                           const c = item.kostendach_max;
                                           const kdVal = (c === null || c === undefined)
                                             ? ""
@@ -1444,17 +1450,18 @@ const FirmaOfferteBearbeiten = () => {
                                                   <button key={u} type="button"
                                                     onClick={() => setKdUnitById((p) => ({ ...p, [item.id]: u }))}
                                                     className={cn("px-2.5 py-1.5", kdUnit === u ? "bg-secondary text-secondary-foreground" : "bg-background text-muted-foreground")}
-                                                  >{u === "std" ? t("offer.form.item.kdUnitHours") : "CHF"}</button>
+                                                  >{u === "std" ? mengenEinheit : "CHF"}</button>
                                                 ))}
                                               </div>
                                             </div>
                                             {(c ?? null) !== null && (
                                               <p className="text-[10px] text-muted-foreground">
                                                 {item.unit_price > 0
-                                                  ? t("offer.form.item.kostendachHint", {
+                                                  ? t(istStd ? "offer.form.item.kostendachHint" : "offer.form.item.kostendachHintGeneric", {
                                                       amount: formatCurrency(Number(c)),
                                                       hours: +(Number(c) / item.unit_price).toFixed(2),
                                                       rate: formatCurrency(item.unit_price),
+                                                      unit: mengenEinheit,
                                                     })
                                                   : t("offer.form.item.kostendachHintPlain", {
                                                       amount: formatCurrency(Number(c)),
