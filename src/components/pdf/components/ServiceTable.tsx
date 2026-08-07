@@ -690,9 +690,24 @@ export const ServiceTable = ({
         const groupCap = billable.map((it) => it.kostendachMax).find(isSet) ?? null;
         // Ansatz fuer die Std-Ableitung im Kostendach: effort/volume-Meta ODER (UI-erstellte
         // rate-Posten ohne Meta) der Einzelpreis des rate-Postens (= Ansatz in unit_price).
+        // Die Einheit des Ansatzes steht auf der rate-Position — "Std." darf nicht mehr
+        // fest im Text stehen, seit eine Gruppe auch pro m³ oder pro Monat rechnen kann.
+        const rateEinheit =
+          billable.find((it) => toAmountBasis(it.amountBasis) === "rate")?.unit?.trim() || "";
+        const istStunden = rateEinheit === "" || rateEinheit === "Stunden";
+        // Der Ansatz der POSITION hat Vorrang vor der Meta-Karte: seit das
+        // Gruppen-Preismodell ihn auf die Position schreibt, ist sie die Wahrheit — und die
+        // Zeile darueber zeigt genau diese Zahl. Stuende hier ein abweichender Meta-Wert,
+        // naennte dieselbe Seite zwei verschiedene Ansaetze. Die Meta bleibt der Rueckfall
+        // fuer Bestandsbelege, deren Position keinen Ansatz traegt.
         const groupRate =
           billable
-            .map((it) => it.effortMeta?.hourly_rate ?? it.volumeMeta?.rate ?? (toAmountBasis(it.amountBasis) === "rate" ? it.price : null))
+            .map((it) =>
+              (toAmountBasis(it.amountBasis) === "rate" ? it.price : null) ??
+              it.effortMeta?.hourly_rate ??
+              it.volumeMeta?.rate ??
+              null,
+            )
             .find(isSet) ?? null;
         return (
           // wrap={false}: keep the whole card together on one page (group-aware chunking in
@@ -730,7 +745,12 @@ export const ServiceTable = ({
                       {t("doc.offer.priceModel")}
                     </Text>
                     <Text style={[styles.priceModelValue, { color: accent }]}>
-                      {t("doc.offer.hourlyRate", { rate: formatMeasure(Number(groupRate), locale) })}
+                      {istStunden
+                        ? t("doc.offer.hourlyRate", { rate: formatMeasure(Number(groupRate), locale) })
+                        : t("doc.offer.rateUnitGeneric", {
+                            rate: formatMeasure(Number(groupRate), locale),
+                            unit: rateEinheit,
+                          })}
                     </Text>
                   </View>
                   <Text style={[styles.priceModelNote, { color: COLORS.text.secondary }]}>
@@ -751,14 +771,24 @@ export const ServiceTable = ({
                     </Text>
                     <Text style={[styles.priceModelValue, { color: "#B45309" }]}>
                       {isSet(groupRate) && Number(groupRate) > 0
-                        ? t("doc.offer.costCapDetail", {
-                            rate: formatRoundedCurrency(Number(groupRate), locale),
-                            cap: formatMeasure(Number(groupCap), locale),
-                            hours: formatMeasure(
-                              +(Number(groupCap) / Number(groupRate)).toFixed(1),
-                              locale,
-                            ),
-                          })
+                        ? istStunden
+                          ? t("doc.offer.costCapDetail", {
+                              rate: formatRoundedCurrency(Number(groupRate), locale),
+                              cap: formatMeasure(Number(groupCap), locale),
+                              hours: formatMeasure(
+                                +(Number(groupCap) / Number(groupRate)).toFixed(1),
+                                locale,
+                              ),
+                            })
+                          : t("doc.offer.costCapDetailGeneric", {
+                              rate: formatRoundedCurrency(Number(groupRate), locale),
+                              cap: formatMeasure(Number(groupCap), locale),
+                              unit: rateEinheit,
+                              menge: formatMeasure(
+                                +(Number(groupCap) / Number(groupRate)).toFixed(1),
+                                locale,
+                              ),
+                            })
                         : t("doc.offer.costCapMax", {
                             cap: formatMeasure(Number(groupCap), locale),
                           })}

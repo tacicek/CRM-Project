@@ -62,6 +62,8 @@ export const document: Record<keyof typeof de, string> = {
     "Billing is based on the time actually spent, at the stated hourly rate.",
   "doc.offer.hourlyWithCap": "Hourly rate CHF {rate} / hr — cost ceiling max. CHF {cap}",
   "doc.offer.costCap": "Cost ceiling:",
+  "doc.offer.rateUnitGeneric": "Rate — CHF {rate} / {unit}",
+  "doc.offer.costCapDetailGeneric": "Rate {rate}/{unit} — max. CHF {cap} ({menge} {unit})",
   "doc.offer.costCapMax": "max. CHF {cap}",
   "doc.offer.costCapDetail": "Hourly rate {rate}/hr — max. CHF {cap} ({hours} hrs)",
   "doc.offer.costCapHours": "Cost ceiling: max. CHF {cap} (at {hours} hrs)",

@@ -657,7 +657,7 @@ const handler = async (req: Request): Promise<Response> => {
             <tr>
               <td colspan="2" style="padding: 8px 0 2px 0;">
                 <div style="padding: 8px 10px; background-color: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px; color: #92400e; font-size: 12px;">
-                  <strong>${tCustomer("email.offer.kostendachLabel")}:</strong> ${tCustomer("email.offer.kostendachValue", { amount: fmtCHF(Number(item.kostendach_max)) })}${Number(item.unit_price) > 0 ? ` ${tCustomer("email.offer.kostendachHours", { hours: +(Number(item.kostendach_max) / Number(item.unit_price)).toFixed(1) })}` : ""} &mdash; ${tCustomer("email.offer.kostendachExplain")}
+                  <strong>${tCustomer("email.offer.kostendachLabel")}:</strong> ${tCustomer("email.offer.kostendachValue", { amount: fmtCHF(Number(item.kostendach_max)) })}${Number(item.unit_price) > 0 && (item.unit ?? "").trim() === "Stunden" ? ` ${tCustomer("email.offer.kostendachHours", { hours: +(Number(item.kostendach_max) / Number(item.unit_price)).toFixed(1) })}` : ""} &mdash; ${tCustomer("email.offer.kostendachExplain")}
                 </div>
               </td>
             </tr>` : ``}
