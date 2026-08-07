@@ -41,7 +41,6 @@ import {
 import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import type { Json } from "@/integrations/supabase/types";
 import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type PriceModelItem, rateUnitForService} from "@/lib/offerPricing";
-import { parsePriceModel, type PriceModel } from "@/lib/offerPriceModel";
 import { cn } from "@/lib/utils";
 import { getServiceOptions, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
@@ -113,7 +112,6 @@ const inferPriceType = (unit: string, unitPrice: number): string => {
   return "per_unit";
 };
 
-// PriceModel is the canonical union from @/lib/offerPriceModel (imported above).
 
 interface Offer {
   id: string;
@@ -134,7 +132,6 @@ interface Offer {
   vat_amount: number;
   total: number;
   status: string;
-  price_model?: PriceModel | null;
   hourly_rate?: number | null;
   kostendach_max?: number | null;
   discount_percent?: number | null;
@@ -319,20 +316,11 @@ const FirmaOfferteBearbeiten = () => {
         // constraint guarantees validity; parse defensively instead of casting or
         // silently defaulting to 'pauschal'. An out-of-range value is a data-integrity
         // problem, so fail closed rather than edit an offer under the wrong model.
-        const parsedPriceModel = parsePriceModel(offerData.price_model);
-        if (!parsedPriceModel.ok) {
-          toast({
-            title: t("common.error"),
-            description: t("offer.edit.toast.loadFailed"),
-            variant: "destructive",
-          });
-          navigate("/firma/offerten");
-          return;
-        }
-
-        // Narrow the only view-model-incompatible column: price_model (Row string → PriceModel),
-        // validated fail-closed just above. Every other Row column is compatible with Offer.
-        setOffer({ ...offerData, price_model: parsedPriceModel.value });
+        // Die frühere fail-closed Prüfung von price_model ist entfallen: die Spalte wird
+        // weder geschrieben noch gelesen (das Modell steht je Servicegruppe in den
+        // Positionen). Ein Altwert ausserhalb des Wertebereichs hätte das Bearbeiten einer
+        // Bestandsofferte KOMPLETT blockiert — für eine Angabe ohne Wirkung.
+        setOffer(offerData);
         setTitle(offerData.title || "");
         setDescription(offerData.description || "");
         setServiceDate(offerData.service_date || "");

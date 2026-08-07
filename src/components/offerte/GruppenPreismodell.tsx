@@ -133,6 +133,19 @@ export const GruppenPreismodell = ({
     werte: PositionsAenderung[];
   } | null>(null);
 
+  /**
+   * Die Einheit, die in den Positionen tatsächlich steht — als STRING, nicht als Objekt.
+   *
+   * Der Effekt darunter darf nicht an `bezahlt` haengen: das Elternformular baut die
+   * Positionsliste in jedem Render neu (`.map(...)`), also wechselt ihre Identitaet staendig.
+   * Der Effekt liefe dann bei jedem Tastendruck im Elternformular erneut und ueberschriebe
+   * eine gerade getippte Ansatzzahl.
+   */
+  const vorhandeneEinheit = useMemo(
+    () => bezahlt.find((p) => p.amountBasis === "rate")?.unit ?? "",
+    [bezahlt],
+  );
+
   // Die Felder folgen dem, was tatsächlich in den Positionen steht — solange der Bediener
   // nicht selbst tippt. Sonst zeigte das Feld 290, während die Zeilen 260 tragen.
   useEffect(() => {
@@ -147,9 +160,8 @@ export const GruppenPreismodell = ({
     // Tragen die Positionen bereits einen Ansatz, gilt DEREN Einheit — nicht die
     // Vorbelegung des Services. Sonst zeigte das Feld "CHF/m³", waehrend der Beleg
     // "CHF/Stunden" druckt.
-    const vorhandene = bezahlt.find((p) => p.amountBasis === "rate")?.unit;
-    setEinheit(vorhandene && vorhandene.trim() !== "" ? vorhandene : rateUnit);
-  }, [aktuell.hourlyRate, aktuell.kostendachMax, metaAnsatz, bezahlt, rateUnit]);
+    setEinheit(vorhandeneEinheit !== "" ? vorhandeneEinheit : rateUnit);
+  }, [aktuell.hourlyRate, aktuell.kostendachMax, metaAnsatz, vorhandeneEinheit, rateUnit]);
 
   const ansatzZahl = zahl(ansatz);
   const deckelZahl = zahl(deckel);

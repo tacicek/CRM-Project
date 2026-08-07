@@ -43,9 +43,10 @@ export interface LegacyOfferData {
   leistungsuebersicht?: {
     included_services: { name: string }[];
   };
-  price_model?: 'pauschal' | 'stundenansatz' | 'kostendach' | null;
-  hourly_rate?: number | null;
-  kostendach_max?: number | null;
+  // price_model / hourly_rate / kostendach_max stehen hier BEWUSST NICHT: das Preismodell
+  // wird aus den Positionen abgeleitet (derivePriceModel). Ein Feld in der Eingabeform, das
+  // niemand liest, ist die Einladung, es wieder zu befuellen — und es zwingt jeden Aufrufer,
+  // den DB-String auf die enge Union zu verengen, obwohl der Wert keine Wirkung hat.
   payment_terms?: string | null;
   service_start_time?: string | null;
   service_end_time?: string | null;
