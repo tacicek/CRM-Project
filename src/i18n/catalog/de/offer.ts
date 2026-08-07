@@ -186,6 +186,7 @@ export const offer = {
   "offer.form.groupPriceModel.cap": "Kostendach (CHF)",
   "offer.form.groupPriceModel.applied": "{count} Positionen auf \u201e{model}\u201c gesetzt.",
   "offer.form.groupPriceModel.undo": "Rückgängig",
+  "offer.form.groupPriceModel.rateRequiredUnit": "Bitte einen Ansatz {unit} grösser als 0 eingeben.",
   "offer.form.groupPriceModel.rateRequired": "Bitte einen Stundenansatz grösser als 0 eingeben.",
   "offer.form.field.hourlyRate": "Stundenansatz (CHF / Std.)",
   "offer.form.placeholder.hourlyRate": "z.B. 120",

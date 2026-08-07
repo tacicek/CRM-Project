@@ -168,6 +168,7 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.groupPriceModel.cap": "Cost cap (CHF)",
   "offer.form.groupPriceModel.applied": "{count} positions set to “{model}”.",
   "offer.form.groupPriceModel.undo": "Undo",
+  "offer.form.groupPriceModel.rateRequiredUnit": "Please enter a rate {unit} greater than 0.",
   "offer.form.groupPriceModel.rateRequired": "Please enter an hourly rate greater than 0.",
   "offer.form.field.hourlyRate": "Hourly rate (CHF / hr)",
   "offer.form.placeholder.hourlyRate": "e.g. 120",

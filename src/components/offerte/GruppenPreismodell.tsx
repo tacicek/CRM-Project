@@ -336,7 +336,7 @@ export const GruppenPreismodell = ({
 
       {!gesperrt && !kannAnsatz && (
         <p className="text-[11px] text-muted-foreground">
-          {t("offer.form.groupPriceModel.rateRequired")}
+          {t("offer.form.groupPriceModel.rateRequiredUnit", { unit: t(einheitDef.labelKey) })}
         </p>
       )}
 

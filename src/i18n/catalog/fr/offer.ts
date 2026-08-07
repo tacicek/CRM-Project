@@ -170,6 +170,7 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.groupPriceModel.cap": "Plafond (CHF)",
   "offer.form.groupPriceModel.applied": "{count} positions passées en « {model} ».",
   "offer.form.groupPriceModel.undo": "Annuler",
+  "offer.form.groupPriceModel.rateRequiredUnit": "Veuillez saisir un tarif {unit} supérieur à 0.",
   "offer.form.groupPriceModel.rateRequired": "Veuillez saisir un tarif horaire supérieur à 0.",
   "offer.form.field.hourlyRate": "Tarif horaire (CHF / h)",
   "offer.form.placeholder.hourlyRate": "p. ex. 120",
