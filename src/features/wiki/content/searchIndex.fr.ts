@@ -51,8 +51,8 @@ const index: WikiSearchIndex = {
   },
   "kundenkarte": {
     title: "La fiche client",
-    summary: "Tout sur une cliente : contact, dossiers, montants, historique et accès au portail.",
-    keywords: ["fiche client", "ouvrir un client", "historique", "note", "fusionner", "portail", "facturé", "payé"],
+    summary: "Tout sur un client : contact, adresse, dossiers, montants, historique, lieux d’intervention et accès au portail.",
+    keywords: ["fiche client", "ouvrir un client", "modifier un client", "adresse", "adresse de facturation", "lieu d’intervention", "étage", "ascenseur", "historique", "note", "fusionner", "portail", "facturé", "payé"],
   },
   "finanzen-uebersicht": {
     title: "Finances : ce qui est ouvert et ce qui est rentré",

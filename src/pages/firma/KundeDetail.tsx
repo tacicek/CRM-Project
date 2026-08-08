@@ -2,22 +2,34 @@ import { useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, Mail, Phone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCachedCompany } from "@/hooks/useCachedCompany";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useKunde } from "@/hooks/useKunde";
+import { useKundeOrte } from "@/hooks/useKundeOrte";
 import { useKundeTimeline } from "@/hooks/useKundeTimeline";
+import { useKundeVorgaenge } from "@/hooks/useKundeVorgaenge";
 import { PortalZugangPanel } from "@/components/firma/PortalZugangPanel";
 import { KundeMergeDialog } from "@/components/firma/KundeMergeDialog";
+import { AbschnittFehler } from "@/components/firma/kunde/AbschnittFehler";
+import { KundeAchtung } from "@/components/firma/kunde/KundeAchtung";
+import { KundeBearbeitenDialog } from "@/components/firma/kunde/KundeBearbeitenDialog";
+import { KundeFinanzen } from "@/components/firma/kunde/KundeFinanzen";
+import { KundeKopf } from "@/components/firma/kunde/KundeKopf";
+import { KundeOrte } from "@/components/firma/kunde/KundeOrte";
+import { KundeVerlauf } from "@/components/firma/kunde/KundeVerlauf";
+import { KundeVorgaengeListe } from "@/components/firma/kunde/KundeVorgaengeListe";
 import { useI18n, useT } from "@/i18n/useI18n";
-import { formatCurrency } from "@/i18n/format";
 import type { MessageKey } from "@/i18n/translator";
 
-const EREIGNIS_LABEL: Record<string, MessageKey> = {
+const GRUND_LABEL: Record<string, MessageKey> = {
+  same_phone: "kunde.duplicate.reason.same_phone",
+  same_phone_and_name: "kunde.duplicate.reason.same_phone_and_name",
+};
+
+const AKTION_LABEL: Record<string, MessageKey> = {
   anfrage: "kunde.event.anfrage",
   offerte: "kunde.event.offerte",
   auftrag: "kunde.event.auftrag",
@@ -25,66 +37,99 @@ const EREIGNIS_LABEL: Record<string, MessageKey> = {
   rechnung: "kunde.event.rechnung",
   quittung: "kunde.event.quittung",
   email: "kunde.event.email",
+  zahlung: "kunde.finance.paid",
+  fall: "kunde.attention.openCases",
 };
 
-const EREIGNIS_EMOJI: Record<string, string> = {
-  anfrage: "📨",
-  offerte: "📄",
-  auftrag: "✅",
-  termin: "📅",
-  rechnung: "💳",
-  quittung: "🧾",
-  email: "✉️",
-};
-
-const GRUND_LABEL: Record<string, MessageKey> = {
-  same_phone: "kunde.duplicate.reason.same_phone",
-  same_phone_and_name: "kunde.duplicate.reason.same_phone_and_name",
-};
-
+/**
+ * Die Kundenkarte.
+ *
+ * Diese Datei ORCHESTRIERT nur: sie holt vier voneinander unabhaengige
+ * Datenquellen und verteilt sie auf fuenf Reiter. Die Bloecke selbst stehen in
+ * src/components/firma/kunde/ — vorher lag alles in dieser Datei, und ein
+ * Adressblock haette sie auf das Doppelte gebracht.
+ *
+ * Die vier Quellen laden GETRENNT und scheitern getrennt. Faellt die
+ * Zusammenfassung aus, arbeiten Verlauf, Orte und Vorgaenge weiter — und der
+ * Finanzblock zeigt einen Fehlerkasten statt CHF 0.00.
+ */
 export default function FirmaKundeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const t = useT();
-  const { locale, dateLocale } = useI18n();
+  const { dateLocale } = useI18n();
   const { companyId } = useCachedCompany();
   const { role } = useCompanyContext();
 
-  const { kunde, zusammenfassung, duplikate, loading, nichtGefunden, speichern, zusammenfuehren, vorschau } =
-    useKunde(id, companyId);
-  const { ereignisse, loading: verlaufLaedt, mehrDa, mehrLaden } = useKundeTimeline(id);
+  const {
+    kunde,
+    zustand,
+    stammFehler,
+    zusammenfassung,
+    zusammenfassungFehler,
+    zusammenfassungLaedt,
+    duplikate,
+    laden,
+    zusammenfassungLaden,
+    speichern,
+    zusammenfuehren,
+    vorschau,
+  } = useKunde(id, companyId);
 
-  const [tab, setTab] = useState<"overview" | "history">("overview");
+  const orte = useKundeOrte(id, companyId);
+  const verlauf = useKundeTimeline(id);
+  const vorgaenge = useKundeVorgaenge(id);
+
+  const [tab, setTab] = useState("overview");
+  const [bearbeiten, setBearbeiten] = useState(false);
   const [mergeMit, setMergeMit] = useState<{ id: string; display_name: string } | null>(null);
-  const [entwurf, setEntwurf] = useState<{ notes: string } | null>(null);
 
-  if (loading) {
+  if (zustand === "laedt") {
     return (
       <div className="flex min-h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-folk-coral" />
+        <Loader2 className="h-8 w-8 animate-spin text-folk-coral" aria-hidden />
       </div>
     );
   }
 
-  if (nichtGefunden || !kunde) {
+  // Vier verschiedene Antworten statt einer. Vorher lief alles in
+  // "Kunde nicht gefunden" zusammen — auch ein abgerissenes Netz.
+  if (zustand !== "da" || !kunde) {
+    const titelKey: MessageKey =
+      zustand === "kein_zugriff" ? "kunde.error.noAccess" : "kunde.detail.notFound";
+    const hinweisKey: MessageKey =
+      zustand === "kein_zugriff" ? "kunde.error.noAccessHint" : "kunde.detail.notFoundHint";
+
     return (
-      <div className="py-16 text-center">
-        <p className="font-semibold text-folk-ink">{t("kunde.detail.notFound")}</p>
-        <Button variant="outline" className="mt-3" onClick={() => navigate("/firma/kunden")}>
+      <div className="mx-auto max-w-lg space-y-4 py-16 text-center">
+        {zustand === "fehler" && stammFehler ? (
+          <AbschnittFehler
+            titelKey="kunde.error.load"
+            fehler={stammFehler}
+            onRetry={laden}
+          />
+        ) : (
+          <>
+            <p className="font-semibold text-folk-ink">{t(titelKey)}</p>
+            <p className="text-[14px] text-folk-ink2">{t(hinweisKey)}</p>
+          </>
+        )}
+        <Button variant="outline" onClick={() => navigate("/firma/kunden")}>
           {t("kunde.detail.back")}
         </Button>
       </div>
     );
   }
 
-  const zahlen = zusammenfassung?.anzahl;
-  const finanzen = zusammenfassung?.finanzen;
-  const aktivitaet = zusammenfassung?.aktivitaet;
-  const notizen = entwurf?.notes ?? kunde.notes ?? "";
   const darfMergen = role === "owner" || role === "admin";
+  const darfLoeschen = role === "owner" || role === "admin";
+  const hauptanschrift = orte.haupt("correspondence") ?? orte.haupt("billing");
+  const rechnungsanschrift = orte.haupt("billing");
+  const aktivitaet = zusammenfassung?.aktivitaet;
+  const zahlen = zusammenfassung?.anzahl;
 
   const datum = (iso: string | null | undefined) =>
-    iso ? format(new Date(iso), "dd. MMM yyyy", { locale: dateLocale }) : t("kunde.field.none");
+    iso ? format(new Date(iso), "dd. MMM yyyy", { locale: dateLocale }) : null;
 
   return (
     <>
@@ -92,30 +137,19 @@ export default function FirmaKundeDetail() {
         <title>{`${kunde.display_name} · CRM`}</title>
       </Helmet>
 
-      <div className="space-y-5">
-        <header className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-folk-ink3"
-            onClick={() => navigate("/firma/kunden")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {t("kunde.detail.back")}
-          </Button>
-          <span className="text-3xl leading-none">🧑</span>
-          <h1 className="min-w-0 flex-1 truncate text-[24px] font-semibold tracking-tight text-folk-ink">
-            {kunde.display_name}
-          </h1>
-        </header>
+      <div className="space-y-4">
+        <KundeKopf
+          kunde={kunde}
+          anschrift={hauptanschrift?.address_raw ?? null}
+          letzteAnfrageId={zusammenfassung?.aktionen?.letzte_anfrage_id ?? null}
+          onBearbeiten={() => setBearbeiten(true)}
+        />
 
         {/* Weiterleitung: dieser Kunde wurde in einen anderen ueberfuehrt. Die
             Quellzeile bleibt bestehen, damit alte Links aufloesen. */}
         {kunde.merged_into_customer_id && (
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-folk-line bg-folk-bg-warm p-4">
-            <span className="text-xl leading-none" aria-hidden>
-              ↪️
-            </span>
+            <ArrowRight className="h-5 w-5 shrink-0 text-folk-ink3" aria-hidden />
             <p className="min-w-0 flex-1 font-medium text-folk-ink">
               {t("kunde.merged.banner.title")}
             </p>
@@ -131,230 +165,358 @@ export default function FirmaKundeDetail() {
 
         {duplikate.length > 0 && !kunde.merged_into_customer_id && (
           <div className="rounded-xl border border-folk-coral/40 bg-folk-coral-bg p-4">
-            <div className="flex items-start gap-3">
-              <span className="text-xl leading-none" aria-hidden>
-                ⚠️
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-folk-ink">{t("kunde.duplicate.banner.title")}</p>
-                <p className="mt-0.5 text-[14px] text-folk-ink2">
-                  {t("kunde.duplicate.banner.description", { count: duplikate.length })}
-                </p>
-                <div className="mt-2 space-y-1.5">
-                  {duplikate.map((d) => (
-                    <div key={d.customer_b_id} className="flex flex-wrap items-center gap-2 text-[14px]">
-                      <button
-                        type="button"
-                        className="font-medium text-folk-ink underline-offset-2 hover:underline"
-                        onClick={() => navigate(`/firma/kunden/${d.customer_b_id}`)}
-                      >
-                        {d.customer_b_name}
-                      </button>
-                      <span className="text-folk-ink3">
-                        · {t(GRUND_LABEL[d.match_reason] ?? "kunde.duplicate.reason.same_phone")}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="ml-auto h-7"
-                        onClick={() =>
-                          setMergeMit({ id: d.customer_b_id, display_name: d.customer_b_name })
-                        }
-                      >
-                        {t("kunde.duplicate.banner.action")}
-                      </Button>
-                    </div>
-                  ))}
+            <p className="font-semibold text-folk-ink">{t("kunde.duplicate.banner.title")}</p>
+            <p className="mt-0.5 text-[14px] text-folk-ink2">
+              {t("kunde.duplicate.banner.description", { count: duplikate.length })}
+            </p>
+            <div className="mt-2 space-y-1.5">
+              {duplikate.map((d) => (
+                <div
+                  key={d.customer_b_id}
+                  className="flex flex-wrap items-center gap-2 text-[14px]"
+                >
+                  <button
+                    type="button"
+                    className="font-medium text-folk-ink underline-offset-2 hover:underline"
+                    onClick={() => navigate(`/firma/kunden/${d.customer_b_id}`)}
+                  >
+                    {d.customer_b_name}
+                  </button>
+                  <span className="text-folk-ink2">
+                    · {t(GRUND_LABEL[d.match_reason] ?? "kunde.duplicate.reason.same_phone")}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto"
+                    onClick={() =>
+                      setMergeMit({ id: d.customer_b_id, display_name: d.customer_b_name })
+                    }
+                  >
+                    {t("kunde.duplicate.banner.action")}
+                  </Button>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "overview" | "history")}>
-          <TabsList>
+        {/* Achtungsstreifen. Bei einem Fehlschlag steht hier ein Fehlerkasten
+            und KEINE Kacheln mit Nullen — "nichts Offenes" waere eine Auskunft,
+            die niemand geprueft hat. */}
+        {zusammenfassungFehler ? (
+          <AbschnittFehler
+            titelKey="kunde.error.summary"
+            hinweisKey="kunde.error.summaryHint"
+            fehler={zusammenfassungFehler}
+            laedt={zusammenfassungLaedt}
+            onRetry={zusammenfassungLaden}
+          />
+        ) : zusammenfassung ? (
+          <KundeAchtung zusammenfassung={zusammenfassung} customerId={kunde.id} />
+        ) : null}
+
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="flex w-full flex-wrap justify-start">
             <TabsTrigger value="overview">{t("kunde.tab.overview")}</TabsTrigger>
             <TabsTrigger value="history">{t("kunde.tab.history")}</TabsTrigger>
+            <TabsTrigger value="documents">{t("kunde.tab.documents")}</TabsTrigger>
+            <TabsTrigger value="finance">{t("kunde.tab.finance")}</TabsTrigger>
+            <TabsTrigger value="locations">{t("kunde.tab.locations")}</TabsTrigger>
           </TabsList>
-        </Tabs>
 
-        {tab === "overview" ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <section className="rounded-xl border border-folk-line bg-folk-card p-4">
-              <h2 className="mb-3 text-[15px] font-semibold text-folk-ink">
-                {t("kunde.section.contact")}
-              </h2>
-              <dl className="space-y-2 text-[14px]">
-                {[
-                  { k: "kunde.field.email" as MessageKey, v: kunde.primary_email },
-                  { k: "kunde.field.phone" as MessageKey, v: kunde.primary_phone },
-                  { k: "kunde.field.language" as MessageKey, v: kunde.language.toUpperCase() },
-                  { k: "kunde.field.customerNumber" as MessageKey, v: kunde.external_customer_number },
-                  { k: "kunde.field.source" as MessageKey, v: kunde.source },
-                ].map((z) => (
-                  <div key={z.k} className="flex justify-between gap-3">
-                    <dt className="text-folk-ink3">{t(z.k)}</dt>
-                    <dd className="truncate text-folk-ink">{z.v || t("kunde.field.none")}</dd>
+          {/* Echte TabsContent-Panels: Radix verknuepft sie ueber aria-controls /
+              aria-labelledby mit dem jeweiligen Trigger. Vorher stand der Inhalt
+              ausserhalb der Tabs und war fuer eine Sprachausgabe kein Panel. */}
+          <TabsContent value="overview" className="mt-4 space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-4">
+                <section className="rounded-xl border border-folk-line bg-folk-card p-4">
+                  <h2 className="mb-3 text-[15px] font-semibold text-folk-ink">
+                    {t("kunde.section.contact")}
+                  </h2>
+                  <dl className="space-y-2.5 text-[14px]">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                      <dt className="text-folk-ink2">{t("kunde.field.email")}</dt>
+                      <dd className="min-w-0 max-w-full">
+                        {kunde.primary_email ? (
+                          <a
+                            href={`mailto:${kunde.primary_email}`}
+                            className="inline-flex items-center gap-1.5 break-all text-folk-ink underline-offset-2 hover:underline"
+                          >
+                            <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            {kunde.primary_email}
+                          </a>
+                        ) : (
+                          // Kein „—": ein Leerzustand mit Handlung ist eine
+                          // Auskunft, ein Gedankenstrich ist eine Sackgasse.
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 gap-1 px-2 text-folk-ink2"
+                            onClick={() => setBearbeiten(true)}
+                          >
+                            <Plus className="h-3.5 w-3.5" aria-hidden />
+                            {t("kunde.empty.addEmail")}
+                          </Button>
+                        )}
+                      </dd>
+                    </div>
+
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                      <dt className="text-folk-ink2">{t("kunde.field.phone")}</dt>
+                      <dd className="min-w-0 max-w-full">
+                        {kunde.primary_phone ? (
+                          <a
+                            href={`tel:${kunde.primary_phone.replace(/[^\d+]/g, "")}`}
+                            className="inline-flex items-center gap-1.5 font-mono text-folk-ink underline-offset-2 hover:underline"
+                          >
+                            <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            {kunde.primary_phone}
+                          </a>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 gap-1 px-2 text-folk-ink2"
+                            onClick={() => setBearbeiten(true)}
+                          >
+                            <Plus className="h-3.5 w-3.5" aria-hidden />
+                            {t("kunde.empty.addPhone")}
+                          </Button>
+                        )}
+                      </dd>
+                    </div>
+
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-folk-ink2">{t("kunde.field.language")}</dt>
+                      <dd className="text-folk-ink">{kunde.language.toUpperCase()}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-folk-ink2">{t("kunde.field.source")}</dt>
+                      <dd className="text-folk-ink">{kunde.source || t("kunde.field.none")}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-4 border-t border-folk-line pt-3">
+                    <h3 className="mb-1.5 text-[13px] font-medium text-folk-ink2">
+                      {t("kunde.address.section")}
+                    </h3>
+                    {hauptanschrift ? (
+                      <>
+                        <p className="break-words text-[14px] text-folk-ink">
+                          {hauptanschrift.address_raw}
+                        </p>
+                        {rechnungsanschrift &&
+                          rechnungsanschrift.id !== hauptanschrift.id && (
+                            <p className="mt-1.5 break-words text-[13px] text-folk-ink2">
+                              <span className="font-medium">
+                                {t("kunde.address.billing")}:{" "}
+                              </span>
+                              {rechnungsanschrift.address_raw}
+                            </p>
+                          )}
+                      </>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => setTab("locations")}
+                      >
+                        <Plus className="h-4 w-4" aria-hidden />
+                        {t("kunde.empty.addAddress")}
+                      </Button>
+                    )}
                   </div>
-                ))}
-              </dl>
 
-              <div className="mt-4 space-y-1.5">
-                <Label htmlFor="kunde-notizen" className="text-[13px] text-folk-ink2">
-                  {t("kunde.field.notes")}
-                </Label>
-                <Textarea
-                  id="kunde-notizen"
-                  value={notizen}
-                  placeholder={t("kunde.field.notesPlaceholder")}
-                  onChange={(e) => setEntwurf({ notes: e.target.value })}
-                  rows={3}
-                />
-                {entwurf !== null && (
-                  <Button
-                    size="sm"
-                    className="mt-1"
-                    onClick={async () => {
-                      const ok = await speichern({ notes: entwurf.notes || null });
-                      if (ok) setEntwurf(null);
-                    }}
-                  >
-                    {t("kunde.save")}
-                  </Button>
-                )}
-              </div>
-            </section>
+                  {kunde.notes && (
+                    <div className="mt-4 border-t border-folk-line pt-3">
+                      <h3 className="mb-1 text-[13px] font-medium text-folk-ink2">
+                        {t("kunde.field.notes")}
+                      </h3>
+                      <p className="whitespace-pre-wrap break-words text-[13.5px] text-folk-ink">
+                        {kunde.notes}
+                      </p>
+                    </div>
+                  )}
+                </section>
 
-            <section className="rounded-xl border border-folk-line bg-folk-card p-4">
-              <h2 className="mb-3 text-[15px] font-semibold text-folk-ink">
-                {t("kunde.section.numbers")}
-              </h2>
-              <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-4">
-                {(
-                  [
-                    ["kunde.count.anfragen", zahlen?.anfragen],
-                    ["kunde.count.offerten", zahlen?.offerten],
-                    ["kunde.count.auftraege", zahlen?.auftraege],
-                    ["kunde.count.termine", zahlen?.termine],
-                    ["kunde.count.rechnungen", zahlen?.rechnungen],
-                    ["kunde.count.quittungen", zahlen?.quittungen],
-                    ["kunde.count.emails", zahlen?.emails],
-                  ] as [MessageKey, number | undefined][]
-                ).map(([k, n]) => (
-                  <div key={k} className="rounded-lg bg-folk-bg-warm p-2">
-                    <div className="font-mono text-[18px] font-semibold text-folk-ink">{n ?? 0}</div>
-                    <div className="text-[11.5px] text-folk-ink3">{t(k)}</div>
-                  </div>
-                ))}
-              </div>
-
-              <h2 className="mb-2 mt-4 text-[15px] font-semibold text-folk-ink">
-                {t("kunde.section.finance")}
-              </h2>
-              <dl className="space-y-1.5 text-[14px]">
-                {(
-                  [
-                    ["kunde.finance.invoiced", finanzen?.fakturiert],
-                    ["kunde.finance.paid", finanzen?.bezahlt],
-                    ["kunde.finance.open", finanzen?.offen],
-                    ["kunde.finance.receipts", finanzen?.davon_quittungen],
-                    ["kunde.finance.credits", finanzen?.gutschriften],
-                  ] as [MessageKey, number | undefined][]
-                ).map(([k, betrag]) => (
-                  <div key={k} className="flex justify-between gap-3">
-                    <dt className="text-folk-ink3">{t(k)}</dt>
-                    <dd className="font-mono text-folk-ink">
-                      {formatCurrency(Number(betrag ?? 0), locale)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="mt-2 text-[12px] leading-snug text-folk-ink4">
-                {t("kunde.finance.hint")}
-              </p>
-
-              <h2 className="mb-2 mt-4 text-[15px] font-semibold text-folk-ink">
-                {t("kunde.section.activity")}
-              </h2>
-              <dl className="space-y-1.5 text-[14px]">
-                <div className="flex justify-between gap-3">
-                  <dt className="text-folk-ink3">{t("kunde.activity.first")}</dt>
-                  <dd className="text-folk-ink">{datum(aktivitaet?.erster_kontakt)}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-folk-ink3">{t("kunde.activity.last")}</dt>
-                  <dd className="text-folk-ink">{datum(aktivitaet?.letzte_aktion)}</dd>
-                </div>
-                {aktivitaet?.naechster_termin && (
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-folk-ink3">{t("kunde.activity.next")}</dt>
-                    <dd className="text-folk-ink">
-                      {datum(aktivitaet.naechster_termin.datum)} · {aktivitaet.naechster_termin.titel}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-
-              <div className="mt-5 border-t border-folk-line pt-4">
-                <PortalZugangPanel customerId={id!} companyId={companyId} />
-              </div>
-            </section>
-          </div>
-        ) : (
-          <section className="rounded-xl border border-folk-line bg-folk-card p-4">
-            {verlaufLaedt ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-folk-coral" />
-              </div>
-            ) : ereignisse.length === 0 ? (
-              <p className="py-12 text-center text-folk-ink3">{t("kunde.history.empty")}</p>
-            ) : (
-              <>
-                <ol className="space-y-2">
-                  {ereignisse.map((e) => (
-                    <li
-                      key={`${e.entitaet}-${e.entitaet_id}`}
-                      className="flex items-center gap-3 rounded-lg border border-folk-line p-3"
-                    >
-                      <span className="text-lg leading-none" aria-hidden>
-                        {EREIGNIS_EMOJI[e.ereignis_art] ?? "•"}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[13px] text-folk-ink3">
-                            {t(EREIGNIS_LABEL[e.ereignis_art] ?? "kunde.event.anfrage")}
-                          </span>
-                          <span className="truncate text-[14px] font-medium text-folk-ink">
-                            {e.titel}
-                          </span>
+                <section className="rounded-xl border border-folk-line bg-folk-card p-4">
+                  <h2 className="mb-3 text-[15px] font-semibold text-folk-ink">
+                    {t("kunde.section.activity")}
+                  </h2>
+                  {zusammenfassungFehler ? (
+                    <p className="text-[13.5px] text-folk-ink2">
+                      {t("kunde.error.summaryHint")}
+                    </p>
+                  ) : (
+                    <dl className="space-y-2 text-[14px]">
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-folk-ink2">{t("kunde.activity.first")}</dt>
+                        <dd className="text-folk-ink">
+                          {datum(aktivitaet?.erster_kontakt) ?? t("kunde.field.none")}
+                        </dd>
+                      </div>
+                      <div className="flex flex-wrap justify-between gap-x-3">
+                        <dt className="text-folk-ink2">{t("kunde.activity.last")}</dt>
+                        <dd className="text-folk-ink">
+                          {aktivitaet?.letzte_aktion ? (
+                            <>
+                              {datum(aktivitaet.letzte_aktion)}
+                              {aktivitaet.letzte_aktion_art && (
+                                <span className="ml-1.5 text-folk-ink2">
+                                  ·{" "}
+                                  {t(
+                                    AKTION_LABEL[aktivitaet.letzte_aktion_art] ??
+                                      "kunde.event.anfrage",
+                                  )}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            t("kunde.activity.never")
+                          )}
+                        </dd>
+                      </div>
+                      {aktivitaet?.naechster_termin && (
+                        <div className="flex flex-wrap justify-between gap-x-3">
+                          <dt className="text-folk-ink2">{t("kunde.activity.next")}</dt>
+                          <dd className="text-folk-ink">
+                            {datum(aktivitaet.naechster_termin.datum)}
+                            {aktivitaet.naechster_termin.start &&
+                              !aktivitaet.naechster_termin.ganztags && (
+                                <> · {aktivitaet.naechster_termin.start.slice(0, 5)}</>
+                              )}
+                            <span className="ml-1.5 text-folk-ink2">
+                              {aktivitaet.naechster_termin.titel}
+                            </span>
+                          </dd>
                         </div>
-                        {e.untertitel && (
-                          <div className="truncate text-[12.5px] text-folk-ink4">{e.untertitel}</div>
-                        )}
-                      </div>
-                      <div className="shrink-0 text-right">
-                        {e.betrag !== null && (
-                          <div className="font-mono text-[13px] text-folk-ink2">
-                            {formatCurrency(Number(e.betrag), locale)}
-                          </div>
-                        )}
-                        <div className="text-[12px] text-folk-ink4">{datum(e.ereignis_am)}</div>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-                {mehrDa && (
-                  <div className="mt-3 text-center">
-                    <Button variant="outline" size="sm" onClick={mehrLaden}>
-                      {t("kunde.history.more")}
-                    </Button>
-                  </div>
+                      )}
+                      {aktivitaet?.naechste_aufgabe && (
+                        <div className="flex flex-wrap justify-between gap-x-3">
+                          <dt className="text-folk-ink2">{t("kunde.activity.nextTask")}</dt>
+                          <dd className="text-folk-ink">
+                            {aktivitaet.naechste_aufgabe.titel}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+                  )}
+                </section>
+              </div>
+
+              <div className="space-y-4">
+                <section className="rounded-xl border border-folk-line bg-folk-card p-4">
+                  <h2 className="mb-3 text-[15px] font-semibold text-folk-ink">
+                    {t("kunde.section.numbers")}
+                  </h2>
+                  {zusammenfassungFehler ? (
+                    <p className="text-[13.5px] text-folk-ink2">
+                      {t("kunde.error.summaryHint")}
+                    </p>
+                  ) : (
+                    // Auf dem Telefon zwei Spalten, nicht drei schmale: eine
+                    // Zahl mit abgeschnittener Beschriftung ist keine Kennzahl.
+                    <button
+                      type="button"
+                      onClick={() => setTab("documents")}
+                      className="grid w-full grid-cols-2 gap-2 text-left sm:grid-cols-3"
+                    >
+                      {(
+                        [
+                          ["kunde.count.anfragen", zahlen?.anfragen],
+                          ["kunde.count.offerten", zahlen?.offerten],
+                          ["kunde.count.auftraege", zahlen?.auftraege],
+                          ["kunde.count.termine", zahlen?.termine],
+                          ["kunde.count.rechnungen", zahlen?.rechnungen],
+                          ["kunde.count.quittungen", zahlen?.quittungen],
+                        ] as [MessageKey, number | undefined][]
+                      ).map(([k, n]) => (
+                        <span
+                          key={k}
+                          className="rounded-lg bg-folk-bg-warm p-2.5 transition-colors hover:bg-folk-line-soft"
+                        >
+                          <span className="block font-mono text-[19px] font-semibold text-folk-ink">
+                            {n ?? 0}
+                          </span>
+                          <span className="block text-[12px] text-folk-ink2">{t(k)}</span>
+                        </span>
+                      ))}
+                    </button>
+                  )}
+                </section>
+
+                {zusammenfassung && !zusammenfassungFehler && (
+                  <KundeFinanzen finanzen={zusammenfassung.finanzen} />
                 )}
-              </>
+
+                <section className="rounded-xl border border-folk-line bg-folk-card p-4">
+                  <PortalZugangPanel customerId={kunde.id} companyId={companyId} />
+                </section>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <KundeVerlauf
+              ereignisse={verlauf.ereignisse}
+              loading={verlauf.loading}
+              mehrLaedt={verlauf.mehrLaedt}
+              mehrDa={verlauf.mehrDa}
+              fehler={verlauf.fehler}
+              mehrLaden={verlauf.mehrLaden}
+              neuLaden={verlauf.neuLaden}
+            />
+          </TabsContent>
+
+          <TabsContent value="documents" className="mt-4">
+            <KundeVorgaengeListe
+              vorgaenge={vorgaenge.vorgaenge}
+              laedt={vorgaenge.laedt}
+              fehler={vorgaenge.fehler}
+              neuLaden={vorgaenge.laden}
+            />
+          </TabsContent>
+
+          <TabsContent value="finance" className="mt-4 space-y-4">
+            {zusammenfassungFehler ? (
+              <AbschnittFehler
+                titelKey="kunde.error.summary"
+                hinweisKey="kunde.error.summaryHint"
+                fehler={zusammenfassungFehler}
+                laedt={zusammenfassungLaedt}
+                onRetry={zusammenfassungLaden}
+              />
+            ) : zusammenfassung ? (
+              <KundeFinanzen finanzen={zusammenfassung.finanzen} />
+            ) : (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-folk-coral" aria-hidden />
+              </div>
             )}
-          </section>
-        )}
+            <KundeVorgaengeListe
+              vorgaenge={vorgaenge.vorgaenge}
+              arten={["rechnungen", "quittungen"]}
+              laedt={vorgaenge.laedt}
+              fehler={vorgaenge.fehler}
+              neuLaden={vorgaenge.laden}
+            />
+          </TabsContent>
+
+          <TabsContent value="locations" className="mt-4">
+            <KundeOrte orte={orte} darfLoeschen={darfLoeschen} />
+          </TabsContent>
+        </Tabs>
       </div>
+
+      <KundeBearbeitenDialog
+        kunde={kunde}
+        offen={bearbeiten}
+        onOpenChange={setBearbeiten}
+        onSpeichern={speichern}
+      />
 
       {mergeMit && (
         <KundeMergeDialog

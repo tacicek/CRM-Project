@@ -2480,6 +2480,69 @@ export type Database = {
           },
         ]
       }
+      customer_addresses: {
+        Row: {
+          address_raw: string
+          address_type: string
+          city: string | null
+          company_id: string
+          country: string | null
+          created_at: string
+          created_via: string
+          customer_id: string
+          house_number: string | null
+          id: string
+          is_primary: boolean
+          label: string | null
+          notes: string | null
+          plz: string | null
+          street: string | null
+          updated_at: string
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          address_raw: string
+          address_type?: string
+          city?: string | null
+          company_id: string
+          country?: string | null
+          created_at?: string
+          created_via?: string
+          customer_id: string
+          house_number?: string | null
+          id?: string
+          is_primary?: boolean
+          label?: string | null
+          notes?: string | null
+          plz?: string | null
+          street?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          address_raw?: string
+          address_type?: string
+          city?: string | null
+          company_id?: string
+          country?: string | null
+          created_at?: string
+          created_via?: string
+          customer_id?: string
+          house_number?: string | null
+          id?: string
+          is_primary?: boolean
+          label?: string | null
+          notes?: string | null
+          plz?: string | null
+          street?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: []
+      }
       customer_merges: {
         Row: {
           company_id: string
@@ -7378,8 +7441,14 @@ export type Database = {
           offener_betrag: number
           bezahlter_betrag: number
           ort: string | null
+          ort_quelle: string | null
+          offene_faelle: number
           gesamt: number
         }[]
+      }
+      customer_kennzahlen: {
+        Args: { p_company_id: string }
+        Returns: Json
       }
       deactivate_expired_subscriptions: {
         Args: never

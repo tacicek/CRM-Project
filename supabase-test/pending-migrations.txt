@@ -1,0 +1,11 @@
+# Migrationen, die NACH der Baseline entstanden sind und deshalb beim Bootstrap
+# zusaetzlich eingespielt werden muessen (siehe scripts/test-db.sh).
+#
+# Reihenfolge = Anwendungsreihenfolge. Eine Zeile je Dateiname, ohne Pfad.
+# Nach einer Baseline-Auffrischung (parity-manifest.json > generated_at) werden
+# die dort enthaltenen Zeilen hier entfernt.
+#
+# Baseline-Stand: 2026-08-03
+
+20260805010000_kalender_feed_tokens.sql
+20260807100000_kundenadresse_und_vollstaendige_zusammenfuehrung.sql

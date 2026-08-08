@@ -18,10 +18,20 @@ export interface PlaceResult {
 interface GooglePlacesAutocompleteProps {
   value: string;
   onPlaceSelect: (place: PlaceResult) => void;
+  /**
+   * Every keystroke, not just a picked suggestion.
+   *
+   * Without it the parent only ever learns about addresses that Google knows.
+   * "c/o Meier, Hinterhaus links" has no place_id and would be silently
+   * discarded on submit — the field would look filled and save empty. Optional,
+   * so existing call sites that only want a resolved place stay unchanged.
+   */
+  onInputChange?: (value: string) => void;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
   country?: string;
+  id?: string;
 }
 
 interface Prediction {
@@ -36,10 +46,12 @@ interface Prediction {
 export function GooglePlacesAutocomplete({
   value,
   onPlaceSelect,
+  onInputChange,
   placeholder = "Adresse eingeben...",
   className = "",
   disabled = false,
   country = "ch",
+  id,
 }: GooglePlacesAutocompleteProps) {
   const [inputValue, setInputValue] = useState(value);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
@@ -101,6 +113,7 @@ export function GooglePlacesAutocomplete({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
+    onInputChange?.(newValue);
     setSelectedIndex(-1);
 
     if (debounceRef.current) {
@@ -116,6 +129,7 @@ export function GooglePlacesAutocomplete({
     setIsLoading(true);
     setShowDropdown(false);
     setInputValue(prediction.description);
+    onInputChange?.(prediction.description);
 
     try {
       const { data, error } = await supabase.functions.invoke("google-places-details", {
@@ -163,6 +177,7 @@ export function GooglePlacesAutocomplete({
       <div className="relative">
         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
+          id={id}
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}

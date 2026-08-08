@@ -66,18 +66,28 @@ export default function FirmaKunden() {
     proSeite,
   });
 
+  // `kennzahlen` ist null, wenn die RPC nicht geantwortet hat. Dann bleiben die
+  // Kacheln weg — vier Nullen waeren eine Auskunft ueber den Bestand, die
+  // niemand geprueft hat.
   const kacheln = useMemo(
-    () => [
-      { emoji: "👥", labelKey: "kunde.kpi.total" as MessageKey, wert: kennzahlen.gesamt },
-      { emoji: "🆕", labelKey: "kunde.kpi.neu" as MessageKey, wert: kennzahlen.neu30 },
-      {
-        emoji: "⚠️",
-        labelKey: "kunde.kpi.duplikate" as MessageKey,
-        wert: kennzahlen.duplikate,
-        filter: "duplikate" as KundenFilter,
-      },
-      { emoji: "💤", labelKey: "kunde.kpi.inaktiv" as MessageKey, wert: kennzahlen.inaktiv90 },
-    ],
+    () =>
+      kennzahlen
+        ? [
+            { schluessel: "gesamt", labelKey: "kunde.kpi.total" as MessageKey, wert: kennzahlen.gesamt },
+            { schluessel: "neu", labelKey: "kunde.kpi.neu" as MessageKey, wert: kennzahlen.neu30 },
+            {
+              schluessel: "duplikate",
+              labelKey: "kunde.kpi.duplikate" as MessageKey,
+              wert: kennzahlen.duplikate,
+              filter: "duplikate" as KundenFilter,
+            },
+            {
+              schluessel: "inaktiv",
+              labelKey: "kunde.kpi.inaktiv" as MessageKey,
+              wert: kennzahlen.inaktiv90,
+            },
+          ]
+        : [],
     [kennzahlen],
   );
 
@@ -94,17 +104,19 @@ export default function FirmaKunden() {
             <h1 className="text-[26px] font-semibold tracking-tight text-folk-ink">
               {t("kunde.title")}
             </h1>
-            <span className="text-[15px] text-folk-ink3">
-              {t("kunde.count", { count: kennzahlen.gesamt })}
-            </span>
+            {kennzahlen && (
+              <span className="text-[15px] text-folk-ink2">
+                {t("kunde.count", { count: kennzahlen.gesamt })}
+              </span>
+            )}
           </div>
         </header>
 
-        {kennzahlen.gesamt > 0 && (
+        {kacheln.length > 0 && (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {kacheln.map((k) => (
               <button
-                key={k.labelKey}
+                key={k.schluessel}
                 type="button"
                 disabled={!k.filter}
                 onClick={() => {
@@ -117,11 +129,10 @@ export default function FirmaKunden() {
                   k.filter ? "transition-colors hover:bg-folk-bg-warm" : "cursor-default"
                 }`}
               >
-                <div className="text-xl leading-none">{k.emoji}</div>
-                <div className="mt-1.5 font-mono text-[22px] font-semibold text-folk-ink">
+                <div className="font-mono text-[22px] font-semibold text-folk-ink">
                   {k.wert}
                 </div>
-                <div className="text-[13px] text-folk-ink3">{t(k.labelKey)}</div>
+                <div className="text-[13px] text-folk-ink2">{t(k.labelKey)}</div>
               </button>
             ))}
           </div>
@@ -179,10 +190,10 @@ export default function FirmaKunden() {
                 🧑
               </div>
               <p className="font-semibold text-folk-ink">
-                {kennzahlen.gesamt === 0 ? t("kunde.empty.none") : t("kunde.empty.noMatch")}
+                {kennzahlen?.gesamt === 0 ? t("kunde.empty.none") : t("kunde.empty.noMatch")}
               </p>
-              {kennzahlen.gesamt === 0 && (
-                <p className="mt-1 text-[14px] text-folk-ink3">{t("kunde.empty.noneHint")}</p>
+              {kennzahlen?.gesamt === 0 && (
+                <p className="mt-1 text-[14px] text-folk-ink2">{t("kunde.empty.noneHint")}</p>
               )}
             </div>
           ) : (
@@ -211,7 +222,7 @@ export default function FirmaKunden() {
                             {k.display_name}
                           </span>
                           {k.customer_type === "company" && (
-                            <span className="rounded bg-folk-bg-warm px-1.5 py-0.5 text-[11px] font-medium text-folk-ink3">
+                            <span className="rounded bg-folk-bg-warm px-1.5 py-0.5 text-[11px] font-medium text-folk-ink2">
                               {t("kunde.badge.firma")}
                             </span>
                           )}
@@ -222,16 +233,46 @@ export default function FirmaKunden() {
                               {k.language}
                             </span>
                           )}
+                          {k.status === "blocked" && (
+                            <span className="rounded bg-folk-coral-bg px-1.5 py-0.5 text-[11px] font-medium text-folk-coral ring-1 ring-folk-coral/50">
+                              {t("kunde.status.blocked")}
+                            </span>
+                          )}
                           {k.possible_duplicate && (
                             <span className="rounded bg-folk-coral-bg px-1.5 py-0.5 text-[11px] font-medium text-folk-coral">
                               {t("kunde.badge.duplicate")}
                             </span>
                           )}
                         </div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px] text-folk-ink3">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px] text-folk-ink2">
                           <span className="truncate">{k.primary_email ?? t("kunde.field.none")}</span>
                           {k.primary_phone && <span className="font-mono">· {k.primary_phone}</span>}
-                          {k.ort && <span>· {k.ort}</span>}
+                          {/* Der Ort wird BENANNT. Ohne kanonische Anschrift ist
+                              er der letzte Einsatzort — bei einem Umzug also
+                              genau die Adresse, an der der Kunde nicht mehr
+                              wohnt. Unbeschriftet las er sich als Wohnort. */}
+                          {k.ort && (
+                            <span
+                              // Ohne bekannte Quelle KEIN Kurzhinweis: eine
+                              // aeltere Datenbank liefert `ort_quelle` nicht,
+                              // und "Letzter Einsatzort" waere dort geraten.
+                              title={
+                                k.ort_quelle === "adresse"
+                                  ? t("kunde.list.ortSource.adresse")
+                                  : k.ort_quelle === "einsatzort"
+                                    ? t("kunde.list.ortSource.einsatzort")
+                                    : undefined
+                              }
+                            >
+                              ·{" "}
+                              {k.ort_quelle === "einsatzort" && (
+                                <span className="text-folk-ink3">
+                                  {t("kunde.list.ortSource.einsatzort")}:{" "}
+                                </span>
+                              )}
+                              {k.ort}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -244,7 +285,7 @@ export default function FirmaKunden() {
                             </span>
                           </div>
                         )}
-                        <div className="text-[12.5px] text-folk-ink4">
+                        <div className="text-[12.5px] text-folk-ink2">
                           {zuletzt ?? t("kunde.card.noActivity")}
                         </div>
                       </div>

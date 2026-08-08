@@ -134,6 +134,30 @@ apply_privilege_file() { PSQL -q < "$1" >/dev/null; }
 baseline_apply_privileges supabase-test/baseline apply_privilege_file \
   || refuse "applying baseline privileges failed"
 PSQL -q < supabase-test/baseline/guard-marker.sql >/dev/null  # (re)assert identity marker (idempotent)
+
+# --- Migrationen, die noch juenger sind als die Baseline ------------------------------------
+# Die Baseline ist ein bereinigter Abzug der Produktion und traegt ein Datum. Jede Migration,
+# die danach entstanden ist, steht NICHT darin — und ohne diesen Schritt liefen die
+# Zusicherungen gegen ein Schema, das die neue Tabelle gar nicht kennt. Der Test waere gruen,
+# weil er nichts pruefen kann.
+#
+# Die Liste steht in einer eigenen Datei und nicht als Glob "alles neuer als generated_at":
+# ein Glob nimmt stillschweigend auch eine Datei mit, die noch niemand gelesen hat. Wer eine
+# Migration hier eintraegt, sagt damit ausdruecklich: die gehoert in den Test.
+#
+# Nach der naechsten Baseline-Auffrischung sind die Eintraege doppelt vorhanden — deshalb
+# muessen die Migrationen idempotent sein (IF NOT EXISTS / CREATE OR REPLACE), was in diesem
+# Repo ohnehin Hausregel ist. Aufgebrauchte Zeilen werden bei der Auffrischung entfernt.
+PENDING="supabase-test/pending-migrations.txt"
+if [ -f "$PENDING" ]; then
+  while IFS= read -r m; do
+    case "$m" in ''|'#'*) continue ;; esac
+    [ -f "supabase/migrations/$m" ] || refuse "pending migration '$m' not found in supabase/migrations/"
+    echo "==> applying pending migration $m"
+    PSQL -q < "supabase/migrations/$m" >/dev/null || refuse "pending migration '$m' failed"
+  done < "$PENDING"
+fi
+
 echo "==> seeding synthetic two-tenant fixtures"
 PSQL -q < supabase-test/seed/fixtures.sql        >/dev/null
 

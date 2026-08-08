@@ -54,8 +54,8 @@ const index: WikiSearchIndex = {
   },
   "kundenkarte": {
     title: "Die Kundenkarte",
-    summary: "Alles zu einer Kundin: Kontakt, Vorgänge, Beträge, Verlauf und Portalzugang.",
-    keywords: ["kundenkarte", "kunde öffnen", "verlauf", "notiz", "zusammenführen", "portal", "fakturiert", "bezahlt"],
+    summary: "Alles zu einer Kundin: Kontakt, Adresse, Vorgänge, Beträge, Verlauf, Einsatzorte und Portalzugang.",
+    keywords: ["kundenkarte", "kunde öffnen", "kunde bearbeiten", "adresse", "anschrift", "rechnungsadresse", "einsatzort", "stockwerk", "lift", "verlauf", "notiz", "zusammenführen", "portal", "fakturiert", "bezahlt"],
   },
   "finanzen-uebersicht": {
     title: "Finanzen: was offen ist und was hereinkam",

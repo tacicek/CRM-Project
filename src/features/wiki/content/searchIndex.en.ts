@@ -51,8 +51,8 @@ const index: WikiSearchIndex = {
   },
   "kundenkarte": {
     title: "The customer card",
-    summary: "Everything about one customer: contact, records, amounts, history and portal access.",
-    keywords: ["customer card", "open a customer", "history", "note", "merge", "portal", "invoiced", "paid"],
+    summary: "Everything about one customer: contact, address, records, amounts, activity, service locations and portal access.",
+    keywords: ["customer card", "open a customer", "edit customer", "address", "billing address", "service location", "floor", "lift", "activity", "history", "note", "merge", "portal", "invoiced", "paid"],
   },
   "finanzen-uebersicht": {
     title: "Finances: what is open and what came in",
