@@ -15,6 +15,7 @@ export const settings: Record<keyof typeof de, string> = {
   "settings.tab.reminders": "Reminders",
   "settings.tab.agb": "Terms",
   "settings.tab.ki": "AI integration",
+  "settings.tab.calendar": "Calendar",
 
   "settings.language.title": "Language",
   "settings.language.description":
@@ -163,4 +164,44 @@ export const settings: Record<keyof typeof de, string> = {
   "settings.inbound.secret": "Webhook secret",
   "settings.inbound.copied": "Copied to clipboard",
   "settings.inbound.copyFailed": "Could not copy — please select manually",
+
+  "settings.calfeed.title": "Connect calendar",
+  "settings.calfeed.description":
+    "Subscribe to your CRM appointments in Apple Calendar, Google Calendar or Outlook. The subscription is read-only: changes in the CRM appear in your calendar, never the other way round. How often it refreshes is decided by the calendar client.",
+  "settings.calfeed.securityNotice":
+    "The link is a password: anyone who knows it can see your appointments. Do not forward it. If you suspect it leaked, revoke the token and create a new one.",
+  "settings.calfeed.createTitle": "Create new token",
+  "settings.calfeed.labelPlaceholder": "Label, e.g. \u201ciPhone Anna\u201d",
+  "settings.calfeed.createButton": "Create token",
+  "settings.calfeed.created":
+    "Token created. The links below are shown only this once — copy them now and add them to your calendar.",
+  "settings.calfeed.createFailed": "The token could not be created",
+  "settings.calfeed.linksTitle": "Subscription links for this token",
+  "settings.calfeed.copy": "Copy",
+  "settings.calfeed.copied": "Copied to clipboard",
+  "settings.calfeed.copyFailed": "Could not copy — please select manually",
+  "settings.calfeed.urlMissing":
+    "The address cannot be built — the server address is missing in this installation.",
+  "settings.calfeed.tokensTitle": "Existing tokens",
+  "settings.calfeed.noTokens": "No tokens yet.",
+  "settings.calfeed.colLabel": "Label",
+  "settings.calfeed.colCreated": "Created",
+  "settings.calfeed.colLastUsed": "Last used",
+  "settings.calfeed.neverUsed": "Never",
+  "settings.calfeed.unnamed": "Unnamed",
+  "settings.calfeed.revoke": "Revoke",
+  "settings.calfeed.revokeConfirmTitle": "Revoke token?",
+  "settings.calfeed.revokeConfirmBody":
+    "Every calendar subscription set up with this token stops working immediately. This cannot be undone.",
+  "settings.calfeed.revokeCancel": "Cancel",
+  "settings.calfeed.revokeConfirm": "Revoke",
+  "settings.calfeed.revoked": "Token revoked — all its subscriptions are dead.",
+  "settings.calfeed.revokeFailed": "The token could not be revoked",
+  "settings.calfeed.loadFailed": "The tokens could not be loaded",
+  "settings.calfeed.typ.besichtigung": "Viewings",
+  "settings.calfeed.typ.service": "Jobs",
+  "settings.calfeed.typ.follow_up": "Follow-ups",
+  "settings.calfeed.typ.meeting": "Meetings",
+  "settings.calfeed.typ.blocked": "Blocked time",
+  "settings.calfeed.typ.other": "Other appointments",
 };

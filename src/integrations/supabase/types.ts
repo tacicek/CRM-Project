@@ -1072,6 +1072,47 @@ export type Database = {
           },
         ]
       }
+      calendar_feed_tokens: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          label: string | null
+          last_used_at: string | null
+          revoked_at: string | null
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_feed_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checklist_templates: {
         Row: {
           company_id: string
@@ -7039,6 +7080,15 @@ export type Database = {
           p_offer_id?: string
         }
         Returns: Json
+      }
+      create_calendar_feed_token: {
+        Args: { p_label?: string }
+        Returns: {
+          created_at: string
+          id: string
+          label: string
+          token: string
+        }[]
       }
       create_company_after_signup: {
         Args: {

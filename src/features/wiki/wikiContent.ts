@@ -47,6 +47,7 @@ const DE_BODIES: BodyTable = {
   "auftrag-abschliessen": () => import("@/features/wiki/content/de/auftrag-abschliessen"),
   "kalender": () => import("@/features/wiki/content/de/kalender"),
   "termin-erstellen": () => import("@/features/wiki/content/de/termin-erstellen"),
+  "kalender-abo": () => import("@/features/wiki/content/de/kalender-abo"),
 };
 
 const FR_BODIES: BodyTable = {
@@ -77,6 +78,7 @@ const FR_BODIES: BodyTable = {
   "auftrag-abschliessen": () => import("@/features/wiki/content/fr/auftrag-abschliessen"),
   "kalender": () => import("@/features/wiki/content/fr/kalender"),
   "termin-erstellen": () => import("@/features/wiki/content/fr/termin-erstellen"),
+  "kalender-abo": () => import("@/features/wiki/content/fr/kalender-abo"),
 };
 
 const EN_BODIES: BodyTable = {
@@ -107,6 +109,7 @@ const EN_BODIES: BodyTable = {
   "auftrag-abschliessen": () => import("@/features/wiki/content/en/auftrag-abschliessen"),
   "kalender": () => import("@/features/wiki/content/en/kalender"),
   "termin-erstellen": () => import("@/features/wiki/content/en/termin-erstellen"),
+  "kalender-abo": () => import("@/features/wiki/content/en/kalender-abo"),
 };
 
 const BODY_TABLES: Record<Locale, BodyTable> = {

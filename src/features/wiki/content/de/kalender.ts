@@ -152,7 +152,7 @@ const body = {
     },
     {
       kind: "paragraph",
-      text: "Über «Zum Kalender» in der Detailkarte geben Sie einen einzelnen Termin an Apple, Yahoo oder als Datei weiter. Einen Export der ganzen Woche gibt es nicht.",
+      text: "Über «Zum Kalender» in der Detailkarte geben Sie einen einzelnen Termin an Apple, Yahoo oder als Datei weiter. Für alle Termine dauerhaft gibt es das Kalender-Abo — siehe «Kalender abonnieren» unter Einrichtung.",
     },
   ],
 

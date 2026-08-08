@@ -147,6 +147,11 @@ const index: WikiSearchIndex = {
     summary: "Typ, Zeit, Team und Fahrzeuge — und wann die Kundschaft eine Bestätigung erhält.",
     keywords: ["termin erstellen", "neuer termin", "besichtigung", "blockiert", "wiederkehrend", "fahrzeug", "konflikt"],
   },
+  "kalender-abo": {
+    title: "Kalender abonnieren",
+    summary: "Ihre Termine im Handy- oder Computer-Kalender abonnieren — je Termin-Typ ein eigener, farbiger Kalender.",
+    keywords: ["kalender abonnieren", "abo", "webcal", "iphone", "apple", "google", "outlook", "handy", "token erzeugen", "widerrufen", "synchronisieren", "kalender verbinden"],
+  },
 };
 
 export default index;

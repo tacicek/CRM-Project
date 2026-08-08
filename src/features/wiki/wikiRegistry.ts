@@ -200,7 +200,7 @@ export const WIKI_REGISTRY: Record<WikiSlug, WikiArticleMeta> = {
     icon: "calendar",
     routes: ["/firma/kalender"],
     moduleKey: "calendar",
-    related: ["termin-erstellen", "auftraege-liste"],
+    related: ["termin-erstellen", "auftraege-liste", "kalender-abo"],
     lastVerified: VERIFIED_ON,
     verifiedCommit: VERIFIED_COMMIT,
   },
@@ -215,6 +215,23 @@ export const WIKI_REGISTRY: Record<WikiSlug, WikiArticleMeta> = {
     related: ["kalender", "auftraege-liste", "anfragen-liste"],
     lastVerified: VERIFIED_ON,
     verifiedCommit: VERIFIED_COMMIT,
+  },
+
+  // --- Einrichtung ---------------------------------------------------------------
+  "kalender-abo": {
+    slug: "kalender-abo",
+    category: "einrichtung",
+    kind: "journey",
+    icon: "calendar",
+    // Lives inside the Einstellungen screen, which has no article of its own yet —
+    // /firma/einstellungen therefore stays in ROUTES_DEFERRED; claiming it here would
+    // mark seven undocumented tabs as covered.
+    routes: [],
+    moduleKey: "calendar",
+    prerequisites: ["kalender"],
+    related: ["kalender", "termin-erstellen"],
+    lastVerified: "2026-08-05",
+    verifiedCommit: "93231580",
   },
 
   // --- Offerten ----------------------------------------------------------------------

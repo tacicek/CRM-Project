@@ -49,6 +49,9 @@ export const WIKI_SLUGS = [
   "auftrag-abschliessen",
   "kalender",
   "termin-erstellen",
+
+  // --- einrichtung -----------------------------------------------------------------
+  "kalender-abo",
 ] as const;
 
 export type WikiSlug = (typeof WIKI_SLUGS)[number];

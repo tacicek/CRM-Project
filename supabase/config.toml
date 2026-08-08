@@ -239,3 +239,12 @@ entrypoint = "./functions/auto-archive/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/company-secrets/index.ts"
+
+# webcal/ICS-Kalender-Abo. verify_jwt = false, weil Kalender-Clients (Apple/
+# Google/Outlook) keine Header schicken koennen — die Zugangskontrolle ist das
+# 64-Hex-Token in der URL, verglichen als SHA-256-Hash gegen
+# calendar_feed_tokens. Unbekannt/widerrufen → nacktes 404.
+[functions.calendar-feed]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/calendar-feed/index.ts"

@@ -152,7 +152,7 @@ const body = {
     },
     {
       kind: "paragraph",
-      text: "Through “To the calendar” on the detail card you pass a single appointment to Apple, Yahoo or as a file. There is no export of the whole week.",
+      text: "Through “To the calendar” on the detail card you pass a single appointment to Apple, Yahoo or as a file. For all appointments on an ongoing basis there is the calendar subscription — see “Subscribe to the calendar” under Setup.",
     },
   ],
 

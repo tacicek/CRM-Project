@@ -144,6 +144,11 @@ const index: WikiSearchIndex = {
     summary: "Type, horaire, équipe et véhicules — et quand le client reçoit une confirmation.",
     keywords: ["créer un rendez-vous", "nouveau rendez-vous", "visite", "bloqué", "récurrent", "véhicule", "conflit"],
   },
+  "kalender-abo": {
+    title: "S'abonner au calendrier",
+    summary: "Vos rendez-vous dans le calendrier du téléphone ou de l'ordinateur — un calendrier coloré par type de rendez-vous.",
+    keywords: ["s'abonner au calendrier", "abonnement", "webcal", "iphone", "apple", "google", "outlook", "téléphone", "créer le jeton", "révoquer", "synchroniser", "connecter le calendrier"],
+  },
 };
 
 export default index;

@@ -144,6 +144,11 @@ const index: WikiSearchIndex = {
     summary: "Type, time, team and vehicles — and when the customer gets a confirmation.",
     keywords: ["create appointment", "new appointment", "viewing", "blocked", "recurring", "vehicle", "clash"],
   },
+  "kalender-abo": {
+    title: "Subscribe to the calendar",
+    summary: "Your appointments in your phone or computer calendar — one coloured calendar per appointment type.",
+    keywords: ["subscribe calendar", "subscription", "webcal", "iphone", "apple", "google", "outlook", "phone", "create token", "revoke", "sync", "connect calendar"],
+  },
 };
 
 export default index;

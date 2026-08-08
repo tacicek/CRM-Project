@@ -15,6 +15,7 @@ export const settings: Record<keyof typeof de, string> = {
   "settings.tab.reminders": "Rappels",
   "settings.tab.agb": "CG",
   "settings.tab.ki": "Intégration IA",
+  "settings.tab.calendar": "Calendrier",
 
   "settings.language.title": "Langue",
   "settings.language.description":
@@ -171,4 +172,44 @@ export const settings: Record<keyof typeof de, string> = {
   "settings.inbound.secret": "Secret du webhook",
   "settings.inbound.copied": "Copié dans le presse-papiers",
   "settings.inbound.copyFailed": "Copie impossible — veuillez sélectionner manuellement",
+
+  "settings.calfeed.title": "Connecter le calendrier",
+  "settings.calfeed.description":
+    "Abonnez-vous à vos rendez-vous CRM dans Apple Calendar, Google Agenda ou Outlook. L'abonnement est en lecture seule : les modifications du CRM apparaissent dans le calendrier, jamais l'inverse. La fréquence d'actualisation est décidée par le client de calendrier.",
+  "settings.calfeed.securityNotice":
+    "Le lien est un mot de passe : quiconque le connaît voit vos rendez-vous. Ne le transmettez pas. En cas de doute, révoquez le jeton et créez-en un nouveau.",
+  "settings.calfeed.createTitle": "Créer un nouveau jeton",
+  "settings.calfeed.labelPlaceholder": "Désignation, p. ex. « iPhone Anna »",
+  "settings.calfeed.createButton": "Créer le jeton",
+  "settings.calfeed.created":
+    "Jeton créé. Les liens ci-dessous ne s'affichent qu'une seule fois — copiez-les maintenant et ajoutez-les à votre calendrier.",
+  "settings.calfeed.createFailed": "Le jeton n'a pas pu être créé",
+  "settings.calfeed.linksTitle": "Liens d'abonnement pour ce jeton",
+  "settings.calfeed.copy": "Copier",
+  "settings.calfeed.copied": "Copié dans le presse-papiers",
+  "settings.calfeed.copyFailed": "Copie impossible — veuillez sélectionner manuellement",
+  "settings.calfeed.urlMissing":
+    "L'adresse ne peut pas être construite — l'adresse du serveur manque dans cette installation.",
+  "settings.calfeed.tokensTitle": "Jetons existants",
+  "settings.calfeed.noTokens": "Aucun jeton pour l'instant.",
+  "settings.calfeed.colLabel": "Désignation",
+  "settings.calfeed.colCreated": "Créé",
+  "settings.calfeed.colLastUsed": "Dernière utilisation",
+  "settings.calfeed.neverUsed": "Jamais",
+  "settings.calfeed.unnamed": "Sans désignation",
+  "settings.calfeed.revoke": "Révoquer",
+  "settings.calfeed.revokeConfirmTitle": "Révoquer le jeton ?",
+  "settings.calfeed.revokeConfirmBody":
+    "Tous les abonnements de calendrier créés avec ce jeton cesseront immédiatement de fonctionner. Cette action est irréversible.",
+  "settings.calfeed.revokeCancel": "Annuler",
+  "settings.calfeed.revokeConfirm": "Révoquer",
+  "settings.calfeed.revoked": "Jeton révoqué — tous les abonnements associés sont morts.",
+  "settings.calfeed.revokeFailed": "Le jeton n'a pas pu être révoqué",
+  "settings.calfeed.loadFailed": "Les jetons n'ont pas pu être chargés",
+  "settings.calfeed.typ.besichtigung": "Visites",
+  "settings.calfeed.typ.service": "Prestations",
+  "settings.calfeed.typ.follow_up": "Relances",
+  "settings.calfeed.typ.meeting": "Réunions",
+  "settings.calfeed.typ.blocked": "Plages bloquées",
+  "settings.calfeed.typ.other": "Autres rendez-vous",
 };

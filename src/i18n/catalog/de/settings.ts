@@ -14,6 +14,7 @@ export const settings = {
   "settings.tab.reminders": "Erinnerungen",
   "settings.tab.agb": "AGB",
   "settings.tab.ki": "KI-Integration",
+  "settings.tab.calendar": "Kalender",
 
   // --- Language (this feature's own UI) -----------------------------------------
   "settings.language.title": "Sprache",
@@ -180,4 +181,45 @@ export const settings = {
   "settings.inbound.secret": "Webhook-Secret",
   "settings.inbound.copied": "In die Zwischenablage kopiert",
   "settings.inbound.copyFailed": "Kopieren nicht moeglich — bitte von Hand markieren",
+
+  // --- Kalender verbinden (webcal/ICS-Abo) -----------------------------------------
+  "settings.calfeed.title": "Kalender verbinden",
+  "settings.calfeed.description":
+    "Abonnieren Sie Ihre CRM-Termine in Apple Kalender, Google Kalender oder Outlook. Das Abo ist reine Leserichtung: Aenderungen im CRM erscheinen im Kalender, nie umgekehrt. Wie oft Ihr Kalender aktualisiert, bestimmt der Kalender-Client selbst.",
+  "settings.calfeed.securityNotice":
+    "Der Link ist ein Passwort: Wer ihn kennt, sieht Ihre Termine. Nicht weiterleiten. Bei Verdacht auf Weitergabe das Token widerrufen und ein neues erzeugen.",
+  "settings.calfeed.createTitle": "Neues Token erzeugen",
+  "settings.calfeed.labelPlaceholder": "Bezeichnung, z. B. «iPhone Anna»",
+  "settings.calfeed.createButton": "Token erzeugen",
+  "settings.calfeed.created":
+    "Token erzeugt. Die Links unten erscheinen nur dieses eine Mal — jetzt kopieren und im Kalender eintragen.",
+  "settings.calfeed.createFailed": "Token konnte nicht erzeugt werden",
+  "settings.calfeed.linksTitle": "Abo-Links fuer dieses Token",
+  "settings.calfeed.copy": "Kopieren",
+  "settings.calfeed.copied": "In die Zwischenablage kopiert",
+  "settings.calfeed.copyFailed": "Kopieren nicht moeglich — bitte von Hand markieren",
+  "settings.calfeed.urlMissing":
+    "Die Adresse laesst sich nicht bilden — die Serveradresse fehlt in dieser Installation.",
+  "settings.calfeed.tokensTitle": "Bestehende Tokens",
+  "settings.calfeed.noTokens": "Noch keine Tokens vorhanden.",
+  "settings.calfeed.colLabel": "Bezeichnung",
+  "settings.calfeed.colCreated": "Erstellt",
+  "settings.calfeed.colLastUsed": "Zuletzt benutzt",
+  "settings.calfeed.neverUsed": "Noch nie",
+  "settings.calfeed.unnamed": "Ohne Bezeichnung",
+  "settings.calfeed.revoke": "Widerrufen",
+  "settings.calfeed.revokeConfirmTitle": "Token widerrufen?",
+  "settings.calfeed.revokeConfirmBody":
+    "Alle Kalender-Abos, die mit diesem Token eingerichtet wurden, hoeren sofort auf zu funktionieren. Das laesst sich nicht rueckgaengig machen.",
+  "settings.calfeed.revokeCancel": "Abbrechen",
+  "settings.calfeed.revokeConfirm": "Widerrufen",
+  "settings.calfeed.revoked": "Token widerrufen — alle zugehoerigen Abos sind tot.",
+  "settings.calfeed.revokeFailed": "Token konnte nicht widerrufen werden",
+  "settings.calfeed.loadFailed": "Tokens konnten nicht geladen werden",
+  "settings.calfeed.typ.besichtigung": "Besichtigungen",
+  "settings.calfeed.typ.service": "Dienstleistungen",
+  "settings.calfeed.typ.follow_up": "Nachfassen",
+  "settings.calfeed.typ.meeting": "Besprechungen",
+  "settings.calfeed.typ.blocked": "Blockierte Zeiten",
+  "settings.calfeed.typ.other": "Weitere Termine",
 } as const;
