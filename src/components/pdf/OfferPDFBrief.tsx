@@ -22,6 +22,7 @@ import { COLORS, FONT_SIZES } from "./styles/constants";
 import { OfferData } from "./types/offer.types";
 import { chunkOfferTableItems } from "./utils/chunkOfferItems";
 import { formatDateLong } from "./utils/formatters";
+import { hasValidLogo } from "./utils/hasValidLogo";
 import { documentI18nFor } from "@/i18n/documentLocale";
 import { getLetterSalutation } from "@/i18n/domain";
 
@@ -205,11 +206,6 @@ const styles = StyleSheet.create({
   },
 });
 
-const hasValidLogo = (logo?: string): boolean =>
-  !!logo &&
-  (logo.startsWith("data:image") ||
-    logo.startsWith("http://") ||
-    logo.startsWith("https://"));
 
 interface OfferPDFBriefProps {
   data: OfferData;

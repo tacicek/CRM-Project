@@ -1,5 +1,6 @@
 import { Image, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { FONT_SIZES } from "../styles/constants";
+import { hasValidLogo } from "../utils/hasValidLogo";
 import { OfferData } from "../types/offer.types";
 import { formatDateLong } from "../utils/formatters";
 import { documentI18nFor } from "@/i18n/documentLocale";
@@ -74,11 +75,7 @@ export const Header = ({ data }: HeaderProps) => {
   const { t } = documentI18nFor(locale);
   const accent = company.primaryColor || ACCENT;
 
-  const hasValidLogo =
-    company.logo &&
-    (company.logo.startsWith("data:image") ||
-      company.logo.startsWith("http://") ||
-      company.logo.startsWith("https://"));
+  const zeigtLogo = hasValidLogo(company.logo);
 
   // The wordmark is painted in two tones, so it is split into two catalog keys — the split
   // point differs per language and cannot be a substring operation on one word.
@@ -90,7 +87,7 @@ export const Header = ({ data }: HeaderProps) => {
       {/* LEFT — grosses Logo; Firmenname klein in der Adresszeile darunter
           (gleiche Schriftgrösse wie Adresse). Kein grosser Firmenname mehr. */}
       <View style={styles.leftCol}>
-        {hasValidLogo && (
+        {zeigtLogo && (
           <Image style={styles.logo} src={company.logo} cache={false} />
         )}
         <Text style={styles.tagline}>

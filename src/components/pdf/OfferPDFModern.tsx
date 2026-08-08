@@ -7,6 +7,7 @@ import { AddressDetails, OfferData } from "./types/offer.types";
 import { FONT_SIZES } from "./styles/constants";
 import { formatCurrency, formatDate, formatMeasure, formatRoundedCurrency } from "./utils/formatters";
 import { getServiceLayout } from "./utils/serviceLayout";
+import { hasValidLogo } from "./utils/hasValidLogo";
 import { lightenHex } from "./utils/colors";
 import { formatFloorLabel } from "@/lib/floorUtils";
 import { isFreeItem, itemAmountDisplay, toAmountBasis } from "@/lib/offerPricing";
@@ -49,9 +50,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
-  headerLeft: { flexDirection: "row", alignItems: "flex-start", flex: 1, paddingRight: 12 },
-  logo: { width: 34, height: 34, borderRadius: 6, marginRight: 9 },
-  companyName: { fontSize: 13, fontWeight: 700, color: GRAY.text },
+  headerLeft: { flex: 1, paddingRight: 12 },
+  /**
+   * Das Logo steht ueber der Adresse, nicht daneben.
+   *
+   * Vorher zwang ein 34×34-Quadrat jedes Logo in dieselbe Form — ein breites Wortzeichen
+   * wurde darin gequetscht und stand ausserdem neben dem Firmennamen, den es selbst schon
+   * traegt. `objectFit: "contain"` haelt das Seitenverhaeltnis, die Breite ist eine
+   * Obergrenze, keine Vorgabe (dieselbe Loesung wie in Header.tsx und OfferPDFBrief).
+   */
+  logo: { width: 150, height: 40, objectFit: "contain", objectPositionX: "left", marginBottom: 5 },
+  /** Nur wenn kein Logo da ist — sonst nennt der Kopf die Firma gar nicht mehr. */
+  companyNameFallback: { fontSize: 13, fontWeight: 700, color: GRAY.text, marginBottom: 2 },
   companyAddress: { fontSize: FONT_SIZES.xs, fontWeight: 700, marginTop: 2, lineHeight: 1.35 },
   headerRight: { alignItems: "flex-end" },
   wordmarkRow: { flexDirection: "row", marginBottom: 4 },
@@ -775,15 +785,16 @@ export const OfferPDFModern = ({ data }: OfferPDFModernProps) => {
         {/* ── Kopf ── */}
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
-            {data.company.logo ? <Image style={styles.logo} src={data.company.logo} /> : null}
-            <View>
-              <Text style={styles.companyName}>{data.company.name}</Text>
-              <Text style={[styles.companyAddress, { color: accent }]}>
-                {[data.company.address, [data.company.zip, data.company.city].filter(Boolean).join(" ")]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
-            </View>
+            {hasValidLogo(data.company.logo) ? (
+              <Image style={styles.logo} src={data.company.logo!} />
+            ) : (
+              <Text style={styles.companyNameFallback}>{data.company.name}</Text>
+            )}
+            <Text style={[styles.companyAddress, { color: accent }]}>
+              {[data.company.address, [data.company.zip, data.company.city].filter(Boolean).join(" ")]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
           </View>
           <View style={styles.headerRight}>
             <View style={styles.wordmarkRow}>
