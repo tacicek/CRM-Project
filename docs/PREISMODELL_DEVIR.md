@@ -201,6 +201,13 @@ Davranış:
   (Sessizce hiçbir şey yapmamak en kötüsü.)
 - Ansatz/Kostendach alanı `onBlur`'da değişirse grup **yeniden uygulanır** (yukarıdan doldurma).
 - Uygulamadan **önce** grubun mevcut değerleri saklanır → "Rückgängig" onları **birebir** geri yazar.
+  Aynı anda uygulamanın **ürettiği** durum da saklanır; şerit yalnızca grup hâlâ o durumdayken
+  gösterilir (K5). Tek yazma noktası olsun — iki ayrı yerde snapshot kurma, ayrışırlar.
+- Ansatz alanının yanındaki **birim seçici** (pro Stunde | pro m³ | pro Monat) servis
+  varsayılanıyla dolu gelir; kalemler zaten bir ansatz taşıyorsa **onların birimi** kazanır.
+  Bu seçiciyi besleyen efekt, kalem dizisinin **kimliğine** değil birimin **string** değerine
+  bağlanmalı — üst form listeyi her render'da `.map` ile yeniden kurar, aksi halde efekt her
+  tuş vuruşunda koşar ve yeni yazılan ansatzı ezer.
 - Kilitliyse hepsi `disabled` + gerekçe notu.
 - Kostendach **grubun ilk ücretli kalemine** yazılır (PDF onu orada okur), hepsine değil.
 
@@ -331,9 +338,16 @@ Elle (izole, sentetik veriyle — prod'da değil):
 - [ ] Ansatz değiştir → grubun satırları güncelleniyor
 - [ ] Kostendach → PDF'te "Ansatz + max + saat sayısı" çıkıyor, toplam kutusu **yok**
 - [ ] Yanlış tıkla → Rückgängig eski tutarı **birebir** geri getiriyor
+- [ ] Uygula → sonra bir kalemi **elle** değiştir → Rückgängig şeridi **kendiliğinden kayboluyor**
+      (kalırsa geri alma o el emeğini sessizce siler)
+- [ ] Saatlik olmayan bir grup aç (m³/Monat) → **hiçbir yerde "Std." yazmıyor**: grup ipucu,
+      kalem satırındaki Kostendach yardımcısı, PDF, e-posta
 - [ ] `sent` offerte → kutu pasif, gerekçe görünür
 - [ ] Bir satırı sürükle → sadece kendi grubunda yer değiştiriyor
 - [ ] PDF ile e-posta aynı rozeti gösteriyor
+
+> Bu iki maddenin ikisi de **hesaben doğru, ekranda yanlış** hatalardı — testler geçiyordu.
+> Tarayıcıda tıklamadan "bitti" deme.
 
 ---
 
