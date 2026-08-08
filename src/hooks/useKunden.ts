@@ -16,6 +16,7 @@ export type KundenKennzahlen = {
   neu30: number;
   duplikate: number;
   inaktiv90: number;
+  blockiert: number;
 };
 
 type Args = {
@@ -43,12 +44,7 @@ export const useKunden = ({ companyId, suche, filter, seite, proSeite }: Args) =
   const t = useT();
   const [kunden, setKunden] = useState<KundeListeZeile[]>([]);
   const [gesamt, setGesamt] = useState(0);
-  const [kennzahlen, setKennzahlen] = useState<KundenKennzahlen>({
-    gesamt: 0,
-    neu30: 0,
-    duplikate: 0,
-    inaktiv90: 0,
-  });
+  const [kennzahlen, setKennzahlen] = useState<KundenKennzahlen | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,37 +87,29 @@ export const useKunden = ({ companyId, suche, filter, seite, proSeite }: Args) =
   }, [fetchKunden]);
 
   /**
-   * Die vier Kennzahlen zaehlen ueber den GESAMTEN Bestand, nicht ueber die
-   * angezeigte Seite — deshalb vier eigene count-Abfragen statt einer Auswertung
-   * der Liste (Muster: Dashboard.tsx, FirmaLayout.tsx).
+   * Die Kacheln zaehlen ueber den GESAMTEN Bestand, nicht ueber die angezeigte
+   * Seite.
+   *
+   * BEFUND (behoben, 20260807100000): "Inaktiv (90 T.)" zaehlte hier
+   * `first_seen_at < heute - 90 Tage`, also Kunden, deren ERSTER Kontakt lange
+   * her ist. Ein Stammkunde seit zwei Jahren mit einem Auftrag von letzter
+   * Woche fiel darunter — die Kachel zeigte ungefaehr das Gegenteil ihres
+   * Namens. "Letzte Aktion" leitet sich aus sieben Tabellen ab und ist im
+   * Browser nicht zu haben; deshalb rechnet jetzt `customer_kennzahlen`.
+   *
+   * `null` heisst: die Zahlen sind nicht bekannt. Die Kacheln bleiben dann weg,
+   * statt vier Nullen zu behaupten.
    */
   const fetchKennzahlen = useCallback(async () => {
     if (!companyId) return;
-    const basis = () =>
-      supabase
-        .from("customers")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .is("merged_into_customer_id", null);
-
-    const vor30 = new Date(Date.now() - 30 * 864e5).toISOString();
-    const vor90 = new Date(Date.now() - 90 * 864e5).toISOString();
-
-    const [gesamtR, neuR, dupR, inaktivR] = await Promise.all([
-      basis(),
-      basis().gte("created_at", vor30),
-      basis().eq("possible_duplicate", true),
-      // Naeherung: wer seit 90 Tagen keinen neuen Vorgang hat, gilt als inaktiv.
-      // `first_seen_at` ist dafuer der einzige Wert, der auf der Zeile steht.
-      basis().lt("first_seen_at", vor90),
-    ]);
-
-    setKennzahlen({
-      gesamt: gesamtR.count ?? 0,
-      neu30: neuR.count ?? 0,
-      duplikate: dupR.count ?? 0,
-      inaktiv90: inaktivR.count ?? 0,
+    const { data, error } = await supabase.rpc("customer_kennzahlen", {
+      p_company_id: companyId,
     });
+    if (error || !data) {
+      setKennzahlen(null);
+      return;
+    }
+    setKennzahlen(data as unknown as KundenKennzahlen);
   }, [companyId]);
 
   useEffect(() => {

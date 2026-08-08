@@ -51,8 +51,8 @@ const index: WikiSearchIndex = {
   },
   "kundenkarte": {
     title: "The customer card",
-    summary: "Everything about one customer: contact, records, amounts, history and portal access.",
-    keywords: ["customer card", "open a customer", "history", "note", "merge", "portal", "invoiced", "paid"],
+    summary: "Everything about one customer: contact, address, records, amounts, activity, service locations and portal access.",
+    keywords: ["customer card", "open a customer", "edit customer", "address", "billing address", "service location", "floor", "lift", "activity", "history", "note", "merge", "portal", "invoiced", "paid"],
   },
   "finanzen-uebersicht": {
     title: "Finances: what is open and what came in",
@@ -143,6 +143,11 @@ const index: WikiSearchIndex = {
     title: "Creating an appointment",
     summary: "Type, time, team and vehicles — and when the customer gets a confirmation.",
     keywords: ["create appointment", "new appointment", "viewing", "blocked", "recurring", "vehicle", "clash"],
+  },
+  "kalender-abo": {
+    title: "Subscribe to the calendar",
+    summary: "Your appointments in your phone or computer calendar — one coloured calendar per appointment type.",
+    keywords: ["subscribe calendar", "subscription", "webcal", "iphone", "apple", "google", "outlook", "phone", "create token", "revoke", "sync", "connect calendar"],
   },
 };
 

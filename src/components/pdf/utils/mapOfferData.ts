@@ -7,7 +7,7 @@ import {
   OfferItemBreakdownEntry,
   OfferItemLeistungEntry,
 } from "../types/offer.types";
-import { computeDisplayTotals, offerHasRateItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
+import { computeDisplayTotals, derivePriceModel, offerHasRateItem, toAmountBasis, type PriceModelItem } from "@/lib/offerPricing";
 import { resolveDocumentLocale } from "@/i18n/documentLocale";
 import { normalizeServiceKey } from "@/i18n/domain";
 import { localizeStandardPaymentTerms } from "@/lib/offerPaymentTerms";
@@ -43,9 +43,10 @@ export interface LegacyOfferData {
   leistungsuebersicht?: {
     included_services: { name: string }[];
   };
-  price_model?: 'pauschal' | 'stundenansatz' | 'kostendach' | null;
-  hourly_rate?: number | null;
-  kostendach_max?: number | null;
+  // price_model / hourly_rate / kostendach_max stehen hier BEWUSST NICHT: das Preismodell
+  // wird aus den Positionen abgeleitet (derivePriceModel). Ein Feld in der Eingabeform, das
+  // niemand liest, ist die Einladung, es wieder zu befuellen — und es zwingt jeden Aufrufer,
+  // den DB-String auf die enge Union zu verengen, obwohl der Wert keine Wirkung hat.
   payment_terms?: string | null;
   service_start_time?: string | null;
   service_end_time?: string | null;
@@ -348,17 +349,24 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
       // never derived back from offers.subtotal (discounted base since P3b-1). The former inline
       // max reduce (TODO(3b)) is gone: optional/inkl are now excluded on the max side too,
       // matching OfferView/Detail (single source).
-      const subtotalItems = offer.items.map((item): SubtotalItem => ({
+      const subtotalItems = offer.items.map((item): PriceModelItem => ({
         priceType: item.price_type ?? "",
         quantity: item.quantity,
         unitPrice: item.unit_price,
         timeEstimate: item.time_estimate ?? null,
         amountBasis: toAmountBasis(item.amount_basis),
+        kostendachMax: item.kostendach_max ?? null,
+        metaRate:
+          Number(item.effort_meta?.hourly_rate ?? item.volume_meta?.rate ?? Number.NaN) || null,
       }));
       // Blind/Stunden-Spanne wie bisher (nur fixed+range). rate-Posten → gar keine Aggregatsumme
       // (ServiceTable blendet die Box aus, zeigt RATE_AGGREGATE_NOTE).
       const hasItemTe = offer.items.some(i => i.time_estimate && i.time_estimate.maxHours && i.time_estimate.hourlyRate);
       const hasRateItem = offerHasRateItem(subtotalItems);
+      // Etikett der ganzen Offerte — abgeleitet, nicht aus offers.price_model gelesen.
+      // Der Beleg selbst zeigt das Modell JE GRUPPE (ServiceTable); dieser Wert bedient
+      // die Flaechen, die nur eine Zahl je Offerte haben (Live-Vorschau, Liste).
+      const preismodell = derivePriceModel(subtotalItems);
       const minTotals = computeDisplayTotals(
         subtotalItems, surchargesSum, offer.vat_rate, offer.discount_percent, "min",
       );
@@ -381,9 +389,9 @@ export const mapOfferToPdfData = (offer: LegacyOfferData, qrCodeUrl?: string): P
         mwstRate: offer.vat_rate,
         mwstAmount: offer.vat_amount,
         total: offer.total,
-        priceModel: offer.price_model ?? 'pauschal',
-        hourlyRate: offer.hourly_rate ?? null,
-        kostendachMax: offer.kostendach_max ?? null,
+        priceModel: preismodell.model,
+        hourlyRate: preismodell.hourlyRate,
+        kostendachMax: preismodell.kostendachMax,
         maxSubtotal,
         maxMwstAmount,
         maxTotal,

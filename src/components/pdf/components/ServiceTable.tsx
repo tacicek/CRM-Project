@@ -690,9 +690,24 @@ export const ServiceTable = ({
         const groupCap = billable.map((it) => it.kostendachMax).find(isSet) ?? null;
         // Ansatz fuer die Std-Ableitung im Kostendach: effort/volume-Meta ODER (UI-erstellte
         // rate-Posten ohne Meta) der Einzelpreis des rate-Postens (= Ansatz in unit_price).
+        // Die Einheit des Ansatzes steht auf der rate-Position — "Std." darf nicht mehr
+        // fest im Text stehen, seit eine Gruppe auch pro m³ oder pro Monat rechnen kann.
+        const rateEinheit =
+          billable.find((it) => toAmountBasis(it.amountBasis) === "rate")?.unit?.trim() || "";
+        const istStunden = rateEinheit === "" || rateEinheit === "Stunden";
+        // Der Ansatz der POSITION hat Vorrang vor der Meta-Karte: seit das
+        // Gruppen-Preismodell ihn auf die Position schreibt, ist sie die Wahrheit — und die
+        // Zeile darueber zeigt genau diese Zahl. Stuende hier ein abweichender Meta-Wert,
+        // naennte dieselbe Seite zwei verschiedene Ansaetze. Die Meta bleibt der Rueckfall
+        // fuer Bestandsbelege, deren Position keinen Ansatz traegt.
         const groupRate =
           billable
-            .map((it) => it.effortMeta?.hourly_rate ?? it.volumeMeta?.rate ?? (toAmountBasis(it.amountBasis) === "rate" ? it.price : null))
+            .map((it) =>
+              (toAmountBasis(it.amountBasis) === "rate" ? it.price : null) ??
+              it.effortMeta?.hourly_rate ??
+              it.volumeMeta?.rate ??
+              null,
+            )
             .find(isSet) ?? null;
         return (
           // wrap={false}: keep the whole card together on one page (group-aware chunking in
@@ -713,8 +728,38 @@ export const ServiceTable = ({
               {leistungLines.length > 0 ? (
                 <LeistungsumfangBlock lines={leistungLines} accent={accent} t={t} />
               ) : null}
-              {/* Service-block Kostendach: nur wenn ein rate-Posten dieser Gruppe ein Item-Cap traegt.
-                  Das globale offer-level Kostendach (unten) rendert dann als Fallback nicht mehr. */}
+              {/* Stundenansatz dieser Gruppe — ohne Kostendach. Mit Kostendach sagt der
+                  Kasten darunter ohnehin beides (Ansatz UND Obergrenze).
+                  Je Gruppe und nicht je Offerte: "Umzug nach Aufwand, Reinigung pauschal"
+                  ist der Normalfall, ein Kasten fuer die ganze Offerte waere dort falsch. */}
+              {!isSet(groupCap) &&
+              billable.some((it) => toAmountBasis(it.amountBasis) === "rate") &&
+              isSet(groupRate) &&
+              Number(groupRate) > 0 ? (
+                <View
+                  style={[styles.priceModelBox, { borderColor: accent, backgroundColor: "#F0F9FF", marginTop: 8 }]}
+                  wrap={false}
+                >
+                  <View style={styles.priceModelRow}>
+                    <Text style={[styles.priceModelLabel, { color: accent }]}>
+                      {t("doc.offer.priceModel")}
+                    </Text>
+                    <Text style={[styles.priceModelValue, { color: accent }]}>
+                      {istStunden
+                        ? t("doc.offer.hourlyRate", { rate: formatMeasure(Number(groupRate), locale) })
+                        : t("doc.offer.rateUnitGeneric", {
+                            rate: formatMeasure(Number(groupRate), locale),
+                            unit: rateEinheit,
+                          })}
+                    </Text>
+                  </View>
+                  <Text style={[styles.priceModelNote, { color: COLORS.text.secondary }]}>
+                    {t("doc.offer.hourlyRateNote")}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Service-block Kostendach: nur wenn ein rate-Posten dieser Gruppe ein Item-Cap traegt. */}
               {isSet(groupCap) ? (
                 <View
                   style={[styles.priceModelBox, { borderColor: "#FDE68A", backgroundColor: "#FFFBEB", marginTop: 8 }]}
@@ -726,14 +771,24 @@ export const ServiceTable = ({
                     </Text>
                     <Text style={[styles.priceModelValue, { color: "#B45309" }]}>
                       {isSet(groupRate) && Number(groupRate) > 0
-                        ? t("doc.offer.costCapDetail", {
-                            rate: formatRoundedCurrency(Number(groupRate), locale),
-                            cap: formatMeasure(Number(groupCap), locale),
-                            hours: formatMeasure(
-                              +(Number(groupCap) / Number(groupRate)).toFixed(1),
-                              locale,
-                            ),
-                          })
+                        ? istStunden
+                          ? t("doc.offer.costCapDetail", {
+                              rate: formatRoundedCurrency(Number(groupRate), locale),
+                              cap: formatMeasure(Number(groupCap), locale),
+                              hours: formatMeasure(
+                                +(Number(groupCap) / Number(groupRate)).toFixed(1),
+                                locale,
+                              ),
+                            })
+                          : t("doc.offer.costCapDetailGeneric", {
+                              rate: formatRoundedCurrency(Number(groupRate), locale),
+                              cap: formatMeasure(Number(groupCap), locale),
+                              unit: rateEinheit,
+                              menge: formatMeasure(
+                                +(Number(groupCap) / Number(groupRate)).toFixed(1),
+                                locale,
+                              ),
+                            })
                         : t("doc.offer.costCapMax", {
                             cap: formatMeasure(Number(groupCap), locale),
                           })}
@@ -930,59 +985,10 @@ export const ServiceTable = ({
         </View>
       ) : null}
 
-      {/* Price model: Stundenansatz */}
-      {showTotalsBlock &&
-        data.pricing.priceModel === "stundenansatz" &&
-        data.pricing.hourlyRate !== null && (
-          <View
-            style={[styles.priceModelBox, { borderColor: accent, backgroundColor: "#F0F9FF" }]}
-            wrap={false}
-          >
-            <View style={styles.priceModelRow}>
-              <Text style={[styles.priceModelLabel, { color: accent }]}>
-                {t("doc.offer.priceModel")}
-              </Text>
-              <Text style={[styles.priceModelValue, { color: accent }]}>
-                {t("doc.offer.hourlyRate", {
-                  rate: formatMeasure(Number(data.pricing.hourlyRate), locale),
-                })}
-              </Text>
-            </View>
-            <Text style={[styles.priceModelNote, { color: COLORS.text.secondary }]}>
-              {t("doc.offer.hourlyRateNote")}
-            </Text>
-          </View>
-        )}
+      {/* Die frueheren offerte-weiten Preismodell-Kaesten sind entfallen: das Modell
+          gehoert zur Servicegruppe und wird oben je Gruppe gezeigt. Eine Offerte mit
+          "Umzug nach Aufwand" und "Reinigung pauschal" konnte hier nie richtig stehen. */}
 
-      {/* Price model: Kostendach (offer-level) — nur als FALLBACK, wenn KEIN Posten ein
-          item-/service-level Kostendach traegt (dann rendert es der Service-Block oben). */}
-      {showTotalsBlock &&
-        data.pricing.priceModel === "kostendach" &&
-        data.pricing.hourlyRate !== null &&
-        data.pricing.kostendachMax !== null &&
-        !items.some((it) => isSet(it.kostendachMax)) && (
-          <View
-            style={[styles.priceModelBox, { borderColor: "#D97706", backgroundColor: "#FFFBEB" }]}
-            wrap={false}
-          >
-            <View style={styles.priceModelRow}>
-              <Text style={[styles.priceModelLabel, { color: "#92400E" }]}>
-                {t("doc.offer.priceModel")}
-              </Text>
-              <Text style={[styles.priceModelValue, { color: "#92400E" }]}>
-                {t("doc.offer.hourlyWithCap", {
-                  rate: formatMeasure(Number(data.pricing.hourlyRate), locale),
-                  cap: formatMeasure(Number(data.pricing.kostendachMax), locale),
-                })}
-              </Text>
-            </View>
-            <Text style={[styles.priceModelNote, { color: "#92400E" }]}>
-              {t("doc.offer.costCapNote", {
-                cap: formatMeasure(Number(data.pricing.kostendachMax), locale),
-              })}
-            </Text>
-          </View>
-        )}
     </View>
   );
 };

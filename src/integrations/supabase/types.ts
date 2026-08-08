@@ -1072,6 +1072,47 @@ export type Database = {
           },
         ]
       }
+      calendar_feed_tokens: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          label: string | null
+          last_used_at: string | null
+          revoked_at: string | null
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_feed_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checklist_templates: {
         Row: {
           company_id: string
@@ -2438,6 +2479,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      customer_addresses: {
+        Row: {
+          address_raw: string
+          address_type: string
+          city: string | null
+          company_id: string
+          country: string | null
+          created_at: string
+          created_via: string
+          customer_id: string
+          house_number: string | null
+          id: string
+          is_primary: boolean
+          label: string | null
+          notes: string | null
+          plz: string | null
+          street: string | null
+          updated_at: string
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          address_raw: string
+          address_type?: string
+          city?: string | null
+          company_id: string
+          country?: string | null
+          created_at?: string
+          created_via?: string
+          customer_id: string
+          house_number?: string | null
+          id?: string
+          is_primary?: boolean
+          label?: string | null
+          notes?: string | null
+          plz?: string | null
+          street?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          address_raw?: string
+          address_type?: string
+          city?: string | null
+          company_id?: string
+          country?: string | null
+          created_at?: string
+          created_via?: string
+          customer_id?: string
+          house_number?: string | null
+          id?: string
+          is_primary?: boolean
+          label?: string | null
+          notes?: string | null
+          plz?: string | null
+          street?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: []
       }
       customer_merges: {
         Row: {
@@ -7040,6 +7144,15 @@ export type Database = {
         }
         Returns: Json
       }
+      create_calendar_feed_token: {
+        Args: { p_label?: string }
+        Returns: {
+          created_at: string
+          id: string
+          label: string
+          token: string
+        }[]
+      }
       create_company_after_signup: {
         Args: {
           p_city?: string
@@ -7328,8 +7441,14 @@ export type Database = {
           offener_betrag: number
           bezahlter_betrag: number
           ort: string | null
+          ort_quelle: string | null
+          offene_faelle: number
           gesamt: number
         }[]
+      }
+      customer_kennzahlen: {
+        Args: { p_company_id: string }
+        Returns: Json
       }
       deactivate_expired_subscriptions: {
         Args: never

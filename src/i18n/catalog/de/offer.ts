@@ -165,12 +165,36 @@ export const offer = {
   "offer.form.priceModel.title": "Preismodell",
   "offer.form.priceModel.pauschal": "Pauschalpreis",
   "offer.form.priceModel.kostendach": "Stundenansatz mit Kostendach",
+
+  // --- Preismodell je Servicegruppe -----------------------------------------
+  // Ersetzt das frühere Offerte-weite Kästchen: „Umzug nach Aufwand, Reinigung
+  // pauschal" ist der Normalfall (19 von 66 Offerten sind mehrservicig).
+  "offer.form.groupPriceModel.title": "Preismodell",
+  "offer.form.groupPriceModel.locked.sent":
+    "Diese Offerte liegt bereits beim Kunden. Für ein anderes Preismodell legen Sie eine neue Version an — der versendete Beleg bleibt unverändert.",
+  "offer.form.groupPriceModel.locked.closed":
+    "Angenommene und abgelehnte Offerten lassen sich nicht mehr ändern.",
+  "offer.form.groupPriceModel.rate": "Stundenansatz (CHF/Std.)",
+  "offer.form.groupPriceModel.rateGeneric": "Nach Ansatz",
+  "offer.form.groupPriceModel.capGeneric": "Nach Ansatz mit Kostendach",
+  "offer.form.groupPriceModel.unit": "Einheit",
+  "offer.form.groupPriceModel.unitHours": "pro Stunde",
+  "offer.form.groupPriceModel.unitM3": "pro m³",
+  "offer.form.groupPriceModel.unitMonth": "pro Monat",
+  "offer.form.groupPriceModel.rateFieldM3": "Ansatz (CHF/m³)",
+  "offer.form.groupPriceModel.rateFieldMonth": "Ansatz (CHF/Monat)",
+  "offer.form.groupPriceModel.cap": "Kostendach (CHF)",
+  "offer.form.groupPriceModel.applied": "{count} Positionen auf \u201e{model}\u201c gesetzt.",
+  "offer.form.groupPriceModel.undo": "Rückgängig",
+  "offer.form.groupPriceModel.rateRequiredUnit": "Bitte einen Ansatz {unit} grösser als 0 eingeben.",
+  "offer.form.groupPriceModel.rateRequired": "Bitte einen Stundenansatz grösser als 0 eingeben.",
   "offer.form.field.hourlyRate": "Stundenansatz (CHF / Std.)",
   "offer.form.placeholder.hourlyRate": "z.B. 120",
   "offer.form.field.kostendach": "Kostendach (max. CHF)",
   "offer.form.placeholder.kostendach": "z.B. 1800",
   "offer.form.kostendach.hint":
     "Der Kunde zahlt maximal diesen Betrag, unabhängig vom Zeitaufwand.",
+  "offer.form.discount.title": "Rabatt",
   "offer.form.field.discount": "Rabatt gesamt (%)",
   "offer.form.placeholder.discount": "z.B. 10 (optional)",
   "offer.form.offerType.title": "Offerte-Art",
@@ -394,6 +418,7 @@ export const offer = {
   "offer.form.item.kostendachPlaceholderChf": "z.B. 3105",
   "offer.form.item.kdUnitHours": "Std",
   "offer.form.item.kostendachHint": "= {amount} ({hours} Std × {rate})",
+  "offer.form.item.kostendachHintGeneric": "= {amount} ({hours} {unit} × {rate})",
   "offer.form.item.kostendachHintPlain": "= {amount}",
   "offer.form.item.serviceGroup": "Service (Gruppierung)",
   "offer.form.item.unnamed": "Ohne Bezeichnung",

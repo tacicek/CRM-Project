@@ -40,11 +40,15 @@ import {
 } from "@/lib/offerSurcharges";
 import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import type { Json } from "@/integrations/supabase/types";
-import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, itemAmountDisplay, offerHasRateItem, toAmountBasis, type SubtotalItem } from "@/lib/offerPricing";
-import { parsePriceModel, type PriceModel } from "@/lib/offerPriceModel";
+import { applyDiscount, computeDiscountAmount, computeItemsSubtotal, isFreeItem, istStundenEinheit, itemAmountDisplay, offerHasRateItem, toAmountBasis, type PriceModelItem, rateUnitForService} from "@/lib/offerPricing";
 import { cn } from "@/lib/utils";
 import { getServiceOptions, groupItemsByService } from "@/lib/offerServiceType";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
+import {
+  GruppenPreismodell,
+  type GruppenPosition,
+  type PositionsAenderung,
+} from "@/components/offerte/GruppenPreismodell";
 import { metaKindForService, buildMetaPayload, metaPayloadToJson, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { supabase } from "@/integrations/supabase/client";
@@ -103,12 +107,11 @@ const unitOptions: { value: string; labelKey: MessageKey }[] = [
 // Helper to infer price_type from unit and price for backward compatibility
 const inferPriceType = (unit: string, unitPrice: number): string => {
   if (unit === "inkl." || unitPrice === 0) return "inkl";
-  if (unit === "Stunden" || unit === "Stunde" || unit === "Std." || unit === "h") return "per_hour";
+  if (istStundenEinheit(unit)) return "per_hour";
   if (unit === "Pauschal") return "pauschale";
   return "per_unit";
 };
 
-// PriceModel is the canonical union from @/lib/offerPriceModel (imported above).
 
 interface Offer {
   id: string;
@@ -129,7 +132,6 @@ interface Offer {
   vat_amount: number;
   total: number;
   status: string;
-  price_model?: PriceModel | null;
   hourly_rate?: number | null;
   kostendach_max?: number | null;
   discount_percent?: number | null;
@@ -207,40 +209,13 @@ const FirmaOfferteBearbeiten = () => {
     }
   };
 
-  // Price model state
-  const [priceModel, setPriceModel] = useState<PriceModel>('pauschal');
+  // Kein Offerte-weites Preismodell mehr: es gehoert zur Servicegruppe
+  // (GruppenPreismodell) und wird dort gesetzt.
   const [discountPercent, setDiscountPercent] = useState<string>('');
   const [surcharges, setSurcharges] = useState<OfferSurcharge[]>([]);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
-  const [hourlyRate, setHourlyRate] = useState<string>('');
-  const [kostendachMax, setKostendachMax] = useState<string>('');
   const [briefLayout, setBriefLayout] = useState<boolean>(false);
   const [offerteType, setOfferteType] = useState<'normal' | 'blind'>('normal');
-
-  // Offer-level Stundenansatz (Preismodell) — offer-wide top-down: fills every hourly
-  // position (Zeitschätzung / per_hour) AND mirrors into each effort group's Service-Details
-  // Stundensatz, so the single rate drives price and PDF badge alike.
-  const applyGlobalHourlyRate = (value: string) => {
-    setHourlyRate(value);
-    if (value.trim() === "") return;
-    const n = Number(value.replace(",", "."));
-    setItems((prev) =>
-      prev.map((it) => {
-        if (it.timeEstimate) return { ...it, timeEstimate: { ...it.timeEstimate, hourlyRate: value } };
-        if (it.price_type === "per_hour" && Number.isFinite(n)) return { ...it, unit_price: n };
-        return it;
-      }),
-    );
-    setGroupMeta((prev) => {
-      const next = { ...prev };
-      for (const it of items) {
-        if (metaKindForService(it.serviceType) !== "effort") continue;
-        const k = serviceGroupKey(it.serviceType);
-        next[k] = { ...EMPTY_META_DRAFT, ...next[k], hourlyRate: value };
-      }
-      return next;
-    });
-  };
 
   // Payment terms — DOCUMENT content: this text is stored on the offer and printed on the
   // customer's PDF. It is therefore written in the CUSTOMER's language (offerLanguage), never
@@ -341,20 +316,11 @@ const FirmaOfferteBearbeiten = () => {
         // constraint guarantees validity; parse defensively instead of casting or
         // silently defaulting to 'pauschal'. An out-of-range value is a data-integrity
         // problem, so fail closed rather than edit an offer under the wrong model.
-        const parsedPriceModel = parsePriceModel(offerData.price_model);
-        if (!parsedPriceModel.ok) {
-          toast({
-            title: t("common.error"),
-            description: t("offer.edit.toast.loadFailed"),
-            variant: "destructive",
-          });
-          navigate("/firma/offerten");
-          return;
-        }
-
-        // Narrow the only view-model-incompatible column: price_model (Row string → PriceModel),
-        // validated fail-closed just above. Every other Row column is compatible with Offer.
-        setOffer({ ...offerData, price_model: parsedPriceModel.value });
+        // Die frühere fail-closed Prüfung von price_model ist entfallen: die Spalte wird
+        // weder geschrieben noch gelesen (das Modell steht je Servicegruppe in den
+        // Positionen). Ein Altwert ausserhalb des Wertebereichs hätte das Bearbeiten einer
+        // Bestandsofferte KOMPLETT blockiert — für eine Angabe ohne Wirkung.
+        setOffer(offerData);
         setTitle(offerData.title || "");
         setDescription(offerData.description || "");
         setServiceDate(offerData.service_date || "");
@@ -376,10 +342,7 @@ const FirmaOfferteBearbeiten = () => {
             ? String(offerData.payment_terms)
             : documentI18nFor(offerLocale).t("offer.doc.payment.cash"),
         );
-        setPriceModel(parsedPriceModel.value);
         setDiscountPercent(offerData.discount_percent !== null && offerData.discount_percent !== undefined ? String(offerData.discount_percent) : '');
-        if (offerData.hourly_rate !== null && offerData.hourly_rate !== undefined) setHourlyRate(String(offerData.hourly_rate));
-        if (offerData.kostendach_max !== null && offerData.kostendach_max !== undefined) setKostendachMax(String(offerData.kostendach_max));
         setBriefLayout(offerData.brief_layout ?? false);
         const ot = offerData.offerte_type;
         setOfferteType(ot === 'blind' ? 'blind' : 'normal');
@@ -514,32 +477,88 @@ const FirmaOfferteBearbeiten = () => {
         // rate, else the group's Service-Details rate). Without this the top-down fill only
         // works for fields that already exist when the rate is typed — ordering trap.
         if (field === "timeEstimate" && v && typeof v === "object" && !(v as ItemTimeEstimate).hourlyRate) {
-          const seed =
-            (priceModel === "stundenansatz" || priceModel === "kostendach") && hourlyRate.trim() !== ""
-              ? hourlyRate
-              : groupMeta[serviceGroupKey(prev[index]?.serviceType)]?.hourlyRate ?? "";
+          const seed = groupMeta[serviceGroupKey(prev[index]?.serviceType)]?.hourlyRate ?? "";
           if (seed.trim() !== "") v = { ...(v as ItemTimeEstimate), hourlyRate: seed };
         }
         newItems[index] = { ...newItems[index], [field]: v };
         return newItems;
       });
     },
-    [priceModel, hourlyRate, groupMeta]
+    [groupMeta]
   );
 
+  /** Uebernimmt genau das, was der Preismodell-Dialog angekuendigt hat. */
+  const anwendenPreismodell = useCallback((aenderungen: PositionsAenderung[]) => {
+    const nachId = new Map(aenderungen.map((a) => [a.id, a]));
+    setItems((prev) =>
+      prev.map((it) => {
+        const a = nachId.get(it.id);
+        if (!a) return it;
+        return {
+          ...it,
+          price_type: a.priceType,
+          unit: a.unit,
+          amount_basis: a.amountBasis,
+          quantity: a.quantity,
+          unit_price: a.unitPrice,
+          kostendach_max: a.kostendachMax,
+        };
+      }),
+    );
+  }, []);
+
+  /**
+   * Eine Offerte, die den Betrieb verlassen hat, wird nicht in ihren Zeilen umgeschrieben.
+   * `sent`/`viewed` liegen beim Kunden — ein anderes Preismodell gehoert dort in eine neue
+   * Version, nicht in den bereits versendeten Beleg. `accepted`/`rejected` sind ohnehin
+   * gesperrt (RPC und Ladepfad), der Fall steht hier der Vollstaendigkeit halber.
+   */
+  const preismodellGesperrt: "versendet" | "abgeschlossen" | undefined =
+    offer?.status === "sent" || offer?.status === "viewed"
+      ? "versendet"
+      : offer?.status === "accepted" || offer?.status === "rejected"
+        ? "abgeschlossen"
+        : undefined;
+
+  /**
+   * Die Positionen stehen je Servicegruppe in einer eigenen Liste (droppableId
+   * `group-<key>`), deshalb ist `index` der Platz INNERHALB der Gruppe und nicht mehr in
+   * der Gesamtliste. Verschoben wird nur innerhalb einer Gruppe; die Plaetze der anderen
+   * Gruppen bleiben unberuehrt.
+   */
   const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
+    const { source, destination } = result;
+    if (!destination) return;
+    if (source.droppableId !== destination.droppableId || source.index === destination.index) {
+      return;
+    }
+    const key = source.droppableId.replace(/^group-/, "");
 
-    const reorderedItems = Array.from(items);
-    const [removed] = reorderedItems.splice(result.source.index, 1);
-    reorderedItems.splice(result.destination.index, 0, removed);
+    setItems((prev) => {
+      const inGruppe: OfferItem[] = [];
+      const plaetze: number[] = [];
+      prev.forEach((it, i) => {
+        if (serviceGroupKey(it.serviceType) === key) {
+          inGruppe.push(it);
+          plaetze.push(i);
+        }
+      });
+      if (source.index >= inGruppe.length || destination.index >= inGruppe.length) return prev;
 
-    setItems(reorderedItems.map((item, i) => ({ ...item, position: i + 1 })));
+      const [bewegt] = inGruppe.splice(source.index, 1);
+      inGruppe.splice(destination.index, 0, bewegt);
+
+      const next = [...prev];
+      plaetze.forEach((platz, k) => {
+        next[platz] = inGruppe[k];
+      });
+      return next.map((item, i) => ({ ...item, position: i + 1 }));
+    });
   };
 
   // Convert the form item shape into the helper's SubtotalItem. Exclusion is now SEMANTIC
   // via price_type (the old unit==="inkl." string guard was removed → optional is also excluded).
-  const toSubtotalItems = (): SubtotalItem[] =>
+  const toSubtotalItems = (): PriceModelItem[] =>
     items.map((item) => ({
       priceType: item.price_type ?? "",
       quantity: Number(item.quantity),
@@ -552,6 +571,8 @@ const FirmaOfferteBearbeiten = () => {
           }
         : null,
       amountBasis: toAmountBasis(item.amount_basis),
+      kostendachMax: item.kostendach_max ?? null,
+      metaRate: Number(groupMeta[serviceGroupKey(item.serviceType)]?.hourlyRate) || null,
     }));
 
   const calculateSubtotal = () => computeItemsSubtotal(toSubtotalItems(), "min");
@@ -665,36 +686,6 @@ const FirmaOfferteBearbeiten = () => {
       return;
     }
 
-    if (priceModel === 'stundenansatz' || priceModel === 'kostendach') {
-      if (!hourlyRate || Number(hourlyRate) <= 0) {
-        toast({
-          title: t("common.error"),
-          description: t("offer.form.toast.hourlyRateRequired"),
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    if (priceModel === 'kostendach') {
-      if (!kostendachMax || Number(kostendachMax) <= 0) {
-        toast({
-          title: t("common.error"),
-          description: t("offer.form.toast.kostendachRequired"),
-          variant: "destructive",
-        });
-        return;
-      }
-      if (Number(kostendachMax) < Number(hourlyRate)) {
-        toast({
-          title: t("common.error"),
-          description: t("offer.form.toast.kostendachTooLow"),
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
     // Blind Offerte — per-item time estimate validation
     for (const item of items) {
       const te = item.timeEstimate;
@@ -784,11 +775,8 @@ const FirmaOfferteBearbeiten = () => {
           // status/sent_at NICHT hier setzen — die "sent"-Transition gehört
           // ausschliesslich der send-offer Edge Function (nur bei erfolgreichem Versand).
           updated_at: new Date().toISOString(),
-          price_model: priceModel,
-          hourly_rate: (priceModel === 'stundenansatz' || priceModel === 'kostendach') && hourlyRate
-            ? Number(hourlyRate) : null,
-          kostendach_max: priceModel === 'kostendach' && kostendachMax
-            ? Number(kostendachMax) : null,
+          // price_model / hourly_rate / kostendach_max werden NICHT geschrieben: das Modell
+          // steht je Servicegruppe in den Positionen (amount_basis / kostendach_max).
           payment_terms: paymentTerms?.trim() || null,
           brief_layout: briefLayout,
           offerte_type: offerteType,
@@ -1127,35 +1115,14 @@ const FirmaOfferteBearbeiten = () => {
                 </CardContent>
               </Card>
 
-              {/* Preismodell */}
+              {/* Rabatt auf die ganze Offerte.
+                  Das Preismodell stand frueher hier und ist zur Servicegruppe gewandert
+                  (GruppenPreismodell). */}
               <Card>
                 <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-                  <CardTitle className="text-sm sm:text-base">{t("offer.form.priceModel.title")}</CardTitle>
+                  <CardTitle className="text-sm sm:text-base">{t("offer.form.discount.title")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {(
-                      [
-                        { value: 'pauschal', labelKey: 'offer.form.priceModel.pauschal' },
-                        { value: 'stundenansatz', labelKey: 'domain.priceModel.stundenansatz' },
-                        { value: 'kostendach', labelKey: 'offer.form.priceModel.kostendach' },
-                      ] as const satisfies readonly { value: PriceModel; labelKey: MessageKey }[]
-                    ).map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setPriceModel(opt.value)}
-                        className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors text-left ${
-                          priceModel === opt.value
-                            ? 'border-primary bg-primary/5 text-primary'
-                            : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                        }`}
-                      >
-                        {t(opt.labelKey)}
-                      </button>
-                    ))}
-                  </div>
-
                   {/* Offer-level Rabatt (%) — editable (#7: was missing in edit) */}
                   <div className="space-y-1 pt-1 sm:max-w-[50%]">
                     <Label className="text-xs sm:text-sm">{t("offer.form.field.discount")}</Label>
@@ -1170,40 +1137,6 @@ const FirmaOfferteBearbeiten = () => {
                       className="h-9 sm:h-10 text-sm"
                     />
                   </div>
-
-                  {(priceModel === 'stundenansatz' || priceModel === 'kostendach') && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1">
-                      <div className="space-y-1">
-                        <Label className="text-xs sm:text-sm">{t("offer.form.field.hourlyRate")}</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={hourlyRate}
-                          onChange={(e) => applyGlobalHourlyRate(e.target.value)}
-                          placeholder={t("offer.form.placeholder.hourlyRate")}
-                          className="h-9 sm:h-10 text-sm"
-                        />
-                      </div>
-                      {priceModel === 'kostendach' && (
-                        <div className="space-y-1">
-                          <Label className="text-xs sm:text-sm">{t("offer.form.field.kostendach")}</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={kostendachMax}
-                            onChange={(e) => setKostendachMax(e.target.value)}
-                            placeholder={t("offer.form.placeholder.kostendach")}
-                            className="h-9 sm:h-10 text-sm"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            {t("offer.form.kostendach.hint")}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
@@ -1285,67 +1218,75 @@ const FirmaOfferteBearbeiten = () => {
                   <CardTitle className="text-sm sm:text-base">{t("offer.detail.positions")}</CardTitle>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-                  {(() => {
-                    const groups = groupItemsByService(items.map((it) => ({ ...it, service_type: it.serviceType ?? null })));
-                    if (groups.length < 2) return null;
-                    return (
-                      <div className="mb-4 rounded-lg border border-dashed p-3 space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("offer.form.groupDates.title")}</p>
-                        {groups.map((g) => {
-                          const k = g.serviceType ?? "null";
-                          return (
-                            <div key={k} className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-xs font-medium w-24 shrink-0">{getServiceLabel(g.serviceType, locale)}</span>
-                              <DatePicker value={groupDates[k]?.date ?? ""} onChange={(value) => updateGroupDate(k, "date", value)} className="h-7 w-[8.5rem] text-xs" />
-                              <Input type="time" value={groupDates[k]?.startTime ?? ""} onChange={(e) => updateGroupDate(k, "startTime", e.target.value)} className="h-7 w-[5.5rem] text-xs" />
-                              <span className="text-[10px] text-muted-foreground">–</span>
-                              <Input type="time" value={groupDates[k]?.endTime ?? ""} onChange={(e) => updateGroupDate(k, "endTime", e.target.value)} className="h-7 w-[5.5rem] text-xs" />
-                            </div>
-                          );
-                        })}
-                        <p className="text-[10px] text-muted-foreground">{t("offer.form.groupDates.hint")}</p>
-                      </div>
-                    );
-                  })()}
-                  {(() => {
-                    const groups = groupItemsByService(items.map((it) => ({ ...it, service_type: it.serviceType ?? null })))
-                      .filter((g) => metaKindForService(g.serviceType) !== null);
-                    if (groups.length === 0) return null;
-                    return (
-                      <div className="mb-4 rounded-lg border border-dashed p-3 space-y-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("offer.form.serviceMeta.title")}</p>
-                        {groups.map((g) => {
-                          const k = g.serviceType ?? "null";
-                          const metaKind = metaKindForService(g.serviceType)!;
-                          return (
-                            <div key={k} className="space-y-1.5">
-                              <span className="text-xs font-medium">{getServiceLabel(g.serviceType, locale)}</span>
-                              <ServiceMetaFields
-                                kind={metaKind}
-                                draft={groupMeta[k] ?? EMPTY_META_DRAFT}
-                                onChange={(patch) => updateGroupMeta(k, patch)}
-                                idPrefix={`meta-edit-${k}`}
-                              />
-                            </div>
-                          );
-                        })}
-                        <p className="text-[10px] text-muted-foreground">{t("offer.form.serviceMeta.hint")}</p>
-                      </div>
-                    );
-                  })()}
+                  {/* Eine Karte je Servicegruppe: Termin, Preismodell, Service-Details und
+                      die Positionen dieser Gruppe stehen zusammen. Vorher lagen die drei
+                      oben als getrennte Bloecke uebereinander — drei gleich aussehende
+                      "Preismodell"-Kaesten ohne Hinweis, zu welchem Service sie gehoeren. */}
                   <DragDropContext onDragEnd={handleDragEnd}>
-                    <Droppable droppableId="items">
+                    {groupItemsByService(
+                      items.map((it) => ({ ...it, service_type: it.serviceType ?? null })),
+                    ).map((g) => {
+                      const gk = serviceGroupKey(g.serviceType);
+                      const metaKind = metaKindForService(g.serviceType);
+                      const gruppenItems = items
+                        .map((it, index) => ({ it, index }))
+                        .filter(({ it }) => serviceGroupKey(it.serviceType) === gk);
+                      return (
+                        <div key={gk} className="mb-4 rounded-xl border bg-background p-3 space-y-3">
+                          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {getServiceLabel(g.serviceType, locale)}
+                          </h3>
+
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[11px] text-muted-foreground shrink-0">
+                              {t("common.date")}
+                            </span>
+                            <DatePicker value={groupDates[gk]?.date ?? ""} onChange={(value) => updateGroupDate(gk, "date", value)} className="h-7 w-[8.5rem] text-xs" />
+                            <Input type="time" value={groupDates[gk]?.startTime ?? ""} onChange={(e) => updateGroupDate(gk, "startTime", e.target.value)} className="h-7 w-[5.5rem] text-xs" />
+                            <span className="text-[10px] text-muted-foreground">–</span>
+                            <Input type="time" value={groupDates[gk]?.endTime ?? ""} onChange={(e) => updateGroupDate(gk, "endTime", e.target.value)} className="h-7 w-[5.5rem] text-xs" />
+                            <span className="text-[10px] text-muted-foreground">{t("offer.form.groupDates.hint")}</span>
+                          </div>
+
+                          <GruppenPreismodell
+                            gruppenLabel={getServiceLabel(g.serviceType, locale)}
+                            rateUnit={rateUnitForService(g.serviceType)}
+                            gesperrt={preismodellGesperrt}
+                            positionen={gruppenItems.map(({ it }): GruppenPosition => ({
+                              id: it.id,
+                              description: it.description,
+                              priceType: it.price_type ?? "",
+                              amountBasis: toAmountBasis(it.amount_basis),
+                              quantity: Number(it.quantity),
+                              unitPrice: Number(it.unit_price),
+                              unit: it.unit,
+                              kostendachMax: it.kostendach_max ?? null,
+                            }))}
+                            metaAnsatz={Number(groupMeta[gk]?.hourlyRate) || null}
+                            onAnwenden={anwendenPreismodell}
+                          />
+
+                          {metaKind && (
+                            <ServiceMetaFields
+                              kind={metaKind}
+                              draft={groupMeta[gk] ?? EMPTY_META_DRAFT}
+                              onChange={(patch) => updateGroupMeta(gk, patch)}
+                              idPrefix={`meta-edit-${gk}`}
+                            />
+                          )}
+
+                    <Droppable droppableId={`group-${gk}`}>
                       {(provided) => (
                         <div
                           {...provided.droppableProps}
                           ref={provided.innerRef}
                           className="space-y-2 sm:space-y-3"
                         >
-                          {items.map((item, index) => (
+                          {gruppenItems.map(({ it: item, index }, posInGruppe) => (
                             <Draggable
                               key={item.id}
                               draggableId={item.id}
-                              index={index}
+                              index={posInGruppe}
                             >
                               {(provided) => (
                                 <div
@@ -1473,6 +1414,12 @@ const FirmaOfferteBearbeiten = () => {
                                         </div>
                                         {item.amount_basis === "rate" && (() => {
                                           const kdUnit = kdUnitById[item.id] ?? "std";
+                                          // Die Mengeneinheit hinter dem Kostendach ist die der POSITION:
+                                          // 1200 auf einem m³-Ansatz von 60 sind 20 m³, keine 20 Std.
+                                          const istStd = istStundenEinheit(item.unit);
+                                          const mengenEinheit = istStd || !item.unit
+                                            ? t("offer.form.item.kdUnitHours")
+                                            : item.unit;
                                           const c = item.kostendach_max;
                                           const kdVal = (c === null || c === undefined)
                                             ? ""
@@ -1503,17 +1450,18 @@ const FirmaOfferteBearbeiten = () => {
                                                   <button key={u} type="button"
                                                     onClick={() => setKdUnitById((p) => ({ ...p, [item.id]: u }))}
                                                     className={cn("px-2.5 py-1.5", kdUnit === u ? "bg-secondary text-secondary-foreground" : "bg-background text-muted-foreground")}
-                                                  >{u === "std" ? t("offer.form.item.kdUnitHours") : "CHF"}</button>
+                                                  >{u === "std" ? mengenEinheit : "CHF"}</button>
                                                 ))}
                                               </div>
                                             </div>
                                             {(c ?? null) !== null && (
                                               <p className="text-[10px] text-muted-foreground">
                                                 {item.unit_price > 0
-                                                  ? t("offer.form.item.kostendachHint", {
+                                                  ? t(istStd ? "offer.form.item.kostendachHint" : "offer.form.item.kostendachHintGeneric", {
                                                       amount: formatCurrency(Number(c)),
                                                       hours: +(Number(c) / item.unit_price).toFixed(2),
                                                       rate: formatCurrency(item.unit_price),
+                                                      unit: mengenEinheit,
                                                     })
                                                   : t("offer.form.item.kostendachHintPlain", {
                                                       amount: formatCurrency(Number(c)),
@@ -1621,6 +1569,9 @@ const FirmaOfferteBearbeiten = () => {
                         </div>
                       )}
                     </Droppable>
+                        </div>
+                      );
+                    })}
                   </DragDropContext>
 
                   {/* Add Position Button - At Bottom */}

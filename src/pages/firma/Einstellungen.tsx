@@ -22,6 +22,7 @@ import { LogoUpload } from "@/components/firma/LogoUpload";
 import { SignatureUpload } from "@/components/firma/SignatureUpload";
 import { AgbSectionEditor } from "@/components/firma/AgbSectionEditor";
 import { ReminderSettings } from "@/components/firma/ReminderSettings";
+import { CalendarFeedSettings } from "@/components/firma/CalendarFeedSettings";
 import { cn } from "@/lib/utils";
 interface Company {
   id: string;
@@ -513,6 +514,7 @@ const FirmaEinstellungen = () => {
               <TabsTrigger value="reminders">{t("settings.tab.reminders")}</TabsTrigger>
               <TabsTrigger value="offerten">{t("settings.tab.agb")}</TabsTrigger>
               <TabsTrigger value="ki">{t("settings.tab.ki")}</TabsTrigger>
+              <TabsTrigger value="calendar">{t("settings.tab.calendar")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile">
@@ -1327,6 +1329,9 @@ const FirmaEinstellungen = () => {
                   </Button>
                 </CardContent>
               </Card>
+            </TabsContent>
+            <TabsContent value="calendar">
+              <CalendarFeedSettings companyId={company.id} />
             </TabsContent>
           </Tabs>
         </div>

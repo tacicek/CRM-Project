@@ -54,8 +54,8 @@ const index: WikiSearchIndex = {
   },
   "kundenkarte": {
     title: "Die Kundenkarte",
-    summary: "Alles zu einer Kundin: Kontakt, Vorgänge, Beträge, Verlauf und Portalzugang.",
-    keywords: ["kundenkarte", "kunde öffnen", "verlauf", "notiz", "zusammenführen", "portal", "fakturiert", "bezahlt"],
+    summary: "Alles zu einer Kundin: Kontakt, Adresse, Vorgänge, Beträge, Verlauf, Einsatzorte und Portalzugang.",
+    keywords: ["kundenkarte", "kunde öffnen", "kunde bearbeiten", "adresse", "anschrift", "rechnungsadresse", "einsatzort", "stockwerk", "lift", "verlauf", "notiz", "zusammenführen", "portal", "fakturiert", "bezahlt"],
   },
   "finanzen-uebersicht": {
     title: "Finanzen: was offen ist und was hereinkam",
@@ -146,6 +146,11 @@ const index: WikiSearchIndex = {
     title: "Einen Termin erstellen",
     summary: "Typ, Zeit, Team und Fahrzeuge — und wann die Kundschaft eine Bestätigung erhält.",
     keywords: ["termin erstellen", "neuer termin", "besichtigung", "blockiert", "wiederkehrend", "fahrzeug", "konflikt"],
+  },
+  "kalender-abo": {
+    title: "Kalender abonnieren",
+    summary: "Ihre Termine im Handy- oder Computer-Kalender abonnieren — je Termin-Typ ein eigener, farbiger Kalender.",
+    keywords: ["kalender abonnieren", "abo", "webcal", "iphone", "apple", "google", "outlook", "handy", "token erzeugen", "widerrufen", "synchronisieren", "kalender verbinden"],
   },
 };
 

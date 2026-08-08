@@ -13,7 +13,14 @@ import {
   defaultAmountBasisForPriceType,
   itemAmountDisplay,
   offerHasRateItem,
+  priceTypeShape,
+  priceTypeForRateUnit,
+  rateUnitForService,
+  istStundenEinheit,
+  umstellungUnveraendert,
+  derivePriceModel,
   type SubtotalItem,
+  type PriceModelItem,
   type AmountDisplayItem,
   BLIND_DISCLAIMER_LABEL,
   BLIND_DISCLAIMER_TEXT,
@@ -498,5 +505,380 @@ describe("computeDisplayTotals (P3b-2a, consolidated read chain)", () => {
     expect(dtMax.subtotal).toBe(2000); // raw Zwischensumme upper bound
     expect(dtMax.taxableBase).toBe(1800);
     expect(dtMax.total).toBe(1945.8);
+  });
+});
+// ---------------------------------------------------------------------------
+// Preistyp-Wechsel und abgeleitetes Preismodell (Gruppen-Preismodell)
+// ---------------------------------------------------------------------------
+
+describe("priceTypeShape", () => {
+  it("Pauschale: feste Einheit, Menge auf 1 — sonst multipliziert der Pauschalpreis", () => {
+    // Der Befund: Menge 3 blieb beim Wechsel stehen, das Feld war aber ausgeblendet.
+    // 400.- Pauschale wurden in der Summe zu 1200.- ohne sichtbaren Grund.
+    expect(priceTypeShape("pauschale", { unit: "Stk.", quantity: 3 })).toEqual({
+      unit: "Pauschal",
+      amountBasis: "fixed",
+      quantity: 1,
+      kostendachMax: null,
+    });
+  });
+
+  it("Pro Stunde ohne Zeitschaetzung: 'rate' — identisch zum Katalog-Default", () => {
+    // Genau die Abweichung, die zwei sichtbar gleiche Positionen verschieden rechnen liess.
+    expect(priceTypeShape("per_hour", { unit: "Pauschal", quantity: 5 })).toEqual({
+      unit: "Stunden",
+      amountBasis: "rate",
+      quantity: 1,
+      kostendachMax: null,
+    });
+    expect(priceTypeShape("per_hour").amountBasis).toBe(
+      defaultAmountBasisForPriceType("per_hour"),
+    );
+  });
+
+  it("Pro Stunde MIT gueltiger Zeitschaetzung: 'range' — die Spanne bleibt erhalten", () => {
+    expect(priceTypeShape("per_hour", { hasValidTimeEstimate: true }).amountBasis).toBe("range");
+  });
+
+  it("Pro Einheit: die gewaehlte Einheit und die Menge bleiben", () => {
+    expect(priceTypeShape("per_unit", { unit: "m³", quantity: 12 })).toEqual({
+      unit: "m³",
+      amountBasis: "fixed",
+      quantity: 12,
+      kostendachMax: null,
+    });
+  });
+
+  it("Pro Einheit nach Pauschale: die vorgegebene Einheit wird nicht mitgeschleppt", () => {
+    // "Pauschal" als Einheit einer Stueckposition waere sichtbarer Unsinn.
+    expect(priceTypeShape("per_unit", { unit: "Pauschal", quantity: 4 }).unit).toBe("Stk.");
+    expect(priceTypeShape("per_unit", { unit: "Stunden" }).unit).toBe("Stk.");
+  });
+
+  it("Inklusive: keine Einheit, Menge 1", () => {
+    expect(priceTypeShape("inkl", { unit: "m²", quantity: 9 })).toEqual({
+      unit: "",
+      amountBasis: "fixed",
+      quantity: 1,
+      kostendachMax: null,
+    });
+  });
+
+  it("Optional: Einheit und Menge bleiben waehlbar", () => {
+    expect(priceTypeShape("optional", { unit: "Person", quantity: 2 })).toEqual({
+      unit: "Person",
+      amountBasis: "fixed",
+      quantity: 2,
+      kostendachMax: null,
+    });
+  });
+
+  it("rate → fixed loescht das Kostendach", () => {
+    // F3: sonst druckt der Beleg eine Obergrenze fuer einen bestimmten Betrag.
+    expect(priceTypeShape("pauschale", { kostendachMax: 5000 }).kostendachMax).toBeNull();
+    expect(priceTypeShape("per_unit", { kostendachMax: 5000 }).kostendachMax).toBeNull();
+  });
+
+  it("rate → rate behaelt das Kostendach", () => {
+    expect(priceTypeShape("per_hour", { kostendachMax: 5000 }).kostendachMax).toBe(5000);
+  });
+
+  it("range behaelt das Kostendach NICHT — der Betrag ist dort bestimmt", () => {
+    expect(
+      priceTypeShape("per_hour", { kostendachMax: 5000, hasValidTimeEstimate: true }).kostendachMax,
+    ).toBeNull();
+  });
+
+  it("unbekannter Preistyp faellt auf freie Einheit und 'fixed'", () => {
+    expect(priceTypeShape(null, { quantity: 2 })).toEqual({
+      unit: "Stk.",
+      amountBasis: "fixed",
+      quantity: 1,
+      kostendachMax: null,
+    });
+  });
+
+  it("ungueltige Menge wird 1, nicht NaN", () => {
+    expect(priceTypeShape("per_unit", { quantity: Number.NaN }).quantity).toBe(1);
+    expect(priceTypeShape("per_unit", { quantity: 0 }).quantity).toBe(1);
+    expect(priceTypeShape("per_unit", { quantity: -3 }).quantity).toBe(1);
+  });
+});
+
+describe("derivePriceModel", () => {
+  const pos = (over: Partial<PriceModelItem> = {}): PriceModelItem => ({
+    priceType: "pauschale",
+    quantity: 1,
+    unitPrice: 400,
+    timeEstimate: null,
+    amountBasis: "fixed",
+    ...over,
+  });
+
+  it("ohne rate-Position: pauschal", () => {
+    expect(derivePriceModel([pos(), pos({ priceType: "per_unit", quantity: 3 })])).toEqual({
+      model: "pauschal",
+      hourlyRate: null,
+      kostendachMax: null,
+    });
+  });
+
+  it("mit rate-Position: stundenansatz samt Ansatz", () => {
+    expect(
+      derivePriceModel([pos(), pos({ priceType: "per_hour", amountBasis: "rate", unitPrice: 120 })]),
+    ).toEqual({ model: "stundenansatz", hourlyRate: 120, kostendachMax: null });
+  });
+
+  it("Service-Details-Ansatz schlaegt den Einzelpreis", () => {
+    // Der Beleg liest effort_meta.hourly_rate zuerst — die Ableitung muss dasselbe tun.
+    expect(
+      derivePriceModel([
+        pos({ priceType: "per_hour", amountBasis: "rate", unitPrice: 120, metaRate: 135 }),
+      ]).hourlyRate,
+    ).toBe(135);
+  });
+
+  it("verschiedene Ansaetze: kein einzelner Satz", () => {
+    // Ein Kaestchen mit einer von drei Zahlen waere schlimmer als keins.
+    expect(
+      derivePriceModel([
+        pos({ priceType: "per_hour", amountBasis: "rate", unitPrice: 120 }),
+        pos({ priceType: "per_hour", amountBasis: "rate", unitPrice: 85 }),
+      ]),
+    ).toEqual({ model: "stundenansatz", hourlyRate: null, kostendachMax: null });
+  });
+
+  it("mit Positions-Kostendach: kostendach, Deckel summiert", () => {
+    expect(
+      derivePriceModel([
+        pos({ priceType: "per_hour", amountBasis: "rate", unitPrice: 120, kostendachMax: 5000 }),
+        pos({ priceType: "per_hour", amountBasis: "rate", unitPrice: 120, kostendachMax: 1200 }),
+      ]),
+    ).toEqual({ model: "kostendach", hourlyRate: 120, kostendachMax: 6200 });
+  });
+
+  it("freie Positionen zaehlen nicht mit", () => {
+    // inkl/optional sind Leistungsumfang, kein Preismodell.
+    expect(
+      derivePriceModel([
+        pos(),
+        pos({ priceType: "inkl", amountBasis: "rate" }),
+        pos({ priceType: "optional", amountBasis: "rate" }),
+      ]).model,
+    ).toBe("pauschal");
+  });
+
+  it("range ist kein rate — eine Spanne hat einen bestimmten Betrag", () => {
+    expect(
+      derivePriceModel([
+        pos({
+          priceType: "per_hour",
+          amountBasis: "range",
+          timeEstimate: { minHours: 6, maxHours: 8, hourlyRate: 120 },
+        }),
+      ]).model,
+    ).toBe("pauschal");
+  });
+
+  it("leere Offerte: pauschal", () => {
+    expect(derivePriceModel([]).model).toBe("pauschal");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression an einem ECHTEN Produktionsbeleg: Offerte 10056 (Hirschenumzug).
+//
+// Ihr PDF ist der Referenzfall für eine Aufwand-Offerte: Zeile "CHF 260.– / Stunden",
+// Kostendach-Kasten "Stundenansatz CHF 260.–/Std. — max. CHF 1'560 (6 Std.)", KEINE
+// Gesamtbetrag-Box, stattdessen der Aufwand-Hinweis.
+//
+// Bemerkenswert: offers.price_model steht auf 'pauschal', hourly_rate und kostendach_max
+// sind NULL. Das richtige Etikett entsteht also schon heute ausschliesslich aus den
+// Positionen — genau die Beobachtung, auf der ADR_offerte_preismodell (Entscheidung A) fusst.
+// ---------------------------------------------------------------------------
+
+describe("Produktionsbeleg 10056 — F1 darf ihn nicht verändern", () => {
+  const positionen: PriceModelItem[] = [
+    {
+      priceType: "per_hour",
+      amountBasis: "rate",
+      quantity: 1,
+      unitPrice: 260,
+      timeEstimate: null,
+      kostendachMax: 1560,
+    },
+    { priceType: "inkl", amountBasis: "fixed", quantity: 1, unitPrice: 0, timeEstimate: null },
+    { priceType: "inkl", amountBasis: "fixed", quantity: 1, unitPrice: 0, timeEstimate: null },
+  ];
+
+  it("die Aggregatsumme bleibt ausgeblendet", () => {
+    expect(offerHasRateItem(positionen)).toBe(true);
+  });
+
+  it("die Positionssumme bleibt 0 — wie offers.subtotal in der Produktion", () => {
+    expect(computeItemsSubtotal(positionen, "min")).toBe(0);
+  });
+
+  it("das abgeleitete Etikett trifft, was das PDF zeigt", () => {
+    expect(derivePriceModel(positionen)).toEqual({
+      model: "kostendach",
+      hourlyRate: 260,
+      kostendachMax: 1560,
+    });
+  });
+
+  it("die Zeile zeigt weiterhin den Ansatz, keinen bestimmten Betrag", () => {
+    expect(itemAmountDisplay({ ...positionen[0], unit: "Stunden" })).toEqual({
+      kind: "rate",
+      unitPrice: 260,
+      unit: "Stunden",
+    });
+  });
+
+  it("denselben Preistyp erneut zu wählen zerstört das Kostendach NICHT", () => {
+    // Der neue Preistyp-Wähler in OfferteBearbeiten darf einen Bestandsbeleg beim
+    // blossen Öffnen/Anfassen nicht entwerten.
+    expect(priceTypeShape("per_hour", { unit: "Stunden", quantity: 1, kostendachMax: 1560 })).toEqual({
+      unit: "Stunden",
+      amountBasis: "rate",
+      quantity: 1,
+      kostendachMax: 1560,
+    });
+  });
+});
+
+describe("umstellungUnveraendert — die Umkehr wird nur angeboten, solange nichts zu verlieren ist", () => {
+  const pos = (id: string, over: Partial<Parameters<typeof umstellungUnveraendert>[0][number]> = {}) => ({
+    id,
+    priceType: "per_unit",
+    unit: "m³",
+    amountBasis: "rate" as const,
+    quantity: 1,
+    unitPrice: 60,
+    kostendachMax: 1200,
+    ...over,
+  });
+
+  it("gilt, solange die Gruppe so dasteht wie die Umstellung sie hinterliess", () => {
+    const erwartet = [pos("a"), pos("b")];
+    expect(umstellungUnveraendert(erwartet, [pos("a"), pos("b")])).toBe(true);
+    expect(umstellungUnveraendert(erwartet, [pos("b"), pos("a")])).toBe(true);
+  });
+
+  it("faellt weg, sobald eine Position von Hand auf 'Fester Betrag' gestellt wurde", () => {
+    // Genau der reproduzierte Fall: der Streifen sagte weiter "auf Nach Ansatz gesetzt",
+    // waehrend die Knoepfe darueber schon "Pauschalpreis" zeigten.
+    const erwartet = [pos("a"), pos("b")];
+    expect(umstellungUnveraendert(erwartet, [pos("a", { amountBasis: "fixed" }), pos("b")])).toBe(false);
+  });
+
+  it.each([
+    ["Preis", { unitPrice: 70 }],
+    ["Menge", { quantity: 3 }],
+    ["Einheit", { unit: "Stunden" }],
+    ["Preistyp", { priceType: "pauschale" }],
+    ["Kostendach", { kostendachMax: 900 }],
+    ["Kostendach geloescht", { kostendachMax: null }],
+  ])("faellt weg, wenn %s von Hand geaendert wurde", (_name, over) => {
+    expect(umstellungUnveraendert([pos("a")], [pos("a", over)])).toBe(false);
+  });
+
+  it("faellt weg, wenn Positionen dazukommen oder verschwinden", () => {
+    expect(umstellungUnveraendert([pos("a")], [pos("a"), pos("b")])).toBe(false);
+    expect(umstellungUnveraendert([pos("a"), pos("b")], [pos("a")])).toBe(false);
+    expect(umstellungUnveraendert([pos("a")], [pos("c")])).toBe(false);
+  });
+
+  it("stoert sich nicht an Rundung auf Rappen", () => {
+    expect(umstellungUnveraendert([pos("a", { unitPrice: 60 })], [pos("a", { unitPrice: 60.001 })])).toBe(true);
+    expect(umstellungUnveraendert([pos("a", { unitPrice: 60 })], [pos("a", { unitPrice: 60.01 })])).toBe(false);
+  });
+});
+
+describe("istStundenEinheit — die Menge hinter dem Kostendach traegt die Einheit der Position", () => {
+  it.each(["Stunden", "Stunde", "Std.", "Std", "h", "STUNDEN", " stunden "])("erkennt %s als Zeit", (u) => {
+    expect(istStundenEinheit(u)).toBe(true);
+  });
+
+  it.each(["m³", "Monat", "Stk.", "Pauschal", "km", "", null, undefined])("erkennt %s NICHT als Zeit", (u) => {
+    expect(istStundenEinheit(u)).toBe(false);
+  });
+
+  it("trennt m³-Ansatz von Stundenansatz: 1200 / 60 sind 20 m³, keine 20 Std", () => {
+    // Die Rechnung war immer einheitenneutral — nur die Beschriftung war fest verdrahtet.
+    expect(istStundenEinheit("m³")).toBe(false);
+    expect(1200 / 60).toBe(20);
+  });
+});
+
+describe("rateUnitForService — die Frage passt sich dem Service an", () => {
+  it("Zeit-Services rechnen in Stunden", () => {
+    for (const s of ["umzug", "transport", "moebellift", "reinigung", null, "sonstiges"]) {
+      expect(rateUnitForService(s)).toBe("Stunden");
+    }
+  });
+
+  it("Entsorgung und Raeumung rechnen in m³", () => {
+    expect(rateUnitForService("entsorgung")).toBe("m³");
+    expect(rateUnitForService("raeumung")).toBe("m³");
+    expect(rateUnitForService("räumung")).toBe("m³");
+  });
+
+  it("Lagerung rechnet pro Monat", () => {
+    expect(rateUnitForService("lagerung")).toBe("Monat");
+  });
+
+  it("die Einheit bestimmt den Preistyp", () => {
+    expect(priceTypeForRateUnit("Stunden")).toBe("per_hour");
+    expect(priceTypeForRateUnit("m³")).toBe("per_unit");
+    expect(priceTypeForRateUnit("Monat")).toBe("per_unit");
+  });
+});
+
+describe("priceTypeShape — per_unit als offener Ansatz (m³ / Monat)", () => {
+  it("setzt 'rate' und behaelt die Service-Einheit", () => {
+    expect(priceTypeShape("per_unit", { unit: "m³", quantity: 20, alsAnsatz: true })).toEqual({
+      unit: "m³",
+      amountBasis: "rate",
+      quantity: 1,
+      kostendachMax: null,
+    });
+  });
+
+  it("behaelt das Kostendach, weil der Betrag offen ist", () => {
+    expect(
+      priceTypeShape("per_unit", { unit: "m³", kostendachMax: 1200, alsAnsatz: true })
+        .kostendachMax,
+    ).toBe(1200);
+  });
+
+  it("ohne alsAnsatz bleibt per_unit ein fester Betrag mit Menge", () => {
+    // Regression: die normale Stueckposition darf sich nicht mitaendern.
+    expect(priceTypeShape("per_unit", { unit: "m³", quantity: 20 })).toEqual({
+      unit: "m³",
+      amountBasis: "fixed",
+      quantity: 20,
+      kostendachMax: null,
+    });
+  });
+
+  it("eine m³-Ansatzposition zaehlt NICHT zur Summe und traegt das Etikett", () => {
+    const pos: PriceModelItem[] = [
+      {
+        priceType: "per_unit",
+        amountBasis: "rate",
+        quantity: 1,
+        unitPrice: 60,
+        timeEstimate: null,
+        kostendachMax: 1200,
+      },
+    ];
+    expect(computeItemsSubtotal(pos, "min")).toBe(0);
+    expect(offerHasRateItem(pos)).toBe(true);
+    expect(derivePriceModel(pos)).toEqual({
+      model: "kostendach",
+      hourlyRate: 60,
+      kostendachMax: 1200,
+    });
   });
 });

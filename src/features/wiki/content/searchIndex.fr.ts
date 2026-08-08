@@ -51,8 +51,8 @@ const index: WikiSearchIndex = {
   },
   "kundenkarte": {
     title: "La fiche client",
-    summary: "Tout sur une cliente : contact, dossiers, montants, historique et accès au portail.",
-    keywords: ["fiche client", "ouvrir un client", "historique", "note", "fusionner", "portail", "facturé", "payé"],
+    summary: "Tout sur un client : contact, adresse, dossiers, montants, historique, lieux d’intervention et accès au portail.",
+    keywords: ["fiche client", "ouvrir un client", "modifier un client", "adresse", "adresse de facturation", "lieu d’intervention", "étage", "ascenseur", "historique", "note", "fusionner", "portail", "facturé", "payé"],
   },
   "finanzen-uebersicht": {
     title: "Finances : ce qui est ouvert et ce qui est rentré",
@@ -143,6 +143,11 @@ const index: WikiSearchIndex = {
     title: "Créer un rendez-vous",
     summary: "Type, horaire, équipe et véhicules — et quand le client reçoit une confirmation.",
     keywords: ["créer un rendez-vous", "nouveau rendez-vous", "visite", "bloqué", "récurrent", "véhicule", "conflit"],
+  },
+  "kalender-abo": {
+    title: "S'abonner au calendrier",
+    summary: "Vos rendez-vous dans le calendrier du téléphone ou de l'ordinateur — un calendrier coloré par type de rendez-vous.",
+    keywords: ["s'abonner au calendrier", "abonnement", "webcal", "iphone", "apple", "google", "outlook", "téléphone", "créer le jeton", "révoquer", "synchroniser", "connecter le calendrier"],
   },
 };
 

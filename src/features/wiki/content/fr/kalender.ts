@@ -152,7 +152,7 @@ const body = {
     },
     {
       kind: "paragraph",
-      text: "Via « Vers le calendrier » dans la fiche de détail, vous transmettez un rendez-vous isolé à Apple, Yahoo ou sous forme de fichier. Il n'existe pas d'export de toute la semaine.",
+      text: "Via « Vers le calendrier » dans la fiche de détail, vous transmettez un rendez-vous isolé à Apple, Yahoo ou sous forme de fichier. Pour tous les rendez-vous en continu, il y a l'abonnement au calendrier — voir « S'abonner au calendrier » sous Configuration.",
     },
   ],
 

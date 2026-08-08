@@ -47,7 +47,6 @@ import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
 import { parseSurcharges, sumSurchargeAmounts, validateSurcharges } from "@/lib/offerSurcharges";
 import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
-import { parsePriceModel } from "@/lib/offerPriceModel";
 import { parseOfferAgbSections } from "@/lib/offerAgbSections";
 import { resolveDocumentLocale } from "@/i18n/documentLocale";
 import { localizedField } from "@/i18n/localizedField";
@@ -620,11 +619,13 @@ const FirmaOfferteDetail = () => {
 
   const buildOfferPayload = () => {
     if (!offer || !company) return null;
-    // Fail closed: never hand the PDF generator a payload whose price model or surcharges
-    // fail validation. The DB constraints make this a should-never-happen guard against
-    // schema drift / unexpected query results — not a silent null/pauschal/[] fallback.
-    const pm = parsePriceModel(offer.price_model);
-    if (!pm.ok) return null;
+    // Fail closed: never hand the PDF generator a payload whose surcharges fail validation.
+    // The DB constraints make this a should-never-happen guard against schema drift /
+    // unexpected query results — not a silent null/[] fallback.
+    //
+    // price_model wird hier NICHT mehr geprüft: der Beleg leitet das Modell aus den
+    // Positionen ab. Ein Altwert in der Spalte hätte sonst die Vorschau einer
+    // Bestandsofferte blockiert — für eine Angabe, die niemand mehr liest.
     const sc = validateSurcharges(offer.surcharges);
     if (!sc.ok) return null;
     // AGB is legal content the customer accepts — fail closed on a malformed section rather
@@ -637,7 +638,6 @@ const FirmaOfferteDetail = () => {
     }));
     return {
       ...offer,
-      price_model: pm.value,
       surcharges: validatedSurcharges,
       description: offer.description || undefined,
       customer_phone: offer.customer_phone || undefined,
@@ -722,8 +722,8 @@ const FirmaOfferteDetail = () => {
   };
 
   // ONE validated payload for BOTH preview and download → identical data, no duplicate/
-  // lenient builder. buildOfferPayload fails closed on invalid price_model / malformed
-  // surcharges (returns null); the preview then never opens.
+  // lenient builder. buildOfferPayload fails closed on malformed surcharges / AGB sections
+  // (returns null); the preview then never opens.
   const previewPayload = buildOfferPayload();
 
   const handleOpenPreview = () => {

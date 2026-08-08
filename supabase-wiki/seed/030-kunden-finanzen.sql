@@ -136,5 +136,61 @@ BEGIN
   PERFORM public.reverse_payment(v_wrong, 'Falscher Kunde erfasst');
 END $$;
 
+-- --- Anschriften und Einsatzorte ---------------------------------------------------
+-- Die Kundenkarte trennt zwei Begriffe, und der Screenshot soll beide zeigen:
+--   customer_addresses  wo jemand wohnt und wohin die Rechnung geht
+--   service_locations   wo gearbeitet wird, mit Stockwerk / Lift / Zugang
+--
+-- Bewusst NICHT flaechendeckend: Luc bekommt keine Anschrift, damit der
+-- Leerzustand "Adresse hinzufuegen" ebenfalls im Bild vorkommt.
+INSERT INTO public.customer_addresses (
+  company_id, customer_id, address_type, label, address_raw, plz, city, is_primary, notes
+)
+VALUES
+  (:company_id, :kunde_max, 'correspondence', 'Wohnung',
+   'Seestrasse 42, 8002 Zürich', '8002', 'Zürich', TRUE, NULL),
+  (:company_id, :kunde_sara, 'correspondence', NULL,
+   'Bahnhofweg 7, 3011 Bern', '3011', 'Bern', TRUE, NULL),
+  (:company_id, :kunde_firma, 'correspondence', 'Empfang',
+   'Industriestrasse 12, 8404 Winterthur', '8404', 'Winterthur', TRUE, NULL),
+  -- Eine eigene Rechnungsadresse: genau der Fall, für den es die zweite Art gibt.
+  (:company_id, :kunde_firma, 'billing', 'Buchhaltung',
+   'Postfach 340, 8401 Winterthur', '8401', 'Winterthur', TRUE,
+   'Rechnungen bitte ausschliesslich per Post.');
+
+INSERT INTO public.service_locations (
+  company_id, customer_id, kind, label, address_raw, plz, city,
+  floor, has_elevator, parking_note, access_note, rooms, area_m2
+)
+VALUES
+  (:company_id, :kunde_max, 'from', 'Auszug',
+   'Seestrasse 42, 8002 Zürich', '8002', 'Zürich',
+   '4. OG', FALSE, 'Halteverbot nötig, Bewilligung liegt vor.',
+   'Schlüssel bei der Nachbarin, Klingel Meier.', 3.5, 82.00),
+  (:company_id, :kunde_max, 'to', 'Einzug',
+   'Bergweg 5, 8032 Zürich', '8032', 'Zürich',
+   'EG', TRUE, 'Zwei Plätze in der Tiefgarage.', NULL, 4.5, 110.00),
+  (:company_id, :kunde_firma, 'object', 'Büroetage',
+   'Industriestrasse 12, 8404 Winterthur', '8404', 'Winterthur',
+   '2. OG', TRUE, 'Anlieferung hinten.', 'Badge beim Empfang abholen.', NULL, 240.00);
+
+-- --- Eine offene Aufgabe und ein offener Fall ---------------------------------------
+-- Ohne sie bliebe der Achtungsstreifen leer, und der Screenshot zeigte genau den
+-- Zustand, den der Artikel NICHT erklärt.
+INSERT INTO public.crm_tasks (
+  company_id, customer_id, title, description, task_type, priority, status, due_at
+)
+VALUES
+  (:company_id, :kunde_max, 'Rückruf wegen Liftreservation',
+   'Hauswartung hat sich noch nicht gemeldet.', 'call', 'high', 'open',
+   :'anchor'::date - 1);
+
+INSERT INTO public.customer_cases (
+  company_id, customer_id, case_type, title, description, status, priority, reported_by
+)
+VALUES
+  (:company_id, :kunde_max, 'damage', 'Kratzer am Esstisch',
+   'Beim Abstellen im Treppenhaus entstanden. Fotos folgen.', 'in_arbeit', 'normal', 'kunde');
+
 RESET ROLE;
 COMMIT;

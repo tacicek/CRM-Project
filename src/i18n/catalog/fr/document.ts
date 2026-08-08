@@ -62,6 +62,8 @@ export const document: Record<keyof typeof de, string> = {
     "La facturation s'effectue selon le temps effectivement consacré, au tarif horaire indiqué.",
   "doc.offer.hourlyWithCap": "Tarif horaire CHF {rate} / h — prix plafond max. CHF {cap}",
   "doc.offer.costCap": "Prix plafond :",
+  "doc.offer.rateUnitGeneric": "Tarif — CHF {rate} / {unit}",
+  "doc.offer.costCapDetailGeneric": "Tarif {rate}/{unit} — max. CHF {cap} ({menge} {unit})",
   "doc.offer.costCapMax": "max. CHF {cap}",
   "doc.offer.costCapDetail": "Tarif horaire {rate}/h — max. CHF {cap} ({hours} h)",
   "doc.offer.costCapHours": "Prix plafond : max. CHF {cap} (pour {hours} h)",

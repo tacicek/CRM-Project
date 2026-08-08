@@ -91,6 +91,214 @@ export interface SubtotalItem {
   amountBasis?: AmountBasis | null;
 }
 
+// ---------------------------------------------------------------------------
+// Preistyp-Wechsel — SINGLE SOURCE.
+//
+// Beantwortet an EINER Stelle, wie eine Position aussieht, nachdem ihr Preistyp gewechselt
+// hat: Einheit, Betrags-Achse, Menge, Positions-Kostendach.
+//
+// Zwei Aufrufer: das Preistyp-Dropdown einer einzelnen Zeile und das Gruppen-Preismodell
+// (GruppenPreismodell.tsx), das die Positionen einer Servicegruppe gemeinsam umstellt.
+// Ohne sie synchronisierte das Dropdown NUR die Einheit — eine aus dem Katalog stammende
+// per_hour-Position trug amount_basis='rate' (nicht in der Summe), eine von Hand auf
+// "Pro Stunde" gestellte blieb 'fixed' (in der Summe). Sichtbar identisch, in der Summe
+// verschieden.
+// ---------------------------------------------------------------------------
+
+/** Einheiten, die der Preistyp VORGIBT (der Bediener wählt sie nicht). */
+const FIXED_UNIT_BY_PRICE_TYPE: Record<string, string> = {
+  pauschale: "Pauschal",
+  per_hour: "Stunden",
+  inkl: "",
+};
+
+/** Preistypen, bei denen der Bediener die Einheit selbst wählt. Default beim Wechsel. */
+const CHOSEN_UNIT_DEFAULT = "Stk.";
+
+/**
+ * Gibt der Preistyp die Einheit vor (Einheiten-Auswahl ausgeblendet)?
+ *
+ * Dieselbe Tabelle wie `priceTypeShape` — das Formular hatte dafür bis F1 eine eigene
+ * `fixedUnit`-Spalte in seiner Optionsliste, also eine zweite Wahrheit über dieselbe Frage.
+ */
+export const priceTypeFixesUnit = (priceType: string | null | undefined): boolean =>
+  FIXED_UNIT_BY_PRICE_TYPE[priceType ?? ""] !== undefined;
+
+/**
+ * Die NAHELIEGENDE Ansatz-Einheit eines Services — eine Vorbelegung, keine Vorschrift.
+ *
+ * "Stundenansatz" ist eine Frage der TAXIERUNG, nicht des Preismodells: Entsorgung wird
+ * ueblicherweise pro m³ abgerechnet, Lagerung pro Monat. Dem Bediener dort ZUERST einen
+ * Stundensatz abzuverlangen ist dieselbe Sorte Fehler wie ein Kaestchen, das die Summe nicht
+ * erreicht — die Frage passt nicht zur Sache.
+ *
+ * ABER: die anderen Einheiten bleiben waehlbar. Eine Firma kann eine Entsorgung sehr wohl
+ * nach Stunden anbieten; ihr das zu verbieten waere Bevormundung. Das Formular schlaegt vor,
+ * die Firma entscheidet (GruppenPreismodell: Einheiten-Auswahl neben dem Ansatzfeld).
+ *
+ * Spiegelt die Servicezuordnung aus metaKindForService (offerItemMeta.ts); dort entscheidet
+ * dieselbe Liste, welche Service-Details-Karte erscheint.
+ */
+export const rateUnitForService = (serviceType: string | null | undefined): string => {
+  const s = (serviceType ?? "").trim().toLowerCase();
+  if (s === "entsorgung" || s === "raeumung" || s === "räumung") return "m³";
+  if (s === "lagerung") return "Monat";
+  // Umzug, Transport, Moebellift, Reinigung, Allgemein: Aufwand = Zeit.
+  return "Stunden";
+};
+
+/** Welcher Preistyp diese Ansatz-Einheit traegt. */
+export const priceTypeForRateUnit = (rateUnit: string): string =>
+  rateUnit === "Stunden" ? "per_hour" : "per_unit";
+
+/** Die Felder, die eine Preismodell-Umstellung auf einer Position schreibt. */
+export interface UmstellungsErgebnis {
+  id: string;
+  priceType: string;
+  unit: string;
+  amountBasis: AmountBasis;
+  quantity: number;
+  unitPrice: number;
+  kostendachMax: number | null;
+}
+
+const gleicheZahl = (a: number | null, b: number | null): boolean =>
+  a === null || b === null ? a === b : Math.abs(a - b) < 0.005;
+
+/**
+ * Steht die Gruppe noch exakt so da, wie die Umstellung sie hinterlassen hat?
+ *
+ * Entscheidet, ob „Rückgängig" noch angeboten werden darf. Die Umkehr schreibt ALLE
+ * Positionen der Gruppe auf ihre alten Werte zurueck — sobald der Bediener danach etwas von
+ * Hand geaendert hat, wuerde sie diese Aenderung still verwerfen. Der Streifen ist deshalb
+ * genau so lange ehrlich, wie es nichts zu verlieren gibt.
+ */
+export const umstellungUnveraendert = (
+  erwartet: UmstellungsErgebnis[],
+  jetzt: UmstellungsErgebnis[],
+): boolean => {
+  if (erwartet.length !== jetzt.length) return false;
+  const nachId = new Map(jetzt.map((p) => [p.id, p]));
+  return erwartet.every((e) => {
+    const p = nachId.get(e.id);
+    return (
+      p !== undefined &&
+      p.priceType === e.priceType &&
+      p.unit === e.unit &&
+      p.amountBasis === e.amountBasis &&
+      gleicheZahl(p.quantity, e.quantity) &&
+      gleicheZahl(p.unitPrice, e.unitPrice) &&
+      gleicheZahl(p.kostendachMax, e.kostendachMax)
+    );
+  });
+};
+
+/**
+ * Misst diese Einheit Zeit?
+ *
+ * Die MENGE hinter einem Kostendach traegt die Einheit der Position, nicht immer Stunden:
+ * ein Kostendach von 1200 auf einem m³-Ansatz von 60 sind 20 m³, keine 20 Std. Die Rechnung
+ * (Betrag / Ansatz) war schon einheitenneutral, nur die BESCHRIFTUNG war fest verdrahtet —
+ * dieselbe Falle wie die frueheren "Std."-Reste im Beleg.
+ */
+export const istStundenEinheit = (unit: string | null | undefined): boolean => {
+  const u = (unit ?? "").trim().toLowerCase();
+  return u === "stunden" || u === "stunde" || u === "std." || u === "std" || u === "h";
+};
+
+export interface PriceTypeShape {
+  unit: string;
+  amountBasis: AmountBasis;
+  quantity: number;
+  /** Nur bei amountBasis 'rate' sinnvoll — sonst immer null. */
+  kostendachMax: number | null;
+}
+
+export interface PriceTypeShapeInput {
+  /** Die bisherige Einheit; bleibt erhalten, wenn der neue Typ die Wahl freilässt. */
+  unit?: string | null;
+  /** Die bisherige Menge; bleibt erhalten, wo eine Menge überhaupt Sinn ergibt. */
+  quantity?: number | null;
+  /** Das bisherige Positions-Kostendach. */
+  kostendachMax?: number | null;
+  /**
+   * Trägt die Position eine rechenbare Zeitschätzung?
+   *
+   * Entscheidet bei `per_hour` zwischen 'range' (Min–Max × Ansatz, zählt als Spanne zur Summe)
+   * und 'rate' (nur der Ansatz, Dauer offen). Dieselbe Regel wie in `resolveAmountBasis` —
+   * ein Wechsel des Preistyps darf eine vorhandene, gültige Spanne nicht stillschweigend
+   * wegwerfen.
+   */
+  hasValidTimeEstimate?: boolean;
+  /**
+   * Wird die Position als OFFENER Ansatz gepreist, obwohl ihr Preistyp `per_unit` ist?
+   *
+   * Entsorgung rechnet pro m³, Lagerung pro Monat — dieselbe Betrags-Achse wie der
+   * Stundenansatz ('rate': Einheitspreis bekannt, Menge offen), nur mit einer anderen
+   * Einheit. Ohne diesen Schalter waere "pro m³" nur als fester Betrag abbildbar, und der
+   * Beleg muesste eine Menge nennen, die niemand kennt.
+   */
+  alsAnsatz?: boolean;
+}
+
+/**
+ * Wie eine Position nach dem Wechsel auf `priceType` aussieht — rein, ohne Seiteneffekt.
+ *
+ * Die Betrags-Achse folgt dem Preistyp (`per_hour` → 'rate' bzw. 'range' mit Zeitschätzung,
+ * sonst 'fixed'). Der Bediener kann sie danach im Betragsbasis-Wähler weiter verfeinern; das
+ * bleibt seine Entscheidung. Was diese Funktion verhindert, ist der Zustand, in dem NIEMAND
+ * entschieden hat und die Position stumm anders rechnet, als sie aussieht.
+ */
+export const priceTypeShape = (
+  priceType: string | null | undefined,
+  current: PriceTypeShapeInput = {},
+): PriceTypeShape => {
+  const typ = priceType ?? "";
+  const vorgegebeneEinheit = FIXED_UNIT_BY_PRICE_TYPE[typ];
+
+  const unit =
+    vorgegebeneEinheit !== undefined
+      ? vorgegebeneEinheit
+      : // Freie Wahl: die bisherige Einheit behalten — es sei denn, sie stammt von einem
+        // Typ, der sie vorgegeben hatte ("Pauschal"/"Stunden" wären nach dem Wechsel falsch).
+        (() => {
+          const bisher = (current.unit ?? "").trim();
+          const warVorgegeben = Object.values(FIXED_UNIT_BY_PRICE_TYPE).includes(bisher);
+          return bisher !== "" && !warVorgegeben ? bisher : CHOSEN_UNIT_DEFAULT;
+        })();
+
+  const amountBasis: AmountBasis =
+    typ === "per_hour"
+      ? current.hasValidTimeEstimate
+        ? "range"
+        : "rate"
+      : typ === "per_unit" && current.alsAnsatz
+        ? "rate"
+        : "fixed";
+
+  // Menge nur dort, wo das Formular sie auch zeigt und sie etwas bedeutet.
+  // - pauschale: die Menge ist begrifflich 1 (das Feld ist ausgeblendet). Bliebe die alte 3
+  //   stehen, ergäbe der eingetippte Pauschalpreis 400 in der Summe 1200 — ohne sichtbaren Grund.
+  // - inkl: keine Berechnung.
+  // - per_hour: die Dauer steckt im Ansatz bzw. in der Zeitschätzung, nicht in der Menge.
+  // Ein offener Ansatz kennt keine Menge — sie ist ja gerade das Unbestimmte.
+  const behaeltMenge = (typ === "per_unit" && !current.alsAnsatz) || typ === "optional";
+  const rohMenge = Number(current.quantity);
+  const quantity = behaeltMenge && Number.isFinite(rohMenge) && rohMenge > 0 ? rohMenge : 1;
+
+  // Ein Kostendach beschreibt die Obergrenze eines OFFENEN Betrags. Sobald der Betrag
+  // bestimmt ist, hat es keinen Gegenstand mehr und darf nicht auf dem Beleg landen (F3).
+  const kostendachMax =
+    amountBasis === "rate" &&
+    current.kostendachMax !== null &&
+    current.kostendachMax !== undefined &&
+    Number.isFinite(current.kostendachMax)
+      ? current.kostendachMax
+      : null;
+
+  return { unit, amountBasis, quantity, kostendachMax };
+};
+
 // Item types not included in the subtotal (shown but not summed): optional, inkl.
 const EXCLUDED_FROM_SUBTOTAL = new Set(["optional", "inkl"]);
 
@@ -276,6 +484,85 @@ export function computeDisplayTotals(
  */
 export const offerHasRateItem = (items: SubtotalItem[]): boolean =>
   items.some((item) => !isFreeItem(item.priceType) && resolveAmountBasis(item) === "rate");
+
+// ---------------------------------------------------------------------------
+// Preismodell — es GEHÖRT ZUR SERVICEGRUPPE, nicht zur Offerte.
+//
+// BEFUND (an der Produktion gemessen, 66 Offerten):
+//   * 19 Offerten haben MEHR ALS EINE Servicegruppe unter den bezahlten Positionen. Ein
+//     einziges Preismodell je Offerte kann für sie nie stimmen — Umzug nach Aufwand und
+//     Reinigung pauschal ist der Normalfall, nicht die Ausnahme.
+//   * In allen 3 Fällen, in denen der Bediener das Offerte-Kästchen benutzt hat, ist die
+//     Auswahl NIE bei den Positionen angekommen: das Dokument sagte "Stundenansatz",
+//     gerechnet wurde eine feste Summe.
+//   * Umgekehrt tragen 8 Offerten rate-Positionen, während das Kästchen "Pauschal" sagt.
+//     Offerte 10056 ist eine davon — ihr Beleg ist trotzdem richtig, weil PDF und
+//     Kostendach-Kasten schon heute ausschliesslich aus den POSITIONEN lesen.
+//
+// Daraus folgt beides: das Modell wird JE GRUPPE gesetzt, und es wird aus den Positionen
+// GELESEN. Das Kästchen bleibt das Bedienelement — es schreibt jetzt die Positionen, statt
+// eine zweite Wahrheit daneben abzulegen.
+//
+// Bewusst mengen-agnostisch: dieselbe Funktion beantwortet die Frage für eine Servicegruppe
+// (Formular, Kostendach-Kasten je Gruppe) und für die ganze Offerte (Listen-Etikett).
+// ---------------------------------------------------------------------------
+
+export interface PriceModelItem extends SubtotalItem {
+  /** Positions-Kostendach (offer_items.kostendach_max) — nur bei 'rate' gesetzt. */
+  kostendachMax?: number | null;
+  /**
+   * Der Ansatz aus den Service-Details (effort_meta.hourly_rate / volume_meta.rate), falls
+   * erfasst. Hat Vorrang vor `unitPrice`, weil der Beleg ihn ebenfalls zuerst liest
+   * (ServiceTable, OfferPDFModern).
+   */
+  metaRate?: number | null;
+}
+
+export type PriceModelName = "pauschal" | "stundenansatz" | "kostendach";
+
+export interface DerivedPriceModel {
+  model: PriceModelName;
+  /** Nur gesetzt, wenn ALLE rate-Positionen denselben Ansatz tragen — sonst null. */
+  hourlyRate: number | null;
+  /** Summe der Positions-Obergrenzen; null, wenn keine Position eine trägt. */
+  kostendachMax: number | null;
+}
+
+/**
+ * Das Preismodell einer Positionsmenge.
+ *
+ *   mindestens eine 'rate'-Position + Positions-Kostendach → kostendach
+ *   mindestens eine 'rate'-Position                        → stundenansatz
+ *   sonst                                                   → pauschal
+ *
+ * `hourlyRate` bleibt null, sobald die rate-Positionen VERSCHIEDENE Ansätze tragen — ein
+ * einzelner Satz im Kästchen wäre dann falsch, und die Positionszeilen nennen ohnehin jede
+ * für sich. Lieber kein Kästchen als ein Kästchen mit einer von drei Zahlen.
+ */
+export const derivePriceModel = (items: PriceModelItem[]): DerivedPriceModel => {
+  const rateItems = items.filter(
+    (item) => !isFreeItem(item.priceType) && resolveAmountBasis(item) === "rate",
+  );
+
+  if (rateItems.length === 0) {
+    return { model: "pauschal", hourlyRate: null, kostendachMax: null };
+  }
+
+  const saetze = new Set(
+    rateItems
+      .map((item) => Number(item.metaRate ?? item.unitPrice))
+      .filter((wert) => Number.isFinite(wert) && wert > 0),
+  );
+  const hourlyRate = saetze.size === 1 ? [...saetze][0] : null;
+
+  const deckel = rateItems
+    .map((item) => Number(item.kostendachMax))
+    .filter((wert) => Number.isFinite(wert) && wert > 0);
+
+  return deckel.length > 0
+    ? { model: "kostendach", hourlyRate, kostendachMax: deckel.reduce((a, b) => a + b, 0) }
+    : { model: "stundenansatz", hourlyRate, kostendachMax: null };
+};
 
 // Hinweis anstelle der ausgeblendeten Gesamtbetrag-/Zwischensumme-Box — SINGLE SOURCE,
 // damit alle Flächen (PDF, OfferView, Detail, Email, LivePreview, Erstellen/Bearbeiten) wörtlich gleich sind.

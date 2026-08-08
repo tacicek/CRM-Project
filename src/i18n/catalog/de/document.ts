@@ -63,6 +63,8 @@ export const document = {
     "Die Abrechnung erfolgt nach effektivem Zeitaufwand zum angegebenen Stundenansatz.",
   "doc.offer.hourlyWithCap": "Stundenansatz CHF {rate} / Std. — Kostendach max. CHF {cap}",
   "doc.offer.costCap": "Kostendach:",
+  "doc.offer.rateUnitGeneric": "Ansatz — CHF {rate} / {unit}",
+  "doc.offer.costCapDetailGeneric": "Ansatz {rate}/{unit} — max. CHF {cap} ({menge} {unit})",
   "doc.offer.costCapMax": "max. CHF {cap}",
   "doc.offer.costCapDetail": "Stundenansatz {rate}/Std. — max. CHF {cap} ({hours} Std.)",
   "doc.offer.costCapHours": "Kostendach: max. CHF {cap} (bei {hours} Std.)",

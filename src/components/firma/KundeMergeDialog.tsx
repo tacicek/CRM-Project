@@ -13,11 +13,58 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/useI18n";
 import type { Kunde } from "@/hooks/useKunden";
+import type { MessageKey } from "@/i18n/translator";
 
 type Vorschau = {
   moves: Record<string, number>;
   fills: Record<string, string> | null;
   conflicts: Record<string, { ziel: string; quelle: string }> | null;
+  /** Orte und Anschriften mit gleichem Text werden zusammengelegt, nicht verdoppelt. */
+  zusammengelegt?: Record<string, number> | null;
+};
+
+/**
+ * Die Vorschau kommt als TABELLENNAME aus `customer_reference_columns()` — sie
+ * wird dort erfragt und nicht gepflegt, damit keine Tabelle vergessen wird.
+ * Genau deshalb muss die Uebersetzung hier stehen: "crm_tasks" ist kein Wort,
+ * das ein Bediener kennt.
+ *
+ * Eine kuenftige Tabelle, die noch nicht in dieser Zuordnung steht, erscheint
+ * mit ihrem Rohnamen. Das ist haesslich und ehrlich — und allemal besser, als
+ * sie aus der Vorschau wegzulassen.
+ */
+const BEWEGUNG_LABEL: Record<string, MessageKey> = {
+  leads: "kunde.count.anfragen",
+  offers: "kunde.count.offerten",
+  auftraege: "kunde.count.auftraege",
+  appointments: "kunde.count.termine",
+  rechnungen: "kunde.count.rechnungen",
+  quittungen: "kunde.count.quittungen",
+  inbound_emails: "kunde.count.emails",
+  payments: "kunde.merge.entity.payments",
+  credit_notes: "kunde.finance.credits",
+  crm_tasks: "kunde.merge.entity.tasks",
+  customer_cases: "kunde.merge.entity.cases",
+  service_locations: "kunde.location.section",
+  customer_addresses: "kunde.address.section",
+  customer_change_requests: "kunde.attention.changeRequests",
+  communication_threads: "kunde.merge.entity.threads",
+  offer_amendments: "kunde.merge.entity.amendments",
+  portal_magic_links: "kunde.merge.entity.portal",
+  portal_sessions: "kunde.merge.entity.portal",
+  weiterleitungen: "kunde.merge.entity.redirects",
+};
+
+const FELD_LABEL: Record<string, MessageKey> = {
+  first_name: "kunde.field.firstName",
+  last_name: "kunde.field.lastName",
+  company_name: "kunde.field.companyName",
+  primary_email: "kunde.field.email",
+  primary_phone: "kunde.field.phone",
+  salutation: "kunde.field.salutation",
+  external_customer_number: "kunde.field.customerNumber",
+  notes: "kunde.field.notes",
+  language: "kunde.field.language",
 };
 
 type Props = {
@@ -100,6 +147,11 @@ export const KundeMergeDialog = ({
   const bewegungen = Object.entries(vorschau?.moves ?? {}).filter(([, n]) => n > 0);
   const uebernahmen = Object.entries(vorschau?.fills ?? {});
   const verluste = Object.entries(vorschau?.conflicts ?? {});
+  const legierungen = Object.entries(vorschau?.zusammengelegt ?? {}).filter(([, n]) => n > 0);
+
+  // Rohname als letzte Zuflucht: lieber unuebersetzt als unsichtbar.
+  const bewegungName = (k: string) => (BEWEGUNG_LABEL[k] ? t(BEWEGUNG_LABEL[k]) : k);
+  const feldName = (k: string) => (FELD_LABEL[k] ? t(FELD_LABEL[k]) : k);
 
   return (
     <Dialog open={offen} onOpenChange={onOpenChange}>
@@ -149,7 +201,7 @@ export const KundeMergeDialog = ({
                 <dd className="text-folk-ink">
                   {bewegungen.length === 0
                     ? t("kunde.merge.nothing")
-                    : bewegungen.map(([k, n]) => `${n} ${k}`).join(" · ")}
+                    : bewegungen.map(([k, n]) => `${n} ${bewegungName(k)}`).join(" · ")}
                 </dd>
               </div>
               <div>
@@ -157,15 +209,23 @@ export const KundeMergeDialog = ({
                 <dd className="text-folk-ink">
                   {uebernahmen.length === 0
                     ? t("kunde.merge.nothing")
-                    : uebernahmen.map(([k, v]) => `${k}: ${v}`).join(" · ")}
+                    : uebernahmen.map(([k, v]) => `${feldName(k)}: ${v}`).join(" · ")}
                 </dd>
               </div>
+              {legierungen.length > 0 && (
+                <div>
+                  <dt className="text-folk-ink3">{t("kunde.merge.combined")}</dt>
+                  <dd className="text-folk-ink2">
+                    {legierungen.map(([k, n]) => `${n} ${bewegungName(k)}`).join(" · ")}
+                  </dd>
+                </div>
+              )}
               {verluste.length > 0 && (
                 <div>
                   <dt className="text-folk-coral">{t("kunde.merge.conflicts")}</dt>
                   <dd className="text-folk-ink2">
                     {verluste
-                      .map(([k, v]) => `${k}: „${v.quelle}" → „${v.ziel}"`)
+                      .map(([k, v]) => `${feldName(k)}: „${v.quelle}" → „${v.ziel}"`)
                       .join(" · ")}
                   </dd>
                 </div>

@@ -181,6 +181,19 @@ if [ "$MODE" = "bootstrap" ]; then
   echo "wiki-db: granting the besichtigung stub…"
   psql_run < supabase-wiki/baseline/besichtigung-grants.sql > /dev/null
 
+  # Migrationen, die juenger sind als die Baseline. Dieselbe Liste wie im
+  # Testlauf (scripts/test-db.sh) — der Screenshot-Stapel muss den Bildschirm
+  # zeigen, den es gibt, und nicht den von vor der letzten Migration.
+  PENDING="supabase-test/pending-migrations.txt"
+  if [ -f "$PENDING" ]; then
+    while IFS= read -r m; do
+      case "$m" in ''|'#'*) continue ;; esac
+      [ -f "supabase/migrations/$m" ] || refuse "pending migration '$m' not found."
+      echo "wiki-db: applying pending migration $m…"
+      apply_shared "supabase/migrations/$m"
+    done < "$PENDING"
+  fi
+
   echo "wiki-db: writing identity marker…"
   psql_run < supabase-wiki/baseline/guard-marker.sql > /dev/null
 
