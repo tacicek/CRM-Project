@@ -47,12 +47,16 @@ edge function dizininde fiziksel kalıntıları hâlâ duruyor**. Bu yüzden:
   Tam rehber: [docs/SUPABASE_MCP_BAGLANTI.md](SUPABASE_MCP_BAGLANTI.md).
 - **`@` alias = `src/`**.
 
-> ⚠️ **Data-layer gerçeği:** `QueryClientProvider` [src/App.tsx](../src/App.tsx) içinde
-> kuruludur ama CRM sayfalarında **`useQuery` çağrısı yoktur** (doğrulandı: 0 kullanım).
-> Sayfalar `supabase.from(...).select()` + `useState`/`useEffect` + `useCallback` deseniyle
-> manuel fetch/loading/error yönetir. Yeni sayfa yazarken **mevcut deseni izle** —
-> React Query'yi tek bir sayfaya sokup tutarlılığı bozma; tüm sayfayı bilinçli migrate
-> etmiyorsan.
+> ⚠️ **Data-layer gerçeği (düzeltildi 2026-08-28):** `QueryClientProvider`
+> [src/App.tsx](../src/App.tsx) içinde kuruludur. Bu satır eskiden "CRM sayfalarında
+> `useQuery` çağrısı yoktur (doğrulandı: 0 kullanım)" diyordu — **bu artık yanlış.**
+> `useQuery` bugün üç yerde kullanılıyor: [useUebersichtData.ts](../src/hooks/useUebersichtData.ts),
+> [useBoxRentalStats.ts](../src/hooks/useBoxRentalStats.ts), [useKunden.ts](../src/hooks/useKunden.ts).
+>
+> Yani data-layer **karışık**: sayfaların çoğunluğu hâlâ `supabase.from(...).select()` +
+> `useState`/`useEffect` + `useCallback` ile manuel fetch/loading/error yönetiyor, hook'ların
+> bir kısmı React Query kullanıyor. Yeni kod yazarken dokunduğun dosyanın desenini izle;
+> bir sayfayı yarım migrate etme. Hangi desenin kazanacağı henüz karara bağlanmadı.
 
 ---
 
@@ -165,14 +169,24 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 
 ## 4. Veritabanı Haritası
 
-- **72 tablo**, hepsinde **RLS aktif** (politika sayıları tablo başına 1–7).
+- **101 tablo**, hepsinde **RLS aktif** — istisnasız 0 tablo RLS'siz (ölçüldü 2026-08-10,
+  `ops/production-truth/2026-08-10/table-authz.json`; bu satır eskiden 72 diyordu).
+  Toplam 232 policy.
 - RLS deseni: erişim `auth.uid()` → `companies.user_id` veya `company_members` üzerinden;
   yardımcılar: `is_company_member()`, `is_company_owner()`, `has_role()`, `is_admin()`,
   `get_user_company_ids()`.
 - **Public (token'lı) erişim** RPC üzerinden: `get_offer_by_token`,
   `validate_offer_access_token`, `update_offer_by_token`, `get_offer_items_by_token`,
   `get_besichtigung_session_by_token`, `get_checklist_by_offer_token`,
-  `get_agb_sections_by_offer_token`. Public sayfalar tabloya doğrudan değil bu RPC'lere vurur.
+  `get_agb_sections_by_offer_token`.
+- ⚠️ **"Public sayfalar tabloya doğrudan değil bu RPC'lere vurur" ifadesi 2026-08-28'de
+  düzeltildi — istisnası var.** [AppointmentReschedule.tsx](../src/pages/public/AppointmentReschedule.tsx)
+  kimlik doğrulaması olmayan bir rotadan `appointments` (`:97` okuma, `:159` yazma) ve
+  `companies` (`:129`) tablolarına **doğrudan** vuruyor. Üretimde bu akış çalışmıyor:
+  `appointments` üzerindeki iki policy de `auth.uid()` ya da company-scope istiyor, yani
+  `anon` sıfır satır alır; ardından çağrılan `notify-appointment-reschedule` edge
+  fonksiyonu da **deploy edilmemiş** (ops/production-truth/2026-08-10/deploy-repo-diff.json
+  → `repo_only`). Güvenlik açığı değil, sessizce kırık bir müşteri akışı.
 - **Tip üretimi:** `src/integrations/supabase/types.ts` auto-generated (~5200 satır) —
   **elle düzenleme**. Şema değişince tünel açıkken `npx supabase gen types …` ile yenile.
 - **Migration kuralı:** Mevcut migration düzenlenmez; yeni `YYYYMMDDHHmmss_*.sql` eklenir.
@@ -191,8 +205,15 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 - **Kalıntı (kullanma):** `atomic_accept_lead`, `atomic_adjust_token_balance`,
   `find_companies_in_radius`, `grant_trial`, `extend_subscription`, `activate_self_trial`
 
-> Not: `execute_sql(query, read_only)` adında bir RPC mevcut — MCP read-only erişim bunun
-> üzerinden gelir. Yazma için MCP `unrestricted` moda alınmadıkça çalışmaz.
+> **`execute_sql(query, read_only)` — ölçülmüş hali (2026-08-10):** MCP erişimi bunun
+> üzerinden gelir. ACL yalnızca `postgres` ve `service_role`; `anon` ve `authenticated`
+> **çalıştıramaz**, ve fonksiyon `SECURITY INVOKER` — yani çağıranın yetkileriyle koşar,
+> RLS'i aşmaz (`ops/production-truth/2026-08-10/execute-sql.json`).
+>
+> Ama `read_only` parametresi **hiçbir şey yapmıyor**: fonksiyon gövdesi onu hiç okumuyor;
+> içinde yalnızca "SET TRANSACTION READ ONLY might not behave as expected" diye bir yorum
+> var (`execute-sql-definition.sql`). Yazmayı engelleyen şey MCP'nin modu ve çağıranın
+> rolüdür, bu bayrak değil. `read_only=true` geçmek bir güvence değildir.
 
 ---
 

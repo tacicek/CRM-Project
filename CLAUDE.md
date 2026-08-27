@@ -51,7 +51,8 @@ Bu kurallar Offerio fork'undan dolayı kritiktir. İhlal etmek, çoktan kaldır�
 - **Barrel export** (`index.ts` re-export) yazma. Doğrudan import.
 - **`any` tipi** kullanma. Zod schema'dan tip türet.
 - **Service role key** frontend'e sızdırılmaz. Edge Function içinde Deno env'den.
-- **RLS olmadan tablo yazılmaz.** `supabase-schema-needed.md` referans.
+- **RLS olmadan tablo yazılmaz.** Desen için mevcut migration'lara bak; `supabase-schema-needed.md`
+  **artık referans DEĞİL** (bkz. §6).
 - `.env` / `.env.local` commit edilmez (zaten `.gitignore`'da).
 - Resend / SMTP credentials Supabase Secrets'a — `VITE_*` değil.
 
@@ -218,7 +219,16 @@ Login akışı: `Auth.tsx` → `fetchSingleCompanyForUser` →
 > - **Edge fn deploy**: `scp index.ts → /data/coolify/.../volumes/functions/<fn>/` + edge container restart
 > - **Edge fn `.env` değişikliği** → `docker restart` yetmez, Coolify Redeploy gerek
 
-- 22+ tablo, hepsinde **RLS aktif**. Şema referansı: [supabase-schema-needed.md](supabase-schema-needed.md).
+- **101 tablo**, hepsinde **RLS aktif** (0 istisna), toplam 232 policy — ölçüldü 2026-08-10,
+  [ops/production-truth/2026-08-10/table-authz.json](ops/production-truth/2026-08-10/table-authz.json).
+  *(Bu satır eskiden "22+ tablo" diyordu.)*
+- ⛔ **[supabase-schema-needed.md](supabase-schema-needed.md) şema referansı DEĞİLDİR ve
+  ondan ortam kurulmaz.** Hâlâ `resend_api_key` / `twilio_auth_token`'ı `companies`
+  üzerinde düz kolon olarak tarif ediyor — oysa `20260727160000` tam da tarayıcıdan
+  okunabilir oldukları için o kolonları düşürdü; ayrıca marketplace kalıntısı
+  `lead_distributions`'ı aktif sayıyor. Dosyanın başındaki uyarıyı oku. Şemanın şu anki
+  hali için veritabanının kendisi ve `ops/production-truth/`; nasıl o hale geldiği için
+  `supabase/migrations/`.
 - Tipler `src/integrations/supabase/types.ts` içinde auto-generated (~5200+ satır) —
   elle düzenleme. Şema değişti mi → SSH tüneli açıkken
   `npx supabase gen types typescript --db-url 'postgresql://postgres:***@localhost:5433/postgres'`
@@ -379,7 +389,11 @@ Almanca konuşan bir operatör, Fransız müşteriye Fransızca teklif gönderir
 - [docs/LEISTUNGSKATALOG.md](docs/LEISTUNGSKATALOG.md) — Servis kataloğu modeli.
 - [docs/MOVING_CALCULATOR.md](docs/MOVING_CALCULATOR.md) — Fiyat hesaplayıcı.
 - [docs/N8N_VAPI_INTEGRATION.md](docs/N8N_VAPI_INTEGRATION.md) — Telefon / sesli akış entegrasyonu.
-- [supabase-schema-needed.md](supabase-schema-needed.md) — 22 tablo + RLS pattern referansı.
+- ⛔ [supabase-schema-needed.md](supabase-schema-needed.md) — **kullanma.** Tarihsel kayıt;
+  kurulum reçetesi olarak izlenirse kapatılmış bir güvenlik açığını geri açar (§6).
+- [ops/production-truth/](ops/production-truth/) — üretimin ölçülmüş hali (yetkiler,
+  policy'ler, deploy edilmiş edge fn'ler). Üretici: `scripts/capture-production-truth.sh`,
+  rehber: [docs/PRODUCTION_TRUTH.md](docs/PRODUCTION_TRUTH.md).
 - [.cursor/rules/](.cursor/rules/) — Coding conventions, model routing, roadmap (Cursor için ama içerik geçerli).
 
 ---
