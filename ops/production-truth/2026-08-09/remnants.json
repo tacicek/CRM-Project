@@ -1,0 +1,135 @@
+{
+  "functions_with_outward_literal": [
+    {
+      "anon_execute": true,
+      "authenticated_execute": true,
+      "has_jwt_like_value": false,
+      "has_legacy_cloud_url": true,
+      "security_definer": true,
+      "signature": "trigger_notify_admin_high_spam()"
+    }
+  ],
+  "scheduled_jobs": [
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 43,
+      "command_md5": "78910b8aed2de53d7056b7c6383d8282",
+      "job_id": 1,
+      "job_name": "appointment-reminder-check",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 36,
+      "command_md5": "e647a4a4e23444eda622d29ba5afe7c2",
+      "job_id": 2,
+      "job_name": "team-reminder-check",
+      "schedule": "0 * * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 47,
+      "command_md5": "f0b6124db84848821a829c3f326fdca1",
+      "job_id": 4,
+      "job_name": "expire-unconfirmed-risky-leads",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 58,
+      "command_md5": "851c853ca01ba52204ede4a4c0c3cb11",
+      "job_id": 6,
+      "job_name": "daily-besichtigung-cleanup",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 61,
+      "command_md5": "068cf02557487f841dcb8da0fcfd1927",
+      "job_id": 7,
+      "job_name": "auftrag-reminder-check",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 41,
+      "command_md5": "95a95fb59d7338160542adbb83aa3254",
+      "job_id": 8,
+      "job_name": "reap-stuck-sending-offers",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 39,
+      "command_md5": "94df65f2eacd4350af79e94b004e6a1b",
+      "job_id": 14,
+      "job_name": "daily-inbound-email-cleanup",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 42,
+      "command_md5": "295f2a41d7a46d08db1cf8061d47821c",
+      "job_id": 15,
+      "job_name": "reap-stuck-inbound-emails",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 41,
+      "command_md5": "dca155a3b2a90674d721b316cd9fae8d",
+      "job_id": 17,
+      "job_name": "pipeline-automations",
+      "schedule": "15 6 * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 40,
+      "command_md5": "40f2a54a27496c7460decd849deee01b",
+      "job_id": 22,
+      "job_name": "invoice-automations",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 31,
+      "command_md5": "8cfbd2a45942217e39d979d83b37a309",
+      "job_id": 24,
+      "job_name": "portal-cleanup",
+      "schedule": "45 3 * * *"
+    },
+    {
+      "active": true,
+      "command_has_jwt_like_value": false,
+      "command_has_legacy_cloud_url": false,
+      "command_length": 40,
+      "command_md5": "9ac0de06926493164aaf269e7edaa558",
+      "job_id": 27,
+      "job_name": "communication-retention",
+      "schedule": "15 4 * * *"
+    }
+  ],
+  "scheduled_jobs_readable": true
+}

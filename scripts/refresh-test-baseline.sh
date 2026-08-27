@@ -73,44 +73,24 @@ BASE="$ROOT/supabase-test/baseline"
 # Erzeuger und Pruefer lesen dieselbe Liste — sonst koennte hier eine Datei
 # dazukommen, die dort niemand vermisst.
 . "$ROOT/scripts/baseline-artifacts.sh"
+# Ziel, Bestaetigung, Ferntransport und Identitaetspruefung stehen in
+# prod-readonly.sh, weil capture-production-truth.sh dieselben Zusicherungen
+# braucht. Zwei Fassungen derselben Pruefung waeren genau die stille Abweichung,
+# gegen die dieses Werkzeug gebaut ist.
+. "$ROOT/scripts/prod-readonly.sh"
 
 # ── Produktionszugang: ausdruecklich, nie voreingestellt ─────────────────────
-# Fruehere Fassungen trugen Host und Containernamen als Vorgabewert im Skript.
-# Ein versehentlicher Aufruf traf damit sofort die echte Produktion. Jetzt
-# bricht der Lauf ab, bevor irgendeine Verbindung aufgebaut wird.
-: "${CRM_PROD_SSH:?ABBRUCH: CRM_PROD_SSH muss gesetzt sein (kein eingebautes Ziel).}"
-: "${CRM_PROD_DB_CONTAINER:?ABBRUCH: CRM_PROD_DB_CONTAINER muss gesetzt sein.}"
-: "${CRM_PROD_SYSTEM_IDENTIFIER:?ABBRUCH: CRM_PROD_SYSTEM_IDENTIFIER (pg_control_system().system_identifier der erwarteten Instanz) fehlt.}"
-: "${CRM_PROD_READ_CONFIRM:?ABBRUCH: CRM_PROD_READ_CONFIRM fehlt (SHA-256 des Ziels, siehe README).}"
-: "${CRM_PROD_CHANGE_FREEZE_CONFIRM:?ABBRUCH: CRM_PROD_CHANGE_FREEZE_CONFIRM fehlt (Zusicherung, dass waehrend der Aufnahme keine Migration/DDL/GRANT laeuft).}"
-
-case "$CRM_PROD_SYSTEM_IDENTIFIER" in
-  ''|*[!0-9]*) echo "ABBRUCH: CRM_PROD_SYSTEM_IDENTIFIER muss die numerische Cluster-Kennung sein." >&2; exit 1 ;;
-esac
-
-# Die Bestaetigung haengt am GANZEN Ziel, nicht nur an der Kennung: Host,
-# Container und Cluster-Kennung zusammen. Eine kopierte Kommandozeile, bei der
-# irgendeines der drei ausgetauscht wurde, traegt damit die falsche Bestaetigung.
-#
-# Der erwartete Wert wird bei Nichtuebereinstimmung ABSICHTLICH NICHT
-# ausgegeben. Sonst waere die Bestaetigung ein Formular: einmal laufen lassen,
-# Wert abschreiben, fertig. Wie er zu berechnen ist, steht im README.
-ZIEL_FINGERPRINT="$(printf '%s|%s|%s' \
-  "$CRM_PROD_SSH" "$CRM_PROD_DB_CONTAINER" "$CRM_PROD_SYSTEM_IDENTIFIER" \
-  | sha256sum | cut -d' ' -f1)"
-FREEZE_FINGERPRINT="$(printf 'change-freeze|%s' "$ZIEL_FINGERPRINT" \
-  | sha256sum | cut -d' ' -f1)"
-
-if [ "$CRM_PROD_READ_CONFIRM" != "$ZIEL_FINGERPRINT" ]; then
-  echo "ABBRUCH: CRM_PROD_READ_CONFIRM passt nicht zum Ziel (Host, Container, Kennung)." >&2
-  echo "  Berechnung siehe supabase-test/README.md." >&2
-  exit 1
-fi
+prod_require_target
+prod_require_read_confirm
 
 # Getrennt bestaetigt, weil es eine andere Zusage ist: nicht "ich lese die
 # richtige Instanz", sondern "waehrend ich lese, aendert dort niemand etwas".
 # Eigener Salt, damit der eine Wert nicht fuer den anderen durchgereicht werden
-# kann.
+# kann. Sie steht NICHT in prod-readonly.sh: die Befundaufnahme braucht keinen
+# eingefrorenen Stand, sie berichtet, was sie sieht.
+: "${CRM_PROD_CHANGE_FREEZE_CONFIRM:?ABBRUCH: CRM_PROD_CHANGE_FREEZE_CONFIRM fehlt (Zusicherung, dass waehrend der Aufnahme keine Migration/DDL/GRANT laeuft).}"
+FREEZE_FINGERPRINT="$(printf 'change-freeze|%s' "$PROD_ZIEL_FINGERPRINT" \
+  | sha256sum | cut -d' ' -f1)"
 if [ "$CRM_PROD_CHANGE_FREEZE_CONFIRM" != "$FREEZE_FINGERPRINT" ]; then
   echo "ABBRUCH: CRM_PROD_CHANGE_FREEZE_CONFIRM passt nicht zum Ziel." >&2
   echo "  Diese Zusicherung ist noetig, weil die Aufnahme aus mehreren" >&2
@@ -120,18 +100,7 @@ if [ "$CRM_PROD_CHANGE_FREEZE_CONFIRM" != "$FREEZE_FINGERPRINT" ]; then
   exit 1
 fi
 
-SSH_HOST="$CRM_PROD_SSH"
-DB_CONTAINER="$CRM_PROD_DB_CONTAINER"
-SSH_CONFIG="${CRM_PROD_SSH_CONFIG:-/dev/null}"
-
-# Ein fuehrender Bindestrich macht aus dem Wert eine Option — `ssh -o ...` bzw.
-# `docker exec -...`. Die Zeichen-Positivliste allein faengt das nicht ab.
-case "$SSH_HOST" in
-  ''|-*|*[!A-Za-z0-9._@-]*) echo "ABBRUCH: ungueltiger CRM_PROD_SSH-Wert." >&2; exit 1 ;;
-esac
-case "$DB_CONTAINER" in
-  ''|-*|*[!A-Za-z0-9_.-]*) echo "ABBRUCH: ungueltiger CRM_PROD_DB_CONTAINER-Wert." >&2; exit 1 ;;
-esac
+prod_connect
 
 # Der Rohdump und alles daraus Abgeleitete liegt kurzzeitig unsanitisiert auf
 # der Platte. Bis zur Veroeffentlichung geht das niemanden sonst auf dieser
@@ -152,67 +121,16 @@ if ! flock -n -x 9; then
   exit 1
 fi
 
-# ── Ferntransport ───────────────────────────────────────────────────────────
-# SQL wird NICHT in die Fernkommandozeile eingebettet. Die Anweisung kommt ueber
-# stdin an `psql -f -`; im Kommando selbst steht nur Festverdrahtetes plus der
-# oben gegen eine Positivliste gepruefte Containername. Damit braucht die
-# Gegenseite keine bash — einfache Anfuehrungszeichen genuegen jeder POSIX-Shell,
-# und `printf %q` (bash-spezifisch) faellt ganz weg.
-REMOTE_PREFIX="docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' $DB_CONTAINER"
-REMOTE_PSQL="$REMOTE_PREFIX psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t"
-
-ssh_prod() {
-  ssh -F "$SSH_CONFIG" -o BatchMode=yes -o StrictHostKeyChecking=yes \
-    -o ConnectTimeout=15 "$SSH_HOST" "$1"
-}
-
-PROD_SQL()        { ssh_prod "$REMOTE_PSQL -f -"; }          # SQL ueber stdin
-PROD_SQL_FIELDS() { ssh_prod "$REMOTE_PSQL -F'|' -f -"; }    # dito, Feldtrenner
-prod_scalar()     { printf '%s\n' "$1" | PROD_SQL; }
-
 echo "==> Vorpruefungen (Abbruch statt stiller Auslassung)"
 
-# Erst: reden wir mit GENAU der erwarteten Instanz?
-#
-# `current_database()`, Serverversion und Tabellennamen sind KEINE Kennung —
-# jede Kopie dieses CRM fuer eine andere Firma besteht dieselbe Pruefung. Was
-# eine Instanz eindeutig macht, ist die Cluster-Kennung aus pg_control_system();
-# sie entsteht bei initdb und wandert bei einem Basis-Backup mit.
-#
-# Sie wird VORGEGEBEN, nie gelernt: das Skript liest die Kennung niemals, um sie
-# anschliessend als "erwartet" zu speichern. Sonst waere die erste Verbindung
-# zur falschen Instanz gleichzeitig deren Legitimation.
-IDENTITAETS_SQL="SELECT system_identifier::text FROM pg_control_system()"
-SYSTEM_ID="$(prod_scalar "$IDENTITAETS_SQL")"
-if [ "$SYSTEM_ID" != "$CRM_PROD_SYSTEM_IDENTIFIER" ]; then
-  # WEDER die gesehene NOCH die erwartete Kennung ausgeben. Beides gedruckt
-  # macht aus dieser Pruefung ihr Gegenteil: wer die Kennung nicht kennt,
-  # bekaeme sie hier geschenkt und koennte den naechsten Lauf damit
-  # legitimieren. Die Kennung muss aus einer unabhaengigen Quelle kommen.
-  echo "ABBRUCH: source identity mismatch — die Instanz ist nicht die erwartete." >&2
-  exit 1
-fi
+# Erst: reden wir mit GENAU der erwarteten Instanz, und sieht die Datenbank nach
+# dieser Anwendung aus? Beides steht in prod-readonly.sh (prod_check_identity)
+# und setzt PROD_SYSTEM_ID, PROD_SHAPE, PROD_QUELL_DB, PROD_SERVER_VERSION.
+prod_check_identity
 
-# Zusaetzlich, und ausdruecklich NICHT als Kennung gemeint: sieht die Datenbank
-# ueberhaupt nach dieser Anwendung aus, und gibt es die drei Rollen, deren
-# Rechte projiziert werden? Das faengt eine richtige Instanz mit falscher
-# Datenbank ab, nicht eine falsche Instanz.
-GESTALT_SQL="
-SELECT current_database()
-  || '|' || current_setting('server_version')
-  || '|' || (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-             WHERE n.nspname='public' AND c.relkind='r'
-               AND c.relname IN ('companies','company_members','leads','offers','auftraege','customers','payments'))"
-IDENTITAET="$(prod_scalar "$GESTALT_SQL")"
-QUELL_DB="${IDENTITAET%%|*}"
-REST="${IDENTITAET#*|}"
-SERVER_VERSION="${REST%%|*}"
-KERNOBJEKTE="${REST##*|}"
-if [ "$KERNOBJEKTE" != "7" ]; then
-  echo "ABBRUCH: nur $KERNOBJEKTE von 7 CRM-Kerntabellen gefunden (db=$QUELL_DB) — das ist nicht diese Anwendung." >&2
-  exit 1
-fi
-
+# Gibt es die drei Rollen, deren Rechte projiziert werden? Das gehoert NICHT in
+# die gemeinsame Pruefung: es ist eine Vorbedingung der ACL-Projektion, nicht
+# der Identitaet.
 ROLLEN="$(prod_scalar "SELECT count(*) FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role')")"
 if [ "$ROLLEN" != "3" ]; then
   echo "ABBRUCH: $ROLLEN von 3 verfolgten Rollen vorhanden — ohne sie ist die Projektion unvollstaendig." >&2
@@ -270,7 +188,7 @@ fi
 # der die Ausgabe zitiert. Die Abbruchmeldung weiter oben nennt sie aus demselben
 # Grund nicht; hier stand sie nur deshalb, weil der Test, der genau das prueft,
 # wegen eines Subshell-Fehlers in der Testhilfe nie ausgefuehrt wurde.
-echo "    Instanz bestaetigt · Quelle $QUELL_DB (PostgreSQL $SERVER_VERSION)"
+echo "    Instanz bestaetigt · Quelle $PROD_QUELL_DB (PostgreSQL $PROD_SERVER_VERSION)"
 echo "    Kerntabellen 7/7, verfolgte Rollen 3/3, Spalten-ACLs 0, Fremd-Grantor 0"
 
 # ── Drift-Sonde: RECHTE ─────────────────────────────────────────────────────
@@ -318,7 +236,7 @@ pruefe_fingerprint_wert "$ACL_VORHER" "ACL vorher"
 echo "    ACL-Sonde vorher: $ACL_VORHER"
 
 prod_dump() {  # $1 = Zieldatei
-  ssh_prod "$REMOTE_PREFIX pg_dump -U postgres -d postgres --schema-only --schema=public --no-owner --no-privileges --lock-wait-timeout=5s" \
+  ssh_prod "$PROD_REMOTE_PREFIX pg_dump -U postgres -d postgres --schema-only --schema=public --no-owner --no-privileges --lock-wait-timeout=5s" \
     < /dev/null > "$1"
 }
 
@@ -623,14 +541,7 @@ fi
 #    einem Dutzend Verbindungen; zwischen zwei davon koennte der Container
 #    getauscht, ein Failover gelaufen oder die Datenbank gewechselt worden sein.
 #    Verglichen wird gegen die Werte vom Anfang — ohne sie auszugeben.
-NACH_SYSTEM_ID="$(prod_scalar "$IDENTITAETS_SQL")"
-NACH_GESTALT="$(prod_scalar "$GESTALT_SQL")"
-if [ "$NACH_SYSTEM_ID" != "$SYSTEM_ID" ] || [ "$NACH_GESTALT" != "$IDENTITAET" ]; then
-  echo "ABBRUCH: source identity mismatch am Ende der Aufnahme —" >&2
-  echo "  Cluster-Kennung, Datenbank, Serverversion oder Kerntabellen weichen" >&2
-  echo "  vom Anfang ab. Es wurde nichts veroeffentlicht." >&2
-  exit 1
-fi
+prod_recheck_identity
 
 # 4) Die drei Vorbedingungen noch einmal — sie koennten seit dem Anfang
 #    weggefallen sein, und dann waere die Projektion still unvollstaendig.
@@ -660,8 +571,8 @@ python3 "$ROOT/scripts/baseline-manifest.py" \
   --alt "$BASE/parity-manifest.json" --ziel "$STAGE/parity-manifest.json" \
   --stage "$STAGE" --artefakte "$BASELINE_ARTIFACTS" \
   --table-acl "$TABLE_FP" --sequence-acl "$SEQUENCE_FP" --function-acl "$FUNCTION_FP" \
-  --quell-db "$QUELL_DB" --server-version "$SERVER_VERSION" \
-  --ziel-fingerprint "$ZIEL_FINGERPRINT" --heute "$(date +%F)"
+  --quell-db "$PROD_QUELL_DB" --server-version "$PROD_SERVER_VERSION" \
+  --ziel-fingerprint "$PROD_ZIEL_FINGERPRINT" --heute "$(date +%F)"
 
 echo "==> Manifest mitpruefen"
 # Das Manifest traegt Zaehlungen, Enum-Werte und den Herkunftssatz aus der

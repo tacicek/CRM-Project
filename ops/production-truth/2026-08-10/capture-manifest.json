@@ -1,0 +1,23 @@
+{
+  "artifacts": {
+    "deploy-only-sources.json": "dde0e506c60198e085cfacb789ebf63ce3c9c923fd73e87525903070ee524738",
+    "deploy-repo-diff.json": "f69415123ee209d6e87f72e0db1c3723f25280e8c2bdbe8ee3b1c8ba8444cf3e",
+    "edge-runtime.json": "a4e9216d8295f7d85b6fed43624795034d447412b1472796167f0795f0e44be2",
+    "execute-sql-definition.sql": "bcc718131ae608effa88f4a8eed2a3a9c63696e7a6fac63c87ef9825d93e6c0c",
+    "execute-sql.json": "e5e499019bdb0d95f40887874b5c7eae6b4b622a43b30bf4290d90c27b8b910f",
+    "function-authz.json": "85b3001247802bac769d9ecafd11c9b99a71806dfc53daad02bda4a1fec7ae1f",
+    "policies.json": "4f777b968d692ce95de7582a546806c7c14f8b5671f721d80bd293f5ec96bb95",
+    "portal-usage.json": "ead680da81897eaa319e5c25b538aee2be95cc0188df252a20ac6a2adf3625a1",
+    "remnants.json": "b8f995050f7354297e040b210b209d78e7acd12ea2dc3abae39e2bad8bce79a1",
+    "table-authz.json": "cb17bc7243d5a067871e236c98f56746e083c7e007e3f1a4770a18df66d9bf81"
+  },
+  "authz_probe_md5": "757938c6da32b77d80069c53c9582937",
+  "captured_at": "2026-08-10",
+  "captured_by": "scripts/capture-production-truth.sh",
+  "generation": "b92a3bf64015b2eb",
+  "server_version": "15.8",
+  "source_database": "postgres",
+  "source_identity_fingerprint_sha256": "24de5e196270286526b356e5968fa2c2589bb0f6420ea4a6028d9cce7fe48f0c",
+  "what_this_is": "Observed, read-only state of production at capture time: gateway and edge-runtime auth settings, deployed function digests, function and table privileges, RLS/policy structure, execute_sql, outward literals, portal usage, and a repo/config/deploy three-way diff with full source for deploy-only functions.",
+  "what_this_is_not": "Not a migration ledger: it records the schema that exists, not the files that produced it. Not a deployment manifest: it records what is deployed, not what should be. Policy expressions are recorded as hashes plus traits, never verbatim."
+}

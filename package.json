@@ -21,6 +21,7 @@
     "test:db:bootstrap": "bash scripts/test-db.sh --bootstrap-only",
     "test:db": "bash scripts/test-db.sh",
     "test:baseline": "bash scripts/test-baseline-tooling.sh",
+    "test:prod-truth": "bash scripts/test-prod-truth-tooling.sh",
     "test:stack-guard": "bash scripts/test-stack-guard.sh",
     "test:integration": "npm run test:unit && npm run test:db",
     "test:watch": "vitest",

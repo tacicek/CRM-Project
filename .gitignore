@@ -54,3 +54,6 @@ supabase-test/baseline/.stage.*
 # Python-Bytecode der Baseline-Hilfsskripte
 __pycache__/
 *.pyc
+
+# Deep-model handoff artifacts (Prompt + Report) — lokal, nie committen
+gptpro/
