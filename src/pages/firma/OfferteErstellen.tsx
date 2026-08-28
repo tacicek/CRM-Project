@@ -55,6 +55,10 @@ import { format } from "date-fns";
 import { useCompanyPricing } from "@/hooks/useCompanyPricing";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { buildOfferTitle } from "@/lib/offerTitle";
+import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } from "@/lib/offerLanguageRebase";
+import { sammleOfferteRebaseFelder, type KatalogHerkunft } from "@/lib/offerRebaseFelder";
+import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { zeileGehoertZumMandanten } from "@/lib/aktiverMandant";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
@@ -233,57 +237,6 @@ const createEmptyItem = (position: number): OfferItem => ({
  */
 
 /** Generated offer title per lead service_type (incl. historic aliases). */
-const OFFER_TITLE_KEY_BY_SERVICE: Record<string, MessageKey> = {
-  // Umzug
-  umzug: "offer.doc.title.umzug",
-  umzug_privat: "offer.doc.title.umzug_privat",
-  umzug_buero: "offer.doc.title.umzug_buero",
-  umzug_firmen: "offer.doc.title.umzug_firmen",
-
-  // Reinigung
-  reinigung: "offer.doc.title.reinigung",
-  reinigung_end: "offer.doc.title.reinigung_end",
-  reinigung_bau: "offer.doc.title.reinigung_bau",
-  reinigung_unterhalts: "offer.doc.title.reinigung_unterhalts",
-  reinigung_glas: "offer.doc.title.reinigung_glas",
-  reinigung_fassade: "offer.doc.title.reinigung_fassade",
-  reinigung_teppich: "offer.doc.title.reinigung_teppich",
-  reinigung_praxis: "offer.doc.title.reinigung_praxis",
-  cleaning: "offer.doc.title.reinigung",
-
-  // Räumung / Entsorgung
-  raeumung: "offer.doc.title.raeumung",
-  raeumung_haushalt: "offer.doc.title.raeumung_haushalt",
-  raeumung_todesfall: "offer.doc.title.raeumung_todesfall",
-  raeumung_messie: "offer.doc.title.raeumung_messie",
-  raeumung_zwang: "offer.doc.title.raeumung_zwang",
-  entsorgung: "offer.doc.title.entsorgung",
-  entrümpelung: "offer.doc.title.entruempelung",
-
-  // Lagerung
-  lagerung: "offer.doc.title.lagerung",
-  storage: "offer.doc.title.lagerung",
-
-  // Spezialtransporte
-  klaviertransport: "offer.doc.title.klaviertransport",
-  piano: "offer.doc.title.klaviertransport",
-  klavier: "offer.doc.title.klaviertransport",
-
-  // Möbellift
-  moebellift: "offer.doc.title.moebellift",
-  moebellift_mieten: "offer.doc.title.moebellift_mieten",
-  lift: "offer.doc.title.moebellift",
-
-  // Möbeltransport
-  moebeltransport: "offer.doc.title.moebeltransport",
-  furniture: "offer.doc.title.moebeltransport",
-
-  // Malerarbeiten
-  maler: "offer.doc.title.maler",
-  malerarbeit: "offer.doc.title.maler",
-  painting: "offer.doc.title.maler",
-};
-
 /** Moving-calculator vehicle names, printed inside the position description. */
 const VEHICLE_NAME_KEYS: Record<string, MessageKey> = {
   transporter: "offer.doc.calc.vehicle.transporter",
@@ -293,6 +246,19 @@ const VEHICLE_NAME_KEYS: Record<string, MessageKey> = {
 };
 
 /** Payment condition text written into offers.payment_terms. */
+/**
+ * Die Zahlungskondition kommt aus dem typisierten Katalog, sobald eine
+ * Zahlungsart gewaehlt ist — dann ist sie fuer JEDE Sprache erzeugbar. Ohne
+ * gewaehlte Art steht dort Firmen- oder Vorlagentext bzw. Getipptes; dafuer gibt
+ * es hier keine aufloesbare Quelle, und der Plan behandelt sie entsprechend.
+ */
+const zahlungskonditionQuelle = (
+  methode: string | null | undefined,
+): { art: "katalogschluessel"; key: MessageKey } | null => {
+  const key = methode ? PAYMENT_METHOD_KEYS[methode] : undefined;
+  return key ? { art: "katalogschluessel", key } : null;
+};
+
 const PAYMENT_METHOD_KEYS: Record<string, MessageKey> = {
   bar: "offer.doc.paymentMethod.bar",
   rechnung_14: "offer.doc.paymentMethod.rechnung_14",
@@ -358,6 +324,11 @@ const FirmaOfferteErstellen = () => {
    * picker below is the correction point.
    */
   const [offerLocale, setOfferLocale] = useState<Locale>(DEFAULT_LOCALE);
+  // Herkunft der Positionen, soweit in DIESER Sitzung bekannt: `offer_items`
+  // traegt keine Herkunftsspalte (das waere eine Migration). Was hier fehlt,
+  // behandelt der Umstellungsplan konservativ als vom Bediener geschrieben.
+  const [positionsherkunft, setPositionsherkunft] = useState<Map<string, KatalogHerkunft>>(new Map());
+  const [sprachPlan, setSprachPlan] = useState<RebasePlan | null>(null);
   // Translator for text that is WRITTEN INTO the offer (title, item descriptions, payment
   // terms, AGB) — resolves the customer's language, never the operator's. Not useT().
   const documentT = documentI18nFor(offerLocale).t;
@@ -423,6 +394,72 @@ const FirmaOfferteErstellen = () => {
       if (key) setPaymentTerms(documentT(key));
     }
   };
+  /**
+   * Sprachwechsel als Vorgang, nicht als Schalter.
+   *
+   * Bis 2026-08-28 setzte der Waehler nur `offerLocale`. Titel, Positionstexte
+   * und Zahlungskondition blieben in der vorigen Sprache stehen, waehrend die
+   * Oberflaeche die neue anzeigte. Jetzt wird zuerst ein Plan gebaut und
+   * gezeigt; gewirkt wird erst nach Bestaetigung.
+   */
+  const sprachwechselStarten = (ziel: Locale) => {
+    if (ziel === offerLocale) return;
+    setSprachPlan(
+      buildOfferLanguageRebasePlan({
+        von: offerLocale,
+        nach: ziel,
+        // Ein neuer Entwurf ist nie eingefroren — er wurde noch nicht versendet.
+        eingefroren: false,
+        felder: sammleOfferteRebaseFelder({
+          von: offerLocale,
+          nach: ziel,
+          titelQuelle: lead,
+          titel: title,
+          positionen: items.map((i) => ({
+            id: i.id,
+            position: i.position,
+            description: i.description,
+            quantity: i.quantity,
+            unit: i.unit,
+            unit_price: i.unit_price,
+          })),
+          positionsherkunft,
+          zahlungskondition: {
+            wert: paymentTerms,
+            quelle: zahlungskonditionQuelle(offerDetails.paymentMethod),
+          },
+          // Die Bedingungen kommen aus der Firmen-/Vorlagenzeile; ohne
+          // aufgeloeste Zeile gilt der Text als frei geschrieben.
+          agb: { wert: termsAndConditions, quelle: null },
+        }),
+      }),
+    );
+  };
+
+  const sprachwechselAnwenden = (wirkung: RebaseAnwendung) => {
+    // NUR die Felder aus dem Plan. Die Oberflaeche sucht nichts eigenstaendig
+    // zusammen — sonst gaebe es zwei Sprachvertraege, und der zweite waere der,
+    // den niemand testet.
+    for (const [feld, wert] of Object.entries(wirkung.aenderungen)) {
+      if (feld === "title") { setTitle(wert); continue; }
+      if (feld === "payment_terms") { setPaymentTerms(wert); continue; }
+      if (feld === "terms_and_conditions") { setTermsAndConditions(wert); continue; }
+      const treffer = /^items\[(\d+)\]\.description$/.exec(feld);
+      if (treffer) {
+        const pos = Number(treffer[1]);
+        setItems((prev) => prev.map((i) => (i.position === pos ? { ...i, description: wert } : i)));
+      }
+    }
+    setOfferLocale(wirkung.nach);
+    setSprachPlan(null);
+    const anzahl = Object.keys(wirkung.aenderungen).length;
+    toast({
+      title: anzahl > 0
+        ? t("offer.lang.rebase.applied", { count: anzahl })
+        : t("offer.lang.rebase.appliedNone"),
+    });
+  };
+
   const [offerNumber, setOfferNumber] = useState<number | undefined>(undefined);
 
   // Kein Offerte-weites Preismodell mehr: es gehoert zur Servicegruppe und wird dort
@@ -554,31 +591,10 @@ const FirmaOfferteErstellen = () => {
         const localeForOffer = toLocale(leadData.language ?? companyData.default_language);
         const docT = documentI18nFor(localeForOffer).t;
 
-        // Generate the offer title in the CUSTOMER's language (it is stored on the offer and
-        // printed on the PDF). "nach"/"from…to" comes from the catalog, not from a literal.
-        const rawServiceType: string = leadData.service_type ?? "";
-        const titleKey =
-          OFFER_TITLE_KEY_BY_SERVICE[rawServiceType] ??
-          OFFER_TITLE_KEY_BY_SERVICE[rawServiceType.toLowerCase()] ??
-          "offer.doc.title.default";
-        const baseTitle = docT(titleKey);
-        let generatedTitle = baseTitle;
-
-        // Add location for Umzug (spelled-out "nach" instead of "→" for PDF compatibility)
-        if (rawServiceType.includes("umzug") && leadData.from_city && leadData.to_city) {
-          generatedTitle = docT("offer.doc.title.route", {
-            base: baseTitle,
-            from: leadData.from_city,
-            to: leadData.to_city,
-          });
-        } else if (leadData.from_city) {
-          generatedTitle = docT("offer.doc.title.inCity", {
-            base: baseTitle,
-            city: leadData.from_city,
-          });
-        }
-
-        setTitle(generatedTitle);
+        // Titel in der Sprache des KUNDEN. Die Erzeugung liegt in
+        // `@/lib/offerTitle`, damit der Sprachwechsel unten sagen kann, was aus
+        // ihm WÜRDE — inline war er genau einmal erzeugbar, beim Laden.
+        setTitle(buildOfferTitle(localeForOffer, leadData));
 
         if (leadData.preferred_date) {
           setServiceDate(leadData.preferred_date);
@@ -830,6 +846,16 @@ const FirmaOfferteErstellen = () => {
     });
 
     setItems([...items, ...newItems]);
+
+    // Herkunft mitschreiben: nur so kann der Sprachwechsel spaeter sagen, ob ein
+    // Positionstext noch der Katalogtext ist oder von Hand geaendert wurde.
+    setPositionsherkunft((prev) => {
+      const next = new Map(prev);
+      newItems.forEach((item, i) => {
+        next.set(item.id, { zeile: services[i], felder: ["name", "description"] });
+      });
+      return next;
+    });
 
     // Track explicitly added IDs so catalog shows them as "Bereits hinzugefügt"
     setCatalogAddedIds(prev => {
@@ -1900,7 +1926,7 @@ const FirmaOfferteErstellen = () => {
                       <Languages className="h-3.5 w-3.5" />
                       {t("offer.form.customerLanguage.label")}
                     </Label>
-                    <Select value={offerLocale} onValueChange={(v) => setOfferLocale(toLocale(v))}>
+                    <Select value={offerLocale} onValueChange={(v) => sprachwechselStarten(toLocale(v))}>
                       <SelectTrigger id="offer-language" className="h-9 sm:h-10 text-sm">
                         <SelectValue />
                       </SelectTrigger>
@@ -2881,6 +2907,11 @@ const FirmaOfferteErstellen = () => {
         </Dialog>
 
         {/* Spell Check Review Modal */}
+        <SprachwechselDialog
+          plan={sprachPlan}
+          onAbbrechen={() => setSprachPlan(null)}
+          onAnwenden={sprachwechselAnwenden}
+        />
         <SpellCheckModal
           open={spellCheckOpen}
           originalFields={spellCheckOriginal}

@@ -53,6 +53,9 @@ import { metaKindForService, buildMetaPayload, metaPayloadToJson, seedMetaDraft,
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } from "@/lib/offerLanguageRebase";
+import { sammleOfferteRebaseFelder } from "@/lib/offerRebaseFelder";
+import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
@@ -237,6 +240,70 @@ const FirmaOfferteBearbeiten = () => {
   // DOCUMENT locale of this offer — the language the CUSTOMER is addressed in (PDF, e-mail,
   // public token page). Independent of the operator's dashboard language.
   const [offerLanguage, setOfferLanguage] = useState<Locale>(DEFAULT_LOCALE);
+  const [sprachPlan, setSprachPlan] = useState<RebasePlan | null>(null);
+
+  /**
+   * Sprachwechsel auf einer BESTEHENDEN Offerte.
+   *
+   * Hier ist die Lage ehrlicher — und duerftiger — als beim Anlegen: die
+   * Positionen kommen aus der Datenbank, und `offer_items` traegt keine
+   * Herkunftsspalte. Ob ein Text noch der Katalogtext ist oder laengst von Hand
+   * geaendert wurde, laesst sich nicht belegen. Der Plan stuft solche Felder
+   * darum als `unknown` ein und fasst sie nicht an.
+   *
+   * Das Ergebnis ist oft „es gibt nichts zu uebernehmen" — und genau das ist
+   * der Fortschritt: vorher behauptete der Waehler wortlos das Gegenteil.
+   *
+   * `eingefroren: false` ist hier belegt und nicht angenommen: eine gesperrte
+   * Offerte erreicht diese Seite gar nicht, der Ladeeffekt oben leitet sie auf
+   * die Detailseite um.
+   */
+  const sprachwechselStarten = (ziel: Locale) => {
+    if (ziel === offerLanguage) return;
+    setSprachPlan(
+      buildOfferLanguageRebasePlan({
+        von: offerLanguage,
+        nach: ziel,
+        eingefroren: false,
+        felder: sammleOfferteRebaseFelder({
+          von: offerLanguage,
+          nach: ziel,
+          titelQuelle: null,
+          titel: title,
+          positionen: items.map((i) => ({
+            id: i.id,
+            position: i.position,
+            description: i.description,
+            quantity: i.quantity,
+            unit: i.unit,
+            unit_price: i.unit_price,
+          })),
+          zahlungskondition: { wert: paymentTerms, quelle: null },
+          agb: { wert: "", quelle: null },
+        }),
+      }),
+    );
+  };
+
+  const sprachwechselAnwenden = (wirkung: RebaseAnwendung) => {
+    for (const [feld, wert] of Object.entries(wirkung.aenderungen)) {
+      if (feld === "title") { setTitle(wert); continue; }
+      if (feld === "payment_terms") { setPaymentTerms(wert); continue; }
+      const treffer = /^items\[(\d+)\]\.description$/.exec(feld);
+      if (treffer) {
+        const pos = Number(treffer[1]);
+        setItems((prev) => prev.map((i) => (i.position === pos ? { ...i, description: wert } : i)));
+      }
+    }
+    setOfferLanguage(wirkung.nach);
+    setSprachPlan(null);
+    const anzahl = Object.keys(wirkung.aenderungen).length;
+    toast({
+      title: anzahl > 0
+        ? t("offer.lang.rebase.applied", { count: anzahl })
+        : t("offer.lang.rebase.appliedNone"),
+    });
+  };
   // Translator for text that is WRITTEN INTO the offer (payment terms) — resolves the
   // customer's language, never the operator's. Deliberately NOT useT().
   const documentT = documentI18nFor(offerLanguage).t;
@@ -1019,7 +1086,7 @@ const FirmaOfferteBearbeiten = () => {
                     </Label>
                     <Select
                       value={offerLanguage}
-                      onValueChange={(v) => setOfferLanguage(toLocale(v))}
+                      onValueChange={(v) => sprachwechselStarten(toLocale(v))}
                     >
                       <SelectTrigger id="offer-language" className="h-9 sm:h-10 text-sm">
                         <SelectValue />
@@ -1802,6 +1869,11 @@ const FirmaOfferteBearbeiten = () => {
         </div>
 
         {/* Spell Check Review Modal */}
+        <SprachwechselDialog
+          plan={sprachPlan}
+          onAbbrechen={() => setSprachPlan(null)}
+          onAnwenden={sprachwechselAnwenden}
+        />
         <SpellCheckModal
           open={spellCheckOpen}
           originalFields={spellCheckOriginal}
