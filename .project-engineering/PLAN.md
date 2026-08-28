@@ -34,7 +34,7 @@ dependency-safe work continues.
 - Demonstration: `ops/production-truth/2026-08-28/` plus the derived evidence.
 - Slice verification: `npx vitest run src/test/__tests__/edge-auth-manifest.test.ts`
 
-#### S-02 — Tenant: invoices, receipts, offers
+#### S-02 — Tenant: invoices, receipts, offers — DONE
 
 - Outcome: financial and offer surfaces derive company identity from the
   business row under the active tenant, and fail closed on mismatch.
@@ -70,11 +70,11 @@ dependency-safe work continues.
 | ID | Outcome | Requirements | Depends on | Status | Verification |
 | --- | --- | --- | --- | --- | --- |
 | T-001 | Dated read-only production truth, reproducible edge content diff, migration applied-state, edge auth manifest + gate | REQ-NF-001, REQ-NF-002, REQ-F-006 | — | DONE | `npx vitest run src/test/__tests__/edge-auth-manifest.test.ts`; `node scripts/edge-drift.mjs ops/production-truth/2026-08-28` |
-| T-002 | Invoices and receipts (list + detail) resolve company identity from the business row under the active tenant | REQ-F-001, REQ-F-002 | T-001 | IN_PROGRESS | targeted two-company contract tests; `npm run type-check`; `npm test` |
-| T-003 | Offer create / edit / detail off the guessing helper | REQ-F-001, REQ-F-002 | T-002 | PROPOSED | two-company contract tests |
-| T-004 | Remaining `/firma` callers (orders, settings, archive, imports, pricing, catalog, checklist, team) | REQ-F-002 | T-003 | PROPOSED | two-company contract tests |
-| T-005 | `Auth.tsx` resolves eligible memberships; helper deleted; static gate against reintroduction | REQ-F-002 | T-004 | PROPOSED | gate test fails when the helper returns |
-| T-006 | `runSpellCheck(fields, locale)`; edge validates the three supported locales and rejects anything else | REQ-F-005 | T-001 | PROPOSED | contract tests per locale |
+| T-002 | Invoices and receipts (list + detail) resolve company identity from the business row under the active tenant | REQ-F-001, REQ-F-002 | T-001 | DONE | targeted two-company contract tests; `npm run type-check`; `npm test` |
+| T-003 | Offer create / edit / detail off the guessing helper | REQ-F-001, REQ-F-002 | T-002 | DONE | two-company contract tests |
+| T-004 | Remaining `/firma` callers (orders, settings, archive, imports, pricing, catalog, checklist, team) | REQ-F-002 | T-003 | DONE | two-company contract tests |
+| T-005 | `Auth.tsx` resolves eligible memberships; helper deleted; static gate against reintroduction | REQ-F-002 | T-004 | DONE | gate test fails when the helper returns |
+| T-006 | `runSpellCheck(fields, locale)`; edge validates the three supported locales and rejects anything else | REQ-F-005 | T-001 | IN_PROGRESS | contract tests per locale |
 | T-007 | `buildOfferLanguageRebasePlan()`; the switch stops claiming a rebase it does not perform | REQ-F-003 | T-006 | PROPOSED | pure-function contract tests |
 | T-008 | Strict send readiness blocks the first send and names the missing source | REQ-F-004 | T-007 | PROPOSED | negative case names the exact source |
 | T-009 | Authorize before loading secrets; stop discarding query errors; one membership helper | REQ-F-006, REQ-NF-003 | T-001 | PROPOSED | handler auth negatives |
@@ -96,6 +96,6 @@ dependency-safe work continues.
 | G0 Safety | Repository | branch, HEAD, dirty paths recorded; user changes preserved | baseline in STATE.json | PASS |
 | G1 Baseline | Repository | `npm run type-check`, `npm test`, `npx eslint .` | pre-change results recorded | PASS |
 | G2 Production | Production | `scripts/capture-production-truth.sh` (read-only) | dated generation under `ops/production-truth/` | PASS |
-| G3 Task | Active task | targeted contract tests named in the task row | red before, green after | PENDING |
+| G3 Task | Active task | targeted contract tests named in the task row | red before, green after | PASS (T-001…T-005) |
 | G4 Slice | Active slice | two-company and mixed-locale end-to-end contracts | requirement-level evidence | PENDING |
 | G5 Release | Repository | edge auth manifest gate; touched-file lint; type-check; full suite | all green | PENDING |

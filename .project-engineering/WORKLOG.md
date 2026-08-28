@@ -4,6 +4,60 @@ Anfügend. Neueste zuerst.
 
 ---
 
+## 2026-08-28 · S-02 (P1A) · T-002 … T-005 · `MERGED`
+
+Eine Frage — „welche Firma ist meine?" — hatte im Browser zwei Antworten. Der
+`CompanyProvider` kannte die ausgewählte, `fetchSingleCompanyForUser` riet eine
+(erst `companies.email`/`notification_email` gegen die Anmeldeadresse, sonst die
+zuletzt angelegte). 17 Dateien fragten den Rater. Produktion hat 2 Firmen.
+
+**T-002 · Rechnungen und Quittungen** (`37f9d7bc`)
+`Rechnungen.tsx` holte die Liste über den aktiven Mandanten und die Kopfdaten
+über den Rater — Positionsliste der einen Firma, QR-Gläubiger der anderen.
+Neu: `fetchCompanyById` (fragt nach einer id, rät nicht, kein Rückfall),
+`aktiverMandant` (zwei reine Entscheidungen: gehört die Zeile zum Mandanten,
+gehört die Antwort noch zum Mandanten) und `useCompanyRecord` (die eine Stelle,
+die den vollständigen Firmensatz des aktiven Mandanten lädt und beim Wechsel
+zuerst leert). 12 Vertragstests.
+
+**T-003 · Offerten** (`109289b3`)
+`OfferteDetail`/`OfferteBearbeiten` filterten mit der geratenen ID und meldeten
+„nicht gefunden" für existierende Offerten. `OfferteErstellen` lud den Lead ganz
+ohne Mandantenfilter — daraus liess sich mit einem Klick eine Offerte der einen
+Firma aus den Kundendaten der anderen bauen. Jetzt fail closed.
+
+**T-004 · die restlichen neun** (`5d2f2976`)
+Fünf brauchten nur die ID und stellten dafür eine eigene ratende Abfrage — die
+sind ersatzlos weg, samt drei lokaler `companyId`-Spiegel und einem
+AbortController, der nichts mehr abzubrechen hat. Vier holen den vollen Satz
+über `fetchCompanyById`.
+
+**T-005 · Anmeldung und Tor** (`45faf73d`)
+`Auth.tsx` stellte dieselbe falsche Frage. Wer in einer verifizierten Firma A
+und einer unverifizierten B Mitglied ist, bekam „Verifizierung ausstehend",
+sobald B die neuere war — ein Benutzer, der nicht hereinkommt, obwohl er darf.
+`entscheideAnmeldeZiel()` fragt jetzt: lässt mich überhaupt eine herein?
+Der Helfer ist gelöscht. Das Tor `mandanten-quelle.test.ts` prüft das MUSTER,
+nicht den Namen, und wurde gegen eine eingeschleuste Verletzung geprüft — es
+schlägt bei allen drei Mustern an.
+
+**Fünf Nebenbefunde mit erledigt** (N-001 … N-005 im Ledger): fremde Detailzeile
+unter eigenen Kopfdaten, stehengebliebenes fremdes Logo im PDF, fremder Lead als
+Offertenquelle, geteilter Entwurfsschlüssel in den Einstellungen, `select: "*"`
+auf `companies` an zwei Stellen.
+
+**Belege:** type-check grün · 1772 Tests grün (23 neu) · build grün · berührte
+Dateien 0 Lint-Fehler · Repo-Fehlerzahl unverändert 88, Warnungen 2 → 1.
+
+**Grenze:** Die Zwei-Firmen-Zusagen sind als reine Vertragstests festgehalten,
+nicht als DOM-Durchlauf — das Repo testet bewusst keine Komponenten. Programm
+§16 gilt: eine grüne Suite reiner Funktionen ist kein Beweis für DB-, RLS-,
+Edge- oder Komponentenverhalten.
+
+**Nächstes:** T-006 — die Rechtschreibprüfung kennt nur Deutsch.
+
+---
+
 ## 2026-08-28 · T-001 · P0 Produktionswahrheit · `MERGED`
 
 **Was gemacht wurde**

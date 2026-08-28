@@ -52,22 +52,34 @@ Produktion: PostgreSQL 15.8 · 101 Tabellen, alle mit RLS, 232 Policies ·
 | **P0-S4** | `REFUTED` | Sorge: unauthentifizierter deploy-only Handler. Gelesen: `accept-lead` prüft `auth.getUser` **und** `verifyCompanyMembership`; `hello` gibt eine Konstante zurück; `main` ist der Laufzeit-Router. Kein offenes Loch. | — |
 | **P0-S5** | `VERIFIED` | `generate-sitemap` läuft mit `service_role` ohne Auth und erzeugt Marktplatz-Sitemaps (`/partner-werden`, `/preise`, SEO-Landingpages). Liest nur `blog_posts` mit `status='published'` — kein Datenabfluss. | `BACKLOG` → P5-1 |
 | **P0-S6** | `VERIFIED` | 8 `config.toml`-Einträge ohne Quelle und ohne Deployment; 16 Quellen ohne Eintrag; 12 Quellen ohne Deployment. | `BACKLOG` → P3-2 |
-| **P0-S7** | `VERIFIED` | `fetchSingleCompanyForUser()` rät die Firma; 17 Dateien rufen sie, 16 davon unter `/firma`. Produktion hat 2 Firmen. | `BACKLOG` → P1A |
+| **P0-S7** | `VERIFIED` | `fetchSingleCompanyForUser()` rät die Firma; 17 Dateien rufen sie, 16 davon unter `/firma`. Produktion hat 2 Firmen. | **`MERGED`** — siehe P1A |
 | **P0-S8** | `VERIFIED` | `spell-check-ai` trägt einen fest deutschen Prompt (`ß→ss`, Substantivgrossschreibung); `runSpellCheck(fields)` sendet keine Sprache. Aufgerufen für jede Dokumentsprache. | `BACKLOG` → P1B-1 |
 | **P0-S9** | `VERIFIED` | `cookie_consent_log` trägt eine unbeschränkte PUBLIC-INSERT-Policy. CookieBanner ist laut `CLAUDE.md` §2 aus dem Fork entfernt — Erreichbarkeit ungeprüft. | `BACKLOG` → P5-2 |
 | **H-004** | `VERIFIED` | In `send-quittung` und `send-rechnung-email` steht die Berechtigungsprüfung in einem `if (zeile) { … }`, dessen Abfragefehler verworfen wird: fällt die zweite Abfrage aus, wird der 403 **übersprungen**. In `send-quittung` lädt `loadCompanySecrets` ausserdem **vor** der Prüfung. | `BACKLOG` → P1C-1 |
 
 ---
 
-## P1A — Mandanten-Split-Brain
+## P1A — Mandanten-Split-Brain · **geschlossen**
 
-| ID | Modul | Fehlerklasse | Abhängig | Zustand |
-|---|---|---|---|---|
-| **P1A-1** | Finanzen | geratene Firmenidentität in Rechnungen/Quittungen | P0-S7 | `BACKLOG` |
-| **P1A-2** | Offerten | geratene Firmenidentität in Offerte anlegen/bearbeiten/Detail | P1A-1 | `BACKLOG` |
-| **P1A-3** | Aufträge, Einstellungen, Archiv, Import, Preise, Katalog, Checkliste, Team | restliche `/firma`-Aufrufer | P1A-2 | `BACKLOG` |
-| **P1A-4** | Auth | `Auth.tsx`: „genau eine Firma" → „berechtigte Mitgliedschaften, aktiver Mandant" | P1A-3 | `BACKLOG` |
-| **P1A-5** | Plattform | statisches Tor gegen die Wiedereinführung des Ratehelfers | P1A-4 | `BACKLOG` |
+| ID | Modul | Fehlerklasse | Abhängig | Zustand | Beleg vorher | Sollvertrag | Umsetzung | Nachweis | Commit | Produktionsprüfung | Restrisiko |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **P1A-1** | Finanzen | geratene Firmenidentität in Rechnungen/Quittungen | P0-S7 | `MERGED` | `Rechnungen.tsx` holte Liste über aktiven Mandanten, Kopfdaten über den Ratehelfer | Firmensatz kommt aus dem aktiven Mandanten; Zeile fremder Firma fällt fail closed durch | `fetchCompanyById`, `aktiverMandant`, `useCompanyRecord`; 4 Seiten umgestellt | 12 Vertragstests; type-check, 1766 Tests, build grün | `37f9d7bc` | — (nur Browsercode) | Zwei-Firmen-Test läuft gegen reine Funktionen, nicht gegen ein laufendes DOM (§16 des Programms) |
+| **P1A-2** | Offerten | geratene Firmenidentität in Offerte anlegen/bearbeiten/Detail | P1A-1 | `MERGED` | drei Seiten am Ratehelfer; `OfferteErstellen` lud den Lead ohne Mandantenfilter | aktiver Mandant als einzige Quelle; Lead fremder Firma fällt fail closed durch | 3 Seiten umgestellt; `select: "*"` in `OfferteDetail` durch Spaltenliste ersetzt | type-check, 1766 Tests, build grün | `109289b3` | — | — |
+| **P1A-3** | Aufträge, Einstellungen, Archiv, Importe, Preise, Katalog, Checkliste, Team | restliche `/firma`-Aufrufer | P1A-2 | `MERGED` | 9 Seiten am Ratehelfer; Einstellungs-Entwurf unter festem Schlüssel; `select: "*"` | keine eigene Firmenauflösung mehr; tenant-gebundener Entwurfsschlüssel | 5 Seiten ganz ohne Abfrage (ID kommt aus dem Kontext), 4 über `fetchCompanyById` | type-check, 1766 Tests, build grün | `5d2f2976` | — | — |
+| **P1A-4** | Auth | `Auth.tsx`: „genau eine Firma" → „berechtigte Mitgliedschaften" | P1A-3 | `MERGED` | Ratehelfer entschied den Anmeldebildschirm: verifizierte Firma A + unverifizierte B konnte „Verifizierung ausstehend" ergeben | `entscheideAnmeldeZiel()` über alle Mitgliedschaften; `is_verified === true` | reine Funktion + `fetchCompaniesForUser` | 5 Vertragstests; 1772 Tests grün | `45faf73d` | — | — |
+| **P1A-5** | Plattform | Wiedereinführung des Ratehelfers | P1A-4 | `MERGED` | Helfer gelöscht — aber in zwei Zeilen neu schreibbar | Tor prüft das MUSTER (E-Mail-Suche, `created_at`-Sortierung), nicht den Namen | `src/test/__tests__/mandanten-quelle.test.ts` | **gegen eine eingeschleuste Verletzung geprüft** — schlägt bei allen drei Mustern an | `45faf73d` | — | Das Tor deckt `src/` ab, nicht `supabase/functions/` |
+
+**Exit-Gate P1A:** null `/firma`-Importe des Ratehelfers · null Vorkommen im Quelltext · Tor gegen die Rückkehr, negativ geprüft. **Erfüllt.**
+
+### Nebenbefunde, in P1A mit erledigt
+
+| ID | Etikett | Befund | Commit |
+|---|---|---|---|
+| **N-001** | `VERIFIED` | `Rechnungen`/`Quittungen`-Detailseiten luden `.eq("id", id).single()` ohne Mandantenfilter — ein Mitglied beider Firmen sah die fremde Zeile unter eigenen Kopfdaten. | `37f9d7bc` |
+| **N-002** | `VERIFIED` | Logo wurde nur bei Erfolg gesetzt (`if (b64)`) — beim Wechsel zu einer Firma ohne Logo blieb das fremde Logo im PDF. | `37f9d7bc` |
+| **N-003** | `VERIFIED` | `OfferteErstellen` lud den Lead ohne Mandantenfilter — daraus liess sich mit einem Klick eine Offerte der eigenen Firma aus fremden Kundendaten bauen. | `109289b3` |
+| **N-004** | `VERIFIED` | `Einstellungen` legte den unfertigen Formularentwurf unter einem FESTEN `sessionStorage`-Schlüssel ab — A-Entwurf landete im B-Formular und beim Speichern in der B-Zeile. | `5d2f2976` |
+| **N-005** | `VERIFIED` | `OfferteDetail` und `Einstellungen` lasen `companies` mit `select: "*"`. Die Zugangsdaten wurden 2026-07-27 aus `companies` gezogen, WEIL sie im Browser lesbar waren; ein `*` holt die nächste solche Spalte automatisch zurück. | `109289b3`, `5d2f2976` |
 
 ## P1B — FR/EN-Kette
 

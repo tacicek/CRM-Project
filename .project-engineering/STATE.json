@@ -17,7 +17,7 @@
   },
   "baseline": {
     "branch": "chore/produktionswahrheit-festschreiben",
-    "head": "f40645604feb303709e18a70639dd81b242b9421",
+    "head": "45faf73d3f7aba0458640cbbeb78d7ed335282a7",
     "dirty_paths": [
       "public/favicon.png",
       "public/logo-offerio-main-old.webp",
@@ -72,8 +72,8 @@
   },
   "active": {
     "milestone": "M-01",
-    "slice": "S-02",
-    "task": "T-002"
+    "slice": "S-03",
+    "task": "T-006"
   },
   "queue": {
     "ready": [],
@@ -81,33 +81,47 @@
   },
   "last_checkpoint": {
     "at": "2026-08-28T00:00:00Z",
-    "summary": "T-001 (P0) done: dated read-only production truth, reproducible edge content diff, migration applied-state probe, edge auth manifest with an enforcing gate.",
+    "summary": "S-02 (P1A) closed: no /firma code resolves the company any more; the guessing helper is deleted and a negative-tested static gate keeps it out. Five side findings fixed along the way (cross-tenant detail rows, stale logo, cross-tenant lead, shared settings draft key, select:*).",
     "changed_files": [
-      "ops/production-truth/2026-08-28/",
-      "scripts/edge-drift.mjs",
-      "docs/hardening/LEDGER.md",
-      "docs/hardening/edge-auth-manifest.json",
-      "src/test/edge-auth-manifest.ts",
-      "src/test/__tests__/edge-auth-manifest.test.ts",
-      ".project-engineering/"
+      "src/lib/fetchCompanyById.ts",
+      "src/lib/aktiverMandant.ts",
+      "src/lib/anmeldeZiel.ts",
+      "src/hooks/useCompanyRecord.ts",
+      "src/test/mandanten-quelle.ts",
+      "src/pages/Auth.tsx",
+      "src/pages/firma/ (13 Seiten)",
+      "src/lib/fetchSingleCompanyForUser.ts (geloescht)"
     ],
     "verification": [
       {
-        "command": "npx vitest run src/test/__tests__/edge-auth-manifest.test.ts",
-        "result": "PASS",
-        "reason": "8 tests"
+        "command": "npm run type-check",
+        "result": "PASS"
       },
       {
-        "command": "node scripts/edge-drift.mjs ops/production-truth/2026-08-28",
+        "command": "npm test",
         "result": "PASS",
-        "reason": "29 identical / 10 drift / 3 deploy-only / 12 repo-only"
+        "reason": "88 files / 1772 tests (23 new)"
+      },
+      {
+        "command": "npm run build:vite",
+        "result": "PASS"
+      },
+      {
+        "command": "npx eslint .",
+        "result": "FAIL",
+        "reason": "88 errors unchanged (pre-existing); touched files 0; warnings 2 -> 1"
+      },
+      {
+        "command": "npx vitest run src/test/__tests__/mandanten-quelle.test.ts (with an injected violation)",
+        "result": "PASS",
+        "reason": "gate proven to fail on all three guessing patterns"
       }
     ]
   },
   "next_action": {
-    "task": "T-002",
-    "instruction": "Introduce fetchCompanyById and move Rechnungen/RechnungDetail/Quittungen/QuittungDetail off fetchSingleCompanyForUser onto the active company context; fail closed when the row's company_id differs from the active tenant.",
-    "expected_result": "Two-company contract tests are red before and green after; invoice/receipt identity comes from the business row, not from a guess."
+    "task": "T-006",
+    "instruction": "Make spell check locale-aware: runSpellCheck(fields, locale); the edge handler validates the locale and rejects a missing/unsupported one instead of assuming German; language-specific prompts, Swiss rules only for de, never translate.",
+    "expected_result": "French and English offer text is no longer processed under German orthographic rules; a missing locale is an error, not a silent German default."
   },
   "pending_decisions": [
     {
