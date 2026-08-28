@@ -4,6 +4,55 @@ Anfügend. Neueste zuerst.
 
 ---
 
+## 2026-08-28 · T-009 · Fail-open-Autorisierung geschlossen · `VERIFIED_IN_REPO` (`e4e40a94`)
+
+H-004, gefunden in der ersten Durchsicht, benannt im Manifest, jetzt behoben —
+und beim Beheben stellte sich heraus, dass dieselbe Form auch in **`send-offer`**
+steht, einer AUSGEROLLTEN Function.
+
+Alle drei hatten die Mitgliedschaftsprüfung in `if (zeile) { … }`, deren
+Abfragefehler verworfen wurde: löste die Abfrage zu `null` auf, wurde die
+Berechtigung nicht geprüft und der Versand lief weiter. Ein fehlender Wert ist
+keine Erlaubnis — jetzt 409.
+
+`send-quittung` lud ausserdem `loadCompanySecrets` (den Resend-Schlüssel der
+Firma), **bevor** feststand, ob der Aufrufer zu ihr gehört. Erst autorisieren,
+dann Geheimnisse laden.
+
+Die Manifest-Ausnahmen sind damit entfallen statt verlängert worden.
+
+---
+
+## 2026-08-28 · T-013 · Zweite unabhängige Durchsicht · `INDEPENDENT_REVIEW_PASS` (`e4e40a94`)
+
+Kumulierter Branch-Diff, geprüft von jemandem, der nichts davon geschrieben hat,
+mit der Auflage Gegenbeispiele **einzuschleusen** statt den Happy Path zu lesen.
+Zwölf Punkte, alle haltbar.
+
+**Was ich falsch gemacht habe, in der Reihenfolge des Gewichts:**
+
+1. Zwei Wege, auf denen der von Hand geschriebene Text des Bedieners **ohne
+   Zustimmung** überschrieben wurde — beide in der Datei, deren Kopf sagt, dass
+   sie genau das verhindert.
+2. Drei Tore, die die REGEL prüften und nicht ihre ANWENDUNG. Das Sendeweg-Tor
+   fiel gegen eine Zuweisung eine Zeile über dem `if`; das Token-Signal gegen ein
+   `.select()` und einen Kommentar; das Mandanten-Tor gegen die Rückkehr des
+   Fehlers im Verbraucher.
+3. Eine Zusage, die nicht stimmen konnte: drei `localeClaims` verglichen einen
+   Wert mit sich selbst, während die PDF-Bytes aus dem Browser kommen.
+4. Zwei Fail-open-Autorisierungen, eine davon in einer **ausgerollten** Function.
+5. Eine Ausnahme im Manifest, die `send-appointment-confirmation` zu Unrecht
+   beschuldigte — es ist strenger als der gemeinsame Helfer, nicht laxer.
+
+**Die Lehre:** ein Quelltext-Tor belegt Anwesenheit und Reihenfolge. Mehr nicht.
+Wo Wirkung zählt, gehört die Logik in eine reine Funktion mit Eingabe und
+Ausgabe — deshalb ist `buildOfferSendReadiness` aus dem Handler herausgewandert.
+
+Jede Einschleusung wurde nach dem Nachschärfen wiederholt; das Repository steht
+danach mit passender Prüfsumme.
+
+---
+
 ## 2026-08-28 · T-012 · Auth-Manifest, das misst statt zu glauben · `VERIFIED_IN_REPO` (`c5f3ad8b`)
 
 Die erste Fassung listete 42 ausgerollte Functions und prüfte Vollständigkeit.

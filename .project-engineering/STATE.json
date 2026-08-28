@@ -17,7 +17,7 @@
   },
   "baseline": {
     "branch": "chore/produktionswahrheit-festschreiben",
-    "head": "c5f3ad8b4328219ef8d0442faea62d1473dd08a4",
+    "head": "fa3db52f224465eefb3c3d68d7fc31e2a2bcc51d",
     "dirty_paths": [
       "public/favicon.png",
       "public/logo-offerio-main-old.webp",
@@ -54,12 +54,20 @@
       {
         "command": "npm test",
         "result": "PASS",
-        "reason": "83 files / 1746 tests"
+        "reason": "97 files / 1894 tests"
       },
       {
-        "command": "npx eslint .",
-        "result": "FAIL",
-        "reason": "88 errors, 2 warnings \u2014 pre-existing debt, unchanged"
+        "command": "npm run build:vite",
+        "result": "PASS"
+      },
+      {
+        "command": "bash scripts/check-edge-functions-parse.sh",
+        "result": "PASS"
+      },
+      {
+        "command": "eslint over tracked files excluding the vibecosystem gitlink",
+        "result": "PASS",
+        "reason": "0 errors, 129 warnings \u2014 the '88 errors' were all in an unfetched submodule; CI's Lint step passes"
       }
     ],
     "production": {
@@ -72,8 +80,8 @@
   },
   "active": {
     "milestone": "M-01",
-    "slice": "S-03/S-04",
-    "task": "T-013"
+    "slice": "S-04",
+    "task": "T-010"
   },
   "queue": {
     "ready": [],
@@ -81,7 +89,7 @@
   },
   "last_checkpoint": {
     "at": "2026-08-28T00:00:00Z",
-    "summary": "T-007, T-008, the P1A async tenant invariant and the P1C manifest are implemented and locally verified. Three real defects surfaced by the new gates: translate-content's authorization call was inert, and two edge functions were misclassified by me as capability-token when they validate no token.",
+    "summary": "Second independent review of the cumulative branch diff: 12 findings, all upheld, all remediated. Three of my four gates proved the rule but not its application; two silent-overwrite paths and two fail-open authorizations (one in a deployed function) were found.",
     "verification": [
       {
         "command": "npm run type-check",
@@ -90,7 +98,7 @@
       {
         "command": "npm test",
         "result": "PASS",
-        "reason": "1864 tests"
+        "reason": "1894 tests"
       },
       {
         "command": "npm run build:vite",
@@ -101,21 +109,21 @@
         "result": "PASS"
       },
       {
-        "command": "npx eslint .",
-        "result": "FAIL",
-        "reason": "88 errors unchanged; touched files 0"
+        "command": "gate injections re-run after tightening",
+        "result": "PASS",
+        "reason": "capability-token, tenant-consumer, customer-renderer locale, all red on violation; repo restored with matching sha256"
       },
       {
-        "command": "gate injection proofs",
+        "command": "CI on 6a2a6bec",
         "result": "PASS",
-        "reason": "send-path 3/3, manifest 4/4 after tightening; repo restored with matching sha256"
+        "reason": "CI + Edge Functions Parse Check both green"
       }
     ]
   },
   "next_action": {
     "task": "T-009",
-    "instruction": "H-004: authorize before loading secrets, stop discarding the query error, replace the copied membership check with the shared helper in send-quittung / send-rechnung-email / send-appointment-confirmation.",
-    "expected_result": "The three service-role senders lose their manifest exception instead of keeping it."
+    "instruction": "P1C-2: review the four remaining anon-executable SECURITY DEFINER writer RPCs (portal_redeem_magic_link, portal_request_change, update_amendment_by_token, update_offer_by_token) individually against a disposable database.",
+    "expected_result": "Each either keeps a narrow, catalog-asserted public grant with a stated capability boundary, or loses it in an append-only migration."
   },
   "pending_decisions": [
     {
@@ -167,10 +175,11 @@
     "R-1": "READY_FOR_ROLLOUT; the underlying finding P0-S1 stays ACTIVE_PRODUCTION_EXPOSURE",
     "R-2": "READY_FOR_ROLLOUT, binding order: _shared/appointmentDay.ts first; P0-S3a stays ACTIVE_PRODUCTION_EXPOSURE",
     "R-3": "READY_FOR_ROLLOUT, binding order: frontend first, then spell-check-ai",
-    "pull_request": "BLOCKED_EXTERNAL \u2014 gh pr create denied by the permission classifier; does not stop repository work",
-    "P1B-2": "VERIFIED_IN_REPO, NOT_LIVE \u2014 honest language rebase (094cea38)",
-    "P1B-3": "VERIFIED_IN_REPO, NOT_LIVE \u2014 strict send readiness enforced in the Edge send path (cf19bef2)",
+    "pull_request": "OPEN (draft) #26 \u2014 the earlier BLOCKED_EXTERNAL cleared on the single retry",
+    "P1B-2": "INDEPENDENT_REVIEW_PASS after remediation, NOT_LIVE",
+    "P1B-3": "INDEPENDENT_REVIEW_PASS after remediation, NOT_LIVE",
     "P1A-6": "VERIFIED_IN_REPO, NOT_LIVE \u2014 async tenant invariant, fake-timer proof (642a71df)",
-    "P1C-0": "VERIFIED_IN_REPO \u2014 exhaustive auth manifest, mechanical facts measured, 4 injections proven (c5f3ad8b)"
+    "P1C-0": "INDEPENDENT_REVIEW_PASS after remediation",
+    "P1C-1": "VERIFIED_IN_REPO, NOT_LIVE \u2014 fail-open membership closed in send-offer/send-quittung/send-rechnung-email"
   }
 }
