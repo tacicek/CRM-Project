@@ -719,7 +719,9 @@ const FirmaOfferteBearbeiten = () => {
 
     if (Object.keys(spellFields).length > 0) {
       setIsSpellChecking(true);
-      const result = await runSpellCheck(spellFields);
+      // Dokumentsprache, nicht Dashboard-Sprache: geprueft wird der Text, den der
+      // KUNDE liest.
+      const result = await runSpellCheck(spellFields, offerLanguage);
       setIsSpellChecking(false);
 
       if (result && result.hasCorrections) {

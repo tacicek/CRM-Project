@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Locale } from "@/i18n/locale";
 
 export interface SpellCheckFields {
   [key: string]: string;
@@ -14,9 +15,19 @@ const TIMEOUT_MS = 5000;
 /**
  * Collects only non-empty free-text fields and sends them to Claude for spell check.
  * Returns null on timeout or any error (caller should skip modal and save directly).
+ *
+ * `locale` ist die DOKUMENTSPRACHE — die Sprache, in der der Kunde angeschrieben
+ * wird (`offers.language`), NICHT die Dashboard-Sprache des Bedieners.
+ *
+ * Bis 2026-08-28 wurde sie gar nicht mitgeschickt, und die Edge Function trug
+ * einen fest deutschen Prompt: eine franzoesische Offerte lief durch `ss`-Regel
+ * und deutsche Substantivgrossschreibung. Sie ist deshalb ein Pflichtargument
+ * und kein Standardwert — ein Standardwert waere derselbe stille Rueckfall auf
+ * Deutsch, nur eine Ebene hoeher.
  */
 export async function runSpellCheck(
-  fields: SpellCheckFields
+  fields: SpellCheckFields,
+  locale: Locale
 ): Promise<SpellCheckResult | null> {
   // Filter out empty fields
   const nonEmpty: SpellCheckFields = {};
@@ -32,7 +43,7 @@ export async function runSpellCheck(
 
   try {
     const { data, error } = await supabase.functions.invoke("spell-check-ai", {
-      body: { fields: nonEmpty },
+      body: { fields: nonEmpty, locale },
       // Without the signal the 5s timeout never actually aborted the request, so a hung
       // edge function would leave the save flow stuck on "Prüfe Rechtschreibung" forever.
       // On abort, invoke rejects → caught below → returns null (skip modal, save directly).
