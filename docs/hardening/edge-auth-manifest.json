@@ -138,15 +138,15 @@
       "public_data_exposure": "none"
     },
     "calculate-distance": {
-      "model": "public-safe",
-      "tenant_derivation": "kein Mandant",
+      "model": "jwt-member",
+      "tenant_derivation": "JWT serverseitig geprueft (auth.getUser), company_id aus dem Rumpf gegen company_members geprueft — in `consume_api_budget` ('google-distance'), nicht im Handler",
       "intended_deployment": "deployed",
       "methods": [
         "POST",
         "OPTIONS"
       ],
       "public_data_exposure": "none",
-      "note": "Proxy auf eine kostenpflichtige Google-API. Drossel im Repo, NICHT ausgerollt (P0-S3a)."
+      "note": "War bis 2026-08-28 `public-safe` mit einer Drossel im Modulkoerper. Die Drossel konnte nicht wirken (R2-01), und eine bezahlte API anonym erreichbar zu lassen war ohnehin falsch: ALLE Aufrufer liegen hinter /firma. Jetzt JWT + Mitgliedschaft + dauerhafter Budgetzaehler in Postgres. Rollout: R-7, nicht freigegeben."
     },
     "calendar-feed": {
       "model": "capability-token",
@@ -282,26 +282,26 @@
       }
     },
     "google-places-autocomplete": {
-      "model": "public-safe",
-      "tenant_derivation": "kein Mandant",
+      "model": "jwt-member",
+      "tenant_derivation": "JWT serverseitig geprueft (auth.getUser), company_id aus dem Rumpf gegen company_members geprueft — in `consume_api_budget` ('google-places'), nicht im Handler",
       "intended_deployment": "deployed",
       "methods": [
         "POST",
         "OPTIONS"
       ],
       "public_data_exposure": "none",
-      "note": "wie calculate-distance (P0-S3a)."
+      "note": "War bis 2026-08-28 `public-safe` mit einer Drossel im Modulkoerper. Die Drossel konnte nicht wirken (R2-01), und eine bezahlte API anonym erreichbar zu lassen war ohnehin falsch: ALLE Aufrufer liegen hinter /firma. Jetzt JWT + Mitgliedschaft + dauerhafter Budgetzaehler in Postgres. Rollout: R-7, nicht freigegeben."
     },
     "google-places-details": {
-      "model": "public-safe",
-      "tenant_derivation": "kein Mandant",
+      "model": "jwt-member",
+      "tenant_derivation": "JWT serverseitig geprueft (auth.getUser), company_id aus dem Rumpf gegen company_members geprueft — in `consume_api_budget` ('google-places'), nicht im Handler",
       "intended_deployment": "deployed",
       "methods": [
         "POST",
         "OPTIONS"
       ],
       "public_data_exposure": "none",
-      "note": "wie calculate-distance (P0-S3a)."
+      "note": "War bis 2026-08-28 `public-safe` mit einer Drossel im Modulkoerper. Die Drossel konnte nicht wirken (R2-01), und eine bezahlte API anonym erreichbar zu lassen war ohnehin falsch: ALLE Aufrufer liegen hinter /firma. Jetzt JWT + Mitgliedschaft + dauerhafter Budgetzaehler in Postgres. Rollout: R-7, nicht freigegeben."
     },
     "handle-proposal-response": {
       "model": "capability-token",
@@ -641,13 +641,17 @@
       "rollout_unit": "R-3/R-4",
       "reason": "`appointmentDay.ts` ist seit R-2 ausgerollt. Offen bleiben drei NICHT ausgerollte neue Dateien (`localizedRow.ts`, `offerSendReadiness.ts`, `spellCheckPrompt.ts` — R-3 und R-4) sowie eine von Hand angelegte Sicherungskopie auf dem Server (`emailTemplates.ts.bak-20260704`)."
     },
+    "calculate-distance": {
+      "rollout_unit": "R-7",
+      "reason": "JWT-Pflicht, Mitgliedschaftspruefung und dauerhafter Budgetzaehler statt der wirkungslosen Map-Drossel (R2-01). Im Repo, NICHT ausgerollt."
+    },
     "google-places-autocomplete": {
-      "rollout_unit": "R-2 (GESTOPPT)",
-      "reason": "Drossel im Repo, nicht ausgerollt. R-2 wurde nach Einheit 2 gestoppt: die Drossel wirkt in dieser Laufzeit NICHT (siehe R2-01) — ein Ausrollen wuerde den Befund P0-S3a nicht schliessen."
+      "rollout_unit": "R-7",
+      "reason": "wie calculate-distance."
     },
     "google-places-details": {
-      "rollout_unit": "R-2 (GESTOPPT)",
-      "reason": "Drossel im Repo, nicht ausgerollt. R-2 wurde nach Einheit 2 gestoppt: die Drossel wirkt in dieser Laufzeit NICHT (siehe R2-01) — ein Ausrollen wuerde den Befund P0-S3a nicht schliessen."
+      "rollout_unit": "R-7",
+      "reason": "wie calculate-distance."
     },
     "handle-proposal-response": {
       "rollout_unit": "R-2",

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GooglePlacesAutocomplete, PlaceResult } from '@/components/ui/google-places-autocomplete';
 import { supabase } from '@/integrations/supabase/client';
+import { useCompanyContext } from '@/hooks/useCompanyContext';
 import { AddressData } from './types';
 
 // Re-export for backward compatibility
@@ -46,6 +47,9 @@ export function AddressDistanceForm({
   onDrivingTimeChange,
   onAdditionalStopsChange,
 }: AddressDistanceFormProps) {
+  // Aktiver Mandant: die bezahlte Distanz-API verlangt ihn fuer den
+  // Budgetzaehler und prueft die Mitgliedschaft serverseitig.
+  const { companyId } = useCompanyContext();
   const [isCalculating, setIsCalculating] = useState(false);
   const [calculationError, setCalculationError] = useState<string | null>(null);
   const [lastCalculated, setLastCalculated] = useState<{ origin: string; destination: string } | null>(null);
@@ -117,8 +121,11 @@ export function AddressDistanceForm({
 
       console.log('[AddressDistanceForm] Calculating distance:', { origin, destination });
 
+      // `company_id`: der Budgetzaehler in Postgres fuehrt einen Topf je Benutzer
+      // UND je Firma und prueft die Mitgliedschaft. Ohne ihn antwortet der
+      // Endpunkt mit 400.
       const { data, error } = await supabase.functions.invoke('calculate-distance', {
-        body: { origin, destination, mode: 'driving' }
+        body: { origin, destination, mode: 'driving', company_id: companyId }
       });
 
       // Check if this is still the latest request (prevents race conditions)
@@ -154,7 +161,7 @@ export function AddressDistanceForm({
         setIsCalculating(false);
       }
     }
-  }, [originAddress, destinationAddress, onDistanceChange, onDrivingTimeChange, lastCalculated]);
+  }, [originAddress, destinationAddress, onDistanceChange, onDrivingTimeChange, lastCalculated, companyId]);
 
   // Auto-calculate when both addresses change.
   useEffect(() => {

@@ -46,7 +46,7 @@ Nichts aus diesem Programm ausser der Messung selbst ist live. Zwei Befunde sind
 | | Zustand | Was das bedeutet |
 |---|---|---|
 | **P0-S1** `landing_page_analytics` | **`LIVE_VERIFIED`** ✅ | Geschlossen am 2026-08-28. Keine schreibende PUBLIC-Policy, `anon` hält kein Schreibrecht mehr, RLS aktiv, 0 Zeilen. Beleg: `ops/rollout/2026-08-28/`. |
-| **P0-S3a** drei Google-Proxys | **`ACTIVE_PRODUCTION_EXPOSURE`** — und **durch Ausrollen NICHT behebbar** | Die Drossel ist ausgerollt (calculate-distance) und wirkt trotzdem nicht: der Router erzeugt pro Anfrage einen neuen Worker, der In-Memory-Zähler startet jedes Mal bei null. Siehe **R2-01**. |
+| **P0-S3a** drei Google-Proxys | **`ACTIVE_PRODUCTION_EXPOSURE` · `ROOT_CAUSE_UNRESOLVED`** | Die Drossel ist ausgerollt (`calculate-distance`) und wirkt trotzdem nicht — siehe **R2-01**. **Diese Funktionen sind NICHT gedrosselt.** Der Modul-`Map`-Zähler kann über Worker hinweg nichts durchsetzen. |
 | **P1A** Mandantentrennung | `INDEPENDENT_REVIEW_PASS`, **nicht live** | Die laufende Fassung rät die Firma weiter. |
 | **P1B-1** Rechtschreibprüfung | `VERIFIED_IN_REPO`, **nicht live** | Die ausgerollte Fassung korrigiert Französisch weiter nach deutschen Regeln. |
 | **P1B-2/3** Sprachwechsel + Sendebereitschaft | `VERIFIED_IN_REPO`, **nicht live** | Die laufende Fassung schickt eine französische Offerte weiterhin mit deutschen AGB hinaus. |
@@ -367,8 +367,14 @@ Beide sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-2
 
 | ID | Was | Befund | Zustand |
 |---|---|---|---|
-| **R-1** | Migrationen `20260828100000` **und** `20260828120000` einspielen | P0-S1 | **`LIVE_VERIFIED`** ✅ 2026-08-28 |
-| **R-2** | `_shared/appointmentDay.ts` **zuerst**, dann sechs Handler | P0-S3, P0-S3a | **`GESTOPPT nach Einheit 2`** — Einheit 1 (`appointmentDay.ts`) und 2 (`calculate-distance`) live; Einheiten 3–7 nicht ausgerollt, weil der Smoke-Test die Abweichung R2-01 zeigte |
+| **R-1** | Migrationen `20260828100000` **und** `20260828120000` | P0-S1 | **`LIVE_VERIFIED`** ✅ 2026-08-28 |
+| **R-2 / Einheit 1** | `_shared/appointmentDay.ts` | R-2 | **`LIVE_VERIFIED`** ✅ Digest geprüft, sieben Abhängige booten |
+| **R-2 / `calculate-distance`** | Handler ausgerollt | R-2 | **`DEPLOYED / BEHAVIOUR_EQUIVALENT`** — der einzige Unterschied zur Vorfassung ist die wirkungslose Drossel; das Verhalten ist identisch |
+| **R-2 / Drosselschutz** | Rate-Limit-Wirkung | R-2 | **`REFUTED`** — 61 Anfragen, null 429, vor und nach dem Rollout gleich |
+| **R-2 gesamt** | die sechs Handler | P0-S3, P0-S3a | **`ACTIVE_PRODUCTION_EXPOSURE / ROOT_CAUSE_UNRESOLVED`** — Einheiten 3–7 nicht ausgerollt |
+| **R-3** | Frontend, dann `spell-check-ai` | R-2 | **`BLOCKED_BY_R2`** · **`BLOCKED_BY_RELEASE_COUPLING`** — das Frontend-Deployment aktiviert zugleich die strenge Sendebereitschaft aus R-4 |
+| **R-4 … R-6** | — | — | **`NOT_AUTHORIZED_FOR_PRODUCTION`** |
+| **DEC-002** | vier mandantenlose `companies`-Policies entfernen | M01-01 | **`DECIDED / MIGRATION_NOT_PREPARED / NOT_LIVE`** |
 | **R-3** | `_shared/spellCheckPrompt.ts` + `spell-check-ai`, **Frontend zuerst** | P0-S8 | `READY_FOR_ROLLOUT` |
 | **R-4** | `_shared/offerSendReadiness.ts` + `_shared/localizedRow.ts` + `_shared/verifyCompanyMembership.ts` **zuerst**, dann `send-offer` | P1B-3 | `READY_FOR_ROLLOUT` — fachliche Auswirkung vorher klären: unvollständig übersetzte fr/en-Offerten gehen danach nicht mehr hinaus |
 | **R-5** | Frontend neu bauen und ausrollen | P1A, P1B-2 | `READY_FOR_ROLLOUT` — ohne sie bleiben P1A und P1B-2 wirkungslos |

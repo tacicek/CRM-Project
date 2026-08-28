@@ -156,7 +156,7 @@ export const signale = (quelle: string): Quellsignale => ({
   cronPruefung: /\bif\s*\(\s*!\s*isCronRequest\s*\(/.test(quelle),
   // Ebenfalls die Aufrufform: ein Import allein prüft nichts.
   mitgliedschaft:
-    /\b(verifyCompanyMembership|verifyCompanyRole|assertCompanyMembership|assertCompanyMembershipFromAuthHeader)\s*\(/.test(
+    /\b(verifyCompanyMembership|verifyCompanyRole|assertCompanyMembership|assertCompanyMembershipFromAuthHeader|guardPaidApiCall)\s*\(/.test(
       quelle,
     ),
   // Auch der gemeinsame Helfer zählt: `assertCompanyMembershipFromAuthHeader`
@@ -164,7 +164,10 @@ export const signale = (quelle: string): Quellsignale => ({
   // den richtigen Weg zu bestrafen.
   jwtBenutzer:
     /\bauth\.getUser\s*\(/.test(quelle) ||
-    /\bassertCompanyMembershipFromAuthHeader\s*\(/.test(quelle),
+    /\bassertCompanyMembershipFromAuthHeader\s*\(/.test(quelle) ||
+    // `guardPaidApiCall` prueft das Token ueber die uebergebene `verifyToken`-
+    // Abhaengigkeit und leitet die Benutzer-ID serverseitig ab.
+    /\bguardPaidApiCall\s*\(/.test(quelle),
   // Die WÄCHTERFORM, nicht das Vokabular.
   //
   // Die erste Fassung suchte nach Bezeichnern wie `access_token`. Die

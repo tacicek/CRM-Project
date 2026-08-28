@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { MapPin, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 
 export interface PlaceResult {
   formattedAddress: string;
@@ -53,6 +54,11 @@ export function GooglePlacesAutocomplete({
   country = "ch",
   id,
 }: GooglePlacesAutocompleteProps) {
+  // Die bezahlten Google-Endpunkte verlangen seit 2026-08-28 ein geprueftes JWT
+  // UND die Firma des Aufrufers: der Budgetzaehler in Postgres fuehrt einen Topf
+  // je Benutzer und je Firma. Alle Aufrufstellen dieser Komponente liegen unter
+  // /firma, der aktive Mandant steht also immer bereit.
+  const { companyId } = useCompanyContext();
   const [inputValue, setInputValue] = useState(value);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -90,11 +96,17 @@ export function GooglePlacesAutocomplete({
       setPredictions([]);
       return;
     }
+    // Ohne aufgeloesten Mandanten wird nicht gefragt — der Server wuerde mit 400
+    // antworten, und eine Anfrage, die sicher scheitert, stellt man nicht.
+    if (!companyId) {
+      setPredictions([]);
+      return;
+    }
 
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("google-places-autocomplete", {
-        body: { input, country },
+        body: { input, country, company_id: companyId },
       });
 
       if (!isMountedRef.current) return;
@@ -108,7 +120,7 @@ export function GooglePlacesAutocomplete({
     } finally {
       if (isMountedRef.current) setIsLoading(false);
     }
-  }, [country]);
+  }, [country, companyId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
@@ -133,7 +145,7 @@ export function GooglePlacesAutocomplete({
 
     try {
       const { data, error } = await supabase.functions.invoke("google-places-details", {
-        body: { placeId: prediction.place_id },
+        body: { placeId: prediction.place_id, company_id: companyId },
       });
 
       if (error) throw error;
