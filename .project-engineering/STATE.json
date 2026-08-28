@@ -17,7 +17,7 @@
   },
   "baseline": {
     "branch": "chore/produktionswahrheit-festschreiben",
-    "head": "45faf73d3f7aba0458640cbbeb78d7ed335282a7",
+    "head": "9de0541be25862d15523da3b8b420df312a82b97",
     "dirty_paths": [
       "public/favicon.png",
       "public/logo-offerio-main-old.webp",
@@ -73,7 +73,7 @@
   "active": {
     "milestone": "M-01",
     "slice": "S-03",
-    "task": "T-006"
+    "task": "T-007"
   },
   "queue": {
     "ready": [],
@@ -81,16 +81,18 @@
   },
   "last_checkpoint": {
     "at": "2026-08-28T00:00:00Z",
-    "summary": "S-02 (P1A) closed: no /firma code resolves the company any more; the guessing helper is deleted and a negative-tested static gate keeps it out. Five side findings fixed along the way (cross-tenant detail rows, stale logo, cross-tenant lead, shared settings draft key, select:*).",
+    "summary": "S-02 closed and independently reviewed (7 findings, 5 upheld, all remediated in 9de0541b \u2014 two were real cross-tenant paths my own P1A work had missed or introduced). T-006 done: spell check is locale-aware and rejects a missing locale instead of assuming German. Rollout package written for the three pending production writes.",
     "changed_files": [
-      "src/lib/fetchCompanyById.ts",
-      "src/lib/aktiverMandant.ts",
-      "src/lib/anmeldeZiel.ts",
+      "src/lib/tenantSession.ts (neu)",
+      "src/hooks/CompanyProvider.tsx",
       "src/hooks/useCompanyRecord.ts",
+      "src/pages/firma/Einstellungen.tsx",
+      "src/pages/firma/Besichtigungen.tsx",
       "src/test/mandanten-quelle.ts",
-      "src/pages/Auth.tsx",
-      "src/pages/firma/ (13 Seiten)",
-      "src/lib/fetchSingleCompanyForUser.ts (geloescht)"
+      "supabase/functions/_shared/spellCheckPrompt.ts (neu)",
+      "supabase/functions/spell-check-ai/index.ts",
+      "src/lib/spellCheckService.ts",
+      "docs/hardening/ROLLOUT-2026-08-28.md (neu)"
     ],
     "verification": [
       {
@@ -100,28 +102,34 @@
       {
         "command": "npm test",
         "result": "PASS",
-        "reason": "88 files / 1772 tests (23 new)"
+        "reason": "89 files / 1781 tests"
       },
       {
         "command": "npm run build:vite",
         "result": "PASS"
       },
       {
-        "command": "npx eslint .",
-        "result": "FAIL",
-        "reason": "88 errors unchanged (pre-existing); touched files 0; warnings 2 -> 1"
+        "command": "bash scripts/check-edge-functions-parse.sh",
+        "result": "PASS",
+        "reason": "all edge functions boot"
       },
       {
-        "command": "npx vitest run src/test/__tests__/mandanten-quelle.test.ts (with an injected violation)",
+        "command": "npx eslint .",
+        "result": "FAIL",
+        "reason": "88 errors unchanged; touched files 0"
+      },
+      {
+        "command": "independent review round (verification-auditor)",
         "result": "PASS",
-        "reason": "gate proven to fail on all three guessing patterns"
+        "reason": "7 findings, 5 upheld, all remediated; gate rules re-proven against injected violations"
       }
-    ]
+    ],
+    "note": "gh pr create was blocked by the permission classifier; branch is pushed, PR not opened."
   },
   "next_action": {
-    "task": "T-006",
-    "instruction": "Make spell check locale-aware: runSpellCheck(fields, locale); the edge handler validates the locale and rejects a missing/unsupported one instead of assuming German; language-specific prompts, Swiss rules only for de, never translate.",
-    "expected_result": "French and English offer text is no longer processed under German orthographic rules; a missing locale is an error, not a silent German default."
+    "task": "T-007",
+    "instruction": "buildOfferLanguageRebasePlan(): classify every field a language switch would affect (deterministic generated title, catalog-sourced item text, template/company payment+terms, free-form operator text, already-sent) and surface the plan before applying it.",
+    "expected_result": "The picker stops implying a rebase it does not perform; the operator sees exactly what is regenerated, what stays, and which translation is missing."
   },
   "pending_decisions": [
     {
@@ -132,16 +140,22 @@
   ],
   "production_writes_awaiting_auth": [
     {
-      "id": "PROD-1",
+      "id": "R-1",
       "what": "apply supabase/migrations/20260828100000_landing_analytics_anon_insert_entzogen.sql",
-      "why": "AWAITING_PRODUCTION_AUTH",
-      "finding": "P0-S1"
+      "finding": "P0-S1",
+      "package": "docs/hardening/ROLLOUT-2026-08-28.md"
     },
     {
-      "id": "PROD-2",
-      "what": "deploy the 10 drifted edge functions; three Google proxies and _shared first",
-      "why": "AWAITING_PRODUCTION_AUTH",
-      "finding": "P0-S3/P0-S3a"
+      "id": "R-2",
+      "what": "deploy _shared/appointmentDay.ts FIRST, then six drifted handlers",
+      "finding": "P0-S3/P0-S3a",
+      "package": "docs/hardening/ROLLOUT-2026-08-28.md"
+    },
+    {
+      "id": "R-3",
+      "what": "deploy _shared/spellCheckPrompt.ts + spell-check-ai \u2014 frontend first",
+      "finding": "P0-S8",
+      "package": "docs/hardening/ROLLOUT-2026-08-28.md"
     }
   ]
 }

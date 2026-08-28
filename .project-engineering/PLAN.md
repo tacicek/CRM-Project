@@ -74,8 +74,9 @@ dependency-safe work continues.
 | T-003 | Offer create / edit / detail off the guessing helper | REQ-F-001, REQ-F-002 | T-002 | DONE | two-company contract tests |
 | T-004 | Remaining `/firma` callers (orders, settings, archive, imports, pricing, catalog, checklist, team) | REQ-F-002 | T-003 | DONE | two-company contract tests |
 | T-005 | `Auth.tsx` resolves eligible memberships; helper deleted; static gate against reintroduction | REQ-F-002 | T-004 | DONE | gate test fails when the helper returns |
-| T-006 | `runSpellCheck(fields, locale)`; edge validates the three supported locales and rejects anything else | REQ-F-005 | T-001 | IN_PROGRESS | contract tests per locale |
-| T-007 | `buildOfferLanguageRebasePlan()`; the switch stops claiming a rebase it does not perform | REQ-F-003 | T-006 | PROPOSED | pure-function contract tests |
+| T-R1 | Remediate the independent review of S-01/S-02: cross-tenant draft key, Besichtigungen tenant source, gate holes, verified-company auto-select, swallowed record error, manifest overclaim | REQ-F-001, REQ-F-002, REQ-NF-003 | T-005 | DONE | `npx vitest run src/test/__tests__/mandanten-quelle.test.ts` with injected violations; full suite |
+| T-006 | `runSpellCheck(fields, locale)`; edge validates the three supported locales and rejects anything else | REQ-F-005 | T-001 | DONE | contract tests per locale |
+| T-007 | `buildOfferLanguageRebasePlan()`; the switch stops claiming a rebase it does not perform | REQ-F-003 | T-006 | IN_PROGRESS | pure-function contract tests |
 | T-008 | Strict send readiness blocks the first send and names the missing source | REQ-F-004 | T-007 | PROPOSED | negative case names the exact source |
 | T-009 | Authorize before loading secrets; stop discarding query errors; one membership helper | REQ-F-006, REQ-NF-003 | T-001 | PROPOSED | handler auth negatives |
 | T-010 | Review the 4 remaining anon + SECURITY DEFINER writer RPCs individually | REQ-F-006 | T-001 | PROPOSED | catalog assertion on a disposable DB |

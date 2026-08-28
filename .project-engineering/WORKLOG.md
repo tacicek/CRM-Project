@@ -4,6 +4,73 @@ Anfügend. Neueste zuerst.
 
 ---
 
+## 2026-08-28 · T-R1 · Durchsicht der P0/P1A-Tranche · `MERGED` (`9de0541b`)
+
+Ein unabhängiger Prüfdurchgang über die sechs Commits. Sieben Punkte, fünf
+halten stand. Zwei davon waren echte mandantenübergreifende Wege — einer davon
+**von meiner eigenen P1A-Korrektur eingeführt**:
+
+- **HOCH:** Der Entwurfsschlüssel in `Einstellungen` hing an `activeCompanyId`
+  statt an der Zeile, aus der die Werte stammen. Im Wechselfenster schrieb der
+  600-ms-Timer A-Werte unter den Schlüssel von B; das Laden legte sie über die
+  frischen B-Werte, und Speichern schrieb sie in die B-Zeile. Ich hatte den
+  festen Schlüssel tenant-gebunden gemacht und dabei den falschen Tenant genommen.
+- **MITTEL:** `Besichtigungen.tsx` holte die Firma aus `getCachedCompany()`.
+  Ich hatte nur nach `fetchSingleCompanyForUser` gesucht — „null Aufrufer" war
+  wahr, „eine Quelle" trotzdem falsch.
+- **MITTEL:** Das Tor kannte dieses Muster nicht und bestätigte damit einen
+  Zustand, den es nicht prüfte. Zwei Regeln ergänzt, beide gegen eingeschleuste
+  Verletzungen geprüft. Die Grenze des Tors steht jetzt im Kopf der Datei.
+- **MITTEL:** `CompanyProvider` wählte `fetchedCompanies[0]`; die in P1A-4
+  behobene Sackgasse lag eine Ebene tiefer weiter vor.
+- **GERING:** `useCompanyRecord.error` las niemand, der Kommentar behauptete das
+  Gegenteil. Manifest-Notiz zu `accept-lead` überschritt ihren Beleg.
+- **KLEINIGKEIT:** vier Listenseiten drehten bei fehlendem Mandanten ewig.
+
+Nebenbei bekamen die sessionStorage-Schlüssel einen Besitzer
+(`src/lib/tenantSession.ts`); sie standen an drei Orten.
+
+**Lehre für die nächsten Tranchen:** nach einem Symbol zu suchen beweist, dass
+das Symbol weg ist — nicht, dass die Klasse weg ist. Vor dem Schliessen eines
+Exit-Gates wird nach dem MUSTER gesucht, nicht nach dem Namen.
+
+---
+
+## 2026-08-28 · T-006 · Rechtschreibprüfung nach Sprache · `MERGED` (`e4583ee9`)
+
+`spell-check-ai` trug einen fest deutschen Prompt und bekam nie eine Sprache
+mitgeteilt. Eine französische Offerte lief durch `ß → ss` und deutsche
+Substantivgrossschreibung.
+
+Der Prompt liegt jetzt als reine Funktion in
+`_shared/spellCheckPrompt.ts`, die für alle Sprachen geltenden Zusagen (nie
+übersetzen, nicht umschreiben, Eigennamen nicht anfassen, festes Ausgabeformat)
+getrennt von den sprachabhängigen Regeln. `locale` ist an beiden Enden Pflicht;
+der Handler weist Fehlendes mit 400 ab statt es als Deutsch zu lesen.
+
+9 Vertragstests, darunter der Kern: `ß` und die deutsche Substantivregel dürfen
+in `fr` und `en` nicht vorkommen.
+
+**Rollout-Grenze:** wirkt erst nach dem Ausrollen, und die Reihenfolge ist
+bindend — Frontend zuerst. Umgekehrt verlieren offene Tabs die Prüfung
+(400 → `runSpellCheck` liefert `null` → Modal entfällt).
+
+---
+
+## 2026-08-28 · Rollout-Paket · `AWAITING_PRODUCTION_AUTH` (`5362df97`)
+
+Drei Produktionsschreibvorgänge vorbereitet, keiner ausgeführt. Beim Schreiben
+kam eine bindende Reihenfolge zum Vorschein: `_shared/appointmentDay.ts` ist im
+Repo, aber nicht ausgerollt, und der neue `notify-appointment-reminder`
+importiert sie — Handler zuerst zu kopieren bricht die Terminerinnerung.
+
+Ausserdem stellte sich heraus, dass `edge-drift.mjs` `__tests__` mitzählte und
+deshalb ohne Grund anschlug. Korrigiert: 30 identisch, 9 Drift, davon nur
+**sechs** echte Rückstände. Die übrigen sind neun von Hand angelegte
+`.bak-*`-Kopien im Produktionsverzeichnis.
+
+---
+
 ## 2026-08-28 · S-02 (P1A) · T-002 … T-005 · `MERGED`
 
 Eine Frage — „welche Firma ist meine?" — hatte im Browser zwei Antworten. Der

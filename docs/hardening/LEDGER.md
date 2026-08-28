@@ -53,7 +53,7 @@ Produktion: PostgreSQL 15.8 · 101 Tabellen, alle mit RLS, 232 Policies ·
 | **P0-S5** | `VERIFIED` | `generate-sitemap` läuft mit `service_role` ohne Auth und erzeugt Marktplatz-Sitemaps (`/partner-werden`, `/preise`, SEO-Landingpages). Liest nur `blog_posts` mit `status='published'` — kein Datenabfluss. | `BACKLOG` → P5-1 |
 | **P0-S6** | `VERIFIED` | 8 `config.toml`-Einträge ohne Quelle und ohne Deployment; 16 Quellen ohne Eintrag; 12 Quellen ohne Deployment. | `BACKLOG` → P3-2 |
 | **P0-S7** | `VERIFIED` | `fetchSingleCompanyForUser()` rät die Firma; 17 Dateien rufen sie, 16 davon unter `/firma`. Produktion hat 2 Firmen. | **`MERGED`** — siehe P1A |
-| **P0-S8** | `VERIFIED` | `spell-check-ai` trägt einen fest deutschen Prompt (`ß→ss`, Substantivgrossschreibung); `runSpellCheck(fields)` sendet keine Sprache. Aufgerufen für jede Dokumentsprache. | `BACKLOG` → P1B-1 |
+| **P0-S8** | `VERIFIED` | `spell-check-ai` trägt einen fest deutschen Prompt (`ß→ss`, Substantivgrossschreibung); `runSpellCheck(fields)` sendet keine Sprache. Aufgerufen für jede Dokumentsprache. | **`MERGED`** — siehe P1B-1; Rollout offen |
 | **P0-S9** | `VERIFIED` | `cookie_consent_log` trägt eine unbeschränkte PUBLIC-INSERT-Policy. CookieBanner ist laut `CLAUDE.md` §2 aus dem Fork entfernt — Erreichbarkeit ungeprüft. | `BACKLOG` → P5-2 |
 | **H-004** | `VERIFIED` | In `send-quittung` und `send-rechnung-email` steht die Berechtigungsprüfung in einem `if (zeile) { … }`, dessen Abfragefehler verworfen wird: fällt die zweite Abfrage aus, wird der 403 **übersprungen**. In `send-quittung` lädt `loadCompanySecrets` ausserdem **vor** der Prüfung. | `BACKLOG` → P1C-1 |
 
@@ -81,13 +81,34 @@ Produktion: PostgreSQL 15.8 · 101 Tabellen, alle mit RLS, 232 Policies ·
 | **N-004** | `VERIFIED` | `Einstellungen` legte den unfertigen Formularentwurf unter einem FESTEN `sessionStorage`-Schlüssel ab — A-Entwurf landete im B-Formular und beim Speichern in der B-Zeile. | `5d2f2976` |
 | **N-005** | `VERIFIED` | `OfferteDetail` und `Einstellungen` lasen `companies` mit `select: "*"`. Die Zugangsdaten wurden 2026-07-27 aus `companies` gezogen, WEIL sie im Browser lesbar waren; ein `*` holt die nächste solche Spalte automatisch zurück. | `109289b3`, `5d2f2976` |
 
+### Unabhängige Durchsicht der P0/P1A-Tranche (2026-08-28)
+
+Ein Prüfdurchgang, sieben Punkte, fünf halten stand. Alle behoben in `9de0541b`.
+
+| ID | Schwere | Befund | Zustand |
+|---|---|---|---|
+| **R-01** | HOCH | Der Entwurfsschlüssel in `Einstellungen` hing an `activeCompanyId`, nicht an der Zeile, aus der die Werte stammen. Beim Wechsel schrieb der 600-ms-Timer A-Werte unter den Schlüssel von B; das Laden legte sie über die frischen B-Werte, und `handleSaveProfile` schrieb sie mit `.eq("id", company.id)` in die **B-Zeile**. **Meine eigene P1A-Korrektur hatte den falschen Tenant gewählt.** | `MERGED` |
+| **R-02** | MITTEL | `Besichtigungen.tsx` holte die Firma aus `getCachedCompany()` — synchron, und beim Wechsel nicht nachziehend. Ich hatte nur nach `fetchSingleCompanyForUser` gesucht; die Aussage „null Aufrufer" war wahr, die Aussage „eine Quelle" trotzdem falsch. | `MERGED` |
+| **R-03** | MITTEL | Das Tor kannte drei Muster, `getCachedCompany` war keines davon — es bestätigte einen Zustand, den es nicht prüfte. Zwei Regeln ergänzt (sessionStorage-Griffe, `company_members.eq("user_id")`), beide gegen eingeschleuste Verletzungen geprüft. Grenze des Tors jetzt im Kopf der Datei. | `MERGED` |
+| **R-04** | MITTEL | `CompanyProvider` wählte `fetchedCompanies[0]` ohne `is_verified` zu prüfen. Die in P1A-4 behobene Sackgasse lag damit eine Ebene tiefer weiter vor. Auto-Auswahl bevorzugt jetzt eine freigeschaltete Firma. | `MERGED` |
+| **R-05** | GERING | `useCompanyRecord` gab `error` zurück, niemand las es, der Kommentar behauptete das Gegenteil. Der Hook meldet jetzt selbst. | `MERGED` |
+| **R-06** | GERING | Das Manifest stufte `accept-lead` als `jwt-member` ein, ohne dass das aus dem Repo belegbar wäre (Quelle nicht da, Aufnahme geschwärzt). Herkunft und Grenze des Tors jetzt vermerkt. | `MERGED` |
+| **R-07** | KLEINIGKEIT | Vier Listenseiten drehten bei fehlendem Mandanten ewig — früher `return` ausserhalb des `finally`. Heute unerreichbar, behoben. | `MERGED` |
+
+---
+
 ## P1B — FR/EN-Kette
 
-| ID | Modul | Fehlerklasse | Abhängig | Zustand |
-|---|---|---|---|---|
-| **P1B-1** | Offerten | Rechtschreibprüfung nur Deutsch, für jede Sprache aufgerufen | P0-S8 | `BACKLOG` |
+| ID | Modul | Fehlerklasse | Abhängig | Zustand | Beleg vorher | Sollvertrag | Nachweis | Commit |
+|---|---|---|---|---|---|---|---|---|
+| **P1B-1** | Offerten | Rechtschreibprüfung nur Deutsch, für jede Sprache aufgerufen | P0-S8 | `MERGED` | fester deutscher Prompt (`ß→ss`, Substantivgrossschreibung); `runSpellCheck(fields)` ohne Sprache | `runSpellCheck(fields, locale)`; Handler prüft `de\|fr\|en` und weist Fehlendes mit 400 ab; sprachabhängige Prompts; nie übersetzen | 9 Vertragstests, u. a.: `ß` und deutsche Substantivregel kommen in `fr`/`en` NICHT vor; alle Edge Functions booten | `e4583ee9` |
 | **P1B-2** | Offerten | Sprachumschalter behauptet eine Umstellung, die nicht stattfindet | P1B-1 | `BACKLOG` |
 | **P1B-3** | Offerten | strenge Sendebereitschaft statt stiller deutscher Rückfall | P1B-2 | `BACKLOG` |
+
+⚠️ P1B-1 ist eine **Edge-Änderung** und wirkt erst nach dem Ausrollen. Reihenfolge
+bindend: **Frontend zuerst, Handler danach** — siehe R-3 im
+[Rollout-Paket](ROLLOUT-2026-08-28.md). Umgekehrt verlieren offene Tabs die
+Prüfung.
 
 ## P1C — Edge/RPC-Grenzen
 
