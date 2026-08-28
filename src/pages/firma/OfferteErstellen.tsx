@@ -1228,7 +1228,10 @@ const FirmaOfferteErstellen = () => {
 
     if (Object.keys(spellFields).length > 0) {
       setIsSpellChecking(true);
-      const result = await runSpellCheck(spellFields);
+      // Dokumentsprache, nicht Dashboard-Sprache: geprueft wird der Text, den der
+      // KUNDE liest. Ein deutscher Bediener, der eine franzoesische Offerte
+      // schreibt, darf keine deutschen Regeln auf sie loslassen.
+      const result = await runSpellCheck(spellFields, offerLocale);
       setIsSpellChecking(false);
 
       if (result && result.hasCorrections) {

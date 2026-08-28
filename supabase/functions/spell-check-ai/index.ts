@@ -1,24 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  SPELL_CHECK_LOCALES,
+  buildSpellCheckSystemPrompt,
+  isSpellCheckLocale,
+} from "../_shared/spellCheckPrompt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const SYSTEM_PROMPT = `You are a German spell checker for Swiss business documents.
-Correct spelling, capitalization, and punctuation errors in the provided text.
-Rules:
-- Swiss German standard: replace ß with ss
-- Fix obvious spelling mistakes
-- Fix capitalization (German nouns must be capitalized)
-- Fix punctuation where clearly missing
-- Fix time format (e.g. "08 uhr" → "08:00 Uhr")
-- Do NOT change proper nouns (names, street names, cities)
-- Do NOT change the meaning or rewrite sentences
-- Do NOT translate anything
-- Return ONLY a JSON object, no explanation, no markdown:
-  { "fields": { "fieldName": "corrected text", ... }, "hasCorrections": true/false }`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -43,6 +34,21 @@ serve(async (req) => {
 
     const body = await req.json();
     const fields = body?.fields;
+    const locale = body?.locale;
+
+    // Die Sprache ist Pflicht und wird NICHT geraten. Bis 2026-08-28 kam sie gar
+    // nicht an, und der Prompt war fest deutsch: eine franzoesische Offerte lief
+    // durch `ß → ss` und die deutsche Substantivgrossschreibung. Ein fehlender
+    // Wert als "dann eben Deutsch" zu lesen, ist genau dieser Fehler in klein.
+    if (!isSpellCheckLocale(locale)) {
+      return new Response(
+        JSON.stringify({
+          error: "Dokumentsprache fehlt oder ist nicht unterstützt",
+          supported: SPELL_CHECK_LOCALES,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!fields || typeof fields !== "object" || Object.keys(fields).length === 0) {
       return new Response(
@@ -50,6 +56,10 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Sprache und Feldanzahl ins Protokoll, Inhalt NICHT: das hier sind
+    // Kundentexte aus Offerten.
+    console.log(`[spell-check-ai] locale=${locale} fields=${Object.keys(fields).length}`);
 
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!anthropicKey) {
@@ -72,7 +82,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "claude-3-haiku-20240307",
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: buildSpellCheckSystemPrompt(locale),
         messages: [{ role: "user", content: userMessage }],
       }),
     });
