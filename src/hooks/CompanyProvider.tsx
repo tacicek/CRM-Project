@@ -2,28 +2,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchCompaniesForUser } from "@/lib/fetchCompaniesForUser";
 import { CompanyContext, type CompanyData } from "@/hooks/useCompanyContext";
-
-// ---------------------------------------------------------------------------
-// Cache helpers
-// ---------------------------------------------------------------------------
-
-const ACTIVE_COMPANY_KEY = "crm_active_company_id";
-
-const getActiveCompanyId = (): string | null => {
-  try {
-    return sessionStorage.getItem(ACTIVE_COMPANY_KEY);
-  } catch {
-    return null;
-  }
-};
-
-const setActiveCompanyId = (id: string) => {
-  try {
-    sessionStorage.setItem(ACTIVE_COMPANY_KEY, id);
-  } catch {
-    /* ignore */
-  }
-};
+import {
+  cacheActiveCompany,
+  getActiveCompanyId,
+  setActiveCompanyId,
+} from "@/lib/tenantSession";
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -75,15 +58,26 @@ export const CompanyProvider = ({ children }: { children: React.ReactNode }) => 
       setCompanies(fetchedCompanies);
       setMemberships(roleMap);
 
-      // Auto-select: restore from cache if available, otherwise pick first
+      // Auto-Auswahl: zuletzt gewaehlte Firma, sonst eine FREIGESCHALTETE.
+      //
+      // Bis 2026-08-28 stand hier `fetchedCompanies[0]`. `fetchCompaniesForUser`
+      // sortiert nicht, die erste Zeile ist also beliebig — und `FirmaLayout`
+      // zeigt fuer eine Firma mit `is_verified === false` eine Sackgasse mit nur
+      // einem Abmelden-Knopf. Wer in einer freigeschalteten Firma A und einer
+      // noch nicht freigeschalteten B Mitglied ist, konnte damit ausgesperrt
+      // werden, obwohl A bereitsteht.
+      //
+      // Die manuelle Auswahl bleibt unberuehrt: wer B ausdruecklich waehlt,
+      // bekommt B (und den Hinweis). Geraten wird nur, wenn niemand gewaehlt hat.
       const cachedId = getActiveCompanyId();
       const cached = fetchedCompanies.find((c) => c.id === cachedId);
-      if (cached) {
-        setActiveCompanyIdState(cached.id);
-        setActiveCompanyId(cached.id);
-      } else if (fetchedCompanies.length > 0) {
-        setActiveCompanyIdState(fetchedCompanies[0].id);
-        setActiveCompanyId(fetchedCompanies[0].id);
+      const auswahl =
+        cached ??
+        fetchedCompanies.find((c) => c.is_verified === true) ??
+        fetchedCompanies[0];
+      if (auswahl) {
+        setActiveCompanyIdState(auswahl.id);
+        setActiveCompanyId(auswahl.id);
       }
     } catch (err) {
       console.error("[CompanyProvider] fetch error:", err);
@@ -100,11 +94,7 @@ export const CompanyProvider = ({ children }: { children: React.ReactNode }) => 
   useEffect(() => {
     const active = companies.find((c) => c.id === activeCompanyId) ?? null;
     if (active) {
-      try {
-        sessionStorage.setItem("firma_company_cache", JSON.stringify(active));
-      } catch {
-        /* ignore */
-      }
+      cacheActiveCompany(active);
     }
   }, [companies, activeCompanyId]);
 

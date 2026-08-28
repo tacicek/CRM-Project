@@ -65,6 +65,12 @@ interface Company {
 // unter einem festen Schluessel: wer die Einstellungen der Firma A halb ausfuellte
 // und dann zu B wechselte, bekam den A-Entwurf in das B-Formular gespielt — und
 // beim Speichern in B-Zeilen geschrieben.
+//
+// Der Schluessel kommt aus `company.id` — der Zeile, aus der die Werte
+// TATSAECHLICH stammen —, nicht aus dem Kontextwert. Die beiden laufen beim
+// Wechsel auseinander: `activeCompanyId` springt sofort auf B, `company` traegt
+// bis zum Ende der Abfrage noch A. Ein an den Kontext gebundener Schluessel
+// haette in genau diesem Fenster A-Werte unter B abgelegt.
 const profileDraftKey = (companyId: string) => `einstellungen_profile_draft:${companyId}`;
 
 // Die Spalten, die `interface Company` oben nennt. Vorher stand hier `*`. Die
@@ -138,18 +144,32 @@ const FirmaEinstellungen = () => {
     setIsDirty(true);
   }, []);
 
-  // Save draft to sessionStorage (debounced 600ms) when form is dirty
+  // Save draft to sessionStorage (debounced 600ms) when form is dirty.
+  // Abgelegt wird unter `company.id`: der Entwurf gehoert zu der Zeile, aus der
+  // seine Werte stammen. Waere hier `activeCompanyId` gebunden, schriebe der
+  // Timer waehrend eines Wechsels A-Werte unter den Schluessel von B.
   useEffect(() => {
-    if (!isDirty || !company || !activeCompanyId) return;
+    if (!isDirty || !company?.id) return;
+    const zeilenId = company.id;
     clearTimeout(draftTimerRef.current);
     draftTimerRef.current = setTimeout(() => {
       const draft = Object.fromEntries(
         PROFILE_DRAFT_FIELDS.map(f => [f, company[f as keyof Company]])
       );
-      sessionStorage.setItem(profileDraftKey(activeCompanyId), JSON.stringify(draft));
+      sessionStorage.setItem(profileDraftKey(zeilenId), JSON.stringify(draft));
     }, 600);
     return () => clearTimeout(draftTimerRef.current);
-  }, [company, isDirty, activeCompanyId]);
+  }, [company, isDirty]);
+
+  // Mandantenwechsel: das Formular gehoert ab sofort einer anderen Firma. Den
+  // alten Satz stehen zu lassen hiesse, A-Werte unter der Ueberschrift B
+  // anzuzeigen — und `handleSaveProfile` schreibt mit `.eq("id", company.id)`,
+  // also in die Zeile, die gerade im Zustand liegt. Erst leeren, dann laden.
+  useEffect(() => {
+    setCompany(null);
+    setIsDirty(false);
+    clearTimeout(draftTimerRef.current);
+  }, [activeCompanyId]);
 
   // For AGB template selector only — keys must match the service_type values
   // stored on leads (e.g. "malerarbeit" singular, NOT "malerarbeiten").
@@ -228,7 +248,10 @@ const FirmaEinstellungen = () => {
         }
 
         // Restore unsaved draft if user navigated away before saving
-        const savedDraft = sessionStorage.getItem(profileDraftKey(activeCompanyId));
+        // Der Entwurf wird unter der ID der GELADENEN Zeile gesucht, nicht unter
+        // dem Kontextwert — sonst koennte hier der Entwurf einer anderen Firma
+        // ueber die frisch geladenen Werte gelegt werden.
+        const savedDraft = sessionStorage.getItem(profileDraftKey(companyData.id));
         if (savedDraft) {
           try {
             const draft = JSON.parse(savedDraft);
@@ -236,9 +259,15 @@ const FirmaEinstellungen = () => {
             setIsDirty(true);
           } catch {
             setCompany(companyData);
+            setIsDirty(false);
           }
         } else {
           setCompany(companyData);
+          // Kein Entwurf heisst: das Formular steht auf dem gespeicherten Stand.
+          // Ohne dieses Zuruecksetzen bliebe ein `isDirty` aus der vorigen Firma
+          // stehen und der Speichern-Knopf verspraeche ungespeicherte Aenderungen,
+          // die es nicht gibt.
+          setIsDirty(false);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -285,7 +314,7 @@ const FirmaEinstellungen = () => {
       if (error) throw error;
 
       // Clear draft — changes are now saved to DB
-      if (activeCompanyId) sessionStorage.removeItem(profileDraftKey(activeCompanyId));
+      sessionStorage.removeItem(profileDraftKey(company.id));
       setIsDirty(false);
 
       // Die Dashboard-Sprache kommt aus dem CompanyContext (activeCompany.default_language).

@@ -1,40 +1,14 @@
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 
-const COMPANY_CACHE_KEY = "firma_company_cache";
-
-interface CachedCompanyData {
-  id: string;
-  company_name?: string;
-  token_balance?: number;
-  logo_url?: string | null;
-  crm_enabled?: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Legacy cache helpers — kept for backwards compatibility
-// ---------------------------------------------------------------------------
-
-export const getCachedCompany = (): CachedCompanyData | null => {
-  try {
-    const cached = sessionStorage.getItem(COMPANY_CACHE_KEY);
-    if (cached) return JSON.parse(cached);
-  } catch { /* ignore */ }
-  return null;
-};
-
-export const setCachedCompany = (company: CachedCompanyData | null) => {
-  try {
-    if (company) {
-      const existingCache = getCachedCompany();
-      const mergedData = existingCache
-        ? { ...existingCache, ...company }
-        : company;
-      sessionStorage.setItem(COMPANY_CACHE_KEY, JSON.stringify(mergedData));
-    } else {
-      sessionStorage.removeItem(COMPANY_CACHE_KEY);
-    }
-  } catch { /* ignore */ }
-};
+// Der Lese-/Schreibzugriff auf `firma_company_cache` stand bis 2026-08-28 hier
+// als `getCachedCompany()` / `setCachedCompany()`. Beide sind entfernt.
+//
+// `getCachedCompany()` war eine ZWEITE Antwort auf "welche Firma", und eine, die
+// beim Mandantenwechsel nicht nachzieht: der CompanyProvider schreibt den Cache
+// erst in einem Effekt NACH dem Rendern, und dieses Schreiben loest kein Rendern
+// aus. `Besichtigungen.tsx` las so lange die alte Firma weiter, bis jemand neu
+// lud. Den Cache schreibt und raeumt jetzt allein der CompanyProvider; gelesen
+// wird er gar nicht mehr — dafuer gibt es den Kontext.
 
 /**
  * Legacy-compatible hook: reads from CompanyContext instead of fetching independently.

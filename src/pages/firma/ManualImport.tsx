@@ -209,9 +209,9 @@ const FirmaManualImport = () => {
         if (isMountedRef.current) setIsLoading(false);
         return;
       }
-      // Ohne aufgeloesten Mandanten wird nicht geladen — der Bildschirm
-      // bleibt im Ladezustand, statt eine Firma zu waehlen.
-      if (!activeCompanyId) return;
+      // Ohne aufgeloesten Mandanten wird nicht geladen; der Ladezustand endet
+      // trotzdem, sonst dreht der Bildschirm ewig.
+      if (!activeCompanyId) { if (isMountedRef.current) setIsLoading(false); return; }
 
       try {
         const companyData = await fetchCompanyById<Company>({

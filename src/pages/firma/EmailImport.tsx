@@ -201,8 +201,9 @@ const FirmaEmailImport = () => {
         if (isMountedRef.current) setIsLoading(false);
         return;
       }
-      // Ohne aufgeloesten Mandanten wird nicht geladen.
-      if (!activeCompanyId) return;
+      // Ohne aufgeloesten Mandanten wird nicht geladen; der Ladezustand endet
+      // trotzdem, sonst dreht der Bildschirm ewig.
+      if (!activeCompanyId) { if (isMountedRef.current) setIsLoading(false); return; }
       try {
         const companyData = await fetchCompanyById<Company>({
           companyId: activeCompanyId,

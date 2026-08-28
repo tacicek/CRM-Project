@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { fetchCompanyById } from "@/lib/fetchCompanyById";
 import { antwortGehoertNochZumMandanten } from "@/lib/aktiverMandant";
@@ -17,8 +18,12 @@ import { antwortGehoertNochZumMandanten } from "@/lib/aktiverMandant";
  *  - Er fragt nach `companyId` aus dem Kontext, nie nach dem Benutzer.
  *  - Er verwirft eine Antwort, deren Mandant nicht mehr der aktive ist
  *    (Wechsel waehrend laufender Abfrage).
- *  - Er meldet einen Fehler, statt ihn zu schlucken. Eine Rechnung ohne
- *    Firmenadresse ist keine Rechnung; sie darf nicht still erscheinen.
+ *  - Er MELDET einen Fehler, statt ihn zu schlucken. Eine Rechnung ohne
+ *    Firmenadresse ist keine Rechnung, und ein PDF-Knopf, der wortlos nichts
+ *    tut, ist schlimmer als eine Fehlermeldung. Der Toast steht hier und nicht
+ *    an den vier Aufrufstellen, weil er sonst dreimal vergessen wuerde — andere
+ *    Hooks dieses Repos (useRechnungen, useQuittungen, useKunden) melden
+ *    ebenso selbst.
  *
  * `select` wird bewusst NICHT memoisiert erwartet: der Wert ist an jeder
  * Aufrufstelle eine Konstante im Modulkoerper oder ein Literal, und ein
@@ -67,9 +72,13 @@ export const useCompanyRecord = <T,>(select: string) => {
       .catch((err: unknown) => {
         if (abgemeldet) return;
         if (!antwortGehoertNochZumMandanten(companyId, angefordertFuer.current)) return;
+        const fehler = err instanceof Error ? err : new Error(String(err));
         setCompany(null);
-        setError(err instanceof Error ? err : new Error(String(err)));
+        setError(fehler);
         setLoading(false);
+        toast.error("Firmendaten konnten nicht geladen werden", {
+          description: fehler.message,
+        });
       });
 
     return () => {

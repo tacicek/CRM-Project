@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { clearTenantSession } from "@/lib/tenantSession";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useNotificationHistory } from "@/hooks/useNotificationHistory";
@@ -372,8 +373,10 @@ const FirmaLayout = ({ children }: FirmaLayoutProps) => {
   }, [companyId, notifyWithHistory, user, t, locale]);
 
   const handleSignOut = async () => {
-    try { sessionStorage.removeItem("crm_active_company_id"); } catch { /* */ }
-    try { sessionStorage.removeItem("firma_company_cache"); } catch { /* */ }
+    // Die Schluesselnamen standen hier abgeschrieben — ein zweiter Ort, der sie
+    // kennt, und damit einer, der bei einer Umbenennung still stehen bleibt.
+    // Jetzt raeumt die Stelle auf, die sie definiert.
+    clearTenantSession();
     await signOut();
     navigate("/auth");
   };

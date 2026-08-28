@@ -316,8 +316,10 @@ const FirmaAuftraege = () => {
     if (!user) return;
     // Auftraege gehoeren dem AKTIVEN Mandanten. Hier stand eine eigene Abfrage,
     // die die Firma RIET — fuer eine ID, die der CompanyProvider schon kennt.
-    // Ohne Mandanten wird nicht geladen, statt irgendeinen zu waehlen.
-    if (!activeCompanyId) return;
+    // Ohne Mandanten wird nicht geladen, statt irgendeinen zu waehlen — aber der
+    // Ladezustand wird beendet. Ein Bildschirm, der ewig dreht, sagt weniger als
+    // eine leere Liste.
+    if (!activeCompanyId) { setIsLoading(false); return; }
 
     try {
       const { data, error } = await supabase

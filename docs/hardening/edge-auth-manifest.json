@@ -22,14 +22,22 @@
     "",
     "`deployed` spiegelt die Aufnahme in `capture_generation`. `repo_source`",
     "sagt, ob der Quelltext hier liegt. `drift` sagt, ob der ausgerollte Inhalt",
-    "vom Quelltext dieses Commits abweicht — siehe scripts/edge-drift.mjs."
+    "vom Quelltext dieses Commits abweicht — siehe scripts/edge-drift.mjs.",
+    "",
+    "GRENZE DES TORS",
+    "src/test/__tests__/edge-auth-manifest.test.ts prueft VOLLSTAENDIGKEIT und",
+    "Widerspruchsfreiheit: jede ausgerollte Function hat ein Modell, keine",
+    "behauptete Ausrollung fehlt in der Produktion, kein Grabstein ohne Quelle.",
+    "Es prueft NICHT, ob ein Modell zum Handler passt — das ist Durchsicht.",
+    "Wo `repo_source` false ist, ist die Einstufung eine Lesung aus dem",
+    "Container, kein Beleg im Repo; das Feld `evidence` sagt es dann."
   ],
   "capture_generation": "ops/production-truth/2026-08-28",
   "gateway_is_not_a_boundary": true,
   "functions": {
     "main":                          { "model": "infrastructure",  "deployed": true,  "repo_source": false, "note": "Edge-Laufzeit-Router (--main-service). Prueft JWT nur bei VERIFY_JWT=true; hier false." },
     "hello":                         { "model": "public-safe",     "deployed": true,  "repo_source": false, "disposition": "undeploy", "note": "Supabase-Beispiel. Konstante Antwort, kein Datenzugriff." },
-    "accept-lead":                   { "model": "jwt-member",      "deployed": true,  "repo_source": false, "disposition": "undeploy-after-caller-proof", "note": "Marktplatz-Verteilung aus der Offerio-Zeit. Prueft auth.getUser + verifyCompanyMembership — kein offenes Loch, aber Rest." },
+    "accept-lead":                   { "model": "jwt-member",      "deployed": true,  "repo_source": false, "disposition": "undeploy-after-caller-proof", "evidence": "deployed-source-read-2026-08-28", "note": "Marktplatz-Verteilung aus der Offerio-Zeit. NICHT aus dem Repo belegbar: kein Quelltext hier, und die Aufnahme schwaerzt ihn (externe URLs). Die Einstufung stammt aus dem am 2026-08-28 lesend aus dem Container geholten index.ts — dort stehen auth.getUser(token) und verifyCompanyMembership. Wer sie nachpruefen will, muss erneut lesen." },
 
     "admin-add-company-member":      { "model": "tombstone",       "deployed": true,  "repo_source": true },
     "admin-create-user":             { "model": "tombstone",       "deployed": true,  "repo_source": true },
