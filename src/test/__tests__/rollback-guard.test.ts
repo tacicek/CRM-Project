@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   BEKANNTE_AUSNAHMEN,
-  findeDynamischesDDL,
+  findeFormatVorlagen,
+  fuehrtDynamischAus,
   gelesenePersistenzTabellen,
   hatVerkettetesDDL,
   laeuftInEinerTransaktion,
@@ -56,8 +57,19 @@ describe("Rücknahme-Tor · die Bausteine", () => {
   });
 
   it("findet die Vorlage und ihre Platzhalter", () => {
-    const [treffer] = findeDynamischesDDL(VERWUNDBAR);
+    const [treffer] = findeFormatVorlagen(VERWUNDBAR);
     expect(treffer.platzhalter).toEqual(["%I", "%s"]);
+  });
+
+  it("erkennt eine Ausführung auch ohne benachbartes format()", () => {
+    expect(fuehrtDynamischAus("v_sql := 'x';\nEXECUTE v_sql;")).toBe(true);
+    expect(fuehrtDynamischAus("SELECT 1;")).toBe(false);
+  });
+
+  it("sieht eine Tabelle auch hinter JOIN, nicht nur hinter FROM", () => {
+    expect(
+      gelesenePersistenzTabellen("SELECT u.x FROM pg_class c JOIN public.undo_20260828100000 u ON true"),
+    ).toEqual(["public.undo_20260828100000"]);
   });
 
   it("hält Katalogquellen NICHT für Persistenztabellen", () => {
@@ -115,6 +127,57 @@ BEGIN;
 SELECT * FROM public.undo_20260828100000;
 COMMIT;`;
     expect(pruefeDatei("erklaert.sql", nurErklaert)).toEqual([]);
+  });
+});
+
+describe("Rücknahme-Tor · die zwei Umgehungen der unabhängigen Durchsicht", () => {
+  /** A: der Wert geht über eine Variable — EXECUTE steht nicht neben format(). */
+  const UMGEHUNG_VARIABLE = `
+BEGIN;
+DO $r$
+DECLARE v_check text; v_sql text;
+BEGIN
+  SELECT withcheck INTO v_check FROM public.undo_20260828100000;
+  v_sql := format('CREATE POLICY p ON public.landing_page_analytics FOR INSERT WITH CHECK (%s)', v_check);
+  EXECUTE v_sql;
+END
+$r$;
+COMMIT;`;
+
+  /** B: die Tabelle wird über JOIN erreicht, nicht über FROM. */
+  const UMGEHUNG_JOIN = `
+BEGIN;
+DO $r$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT u.withcheck AS wc FROM pg_class c JOIN public.undo_20260828100000 u ON true LOOP
+    EXECUTE format('CREATE POLICY p ON public.x FOR INSERT WITH CHECK (%s)', r.wc);
+  END LOOP;
+END
+$r$;
+COMMIT;`;
+
+  it("A · Variablen-Umweg wird erkannt", () => {
+    expect(pruefeDatei("a.sql", UMGEHUNG_VARIABLE).map((v) => v.art))
+      .toContain("gespeicherter-wert-wird-sql");
+  });
+
+  it("B · JOIN statt FROM wird erkannt", () => {
+    expect(pruefeDatei("b.sql", UMGEHUNG_JOIN).map((v) => v.art))
+      .toContain("gespeicherter-wert-wird-sql");
+  });
+
+  it("und der Katalogfall bleibt trotzdem erlaubt", () => {
+    const ausDemKatalog = `
+BEGIN;
+DO $r$ DECLARE sig text; v text; BEGIN
+  FOR sig IN SELECT p.oid::regprocedure::text FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace LOOP
+    v := format('GRANT EXECUTE ON FUNCTION %s TO PUBLIC', sig);
+    EXECUTE v;
+  END LOOP;
+END $r$;
+COMMIT;`;
+    expect(pruefeDatei("katalog.sql", ausDemKatalog)).toEqual([]);
   });
 });
 

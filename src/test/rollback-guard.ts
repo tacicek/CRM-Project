@@ -45,42 +45,65 @@ export const STANDARD_VERZEICHNIS = join(WURZEL, "supabase", "migrations");
 export const ohneKommentare = (quelle: string): string =>
   quelle.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, " ");
 
-export interface DynamischesDDL {
+export interface FormatVorlage {
   vorlage: string;
   platzhalter: string[];
 }
 
-/** `EXECUTE format('…', …)` — die Vorlage ist das erste Argument. */
-export const findeDynamischesDDL = (quelle: string): DynamischesDDL[] => {
-  const treffer: DynamischesDDL[] = [];
-  const muster = /\bEXECUTE\s+format\s*\(\s*'((?:[^']|'')*)'/gi;
+/**
+ * JEDE `format(...)`-Vorlage, nicht nur die direkt hinter `EXECUTE`.
+ *
+ * Die erste Fassung suchte `EXECUTE\s+format\s*\(` — also Nachbarschaft. Eine
+ * unabhaengige Durchsicht hat sie zweimal umgangen:
+ *
+ *     v_sql := format('… WITH CHECK (%s)', v_check);
+ *     EXECUTE v_sql;
+ *
+ * Dasselbe Primitiv, nur ueber eine Variable. Nachbarschaft ist kein Merkmal;
+ * die Kombination aus einer %s-Vorlage, einem EXECUTE irgendwo in der Datei und
+ * einem Lesezugriff auf eine Persistenztabelle ist eins.
+ */
+export const findeFormatVorlagen = (quelle: string): FormatVorlage[] => {
+  const treffer: FormatVorlage[] = [];
+  const muster = /\bformat\s*\(\s*'((?:[^']|'')*)'/gi;
   let m: RegExpExecArray | null;
   while ((m = muster.exec(quelle)) !== null) {
-    const vorlage = m[1];
     treffer.push({
-      vorlage,
-      platzhalter: [...vorlage.matchAll(/%[sIL]/g)].map((p) => p[0]),
+      vorlage: m[1],
+      platzhalter: [...m[1].matchAll(/%[sIL]/g)].map((p) => p[0]),
     });
   }
   return treffer;
 };
+
+/** Fuehrt die Datei ueberhaupt irgendwo dynamisches SQL aus? */
+export const fuehrtDynamischAus = (quelle: string): boolean =>
+  /\bEXECUTE\b/i.test(quelle);
 
 /** `EXECUTE 'GRANT …' || irgendwas` — Verkettung umgeht jede Quotierung. */
 export const hatVerkettetesDDL = (quelle: string): boolean =>
   /\bEXECUTE\s+(?!format\b)[^;]*\|\|/i.test(quelle);
 
 /**
- * Aus welchen Tabellen liest die Datei? Katalog- und Informationsschema-Quellen
- * gelten als vertrauenswürdig — sie sind nicht von aussen beschreibbar.
+ * Aus welchen Tabellen liest oder schreibt die Datei?
+ *
+ * Katalog- und Informationsschema-Quellen gelten als vertrauenswuerdig — sie
+ * sind nicht von aussen beschreibbar.
+ *
+ * `FROM` allein genuegt nicht: die Durchsicht erreichte dieselbe Tabelle ueber
+ * `JOIN public.undo_… ON true` und blieb unsichtbar. Deshalb jede Stelle, an
+ * der eine Relation benannt wird.
  */
 export const gelesenePersistenzTabellen = (quelle: string): string[] => {
   const namen = new Set<string>();
-  for (const m of quelle.matchAll(/\bFROM\s+(?:(\w+)\.)?(\w+)/gi)) {
+  const muster = /\b(?:FROM|JOIN|INTO|UPDATE|USING)\s+(?:(\w+)\.)?(\w+)/gi;
+  for (const m of quelle.matchAll(muster)) {
     const schema = (m[1] ?? "public").toLowerCase();
     const tabelle = m[2].toLowerCase();
     if (schema === "pg_catalog" || schema === "information_schema") continue;
     if (tabelle.startsWith("pg_")) continue;
-    if (schema === "public" && tabelle.startsWith("pg_")) continue;
+    // `INSERT INTO … SELECT` und `EXECUTE … USING $1` benennen keine Relation.
+    if (["select", "values", "format", "execute"].includes(tabelle)) continue;
     namen.add(`${schema}.${tabelle}`);
   }
   return [...namen].sort();
@@ -160,18 +183,21 @@ export const pruefeDatei = (datei: string, roh: string): Verstoss[] => {
   const quelle = ohneKommentare(roh);
   const verstoesse: Verstoss[] = [];
 
-  const ddl = findeDynamischesDDL(quelle);
+  const vorlagen = findeFormatVorlagen(quelle);
   const tabellen = gelesenePersistenzTabellen(quelle);
+  const mitProzentS = vorlagen.filter((v) => v.platzhalter.includes("%s"));
 
-  const mitProzentS = ddl.filter((d) => d.platzhalter.includes("%s"));
-  if (mitProzentS.length > 0 && tabellen.length > 0) {
+  // Die drei Merkmale zusammen sind das Primitiv: ein roh eingesetzter Wert,
+  // eine Ausfuehrung, und eine Quelle, die jemand anders beschreiben kann.
+  // Ueber welche Variable der Wert dorthin gelangt, ist unerheblich.
+  if (mitProzentS.length > 0 && fuehrtDynamischAus(quelle) && tabellen.length > 0) {
     verstoesse.push({
       datei,
       art: "gespeicherter-wert-wird-sql",
       detail:
-        `%s in EXECUTE format(…) und liest ${tabellen.join(", ")}. ` +
+        `%s-Vorlage + EXECUTE + Lesezugriff auf ${tabellen.join(", ")}. ` +
         `Vorlage: "${mitProzentS[0].vorlage.slice(0, 80)}". ` +
-        "Ein gespeicherter Wert darf eine Konstante bestätigen, aber nicht SQL werden.",
+        "Ein gespeicherter Wert darf eine Konstante bestaetigen, aber nicht SQL werden.",
     });
   }
 
@@ -188,8 +214,8 @@ export const pruefeDatei = (datei: string, roh: string): Verstoss[] => {
       datei,
       art: "keine-transaktion",
       detail:
-        "Ohne BEGIN;/COMMIT; bleibt bei einem Abbruch ein halb zurückgenommener " +
-        "Zustand stehen — die Rücknahme muss geschlossen scheitern.",
+        "Ohne BEGIN;/COMMIT; bleibt bei einem Abbruch ein halb zurueckgenommener " +
+        "Zustand stehen — die Ruecknahme muss geschlossen scheitern.",
     });
   }
 

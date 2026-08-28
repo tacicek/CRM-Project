@@ -1,12 +1,11 @@
 {
   "erhoben_am": "2026-08-28",
-  "lokaler_head": "0c764b190c5a3435795bd0b50c45a81897fa541d",
+  "gueltig_fuer_head": "008f02ab4de6c792237fcfea5df206609a3cab17",
   "origin_branch_head": "0d473025e81559c8cb0ee396fd0df5aca4dbb90d",
   "origin_main": "68c07c7bf84e7f49df1204405cc3d0df41d44933",
   "pr26": {
     "zustand": "OPEN",
-    "head": "0d473025e81559c8cb0ee396fd0df5aca4dbb90d",
-    "unveroeffentlichte_commits": 9
+    "unveroeffentlichte_commits": 13
   },
   "ledger_eintraege_mit_mehr_als_einem_digest": {
     "ROLLBACK_20260828100000_landing_analytics_anon_insert_entzogen.sql": [
@@ -25,11 +24,16 @@
       "pfad": "supabase/migrations/20260828100000_landing_analytics_anon_insert_entzogen.sql",
       "einfuehrungscommit": "ac26a2ed",
       "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "ac26a2ed",
+          "digest": "c0f6b7422e78456820ce279e9a85e057c11708752d38836019c940150f775305"
+        }
+      ],
       "sha256_erste_fassung": "c0f6b7422e78456820ce279e9a85e057c11708752d38836019c940150f775305",
       "sha256_aktuell": "c0f6b7422e78456820ce279e9a85e057c11708752d38836019c940150f775305",
       "geaendert_seit_einfuehrung": false,
       "je_im_ledger_gefuehrt": true,
-      "erste_fassung_war_ledger_signiert": true,
       "ledger_digest_historie": [
         {
           "commit": "54c81eeb",
@@ -37,20 +41,10 @@
         }
       ],
       "ledger_digest_aktuell": "c0f6b7422e78456820ce279e9a85e057c11708752d38836019c940150f775305",
-      "ledger_stimmt_mit_datei": true,
       "auf_origin_main": false,
       "auf_pr26_head": true,
       "in_produktion_angewendet": true,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [
-        "docs/hardening/ROLLOUT-2026-08-28.md",
-        "docs/hardening/R1-RUECKVERFOLGBARKEIT.md",
-        "ops/migration-ledger.json",
-        "ops/rollout/2026-08-28/BELEG-NACHTRAEGE.txt",
-        "ops/artifact-corrections/EVIDENZ-reproduktion-injektion.txt",
-        "ops/artifact-corrections/EVIDENZ-negativtest-nach-korrektur.txt",
-        "ops/artifact-corrections.jsonl"
-      ],
       "artefakt_korrektur_eintraege": null
     },
     {
@@ -59,11 +53,20 @@
       "spaetere_aendernde_commits": [
         "8b8893a6"
       ],
+      "digest_kette_je_commit": [
+        {
+          "commit": "ac26a2ed",
+          "digest": "c329d13bba10f96c9105fd2a55003c2d02daa088f63195e7110b98951a5b2526"
+        },
+        {
+          "commit": "8b8893a6",
+          "digest": "581957802753d27da4633be78f485390ac61e272e4f82e221316cccbd3270ace"
+        }
+      ],
       "sha256_erste_fassung": "c329d13bba10f96c9105fd2a55003c2d02daa088f63195e7110b98951a5b2526",
       "sha256_aktuell": "581957802753d27da4633be78f485390ac61e272e4f82e221316cccbd3270ace",
       "geaendert_seit_einfuehrung": true,
       "je_im_ledger_gefuehrt": true,
-      "erste_fassung_war_ledger_signiert": true,
       "ledger_digest_historie": [
         {
           "commit": "54c81eeb",
@@ -75,18 +78,10 @@
         }
       ],
       "ledger_digest_aktuell": "581957802753d27da4633be78f485390ac61e272e4f82e221316cccbd3270ace",
-      "ledger_stimmt_mit_datei": true,
       "auf_origin_main": false,
       "auf_pr26_head": true,
       "in_produktion_angewendet": false,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [
-        "docs/hardening/ROLLOUT-2026-08-28.md",
-        "ops/migration-ledger.json",
-        "ops/artifact-corrections/EVIDENZ-reproduktion-injektion.txt",
-        "ops/artifact-corrections/EVIDENZ-negativtest-nach-korrektur.txt",
-        "ops/artifact-corrections.jsonl"
-      ],
       "artefakt_korrektur_eintraege": [
         "AC-0001"
       ]
@@ -95,83 +90,146 @@
       "pfad": "supabase/migrations/20260828120000_landing_analytics_anon_schreibrechte_entzogen.sql",
       "einfuehrungscommit": "14a96a93",
       "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "14a96a93",
+          "digest": "6582650850fe6d1817126500bad2776a36a2cf8a93e9ad64cc53bb2696dcae69"
+        }
+      ],
       "sha256_erste_fassung": "6582650850fe6d1817126500bad2776a36a2cf8a93e9ad64cc53bb2696dcae69",
       "sha256_aktuell": "6582650850fe6d1817126500bad2776a36a2cf8a93e9ad64cc53bb2696dcae69",
       "geaendert_seit_einfuehrung": false,
       "je_im_ledger_gefuehrt": false,
-      "erste_fassung_war_ledger_signiert": false,
       "ledger_digest_historie": [],
       "ledger_digest_aktuell": null,
-      "ledger_stimmt_mit_datei": null,
       "auf_origin_main": false,
       "auf_pr26_head": true,
       "in_produktion_angewendet": true,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [
-        "docs/hardening/R1-RUECKVERFOLGBARKEIT.md",
-        "ops/rollout/2026-08-28/BELEG-NACHTRAEGE.txt"
-      ],
       "artefakt_korrektur_eintraege": null
     },
     {
       "pfad": "supabase/migrations/ROLLBACK_20260828120000_landing_analytics_anon_schreibrechte_entzogen.sql",
       "einfuehrungscommit": "14a96a93",
       "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "14a96a93",
+          "digest": "04de8db3b9ee9a88f43a921cbb8ba5ad23bb761414f7d5b204a932d10155bdc0"
+        }
+      ],
       "sha256_erste_fassung": "04de8db3b9ee9a88f43a921cbb8ba5ad23bb761414f7d5b204a932d10155bdc0",
       "sha256_aktuell": "04de8db3b9ee9a88f43a921cbb8ba5ad23bb761414f7d5b204a932d10155bdc0",
       "geaendert_seit_einfuehrung": false,
       "je_im_ledger_gefuehrt": false,
-      "erste_fassung_war_ledger_signiert": false,
       "ledger_digest_historie": [],
       "ledger_digest_aktuell": null,
-      "ledger_stimmt_mit_datei": null,
       "auf_origin_main": false,
       "auf_pr26_head": true,
       "in_produktion_angewendet": false,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [],
+      "artefakt_korrektur_eintraege": null
+    },
+    {
+      "pfad": "supabase/migrations/20260828130000_api_budget_dauerhaft.sql",
+      "einfuehrungscommit": "da363853",
+      "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "da363853",
+          "digest": "98103e18fff511b91c75196aa5906217be72543d7144ede478ff73a0b21ed572"
+        }
+      ],
+      "sha256_erste_fassung": "98103e18fff511b91c75196aa5906217be72543d7144ede478ff73a0b21ed572",
+      "sha256_aktuell": "98103e18fff511b91c75196aa5906217be72543d7144ede478ff73a0b21ed572",
+      "geaendert_seit_einfuehrung": false,
+      "je_im_ledger_gefuehrt": false,
+      "ledger_digest_historie": [],
+      "ledger_digest_aktuell": null,
+      "auf_origin_main": false,
+      "auf_pr26_head": true,
+      "in_produktion_angewendet": false,
+      "in_wegwerf_umgebung_ausgefuehrt": true,
+      "artefakt_korrektur_eintraege": null
+    },
+    {
+      "pfad": "supabase/migrations/ROLLBACK_20260828130000_api_budget_dauerhaft.sql",
+      "einfuehrungscommit": "da363853",
+      "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "da363853",
+          "digest": "8e570f652c2f19af9da4cc199b10ad115f5da06ad7c911dc8ac271c2e656a0ae"
+        }
+      ],
+      "sha256_erste_fassung": "8e570f652c2f19af9da4cc199b10ad115f5da06ad7c911dc8ac271c2e656a0ae",
+      "sha256_aktuell": "8e570f652c2f19af9da4cc199b10ad115f5da06ad7c911dc8ac271c2e656a0ae",
+      "geaendert_seit_einfuehrung": false,
+      "je_im_ledger_gefuehrt": false,
+      "ledger_digest_historie": [],
+      "ledger_digest_aktuell": null,
+      "auf_origin_main": false,
+      "auf_pr26_head": true,
+      "in_produktion_angewendet": false,
+      "in_wegwerf_umgebung_ausgefuehrt": true,
       "artefakt_korrektur_eintraege": null
     },
     {
       "pfad": "supabase/migrations/20260828140000_companies_ohne_mandantenlose_admin_ausnahme.sql",
       "einfuehrungscommit": "c983017a",
       "spaetere_aendernde_commits": [
+        "671f6f12",
         "8d015e82"
       ],
+      "digest_kette_je_commit": [
+        {
+          "commit": "c983017a",
+          "digest": "8dbbb94d1b7259a5ab4ac7312dac626b434ce95f63dcc28e4418f15367d61690"
+        },
+        {
+          "commit": "8d015e82",
+          "digest": "651317c4f5b9a51324dff1f1c516c5d3432b6041b490d3ade254e76365184f38"
+        },
+        {
+          "commit": "671f6f12",
+          "digest": "cb218eb94df809d04bd7e0804a3a63d1903e68c56367a840279b78df470f573c"
+        }
+      ],
       "sha256_erste_fassung": "8dbbb94d1b7259a5ab4ac7312dac626b434ce95f63dcc28e4418f15367d61690",
-      "sha256_aktuell": "651317c4f5b9a51324dff1f1c516c5d3432b6041b490d3ade254e76365184f38",
+      "sha256_aktuell": "2d9cad3e33c961989970f2f3ecd9577272862a436b21dedd47ade026bda8ae0a",
       "geaendert_seit_einfuehrung": true,
       "je_im_ledger_gefuehrt": false,
-      "erste_fassung_war_ledger_signiert": false,
       "ledger_digest_historie": [],
       "ledger_digest_aktuell": null,
-      "ledger_stimmt_mit_datei": null,
       "auf_origin_main": false,
       "auf_pr26_head": false,
       "in_produktion_angewendet": false,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [
-        "ops/rollout/2026-08-28/TORE-2026-08-28.txt"
-      ],
-      "artefakt_korrektur_eintraege": null
+      "artefakt_korrektur_eintraege": [
+        "AC-0004",
+        "AC-0006"
+      ]
     },
     {
       "pfad": "supabase/migrations/ROLLBACK_20260828140000_companies_ohne_mandantenlose_admin_ausnahme.sql",
       "einfuehrungscommit": "c983017a",
       "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "c983017a",
+          "digest": "8ce469b92bb3327891c3ed7b377029e78787fc7ddb4c118bb3117eda385c4226"
+        }
+      ],
       "sha256_erste_fassung": "8ce469b92bb3327891c3ed7b377029e78787fc7ddb4c118bb3117eda385c4226",
       "sha256_aktuell": "8ce469b92bb3327891c3ed7b377029e78787fc7ddb4c118bb3117eda385c4226",
       "geaendert_seit_einfuehrung": false,
       "je_im_ledger_gefuehrt": false,
-      "erste_fassung_war_ledger_signiert": false,
       "ledger_digest_historie": [],
       "ledger_digest_aktuell": null,
-      "ledger_stimmt_mit_datei": null,
       "auf_origin_main": false,
       "auf_pr26_head": false,
       "in_produktion_angewendet": false,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [],
       "artefakt_korrektur_eintraege": null
     },
     {
@@ -180,22 +238,29 @@
       "spaetere_aendernde_commits": [
         "8d015e82"
       ],
+      "digest_kette_je_commit": [
+        {
+          "commit": "ab1b8aed",
+          "digest": "3638446639b614b05680b8bb8736e770b42bcf73ce89e7182a071aa3e8d27568"
+        },
+        {
+          "commit": "8d015e82",
+          "digest": "052e19ae95516776d1179b573953ea417ac513dc4563b97c8ddf9101024a15a2"
+        }
+      ],
       "sha256_erste_fassung": "3638446639b614b05680b8bb8736e770b42bcf73ce89e7182a071aa3e8d27568",
       "sha256_aktuell": "052e19ae95516776d1179b573953ea417ac513dc4563b97c8ddf9101024a15a2",
       "geaendert_seit_einfuehrung": true,
       "je_im_ledger_gefuehrt": false,
-      "erste_fassung_war_ledger_signiert": false,
       "ledger_digest_historie": [],
       "ledger_digest_aktuell": null,
-      "ledger_stimmt_mit_datei": null,
       "auf_origin_main": false,
       "auf_pr26_head": false,
       "in_produktion_angewendet": false,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [
-        "ops/rollout/2026-08-28/TORE-2026-08-28.txt"
-      ],
-      "artefakt_korrektur_eintraege": null
+      "artefakt_korrektur_eintraege": [
+        "AC-0005"
+      ]
     },
     {
       "pfad": "supabase/migrations/ROLLBACK_20260828150000_undo_tabelle_nachtraeglich_verriegeln.sql",
@@ -203,59 +268,158 @@
       "spaetere_aendernde_commits": [
         "8d015e82"
       ],
+      "digest_kette_je_commit": [
+        {
+          "commit": "ab1b8aed",
+          "digest": "982ab20215c344740a552a662f755125359d160dddfd2c0c10e822ec97663c74"
+        },
+        {
+          "commit": "8d015e82",
+          "digest": "6ae48b6258e5857170b79474f32eb83aa81ca60ba81b13620bb2eb74e2dd876b"
+        }
+      ],
       "sha256_erste_fassung": "982ab20215c344740a552a662f755125359d160dddfd2c0c10e822ec97663c74",
       "sha256_aktuell": "6ae48b6258e5857170b79474f32eb83aa81ca60ba81b13620bb2eb74e2dd876b",
       "geaendert_seit_einfuehrung": true,
       "je_im_ledger_gefuehrt": false,
-      "erste_fassung_war_ledger_signiert": false,
       "ledger_digest_historie": [],
       "ledger_digest_aktuell": null,
-      "ledger_stimmt_mit_datei": null,
       "auf_origin_main": false,
       "auf_pr26_head": false,
       "in_produktion_angewendet": false,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [],
       "artefakt_korrektur_eintraege": null
     },
     {
       "pfad": "supabase/migrations/20260828160000_truncate_recht_anon_authenticated_entziehen.sql",
       "einfuehrungscommit": "deade50f",
       "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "deade50f",
+          "digest": "cf83a83234d32b76328529d9453c2be17aab174480d8f515c30075051a9e322d"
+        }
+      ],
       "sha256_erste_fassung": "cf83a83234d32b76328529d9453c2be17aab174480d8f515c30075051a9e322d",
       "sha256_aktuell": "cf83a83234d32b76328529d9453c2be17aab174480d8f515c30075051a9e322d",
       "geaendert_seit_einfuehrung": false,
       "je_im_ledger_gefuehrt": false,
-      "erste_fassung_war_ledger_signiert": false,
       "ledger_digest_historie": [],
       "ledger_digest_aktuell": null,
-      "ledger_stimmt_mit_datei": null,
       "auf_origin_main": false,
       "auf_pr26_head": false,
       "in_produktion_angewendet": false,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [
-        "ops/rollout/2026-08-28/M0105-nachweis.txt"
-      ],
       "artefakt_korrektur_eintraege": null
     },
     {
       "pfad": "supabase/migrations/ROLLBACK_20260828160000_truncate_recht_anon_authenticated_entziehen.sql",
       "einfuehrungscommit": "deade50f",
       "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "deade50f",
+          "digest": "69aa3bd0c2707205c6421d216d2500d7ed65eaa847170bd3b61d636ee205f2bc"
+        }
+      ],
       "sha256_erste_fassung": "69aa3bd0c2707205c6421d216d2500d7ed65eaa847170bd3b61d636ee205f2bc",
       "sha256_aktuell": "69aa3bd0c2707205c6421d216d2500d7ed65eaa847170bd3b61d636ee205f2bc",
       "geaendert_seit_einfuehrung": false,
       "je_im_ledger_gefuehrt": false,
-      "erste_fassung_war_ledger_signiert": false,
       "ledger_digest_historie": [],
       "ledger_digest_aktuell": null,
-      "ledger_stimmt_mit_datei": null,
       "auf_origin_main": false,
       "auf_pr26_head": false,
       "in_produktion_angewendet": false,
       "in_wegwerf_umgebung_ausgefuehrt": true,
-      "runbook_referenzen": [],
+      "artefakt_korrektur_eintraege": null
+    },
+    {
+      "pfad": "supabase/migrations/20260828170000_undo_tabellen_minimalrechte.sql",
+      "einfuehrungscommit": "21198a85",
+      "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "21198a85",
+          "digest": "9fc3788b69a0ffb59891753bf2d3863f9f2def8d246cfd46eda33ab14e5304ce"
+        }
+      ],
+      "sha256_erste_fassung": "9fc3788b69a0ffb59891753bf2d3863f9f2def8d246cfd46eda33ab14e5304ce",
+      "sha256_aktuell": "9fc3788b69a0ffb59891753bf2d3863f9f2def8d246cfd46eda33ab14e5304ce",
+      "geaendert_seit_einfuehrung": false,
+      "je_im_ledger_gefuehrt": false,
+      "ledger_digest_historie": [],
+      "ledger_digest_aktuell": null,
+      "auf_origin_main": false,
+      "auf_pr26_head": false,
+      "in_produktion_angewendet": false,
+      "in_wegwerf_umgebung_ausgefuehrt": true,
+      "artefakt_korrektur_eintraege": null
+    },
+    {
+      "pfad": "supabase/migrations/ROLLBACK_20260828170000_undo_tabellen_minimalrechte.sql",
+      "einfuehrungscommit": "21198a85",
+      "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "21198a85",
+          "digest": "5fffc0f587a4a66c62aaebe88d2d61437d05c1957cf0b1d63ba37ef4815ee42f"
+        }
+      ],
+      "sha256_erste_fassung": "5fffc0f587a4a66c62aaebe88d2d61437d05c1957cf0b1d63ba37ef4815ee42f",
+      "sha256_aktuell": "5fffc0f587a4a66c62aaebe88d2d61437d05c1957cf0b1d63ba37ef4815ee42f",
+      "geaendert_seit_einfuehrung": false,
+      "je_im_ledger_gefuehrt": false,
+      "ledger_digest_historie": [],
+      "ledger_digest_aktuell": null,
+      "auf_origin_main": false,
+      "auf_pr26_head": false,
+      "in_produktion_angewendet": false,
+      "in_wegwerf_umgebung_ausgefuehrt": true,
+      "artefakt_korrektur_eintraege": null
+    },
+    {
+      "pfad": "supabase/migrations/20260828180000_user_roles_keine_selbstbefoerderung.sql",
+      "einfuehrungscommit": "671f6f12",
+      "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "671f6f12",
+          "digest": "3fcd0b8bec919fda1c5052b1ea8effe5e4435615a514eb48fb3df01217445a30"
+        }
+      ],
+      "sha256_erste_fassung": "3fcd0b8bec919fda1c5052b1ea8effe5e4435615a514eb48fb3df01217445a30",
+      "sha256_aktuell": "3fcd0b8bec919fda1c5052b1ea8effe5e4435615a514eb48fb3df01217445a30",
+      "geaendert_seit_einfuehrung": false,
+      "je_im_ledger_gefuehrt": false,
+      "ledger_digest_historie": [],
+      "ledger_digest_aktuell": null,
+      "auf_origin_main": false,
+      "auf_pr26_head": false,
+      "in_produktion_angewendet": false,
+      "in_wegwerf_umgebung_ausgefuehrt": true,
+      "artefakt_korrektur_eintraege": null
+    },
+    {
+      "pfad": "supabase/migrations/ROLLBACK_20260828180000_user_roles_keine_selbstbefoerderung.sql",
+      "einfuehrungscommit": "671f6f12",
+      "spaetere_aendernde_commits": [],
+      "digest_kette_je_commit": [
+        {
+          "commit": "671f6f12",
+          "digest": "9843fa35fdb8d157f1edf5f7465730ac7c82dae04525c72a482e76f8de469a6f"
+        }
+      ],
+      "sha256_erste_fassung": "9843fa35fdb8d157f1edf5f7465730ac7c82dae04525c72a482e76f8de469a6f",
+      "sha256_aktuell": "9843fa35fdb8d157f1edf5f7465730ac7c82dae04525c72a482e76f8de469a6f",
+      "geaendert_seit_einfuehrung": false,
+      "je_im_ledger_gefuehrt": false,
+      "ledger_digest_historie": [],
+      "ledger_digest_aktuell": null,
+      "auf_origin_main": false,
+      "auf_pr26_head": false,
+      "in_produktion_angewendet": false,
+      "in_wegwerf_umgebung_ausgefuehrt": true,
       "artefakt_korrektur_eintraege": null
     }
   ]

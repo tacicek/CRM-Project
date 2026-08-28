@@ -91,10 +91,25 @@ BEGIN
   IF v_rest > 0 THEN
     RAISE EXCEPTION 'auf companies nennen noch % Policies eine mandantenlose Rollenpruefung', v_rest;
   END IF;
-  -- Absichtlich breiter als `is_admin`: eine spaetere Policy mit
-  -- `has_role(auth.uid(),''admin'')` oder `is_super_admin()` reisst dieselbe
-  -- Luecke auf und wuerde eine Pruefung auf den blossen Namen `is_admin`
-  -- klaglos passieren.
+  -- WAS DIESE PRUEFUNG IST — UND WAS NICHT
+  --
+  -- Sie laeuft EINMAL, beim Anwenden. Ein DO-Block kann keine kuenftige Policy
+  -- verhindern; er stellt nur fest, was in diesem Augenblick dasteht. Eine
+  -- fruehere Fassung dieses Kommentars sprach von einer "spaeteren Policy" —
+  -- das war zu viel behauptet, und die unabhaengige Durchsicht hat es belegt:
+  -- eine nachtraeglich angelegte Policy mit einem eigenen Helfer
+  -- (`darf_alles(uuid)`, der dieselbe user_roles-Abfrage macht) passiert diese
+  -- Regel anstandslos, weil sie nach dem Anwenden entsteht.
+  --
+  -- Auch in der Namensmenge ist sie nicht vollstaendig: `can_modify_role`,
+  -- `get_company_pricing_config` und weitere existieren und treffen das Muster
+  -- nicht. Das Muster faengt die BEKANNTE Familie der mandantenlosen
+  -- Rollenpruefungen — is_admin, is_super_admin, is_support_admin, is_staff,
+  -- has_role — und verhindert damit den Fehler, der hier tatsaechlich gemacht
+  -- wurde. Mehr nicht.
+  --
+  -- Ein stehendes Verbot gehoert in ein Repo-Tor ueber `pg_policy`, nicht in
+  -- eine Migration. Das ist ein eigener Auftrag.
   --
   -- `is_[a-z_]*admin` statt einer Aufzaehlung, weil die Aufzaehlung schon einmal
   -- zu kurz war: die Datenbank fuehrt neben is_admin und is_super_admin auch
