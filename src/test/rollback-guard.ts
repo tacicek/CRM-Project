@@ -45,7 +45,11 @@ import { join } from "node:path";
  *     andere Umwege dieser Art nicht.
  *   · Ein Helfer, der die Tabelle liest und den Wert zurückgibt, während die
  *     Tabelle in dieser Datei **nirgends** genannt wird. Für ein dateilokales
- *     Tor grundsätzlich unerreichbar.
+ *     Tor grundsätzlich unerreichbar — als Fall 12 im Test festgehalten, damit
+ *     das eine Entscheidung bleibt und kein ungeprüftes Schweigen.
+ *   · Weitere Zusammensetz-Wege, die kein `||` und kein `concat(` benutzen
+ *     (etwa `string_agg` über eine Zwischentabelle) oder die den Tabellennamen
+ *     dynamisch bilden.
  *
  * Diese Grenzen sind bekannt und angenommen, nicht übersehen.
  */
@@ -103,26 +107,42 @@ export const fuehrtDynamischAus = (quelle: string): boolean =>
   /\bEXECUTE\b/i.test(quelle);
 
 /**
- * Verkettung umgeht jede Quotierung — auch über eine Variable.
+ * Verkettung umgeht jede Quotierung — über jede Schreibweise und jeden Umweg.
  *
- * Die erste Fassung verlangte `||` zwischen `EXECUTE` und dem nächsten `;`.
- * Die Durchsicht schob die Verkettung eine Zeile höher:
+ * Drei Runden Durchsicht, drei Erweiterungen:
+ *   1. `EXECUTE 'x' || v`            — die Ausgangsform.
+ *   2. `b := a || v; EXECUTE b;`     — eine Zeile höher.
+ *   3. `b := concat(a, v); EXECUTE b;` und `c := b; EXECUTE c;`
+ *      — anderer Operator, bzw. eine schlichte Kopie dazwischen.
  *
- *     b := a || v_check;
- *     EXECUTE b;
- *
- * Deshalb zählt jetzt auch: eine Zuweisung mit `||`, deren Ziel später blank
- * ausgeführt wird.
+ * Verfolgt wird deshalb: welche Variablen aus einer Verkettung entstehen
+ * (`||` **oder** `concat(`), fortgepflanzt über einfache Zuweisungen bis zum
+ * Fixpunkt, und ob eine davon später nackt ausgeführt wird.
  */
 export const hatVerkettetesDDL = (quelle: string): boolean => {
-  if (/\bEXECUTE\s+(?!format\b)[^;]*\|\|/i.test(quelle)) return true;
+  // Direkt im EXECUTE verkettet oder zusammengesetzt.
+  if (/\bEXECUTE\s+(?!format\b)[^;]*(?:\|\||\bconcat\s*\()/i.test(quelle)) return true;
 
-  // Variablen, die aus einer Verkettung entstehen …
   const verkettet = new Set<string>();
-  for (const m of quelle.matchAll(/(\w+)\s*:=\s*[^;]*\|\|[^;]*;/g)) {
+  for (const m of quelle.matchAll(/(\w+)\s*:=\s*([^;]*(?:\|\||\bconcat\s*\()[^;]*);/gi)) {
     verkettet.add(m[1].toLowerCase());
   }
-  // … und später nackt ausgeführt werden.
+
+  // Schlichte Kopien fortpflanzen: `c := b;` erbt die Verseuchung von `b`.
+  const kopien = [...quelle.matchAll(/(\w+)\s*:=\s*(\w+)\s*;/g)].map(
+    (m) => [m[1].toLowerCase(), m[2].toLowerCase()] as const,
+  );
+  let gewachsen = true;
+  while (gewachsen) {
+    gewachsen = false;
+    for (const [ziel, quelleVar] of kopien) {
+      if (verkettet.has(quelleVar) && !verkettet.has(ziel)) {
+        verkettet.add(ziel);
+        gewachsen = true;
+      }
+    }
+  }
+
   for (const m of quelle.matchAll(/\bEXECUTE\s+(\w+)\s*(?:;|USING\b)/gi)) {
     if (verkettet.has(m[1].toLowerCase())) return true;
   }
@@ -141,19 +161,30 @@ export const hatVerkettetesDDL = (quelle: string): boolean => {
  */
 export const gelesenePersistenzTabellen = (quelle: string): string[] => {
   const namen = new Set<string>();
-  // `INTO` steht in PL/pgSQL fuer eine ZIELVARIABLE, nicht fuer eine Relation.
-  // Die erste Fassung las `SELECT … INTO v_sig FROM pg_proc` als Tabelle
-  // `public.v_sig` und wies damit ausgerechnet die legitime Katalogform ab.
-  // `INSERT INTO <tabelle>` wird eigens erfasst.
-  const muster = /\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO)\s+(?:(\w+)\.)?(\w+)/gi;
-  for (const m of quelle.matchAll(muster)) {
-    const schema = (m[1] ?? "public").toLowerCase();
-    const tabelle = m[2].toLowerCase();
-    if (schema === "pg_catalog" || schema === "information_schema") continue;
-    if (tabelle.startsWith("pg_")) continue;
-    // `INSERT INTO … SELECT` und `EXECUTE … USING $1` benennen keine Relation.
-    if (["select", "values", "format", "execute"].includes(tabelle)) continue;
-    namen.add(`${schema}.${tabelle}`);
+
+  const aufnehmen = (schemaRoh: string | undefined, tabelle: string) => {
+    const schema = (schemaRoh ?? "public").toLowerCase();
+    const t = tabelle.toLowerCase();
+    if (schema === "pg_catalog" || schema === "information_schema") return;
+    if (t.startsWith("pg_")) return;
+    if (["select", "values", "format", "execute", "lateral", "only"].includes(t)) return;
+    namen.add(`${schema}.${t}`);
+  };
+
+  // `FROM a, b` ist die älteste und gewöhnlichste Schreibweise eines Joins —
+  // und blieb zwei Runden lang unsichtbar, weil nur das erste Element nach
+  // FROM gelesen wurde. Deshalb die ganze Liste bis zum nächsten Schlüsselwort.
+  const klauseln =
+    /\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO|MERGE\s+INTO)\s+([\w.]+(?:\s+(?:AS\s+)?\w+)?(?:\s*,\s*[\w.]+(?:\s+(?:AS\s+)?\w+)?)*)/gi;
+
+  for (const m of quelle.matchAll(klauseln)) {
+    for (const teil of m[1].split(",")) {
+      const bezeichner = teil.trim().split(/\s+/)[0];
+      if (!bezeichner) continue;
+      const stueck = bezeichner.split(".");
+      if (stueck.length >= 2) aufnehmen(stueck[stueck.length - 2], stueck[stueck.length - 1]);
+      else aufnehmen(undefined, stueck[0]);
+    }
   }
   return [...namen].sort();
 };

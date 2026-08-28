@@ -133,6 +133,9 @@ const DIGEST_FELDER: Array<[digest: string, commit: string]> = [
   // nachrechenbar — und genau das soll auffallen.
   ["sha256_previous", "commit_previous"],
   ["correctly_computed_digest", "measured_commit"],
+  // `sha256_new` war von keiner Pruefung erfasst: ein erfundener Wert dort waere
+  // gruen geblieben — genau die Klasse, die AC-0008 aufarbeitet.
+  ["sha256_new", "commit_of_correction"],
 ];
 
 export interface DigestBefund {
@@ -239,13 +242,17 @@ export interface StandBefund {
  * und das Protokoll ist anfügend.
  */
 export const veralteterStand = (): StandBefund[] => {
-  if (istFlacherKlon()) return [];
+  // Kein `istFlacherKlon()`-Ausstieg: diese Prüfung liest die Arbeitskopie,
+  // nicht die Historie. Ein stiller Ausstieg wäre wieder das Überspringen,
+  // das schon einmal einen erfundenen Digest durchgelassen hat.
   const eintraege = leseKorrekturen();
   const befunde: StandBefund[] = [];
 
   const juengsterJePfad = new Map<string, Korrektureintrag>();
   for (const e of eintraege) {
-    const pfad = e.artifact_path;
+    // `source_path ?? artifact_path` — sonst versteckt ein Eintrag, der nur
+    // `source_path` führt, einen erfundenen `sha256_current`.
+    const pfad = ((e.source_path as string | undefined) ?? e.artifact_path)?.trim();
     if (!pfad || typeof e.sha256_current !== "string") continue;
     juengsterJePfad.set(pfad, e); // spätere Zeile gewinnt
   }
