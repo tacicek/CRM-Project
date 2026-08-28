@@ -76,8 +76,13 @@ export async function sendOffer({
   let offerPdfBase64: string | null = null;
   let agbPdfBase64: string | null = null;
   let checklistPdfBase64: string | null = null;
+  // Die Sprache, in der die Anhänge WIRKLICH gesetzt wurden. Sie geht mit und
+  // wird serverseitig gegen `offers.language` geprüft — sonst verglichen wir
+  // dort einen Wert mit sich selbst, während die Bytes von hier kommen.
+  let attachmentLocale: string | null = null;
   try {
-    ({ offerPdfBase64, agbPdfBase64, checklistPdfBase64 } = await buildOfferEmailAttachments(offerId, companyId));
+    ({ offerPdfBase64, agbPdfBase64, checklistPdfBase64, documentLocale: attachmentLocale } =
+      await buildOfferEmailAttachments(offerId, companyId));
   } catch {
     return { success: false, error: "Die PDF-Anhänge konnten nicht erzeugt werden." };
   }
@@ -87,6 +92,7 @@ export async function sendOffer({
     body: {
       offerId,
       force_resend: forceResend,
+      ...(attachmentLocale ? { attachmentLocale } : {}),
       ...(offerPdfBase64 ? { offerPdfBase64 } : {}),
       ...(agbPdfBase64 ? { agbPdfBase64 } : {}),
       ...(checklistPdfBase64 ? { checklistPdfBase64 } : {}),

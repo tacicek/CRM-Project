@@ -58,8 +58,10 @@ serve(async (req) => {
     }
 
     // Sprache und Feldanzahl ins Protokoll, Inhalt NICHT: das hier sind
-    // Kundentexte aus Offerten.
-    console.log(`[spell-check-ai] locale=${locale} fields=${Object.keys(fields).length}`);
+    // Kundentexte aus Offerten. `console.error` wie an den anderen Stellen
+    // dieser Datei — Deno schreibt beides in denselben Strom, und ein zweiter
+    // Kanal fuer eine Zeile waere nur eine weitere Konvention.
+    console.error(`[spell-check-ai] locale=${locale} fields=${Object.keys(fields).length}`);
 
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!anthropicKey) {

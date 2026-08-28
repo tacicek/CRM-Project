@@ -3,18 +3,31 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Die Bereitschaftsprüfung muss IM SENDEWEG stehen, nicht nur am Knopf.
+ * STOLPERDRAHT, KEIN BEWEIS.
  *
- * Ein Vertragstest über die reine Funktion beweist, dass die REGEL stimmt. Er
- * beweist nicht, dass der Sendeweg sie auch anwendet — und genau das ist die
- * Zusage: „ein direkter Aufruf, ein veralteter Bundle, ein
- * Wiederholungsversuch oder die nächste Integration kommen daran nicht vorbei".
+ * Diese Datei prüft, dass `send-offer` die Bereitschaftsprüfung noch AUFRUFT und
+ * dass der Aufruf vor dem Versand steht. Mehr kann sie nicht: sie liest Text.
+ *
+ * Die erste Fassung wurde als Beweis der Durchsetzung verkauft. Die unabhängige
+ * Durchsicht am 2026-08-28 hat sie mit einer Zuweisung EINE ZEILE über dem `if`
+ * ausgehebelt —
+ *
+ *     if (!offer.language) (offer as Record<string, unknown>).language = "de";
+ *     if (!isReadinessLocale(offer.language)) { … }
+ *     (bereitschaft as { ok: boolean }).ok = true;
+ *     if (!bereitschaft.ok) { … }
+ *
+ * — und jedes gesuchte Literal blieb stehen. 30 von 30 Tests grün, Prüfung tot.
+ *
+ * Die Antwort war nicht, mehr Text zu suchen. Der Zusammenbau ist nach
+ * `_shared/offerSendReadiness.ts` gewandert (`buildOfferSendReadiness`) und wird
+ * dort mit Eingabe und Ausgabe geprüft — siehe
+ * `offerSendReadinessAssembly.test.ts`. Was hier bleibt, ist die Frage „ruft der
+ * Handler es überhaupt noch auf?", und die ist mit einer Textsuche ehrlich zu
+ * beantworten.
  *
  * `send-offer/index.ts` importiert entfernte Module (`esm.sh`, `deno.land`) und
- * läuft in Deno; unter Vitest ist es nicht ausführbar. Was hier geht, ist die
- * Anordnung im Quelltext zu prüfen: dass die Prüfung da ist, dass sie mit 422
- * abbricht, und dass sie VOR dem Versand steht. Wer sie entfernt oder hinter
- * den Versand schiebt, macht diesen Test rot.
+ * läuft in Deno; unter Vitest ist es nicht ausführbar.
  */
 
 const QUELLE = readFileSync(
@@ -31,6 +44,10 @@ describe("send-offer erzwingt die Sendebereitschaft selbst", () => {
   });
 
   it("prüft die Dokumentsprache, statt sie mit toLocale auf Deutsch zu runden", () => {
+    // Anmerkung zur Reichweite: eine Zuweisung `offer.language = "de"` eine
+    // Zeile über diesem Wächter würde hier NICHT auffallen. Dagegen hilft kein
+    // Textmuster — dagegen hilft, dass `buildOfferSendReadiness` die Sprache
+    // selbst prüft und mit Eingabe/Ausgabe getestet ist.
     // `toLocale` macht aus allem Unbekannten stillschweigend Deutsch. Beim
     // Anzeigen richtig, beim Senden der Fehler selbst.
     //
@@ -45,11 +62,21 @@ describe("send-offer erzwingt die Sendebereitschaft selbst", () => {
     expect(spracheGeprueft).toBeLessThan(spracheGerundet);
   });
 
-  it("die Bereitschaftsprüfung ist nicht kurzgeschlossen", () => {
-    // Dieselbe Klasse Einschleusung eine Ebene tiefer: der Aufruf bleibt stehen,
-    // sein Ergebnis wird überschrieben.
-    expect(QUELLE).toContain("const bereitschaft = evaluateOfferSendReadiness({");
+  it("baut die Prüfung nicht mehr selbst zusammen", () => {
+    // Der Zusammenbau gehört in `_shared`, wo er prüfbar ist. Steht er wieder
+    // hier, ist er wieder nur per Textsuche belegbar — und das hat nicht
+    // gehalten.
+    expect(QUELLE).toContain("buildOfferSendReadiness(");
     expect(QUELLE).toContain("if (!bereitschaft.ok) {");
+  });
+
+  it("leitet die Anhang-Sprache aus dem AUFRUF ab, nicht aus der Zeile", () => {
+    // Vorher standen dort drei `localeClaims`, die alle `customerLocale` gegen
+    // sich selbst verglichen — `x !== x` kann nicht feuern. Die Bytes der
+    // Anhänge kommen aus dem Browser; nur er weiss, in welcher Sprache er sie
+    // gesetzt hat.
+    expect(QUELLE).toContain("declaredAttachmentLocale");
+    expect(QUELLE).not.toMatch(/entity:\s*"pdf",\s*field:\s*"locale",\s*locale:\s*customerLocale/);
   });
 
   it("bricht mit 422 ab, statt still weiterzusenden", () => {
@@ -58,7 +85,7 @@ describe("send-offer erzwingt die Sendebereitschaft selbst", () => {
   });
 
   it("steht VOR dem E-Mail-Versand", () => {
-    const pruefung = positionVon("const bereitschaft = evaluateOfferSendReadiness(");
+    const pruefung = positionVon("const bereitschaft = buildOfferSendReadiness(");
     const versand = positionVon("emails.send");
     expect(pruefung).toBeGreaterThan(-1);
     expect(versand).toBeGreaterThan(-1);

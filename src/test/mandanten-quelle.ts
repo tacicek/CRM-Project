@@ -93,6 +93,15 @@ const REGELN: Array<{ name: string; muster: RegExp; erklaerung: string }> = [
       "Rendern aus. Die Firma kommt aus useCompanyContext().",
   },
   {
+    name: "verzoegerter-schreibvorgang-am-kontext",
+    muster: /tenantBound\s*\(\s*activeCompanyId|tenantBound\s*\(\s*companyId\b/,
+    erklaerung:
+      "Ein verzoegerter Schreibvorgang darf seinen Mandanten nicht aus dem KONTEXT nehmen. " +
+      "Der springt beim Wechsel sofort um, waehrend die geladene Zeile noch die alte ist — " +
+      "genau so landeten A-Werte unter dem Schluessel von B. Der Mandant kommt aus der " +
+      "Zeile, aus der die Werte stammen: tenantBound(company.id, …).",
+  },
+  {
     name: "firma-aus-mitgliedschaftsreihenfolge",
     muster: /from\(\s*["'`]company_members["'`]\s*\)[\s\S]{0,400}?\.eq\(\s*["'`]user_id["'`]/,
     erklaerung:

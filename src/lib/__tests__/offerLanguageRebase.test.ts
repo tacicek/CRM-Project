@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyOfferLanguageRebase,
   buildOfferLanguageRebasePlan,
+  istSprachneutralerPfad,
   type RebaseFeldEingabe,
 } from "../offerLanguageRebase";
 
@@ -463,5 +464,134 @@ describe("Unbekannte Herkunft", () => {
       ],
     });
     expect(plan.felder[0].kategorie).toBe("REBASE_AVAILABLE");
+  });
+});
+
+// --- 13. Keine messbare Quelle in der Ausgangssprache ---------------------
+
+describe("Wenn die Quelle in der AUSGANGSsprache fehlt", () => {
+  it("wird der Text NICHT ersetzt — auch nicht ohne Zustimmung", () => {
+    // Der Fall, den die unabhängige Durchsicht am 2026-08-28 gefunden hat:
+    // die Katalogzeile hat KEINE französische Fassung, die Offerte steht auf
+    // Französisch, der Bediener hat die Position von Hand geschrieben. Beim
+    // Wechsel nach Deutsch war `quelleInAktuellerSprache` null — und die erste
+    // Fassung las das als „unverändert" statt als „nicht messbar".
+    const plan = buildOfferLanguageRebasePlan({
+      von: "fr", nach: "de", eingefroren: false,
+      felder: [
+        {
+          feld: "items[1].description",
+          entity: "offer_item",
+          herkunft: "catalog",
+          aktuellerWert: "Déménagement rédigé à la main par l'opérateur",
+          quelleInAktuellerSprache: null,   // keine fr-Fassung im Katalog
+          quelleInZielsprache: "Umzug\nStandardumzug",
+        },
+      ],
+    });
+    expect(plan.felder[0].kategorie).toBe("USER_EDITED_CONFLICT");
+    expect(applyOfferLanguageRebase(plan).aenderungen).toEqual({});
+  });
+
+  it("bietet den Zielwert weiterhin als VORSCHLAG an", () => {
+    const plan = buildOfferLanguageRebasePlan({
+      von: "fr", nach: "de", eingefroren: false,
+      felder: [
+        {
+          feld: "items[1].description",
+          entity: "offer_item",
+          herkunft: "catalog",
+          aktuellerWert: "Texte manuel",
+          quelleInAktuellerSprache: null,
+          quelleInZielsprache: "Umzug",
+        },
+      ],
+    });
+    expect(plan.felder[0].vorschlag).toBe("Umzug");
+    // Nur mit feldgenauer Zustimmung.
+    expect(applyOfferLanguageRebase(plan, ["items[1].description"]).aenderungen)
+      .toEqual({ "items[1].description": "Umzug" });
+  });
+
+  it("ein leeres Feld ohne messbare Quelle bleibt harmlos", () => {
+    const plan = buildOfferLanguageRebasePlan({
+      von: "fr", nach: "de", eingefroren: false,
+      felder: [
+        {
+          feld: "items[1].description",
+          entity: "offer_item",
+          herkunft: "catalog",
+          aktuellerWert: "",
+          quelleInAktuellerSprache: null,
+          quelleInZielsprache: "Umzug",
+        },
+      ],
+    });
+    expect(plan.felder[0].kategorie).toBe("REBASE_AVAILABLE");
+  });
+});
+
+// --- 14. Der Betrag ist baulich geschützt, nicht nur etikettiert ----------
+
+describe("Ein falsch etikettierter Betrag", () => {
+  // Die Durchsicht am 2026-08-28 zeigte mit einer Sonde: die Zusage „ein
+  // Sprachwechsel ändert keinen Betrag" hing allein daran, dass der Sammler
+  // drei Felder von Hand als `non-localized` etikettiert. Wer sie als
+  // `catalog` etikettiert, kam durch.
+  const falschEtikettiert: RebaseFeldEingabe = {
+    feld: "items[1].unit_price",
+    entity: "offer_item",
+    herkunft: "catalog",                 // FALSCH — es ist ein Betrag
+    aktuellerWert: "120",
+    quelleInAktuellerSprache: "120",
+    quelleInZielsprache: "999999",
+  };
+
+  it("wird trotzdem als sprachneutral eingestuft", () => {
+    const plan = buildOfferLanguageRebasePlan({
+      von: "de", nach: "fr", eingefroren: false, felder: [falschEtikettiert],
+    });
+    expect(plan.felder[0].kategorie).toBe("NON_LOCALIZED");
+  });
+
+  it("erscheint in keiner Änderung — auch nicht mit Zustimmung", () => {
+    const plan = buildOfferLanguageRebasePlan({
+      von: "de", nach: "fr", eingefroren: false, felder: [falschEtikettiert],
+    });
+    expect(applyOfferLanguageRebase(plan, ["items[1].unit_price"]).aenderungen).toEqual({});
+  });
+
+  it("kommt auch durch einen von Hand gebauten Plan nicht durch", () => {
+    // Zweiter Riegel am Ausgang: selbst wenn jemand den Plan direkt zusammenbaut
+    // und den Betrag als REBASE_AVAILABLE führt.
+    const handgebaut = {
+      von: "de" as const, nach: "fr" as const, eingefroren: false,
+      felder: [{
+        ...falschEtikettiert,
+        kategorie: "REBASE_AVAILABLE" as const,
+        vorschlag: "999999",
+        begruendung: "handgebaut",
+      }],
+      zusammenfassung: {
+        REBASE_AVAILABLE: 1, ALREADY_CORRECT: 0, USER_EDITED_CONFLICT: 0,
+        TRANSLATION_MISSING: 0, NON_LOCALIZED: 0, IMMUTABLE: 0,
+      },
+      anwendbar: [],
+      fehlendeUebersetzungen: [],
+    };
+    expect(applyOfferLanguageRebase(handgebaut).aenderungen).toEqual({});
+  });
+
+  it("erkennt die Geldpfade, um die es geht", () => {
+    for (const p of [
+      "items[3].unit_price", "items[3].quantity", "items[3].unit", "items[3].amount_basis",
+      "items[3].kostendach_max", "mwst_satz", "rabatt", "total", "offer_number",
+      "scheduled_date",
+    ]) {
+      expect(istSprachneutralerPfad(p), p).toBe(true);
+    }
+    for (const p of ["title", "payment_terms", "terms_and_conditions", "items[3].description"]) {
+      expect(istSprachneutralerPfad(p), p).toBe(false);
+    }
   });
 });

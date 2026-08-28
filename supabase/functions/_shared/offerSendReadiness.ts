@@ -229,3 +229,109 @@ export const summariseReadiness = (r: ReadinessResult): string =>
   r.blockers
     .map((b) => `${b.code}:${b.entity}${b.entityId ? `#${b.entityId}` : ""}.${b.field}@${b.requestedLocale}`)
     .join(", ");
+
+// ---------------------------------------------------------------------------
+// Zusammenbau
+// ---------------------------------------------------------------------------
+
+/**
+ * Die Rohdaten, aus denen der Sendeweg seine Bereitschaftsprüfung baut.
+ *
+ * WARUM DAS EINE EIGENE FUNKTION IST
+ *
+ * Bis zur Durchsicht am 2026-08-28 stand dieser Zusammenbau inline in
+ * `send-offer/index.ts`, und ein Quelltext-Tor prüfte per Textsuche, dass er
+ * dort steht. Die Durchsicht hat das Tor mit einer Zuweisung EINE ZEILE über
+ * dem `if` ausgehebelt — jedes gesuchte Literal blieb stehen, die Prüfung war
+ * trotzdem tot.
+ *
+ * Eine Textsuche kann Anwesenheit und Reihenfolge belegen, nicht Wirkung. Also
+ * wandert die Wirkung hierher, wo sie sich mit Eingabe und Ausgabe prüfen
+ * lässt. Das Quelltext-Tor bleibt als Stolperdraht („der Handler ruft es noch
+ * auf"), nicht als Beweis.
+ */
+export interface OfferSendReadinessRohdaten {
+  /** `offers.language` — ungeprüft. */
+  offerLanguage: unknown;
+  /** Aufgelöste Zahlungskondition und ob sie aus der OFFERTE selbst stammt. */
+  paymentTerms: string | null;
+  paymentTermsFromOfferRow: boolean;
+  companyId: string | null;
+  agbSections: ReadonlyArray<{ id?: string | null; translations?: unknown } & Record<string, unknown>>;
+  /**
+   * Die Sprache, in der der Aufrufer die Anhänge GERENDERT hat.
+   *
+   * Nicht aus der Zeile abgeleitet — sonst verglichen wir einen Wert mit sich
+   * selbst. Fehlt sie, ist der Aufrufer ein veralteter Bundle: dann gibt es
+   * keine Zusicherung über die mitgeschickten PDF-Bytes, und das ist ein
+   * Blocker, keine Nachlässigkeit.
+   */
+  declaredAttachmentLocale: unknown;
+  /** Wurden überhaupt Anhänge mitgeschickt? Ohne sie gibt es nichts zu behaupten. */
+  hasAttachments: boolean;
+}
+
+/** Wie eine Zeile mit `translations` in einer Sprache aufgelöst wird. */
+export type LocalizedRowResolver = (
+  row: Record<string, unknown>,
+  field: string,
+  locale: string,
+) => { value: string | null; source: SlotSource };
+
+export const buildOfferSendReadiness = (
+  roh: OfferSendReadinessRohdaten,
+  resolve: LocalizedRowResolver,
+): ReadinessResult => {
+  const locale = isReadinessLocale(roh.offerLanguage) ? roh.offerLanguage : null;
+  const slots: ContentSlot[] = [];
+  const claims: LocaleClaim[] = [];
+
+  if (locale) {
+    // Zahlungskondition: stammt sie aus der Offerte selbst, ist sie beim Anlegen
+    // in der Kundensprache eingefroren worden. Stammt sie aus Firma oder
+    // Vorlage, ist sie die deutsche Basisspalte — ohne Übersetzungssuche.
+    if (roh.paymentTerms && !roh.paymentTermsFromOfferRow) {
+      slots.push({
+        entity: "company",
+        entityId: roh.companyId,
+        field: "default_payment_terms",
+        required: true,
+        value: roh.paymentTerms,
+        source: locale === "de" ? "base" : "base-fallback",
+        focus: "einstellungen#zahlungskonditionen",
+      });
+    }
+
+    for (const abschnitt of roh.agbSections) {
+      for (const feld of ["title", "content"]) {
+        const aufgeloest = resolve(abschnitt, feld, locale);
+        slots.push({
+          entity: "agb_section",
+          entityId: (abschnitt.id as string | null | undefined) ?? null,
+          field: feld,
+          required: true,
+          value: aufgeloest.value,
+          source: aufgeloest.source,
+          focus: "einstellungen#agb",
+        });
+      }
+    }
+
+    // Die Anhänge behaupten ihre eigene Sprache. Fehlt die Angabe, obwohl
+    // Anhänge da sind, ist das ein veralteter Aufrufer — und über die Bytes ist
+    // dann nichts bekannt.
+    if (roh.hasAttachments) {
+      claims.push({
+        entity: "pdf",
+        field: "attachment_locale",
+        locale: roh.declaredAttachmentLocale,
+      });
+    }
+  }
+
+  return evaluateOfferSendReadiness({
+    requestedLocale: roh.offerLanguage,
+    slots,
+    localeClaims: claims,
+  });
+};

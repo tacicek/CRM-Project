@@ -477,7 +477,7 @@
     },
     "send-appointment-confirmation": {
       "model": "jwt-member",
-      "tenant_derivation": "company_id des Termins; Mitgliedschaft INLINE geprueft",
+      "tenant_derivation": "company_id des Termins gegen die Mitgliedschaft des Aufrufers, dreiwertig geprueft in _shared/appointmentConfirmationGuard.ts",
       "intended_deployment": "deployed",
       "methods": [
         "POST",
@@ -485,8 +485,8 @@
       ],
       "public_data_exposure": "none",
       "exceptions": {
-        "jwt-member-uses-shared-helper": "H-004 — wie send-quittung.",
-        "service-role-needs-tenant-boundary": "H-004: die Mitgliedschaftspruefung ist da, aber abgeschrieben statt ueber den gemeinsamen Helfer — und sie steht in einem `if (zeile)`, dessen Abfragefehler verworfen wird. Offener Befund, absichtlich nicht per Ausnahme wegdefiniert."
+        "jwt-member-uses-shared-helper": "ABSICHTLICH nicht der gemeinsame Helfer: `verifyCompanyMembership` bildet einen DB-Fehler auf `false` ab und wuerde eine Stoerung als Rechteproblem tarnen. `_shared/appointmentConfirmationGuard.ts` prueft dreiwertig — ok / kein Mitglied / Stoerung — und antwortet auf die Stoerung mit 503 statt 403. Das ist strenger, nicht laxer.",
+        "service-role-needs-tenant-boundary": "Die Mandantengrenze ist `appointment.company_id` gegen die geprueften Mitgliedschaften des Aufrufers, im Guard-Modul statt im Handler — deshalb sieht das Signal sie nicht."
       }
     },
     "send-lead-confirmation": {
@@ -505,7 +505,7 @@
     },
     "send-offer": {
       "model": "jwt-member",
-      "tenant_derivation": "company_id der Offertenzeile, gegen verifyCompanyMembership",
+      "tenant_derivation": "company_id der Offertenzeile; ohne Firma an der Offerte wird abgelehnt (409), sonst verifyCompanyMembership",
       "intended_deployment": "deployed",
       "methods": [
         "POST",
@@ -515,31 +515,23 @@
     },
     "send-quittung": {
       "model": "jwt-member",
-      "tenant_derivation": "company_id der Quittungszeile; Mitgliedschaft INLINE geprueft statt ueber den gemeinsamen Helfer",
+      "tenant_derivation": "company_id der eingebetteten Firmenzeile; verifyCompanyMembership VOR dem Laden der Geheimnisse",
       "intended_deployment": "deployed",
       "methods": [
         "POST",
         "OPTIONS"
       ],
-      "public_data_exposure": "none",
-      "exceptions": {
-        "jwt-member-uses-shared-helper": "H-004: die Pruefung ist da, aber abgeschrieben — und steht in einem `if (zeile)`, dessen Abfragefehler verworfen wird. Offener Befund, nicht bereinigt.",
-        "service-role-needs-tenant-boundary": "H-004: die Mitgliedschaftspruefung ist da, aber abgeschrieben statt ueber den gemeinsamen Helfer — und sie steht in einem `if (zeile)`, dessen Abfragefehler verworfen wird. Offener Befund, absichtlich nicht per Ausnahme wegdefiniert."
-      }
+      "public_data_exposure": "none"
     },
     "send-rechnung-email": {
       "model": "jwt-member",
-      "tenant_derivation": "company_id der Rechnungszeile; Mitgliedschaft INLINE geprueft",
+      "tenant_derivation": "company_id der eingebetteten Firmenzeile; verifyCompanyMembership VOR dem Laden der Geheimnisse",
       "intended_deployment": "deployed",
       "methods": [
         "POST",
         "OPTIONS"
       ],
-      "public_data_exposure": "none",
-      "exceptions": {
-        "jwt-member-uses-shared-helper": "H-004 — wie send-quittung.",
-        "service-role-needs-tenant-boundary": "H-004: die Mitgliedschaftspruefung ist da, aber abgeschrieben statt ueber den gemeinsamen Helfer — und sie steht in einem `if (zeile)`, dessen Abfragefehler verworfen wird. Offener Befund, absichtlich nicht per Ausnahme wegdefiniert."
-      }
+      "public_data_exposure": "none"
     },
     "spell-check-ai": {
       "model": "jwt-user",

@@ -118,9 +118,23 @@ export const konfigurierteFunktionen = (): string[] => {
   return [...namen].sort();
 };
 
+/**
+ * Kommentare zaehlen nicht als Pruefung.
+ *
+ * Die unabhängige Durchsicht am 2026-08-28 ersetzte in
+ * `handle-proposal-response` die ganze Autorisierung durch `if (false)`. Das Tor
+ * blieb gruen — nicht nur wegen des `.select("… access_token …")`, sondern auch,
+ * weil zwei Zeilen tiefer ein KOMMENTAR steht: „Token ist validiert (Zeile oben:
+ * offer.access_token === token)". Ein Satz ueber eine Pruefung ist keine.
+ */
+const ohneKommentare = (inhalt: string): string =>
+  inhalt
+    .replace(/\/\*[\s\S]*?\*\//g, (t) => t.replace(/[^\n]/g, " "))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (t, vor: string) => vor + " ".repeat(t.length - vor.length));
+
 export const quelltext = (name: string): string | null => {
   const p = join(FUNKTIONEN, name, "index.ts");
-  return existsSync(p) ? readFileSync(p, "utf8") : null;
+  return existsSync(p) ? ohneKommentare(readFileSync(p, "utf8")) : null;
 };
 
 /** Gemessene Auth-Signale im Quelltext — keine Beurteilung, nur Vorkommen. */
@@ -151,13 +165,21 @@ export const signale = (quelle: string): Quellsignale => ({
   jwtBenutzer:
     /\bauth\.getUser\s*\(/.test(quelle) ||
     /\bassertCompanyMembershipFromAuthHeader\s*\(/.test(quelle),
-  // `reschedule_token`, `access_token`, `action_token`, `token_hash`, RPCs auf
-  // `…_by_token`. Bewusst nur snake_case: eine camelCase-Variable wie
-  // `responseToken` ist ein ERZEUGTES Token, kein geprüftes.
+  // Die WÄCHTERFORM, nicht das Vokabular.
+  //
+  // Die erste Fassung suchte nach Bezeichnern wie `access_token`. Die
+  // unabhängige Durchsicht am 2026-08-28 hat in `handle-proposal-response` die
+  // ganze Autorisierung durch `if (false)` ersetzt — der Bezeichner blieb im
+  // `.select("id, access_token, language")` stehen, und das Tor blieb grün.
+  //
+  // Ein Token schliesst eine Zeile auf. Das sieht so aus:
+  //   .eq("access_token", …) / .eq("token", …) / .eq("token_hash", …)
+  //   offer.access_token !== token          (Vergleich)
+  //   supabase.rpc("…_by_token" | "…_by_action_token", { p_token })
   faehigkeitsToken:
-    /[a-z0-9]+_token\b|token_hash|_by_token\b|_by_action_token\b|\.eq\(\s*["'`]token["'`]/.test(
-      quelle,
-    ),
+    /\.eq\(\s*["'`][a-z_]*token[a-z_]*["'`]/.test(quelle) ||
+    /\b[A-Za-z_.]*[Tt]oken[A-Za-z_]*\s*(!==|===|!=|==)\s*[A-Za-z_.]/.test(quelle) ||
+    /rpc\(\s*\n?\s*["'`][a-z_]*_by_[a-z_]*token["'`]/.test(quelle),
   signatur: /\bverifySvixSignature\s*\(/.test(quelle),
   grabstein:
     quelle.includes("retiredAdminEndpoint") || quelle.includes("resendEmailTombstone"),

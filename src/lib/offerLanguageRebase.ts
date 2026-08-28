@@ -148,6 +148,23 @@ const norm = (v: string | null | undefined): string =>
 
 const leer = (v: string | null | undefined): boolean => norm(v) === "";
 
+/**
+ * Feldpfade, die eine Sprachumstellung baulich nicht anfassen darf.
+ *
+ * Bis zur Durchsicht am 2026-08-28 hing die Zusage „ein Sprachwechsel ändert
+ * keinen Betrag" allein daran, dass der Sammler drei Felder von Hand als
+ * `non-localized` etikettiert. Ein falsch etikettiertes `unit_price` wäre
+ * durchgelaufen — die Durchsicht hat das mit einer Sonde gezeigt.
+ *
+ * Jetzt entscheidet der PFAD mit, nicht nur das Etikett. Ein Etikett kann man
+ * falsch setzen; ein Pfad, der auf `.unit_price` endet, ist ein Betrag.
+ */
+const SPRACHNEUTRALE_PFADE =
+  /(^|\.)(unit_price|quantity|unit|price_type|amount_basis|kostendach_max|mwst_satz|mwst_betrag|rabatt|discount_percent|total|zwischensumme|gesamttotal|betrag|offer_number|id|created_at|updated_at|scheduled_date|scheduled_start|scheduled_end)$/;
+
+export const istSprachneutralerPfad = (feld: string): boolean =>
+  SPRACHNEUTRALE_PFADE.test(feld);
+
 // ---------------------------------------------------------------------------
 // Einstufung
 // ---------------------------------------------------------------------------
@@ -172,7 +189,11 @@ const stufeEin = (
 
   // 2. Sprachneutrale Felder werden nie angefasst. Steht vor allen anderen
   //    Regeln, damit kein Zahlenfeld je in der Anwendungsliste landet.
-  if (feld.herkunft === "non-localized") {
+  //
+  //    Zwei Gründe genügen einzeln: das Etikett des Sammlers ODER der Feldpfad.
+  //    Ein Etikett kann man falsch setzen — ein Pfad, der auf `.unit_price`
+  //    endet, ist ein Betrag, egal was danebensteht.
+  if (feld.herkunft === "non-localized" || istSprachneutralerPfad(feld.feld)) {
     return mit("NON_LOCALIZED", "Betrag, Menge, Steuer, Einheit, Kennung oder Datum — sprachneutral.");
   }
 
@@ -202,22 +223,42 @@ const stufeEin = (
     );
   }
 
-  // 6. Es GIBT eine Quelle und der aktuelle Wert weicht von ihr ab (in der
-  //    aktuellen Sprache gemessen): jemand hat den Katalogtext überschrieben.
-  const istBearbeitet =
-    feld.quelleInAktuellerSprache !== undefined &&
-    feld.quelleInAktuellerSprache !== null &&
-    !gleich(feld.aktuellerWert, feld.quelleInAktuellerSprache);
+  // 6. Ohne messbare Quelle in der AKTUELLEN Sprache lässt sich nicht sagen, ob
+  //    der Text noch der Katalogtext ist. Dann gilt er als der des Bedieners.
+  //
+  //    Die erste Fassung prüfte hier `quelleInAktuellerSprache !== null` und
+  //    fiel bei `null` durch bis zu Regel 9 — REBASE_AVAILABLE, ohne Zustimmung
+  //    angewendet. Genau der Fall trat ein, wenn die Katalogzeile für die
+  //    AUSGANGSsprache keine Übersetzung hat: eine französische Offerte, deren
+  //    Position der Bediener von Hand geschrieben hat, wurde beim Wechsel nach
+  //    Deutsch wortlos durch den Katalogtext ersetzt. Gefunden von der
+  //    unabhängigen Durchsicht am 2026-08-28.
+  //
+  //    Nicht messbar heisst jetzt: nicht anfassen.
+  const quelleMessbar =
+    feld.quelleInAktuellerSprache !== undefined && feld.quelleInAktuellerSprache !== null;
 
-  if (istBearbeitet && !leer(feld.aktuellerWert)) {
-    return mit(
-      "USER_EDITED_CONFLICT",
-      "Weicht von der hinterlegten Quelle ab — von Hand geändert. Ein stilles Überschreiben würde die Änderung verlieren.",
-      !leer(zielQuelle) ? (zielQuelle as string) : undefined,
-    );
+  if (!leer(feld.aktuellerWert)) {
+    if (!quelleMessbar) {
+      return mit(
+        "USER_EDITED_CONFLICT",
+        "Für die Ausgangssprache ist keine Quelle hinterlegt — ob dieser Text aus dem Katalog stammt oder von Hand geschrieben wurde, lässt sich nicht belegen. Ohne Beleg wird er nicht ersetzt.",
+        !leer(zielQuelle) ? (zielQuelle as string) : undefined,
+      );
+    }
+
+    if (!gleich(feld.aktuellerWert, feld.quelleInAktuellerSprache)) {
+      return mit(
+        "USER_EDITED_CONFLICT",
+        "Weicht von der hinterlegten Quelle ab — von Hand geändert. Ein stilles Überschreiben würde die Änderung verlieren.",
+        !leer(zielQuelle) ? (zielQuelle as string) : undefined,
+      );
+    }
   }
 
   // 7. Unbekannte Herkunft: konservativ wie „von Hand", solange Inhalt da ist.
+  //    (Regel 6 fängt das inzwischen mit ab; die Regel bleibt stehen, weil sie
+  //    einen eigenen, deutlicheren Grund nennt.)
   if (feld.herkunft === "unknown" && !leer(feld.aktuellerWert)) {
     return mit(
       "USER_EDITED_CONFLICT",
@@ -324,6 +365,12 @@ export const applyOfferLanguageRebase = (
   const ausgelassen: Array<{ feld: string; kategorie: RebaseKategorie }> = [];
 
   for (const f of plan.felder) {
+    // Zweiter Riegel am Ausgang. Selbst ein von Hand gebauter Plan, der einen
+    // Betrag als REBASE_AVAILABLE führte, kommt hier nicht durch.
+    if (istSprachneutralerPfad(f.feld)) {
+      ausgelassen.push({ feld: f.feld, kategorie: f.kategorie });
+      continue;
+    }
     if (f.kategorie === "REBASE_AVAILABLE" && f.vorschlag !== undefined) {
       aenderungen[f.feld] = f.vorschlag;
       continue;

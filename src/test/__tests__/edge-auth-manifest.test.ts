@@ -164,9 +164,16 @@ describe("Das Modell muss zum Handler passen", () => {
   });
 
   it("ein capability-token-Endpunkt schliesst wirklich über ein Token auf", () => {
+    // Gemessen wird die WÄCHTERFORM (Vergleich, `.eq`, `…_by_token`-RPC), nicht
+    // das Vorkommen des Wortes. Ein `.select("… access_token …")` allein ist
+    // keine Prüfung — die unabhängige Durchsicht hat genau damit eine
+    // abgeschaltete Autorisierung an diesem Tor vorbeigebracht.
     melde(
       mitQuelle
-        .filter(({ e, q }) => e.model === "capability-token" && !signale(q).faehigkeitsToken)
+        .filter(({ n, e, q }) =>
+          e.model === "capability-token" &&
+          !signale(q).faehigkeitsToken &&
+          !ausnahme(n, "capability-token-validates-a-token"))
         .map(({ n }) => `${n}: capability-token ohne Tokenprüfung`),
     );
   });

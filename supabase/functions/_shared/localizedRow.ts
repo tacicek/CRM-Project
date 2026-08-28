@@ -20,9 +20,26 @@
  * Deshalb gibt diese Fassung nicht nur den Wert zurück, sondern auch, WOHER er
  * kommt. Der Sendeweg behandelt `base-fallback` als Blocker, die Vorschau
  * markiert ihn.
+ *
+ * WAS SIE NICHT SIEHT
+ *
+ * Sie prüft die HERKUNFT, nicht den Inhalt. Wer den deutschen Satz wörtlich in
+ * das französische Feld kopiert, bekommt `source: "translation"` — und der
+ * französische Kunde bekommt deutschen Text, obwohl jede Prüfung grün ist. Das
+ * ist die häufigste reale Form einer nicht übersetzten AGB und liegt ausserhalb
+ * dessen, was sich hier entscheiden lässt: „ist dieser Satz Französisch?" ist
+ * eine Sprachfrage, keine Datenfrage. Leere und reine Leerzeichen werden
+ * erkannt.
  */
 
-/** Die Basissprache: ihre Werte stehen in den Spalten selbst, nicht im JSONB. */
+/**
+ * Die Basissprache: ihre Werte stehen in den Spalten selbst, nicht im JSONB.
+ *
+ * Sie steht HIER, und `src/i18n/locale.ts` (`DEFAULT_LOCALE`) muss dazu passen —
+ * das prüft `src/test/__tests__/mandanten-quelle.test.ts` nicht, wohl aber der
+ * Vertragstest in `__tests__/localizedRow.test.ts`. Zwei unabhängige Antworten
+ * auf „welche Sprache steht in den Spalten" wären ein Sprachvertrag zu viel.
+ */
 export const BASIS_SPRACHE = "de";
 
 export type LocalizedFieldSource = "translation" | "base" | "base-fallback" | "absent";

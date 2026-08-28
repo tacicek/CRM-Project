@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -88,6 +88,20 @@ const Zeile = ({
 export const SprachwechselDialog = ({ plan, onAbbrechen, onAnwenden }: Props) => {
   const t = useT();
   const [zustimmung, setZustimmung] = useState<Set<string>>(new Set());
+
+  // Zustimmungen gelten NUR für den Plan, für den sie gegeben wurden.
+  //
+  // Bei `plan === null` gibt die Komponente `null` zurück — sie wird dadurch
+  // aber nicht ausgehängt, ihr Zustand überlebt. Ohne dieses Zurücksetzen
+  // wanderte ein Haken aus einer abgebrochenen Sitzung (de→fr, Kästchen
+  // gesetzt, Abbrechen) in die nächste (de→en, Anwenden) — die Feldpfade sind
+  // stabil, also wurde der von Hand geschriebene Text dort ersetzt, ohne dass
+  // in dieser Sitzung je ein Kästchen gesetzt worden wäre. Gefunden von der
+  // unabhängigen Durchsicht am 2026-08-28.
+  const planKennung = plan ? `${plan.von}→${plan.nach}:${plan.felder.length}` : null;
+  useEffect(() => {
+    setZustimmung(new Set());
+  }, [planKennung]);
 
   const gruppen = useMemo(() => {
     const leer = { REBASE_AVAILABLE: [], ALREADY_CORRECT: [], USER_EDITED_CONFLICT: [], TRANSLATION_MISSING: [], NON_LOCALIZED: [], IMMUTABLE: [] } as Record<

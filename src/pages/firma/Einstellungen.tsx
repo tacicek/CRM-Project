@@ -13,6 +13,7 @@ import { SecretKeyField, type SecretStatus } from "@/components/firma/SecretKeyF
 import { INBOUND_WEBHOOK_EVENT, buildInboundWebhookUrl } from "@/lib/inboundEmailWebhook";
 import { fetchCompanyById } from "@/lib/fetchCompanyById";
 import { assertSameTenant, createTenantScopedDebounce, tenantBound } from "@/lib/tenantBoundWrite";
+import { antwortGehoertNochZumMandanten } from "@/lib/aktiverMandant";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useToast } from "@/hooks/use-toast";
@@ -231,6 +232,11 @@ const FirmaEinstellungen = () => {
       // Ohne aufgeloesten Mandanten wird nicht geladen — die Einstellungen
       // schreiben in `companies`, und in WELCHE Zeile darf nicht geraten werden.
       if (!activeCompanyId) return;
+      // Der Mandant, fuer den DIESER Lauf laedt. Beim Eintreffen der Antwort
+      // wird verglichen: eine ueberholte A-Antwort darf den B-Bildschirm nicht
+      // fuellen. Der verzoegerte SCHREIBvorgang war abgesichert, der LESEweg
+      // nicht — gefunden von der unabhaengigen Durchsicht am 2026-08-28.
+      const geladenFuer = activeCompanyId;
 
       try {
         // Get company — GENAU der aktive Mandant.
@@ -266,6 +272,9 @@ const FirmaEinstellungen = () => {
         // Der Entwurf wird unter der ID der GELADENEN Zeile gesucht, nicht unter
         // dem Kontextwert — sonst koennte hier der Entwurf einer anderen Firma
         // ueber die frisch geladenen Werte gelegt werden.
+        // Ueberholt? Dann gehoert diese Antwort einem anderen Bildschirm.
+        if (!antwortGehoertNochZumMandanten(geladenFuer, activeCompanyId)) return;
+
         const savedDraft = sessionStorage.getItem(profileDraftKey(companyData.id));
         if (savedDraft) {
           try {
