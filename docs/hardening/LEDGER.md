@@ -199,7 +199,7 @@ Prüfung.
 | ID | Modul | Fehlerklasse | Abhängig | Zustand | Beleg / Nachweis | Commit |
 |---|---|---|---|---|---|---|
 | **P1C-0** | Edge | Manifest prüfte Vollständigkeit, nicht ob das Modell zum Handler passt | P0-4 | `VERIFIED_IN_REPO` | 54 Einträge (alles Ausgerollte + alles im Repo); mechanische Tatsachen werden gemessen statt abgeschrieben; 11 Torbedingungen; gegen **vier** Einschleusungen geprüft | `c5f3ad8b` |
-| **P1C-1** | Finanzen/Edge | Autorisierung im `if`, Fehler verworfen; Secret-Ladung vor Prüfung (H-004) | P1C-0 | `PLANNED` — im Manifest als Ausnahme **mit Grund** vermerkt, nicht wegdefiniert | — | — |
+| **P1C-1** | Finanzen/Edge | Autorisierung im `if`, Fehler verworfen; Secret-Ladung vor Prüfung (H-004) | P1C-0 | `VERIFIED_IN_REPO` · NICHT LIVE — behoben in `send-offer`, `send-quittung`, `send-rechnung-email`; die Manifest-Ausnahmen sind entfallen | siehe D-09 | `e4e40a94` |
 | **P1C-2** | Edge | 4 verbliebene `anon`+DEFINER+schreibende RPCs einzeln prüfen | P0-1 | `PLANNED` | — | — |
 
 ### Was das Manifest-Tor gefunden hat (Befunde, die vorher niemand hatte)
@@ -210,6 +210,39 @@ Prüfung.
 | **E-02** | `VERIFIED` | `notify-appointment-reschedule` war als `capability-token` geführt. Sie **mintet** das Token und validiert keines: unauthentifiziert, service-role, sendet E-Mail an Adressen aus dem Body. | `VERIFIED_IN_REPO` — nicht ausgerollt; das Verbot steht jetzt als Bedingung im Manifest |
 | **E-03** | `VERIFIED` | `send-lead-confirmation` ebenfalls falsch als `capability-token` geführt; prüft nichts ausser einer IP-Drossel. | `VERIFIED_IN_REPO` — jetzt `public-safe` mit Rollout-Sperre |
 | **E-04** | `VERIFIED` | Zwei `normalizeServiceTypeForAgb` mit verschiedener Semantik: Frontend ein String (`.eq`), `send-offer` eine Liste (`.in`). Sie können unterschiedliche AGB-Abschnitte finden. | `PLANNED` — D-004-Befund, keine Sprachfrage |
+
+### Zweite unabhängige Durchsicht (2026-08-28) — kumulierter Branch-Diff
+
+Auflage: Gegenbeispiele einschleusen statt den Happy Path lesen. Zwölf Punkte,
+**alle haltbar**. Behoben in `e4e40a94`.
+
+| ID | Schwere | Befund | Zustand |
+|---|---|---|---|
+| **D-01** | HOCH | `buildOfferLanguageRebasePlan` prüfte „von Hand geändert?" mit `quelleInAktuellerSprache !== null`. Fehlt der Katalogzeile die Fassung der **Ausgangs**sprache, ist der Wert null — die Regel fiel durch bis `REBASE_AVAILABLE`. Eine französische Offerte mit handgeschriebener Position wurde beim Wechsel nach Deutsch **ohne Zustimmung** durch den Katalogtext ersetzt. | `VERIFIED_IN_REPO` |
+| **D-02** | HOCH | `SprachwechselDialog` setzte `zustimmung` nur beim Anwenden zurück. `plan === null` gibt `null` zurück, hängt die Komponente aber nicht aus — ein Haken aus einer **abgebrochenen** Sitzung ersetzte in der nächsten den Handtext. | `VERIFIED_IN_REPO` |
+| **D-03** | HOCH | Das Sendeweg-Tor suchte Literale und wurde mit einer Zuweisung **eine Zeile über dem `if`** ausgehebelt: 30/30 grün, Prüfung tot. Zusammenbau nach `_shared` gezogen und mit Eingabe/Ausgabe geprüft; das Quelltext-Tor auf „Stolperdraht" zurückgestuft. | `VERIFIED_IN_REPO` |
+| **D-04** | HOCH | Die drei `localeClaims` verglichen `customerLocale` mit sich selbst (`x !== x`), während die PDF-Bytes aus dem Browser kommen. Ein veralteter Bundle mit deutschem PDF an einer französischen Offerte kam durch. Jetzt meldet der Renderer seine Sprache, und der Server vergleicht. | `VERIFIED_IN_REPO` |
+| **D-05** | MITTEL | Das `capability-token`-Signal maß Vokabular: `if (false)` statt der Autorisierung blieb grün, weil `access_token` noch im `.select()` stand — und ein **Kommentar** die Prüfung beschrieb. Jetzt Wächterform, Kommentare gestrippt. | `VERIFIED_IN_REPO` |
+| **D-06** | MITTEL | Der Geldschutz hing allein am Etikett des Sammlers; ein falsch etikettiertes `unit_price` lief durch. Jetzt entscheidet auch der Feldpfad, plus ein Riegel am Ausgang von `apply`. | `VERIFIED_IN_REPO` |
+| **D-07** | MITTEL | `Einstellungen`: der verzögerte **Schreib**weg war abgesichert, der **Lese**weg nicht — eine überholte A-Antwort konnte den B-Bildschirm füllen. | `VERIFIED_IN_REPO` |
+| **D-08** | MITTEL | Das Mandanten-Tor fing den Ratehelfer, aber nicht die Rückkehr des Fehlers im Verbraucher (`tenantBound(activeCompanyId, …)`). Regel ergänzt. | `VERIFIED_IN_REPO` |
+| **D-09** | MITTEL | **`send-offer` (ausgerollt!)**, `send-quittung` und `send-rechnung-email` hatten die Mitgliedschaftsprüfung in `if (zeile) { … }` mit verworfenem Abfragefehler — löste die Abfrage zu null auf, wurde nicht geprüft. `send-quittung` lud zudem den Resend-Schlüssel **vor** der Autorisierung. | `VERIFIED_IN_REPO` |
+| **D-10** | GERING | `resolveLocalizedRowField` erkennt eine **wörtlich kopierte** deutsche Übersetzung nicht — die häufigste reale Form einer nicht übersetzten AGB. Inhärent; jetzt im Modulkopf und in einem Test festgehalten statt verschwiegen. | `VERIFIED_IN_REPO` (Grenze dokumentiert) |
+| **D-11** | GERING | Randleerzeichen machen eine Nur-Leerzeichen-Änderung für die Konflikterkennung unsichtbar. Dokumentiert, vertretbar. | akzeptiert |
+| **D-12** | NITPICK | `BASIS_SPRACHE` und `DEFAULT_LOCALE` waren zwei unabhängige Antworten auf dieselbe Frage. Jetzt durch einen Test gebunden. | `VERIFIED_IN_REPO` |
+
+**Von mir falsch beschuldigt:** meine Manifest-Ausnahme warf
+`send-appointment-confirmation` dieselbe Fail-open-Prüfung vor. Falsch — es prüft
+**dreiwertig** (ok / kein Mitglied / Störung) und antwortet auf die Störung mit
+503 statt 403. Das ist strenger als der gemeinsame Helfer, der einen DB-Fehler
+auf `false` abbildet. Die Ausnahme sagt das jetzt.
+
+**Was daraus folgt:** drei der vier Tore aus der vorigen Tranche prüften die
+REGEL und nicht ihre ANWENDUNG. Ein Quelltext-Tor kann Anwesenheit und
+Reihenfolge belegen — mehr nicht. Wo Wirkung zählt, gehört die Logik in eine
+reine Funktion mit Eingabe und Ausgabe.
+
+---
 
 ## P1A — asynchrone Mandantenkette
 

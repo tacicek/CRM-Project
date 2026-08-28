@@ -27,7 +27,9 @@ ausserdem `Type-Check (App)`, `Type-Check (Test-Infrastruktur)`, `Lint` und
 | 14 | Kein Raten der Firma | `src/test/__tests__/mandanten-quelle.test.ts` | Ratehelfer wieder eingeführt · Suche über `companies.email` · Sortierung nach `created_at` · `getCachedCompany()` · `company_members.eq("user_id")` | 5/5 rot |
 | 9 | Edge-Auth-Manifest vollständig **und passend** | `src/test/__tests__/edge-auth-manifest.test.ts` | unklassifizierte Function · Mitgliedschaftsprüfung entfernt · Cron-Wächter umbenannt · Ausnahme ohne Grund | 3/4 rot; der Cron-Fall kam durch (`includes()` statt Aufrufform) → nachgeschärft, dann 4/4 |
 | 5 | Sendebereitschaft im **Sendeweg**, nicht am Knopf | `supabase/functions/_shared/__tests__/sendOfferReadinessGate.test.ts` | Prüfung entfernt · Wächter `if (false && …)` · Ergebnis kurzgeschlossen | 1/3 rot; nachgeschärft, dann 3/3 |
-| 2 | Mandantenwechsel bei laufendem Timer | `src/lib/__tests__/tenantBoundWrite.test.ts` | (Vertragstest mit `vi.useFakeTimers()`, kein Quelltext-Tor) | fährt den Ablauf ab, der A in die B-Zeile schrieb |
+| 2 | Mandantenwechsel bei laufendem Timer | `src/lib/__tests__/tenantBoundWrite.test.ts` + Regel `verzoegerter-schreibvorgang-am-kontext` | Verbraucher nimmt den Mandanten wieder aus dem Kontext | rot (nach der zweiten Durchsicht ergänzt — vorher ging genau das durch) |
+| 15 | Kundengerichtete Renderer lesen die Bedienersprache nicht | `src/test/__tests__/kundenrenderer-sprache.test.ts` | `useT()` in `OfferPDF.tsx` | rot |
+| 5 | Sendebereitschaft als reine Funktion, nicht als Textsuche | `supabase/functions/_shared/__tests__/offerSendReadinessAssembly.test.ts` | (13 Vertragstests mit Eingabe/Ausgabe) | ersetzt den Beweis, den die Textsuche nicht tragen konnte |
 
 ## Vorhanden als Vertragstest
 
@@ -51,12 +53,10 @@ ausserdem `Type-Check (App)`, `Type-Check (Test-Infrastruktur)`, `Lint` und
 | 10 | RPC-Rechte und RLS als Katalogzusicherung auf einer Wegwerf-DB | P3 |
 | 11 | Migrations-Prüfsummen, Append-only-Wächter | P3 |
 | 12 | Repo/config/deploy-Parität als **Tor** (heute nur Messwerkzeug: `scripts/edge-drift.mjs`) | P3 |
-| 15 | Importsperre: kundengerichtete Renderer dürfen den Bedienerkontext nicht importieren | offen — heute nur als Konvention und in Kommentaren |
 
-**Tor 15 ist der billigste offene Posten** und deckt eine Fehlerklasse ab, die
-dieses Programm ausdrücklich benennt (D-002): ein `useT()` in einem PDF- oder
-E-Mail-Renderer lässt die Sprache des Bedieners in das Dokument des Kunden
-laufen. Ein Muster-Tor nach dem Vorbild von `mandanten-quelle.test.ts` genügt.
+Tor 15 ist seit `e4e40a94` vorhanden und wurde gegen ein eingeschleustes
+`useT()` in `OfferPDF.tsx` geprüft. Es wurde eingeführt, **solange es grün war** —
+ein Tor, das nichts aufräumen muss, kostet nichts.
 
 ---
 
