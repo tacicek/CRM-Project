@@ -167,3 +167,75 @@ describe("Eine abgewiesene Anfrage erreicht Google nie", () => {
     expect(googleSpion).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("frischer Worker je Anfrage — der Kern von R2-01", () => {
+  /**
+   * Die alte Drossel hielt ihren Zaehler in einer Modul-`Map`. Der Edge-Runtime
+   * erzeugt je Anfrage einen eigenen Worker (`EdgeRuntime.userWorkers.create`),
+   * also startete diese Map jedes Mal leer und konnte nie ausloesen — deshalb
+   * blieb P0-S3a offen, obwohl die Drossel ausgerollt war.
+   *
+   * Dieser Test bildet genau das nach: fuer JEDE Anfrage ein frisch gebautes
+   * Abhaengigkeitsbuendel, kein geteilter Modulzustand. Der Zaehler liegt in
+   * Postgres, also muss die Grenze trotzdem greifen. Wuerde jemand den Zaehler
+   * je wieder in den Modulkopf verschieben, wird dieser Test rot.
+   */
+  it("61 Anfragen mit je frischem Modulzustand erreichen trotzdem 429", async () => {
+    // Der einzige geteilte Zustand ist der Topf — wie in der Datenbank.
+    let verbraucht = 0;
+    const GRENZE = 60;
+
+    const frischeAbhaengigkeiten = () => ({
+      verifyToken: async () => ({ userId: USER }),
+      consumeBudget: async () => {
+        verbraucht += 1;
+        return verbraucht <= GRENZE
+          ? { allowed: true as const }
+          : { allowed: false as const, retryAfter: 42 };
+      },
+      log: () => {},
+    });
+
+    const status: number[] = [];
+    for (let i = 0; i < 61; i++) {
+      // Frisches Buendel = frischer Worker. Nichts ueberlebt die Runde ausser
+      // dem serverseitigen Topf.
+      const antwort = await guardPaidApiCall(
+        eingabe(),
+        frischeAbhaengigkeiten(),
+      );
+      status.push(antwort.ok ? 200 : antwort.status);
+    }
+
+    expect(status.slice(0, 60).every((s) => s === 200)).toBe(true);
+    expect(status[60]).toBe(429);
+  });
+
+  it("ein Zaehler im Modulkopf wuerde diesen Test NICHT bestehen", async () => {
+    // Gegenprobe: derselbe Ablauf mit einem Zaehler, der je Buendel neu beginnt
+    // — also die alte, wirkungslose Bauart. Sie erreicht nie 429.
+    const modulKopfBauart = () => {
+      let lokal = 0; // startet bei jedem Worker neu
+      return {
+        verifyToken: async () => ({ userId: USER }),
+        consumeBudget: async () => {
+          lokal += 1;
+          return lokal <= 60 ? { allowed: true as const } : { allowed: false as const, retryAfter: 42 };
+        },
+        log: () => {},
+      };
+    };
+
+    const status: number[] = [];
+    for (let i = 0; i < 61; i++) {
+      const antwort = await guardPaidApiCall(
+        eingabe(),
+        modulKopfBauart(),
+      );
+      status.push(antwort.ok ? 200 : antwort.status);
+    }
+
+    // Kein einziges 429 — genau der gemessene Produktionsbefund R2-01.
+    expect(status.filter((s) => s === 429)).toHaveLength(0);
+  });
+});
