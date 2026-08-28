@@ -17,7 +17,7 @@
   },
   "baseline": {
     "branch": "chore/produktionswahrheit-festschreiben",
-    "head": "9de0541be25862d15523da3b8b420df312a82b97",
+    "head": "c5f3ad8b4328219ef8d0442faea62d1473dd08a4",
     "dirty_paths": [
       "public/favicon.png",
       "public/logo-offerio-main-old.webp",
@@ -72,8 +72,8 @@
   },
   "active": {
     "milestone": "M-01",
-    "slice": "S-03",
-    "task": "T-007"
+    "slice": "S-03/S-04",
+    "task": "T-013"
   },
   "queue": {
     "ready": [],
@@ -81,19 +81,7 @@
   },
   "last_checkpoint": {
     "at": "2026-08-28T00:00:00Z",
-    "summary": "S-02 closed and independently reviewed (7 findings, 5 upheld, all remediated in 9de0541b \u2014 two were real cross-tenant paths my own P1A work had missed or introduced). T-006 done: spell check is locale-aware and rejects a missing locale instead of assuming German. Rollout package written for the three pending production writes.",
-    "changed_files": [
-      "src/lib/tenantSession.ts (neu)",
-      "src/hooks/CompanyProvider.tsx",
-      "src/hooks/useCompanyRecord.ts",
-      "src/pages/firma/Einstellungen.tsx",
-      "src/pages/firma/Besichtigungen.tsx",
-      "src/test/mandanten-quelle.ts",
-      "supabase/functions/_shared/spellCheckPrompt.ts (neu)",
-      "supabase/functions/spell-check-ai/index.ts",
-      "src/lib/spellCheckService.ts",
-      "docs/hardening/ROLLOUT-2026-08-28.md (neu)"
-    ],
+    "summary": "T-007, T-008, the P1A async tenant invariant and the P1C manifest are implemented and locally verified. Three real defects surfaced by the new gates: translate-content's authorization call was inert, and two edge functions were misclassified by me as capability-token when they validate no token.",
     "verification": [
       {
         "command": "npm run type-check",
@@ -102,7 +90,7 @@
       {
         "command": "npm test",
         "result": "PASS",
-        "reason": "89 files / 1781 tests"
+        "reason": "1864 tests"
       },
       {
         "command": "npm run build:vite",
@@ -110,8 +98,7 @@
       },
       {
         "command": "bash scripts/check-edge-functions-parse.sh",
-        "result": "PASS",
-        "reason": "all edge functions boot"
+        "result": "PASS"
       },
       {
         "command": "npx eslint .",
@@ -119,17 +106,16 @@
         "reason": "88 errors unchanged; touched files 0"
       },
       {
-        "command": "independent review round (verification-auditor)",
+        "command": "gate injection proofs",
         "result": "PASS",
-        "reason": "7 findings, 5 upheld, all remediated; gate rules re-proven against injected violations"
+        "reason": "send-path 3/3, manifest 4/4 after tightening; repo restored with matching sha256"
       }
-    ],
-    "note": "gh pr create was blocked by the permission classifier; branch is pushed, PR not opened."
+    ]
   },
   "next_action": {
-    "task": "T-007",
-    "instruction": "buildOfferLanguageRebasePlan as a pure deterministic domain function with the six classification categories, then T-008 readiness enforced in the authoritative send path.",
-    "expected_result": "The language selector stops claiming a translation it did not perform; a missing mandatory FR/EN translation blocks the first send from the send path itself, not only from the button."
+    "task": "T-009",
+    "instruction": "H-004: authorize before loading secrets, stop discarding the query error, replace the copied membership check with the shared helper in send-quittung / send-rechnung-email / send-appointment-confirmation.",
+    "expected_result": "The three service-role senders lose their manifest exception instead of keeping it."
   },
   "pending_decisions": [
     {
@@ -181,6 +167,10 @@
     "R-1": "READY_FOR_ROLLOUT; the underlying finding P0-S1 stays ACTIVE_PRODUCTION_EXPOSURE",
     "R-2": "READY_FOR_ROLLOUT, binding order: _shared/appointmentDay.ts first; P0-S3a stays ACTIVE_PRODUCTION_EXPOSURE",
     "R-3": "READY_FOR_ROLLOUT, binding order: frontend first, then spell-check-ai",
-    "pull_request": "BLOCKED_EXTERNAL \u2014 gh pr create denied by the permission classifier; does not stop repository work"
+    "pull_request": "BLOCKED_EXTERNAL \u2014 gh pr create denied by the permission classifier; does not stop repository work",
+    "P1B-2": "VERIFIED_IN_REPO, NOT_LIVE \u2014 honest language rebase (094cea38)",
+    "P1B-3": "VERIFIED_IN_REPO, NOT_LIVE \u2014 strict send readiness enforced in the Edge send path (cf19bef2)",
+    "P1A-6": "VERIFIED_IN_REPO, NOT_LIVE \u2014 async tenant invariant, fake-timer proof (642a71df)",
+    "P1C-0": "VERIFIED_IN_REPO \u2014 exhaustive auth manifest, mechanical facts measured, 4 injections proven (c5f3ad8b)"
   }
 }

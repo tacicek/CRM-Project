@@ -4,7 +4,90 @@ Anfügend. Neueste zuerst.
 
 ---
 
-## 2026-08-28 · T-R1 · Durchsicht der P0/P1A-Tranche · `MERGED` (`9de0541b`)
+## 2026-08-28 · T-012 · Auth-Manifest, das misst statt zu glauben · `VERIFIED_IN_REPO` (`c5f3ad8b`)
+
+Die erste Fassung listete 42 ausgerollte Functions und prüfte Vollständigkeit.
+Sie prüfte nicht, ob ein Modell zum Handler passt — und genau dort lagen die
+Fehler.
+
+Jetzt stehen im Manifest nur noch Beurteilungen (54 Einträge: alles Ausgerollte
+und alles im Repo). Die messbaren Tatsachen — Repo-Pfad, config-Eintrag,
+Deployment, Gateway-Verhalten, Auth-Signale im Quelltext — holt das Tor sich aus
+Aufnahme, Repo und `config.toml`. Abgeschriebene Tatsachen veralten, und dann
+bestätigt ein Tor einen Zustand, den es nicht geprüft hat.
+
+**Drei echte Fehler gefunden** (E-01…E-03 im Ledger): `translate-content` reichte
+den rohen `Authorization`-Header dort durch, wo eine `userId` hingehört — jeder
+Aufruf wurde verweigert, und weil die Function nicht ausgerollt ist, ist es nie
+jemandem aufgefallen. Zwei weitere Functions hatte **ich** als
+`capability-token` geführt, obwohl sie kein Token validieren.
+
+**Vier Einschleusungen geprüft.** Die dritte — Cron-Wächter in
+`isCronRequestDISABLED` umbenannt — kam durch: ich hatte mit `includes()` gesucht.
+Die Signale prüfen jetzt die Aufrufform, nicht den Namen.
+
+---
+
+## 2026-08-28 · T-011 · Asynchrone Mandantenkette · `VERIFIED_IN_REPO` (`642a71df`)
+
+Der Befund R-01 war behoben, der Mechanismus nicht: der Schlüssel kam aus
+`company.id` statt aus dem Kontext, aber nur weil ich es an dieser einen Stelle
+richtig hingeschrieben hatte.
+
+`createTenantScopedDebounce` nimmt ein Paket, das seinen Mandanten trägt, und
+gibt dem Schreibvorgang genau diesen — nicht den, der beim Auslösen aktuell ist.
+`assertSameTenant` macht die zweite Hälfte zum Fehler: Nutzlast und `WHERE`
+müssen denselben Mandanten tragen.
+
+8 Tests mit `vi.useFakeTimers()` fahren den Ablauf ab, der A in die B-Zeile
+schrieb.
+
+**Warum das nötig war:** ein statisches Verbot von `fetchSingleCompanyForUser`
+und `getCachedCompany` fängt diese Klasse NICHT. Hier rät niemand eine Firma —
+zwei richtige Werte laufen auseinander, weil sie zu verschiedenen Zeitpunkten
+entstanden sind.
+
+---
+
+## 2026-08-28 · T-008 · Strenge Sendebereitschaft · `VERIFIED_IN_REPO` (`cf19bef2`)
+
+`send-offer` las `agb_sections` ohne die Spalte `translations` — es konnte den
+deutschen Rückfall gar nicht bemerken. Eine französische Offerte ging mit
+deutschen AGB im Anhang hinaus.
+
+`_shared/offerSendReadiness.ts` ist EIN Vertrag für ZWEI Laufzeiten: die Edge
+Function importiert ihn relativ, das Frontend über einen Pfad, den
+`allowImportingTsExtensions` erlaubt. Fünf Codes, strukturierte Blocker statt
+Wahrheitswert. Eine fehlende Sprache wird abgewiesen, nicht auf Deutsch gerundet.
+
+Geprüft wird nur, was der Sendeweg SELBST aus einer Vorlage holt. Titel und
+Positionstexte sind beim Anlegen eingefroren; ein Blocker auf Verdacht hielte
+jede richtige Offerte auf.
+
+**Torprüfung gegen drei Einschleusungen.** Fassung 1 fing nur die erste.
+
+---
+
+## 2026-08-28 · T-007 · Ehrlicher Sprachwechsel · `VERIFIED_IN_REPO` (`094cea38`)
+
+Der Wähler setzte `offers.language` und sonst nichts. Der Hinweistext warnte vor
+den Positionen und schwieg über Titel, Zahlungskondition und AGB.
+
+Beim Wechsel alles neu zu erzeugen wäre schlimmer gewesen — es überschriebe den
+von Hand geschriebenen Satz wortlos. Deshalb ein PLAN statt einer Wirkung: sechs
+Kategorien, und `applyOfferLanguageRebase` verbraucht den Plan, nicht die
+Offerte. Übersetzt wird nichts; gelesen wird nur, was jemand hinterlegt hat.
+
+Halb übersetzt gilt als nicht übersetzt. Ohne belegte Herkunft wird nicht
+angefasst — beim Bearbeiten einer bestehenden Offerte heisst das oft „es gibt
+nichts zu übernehmen", und genau das ist der Fortschritt.
+
+35 Vertragstests, darunter: kein Betrag im Ergebnis, auch bei pauschaler
+Zustimmung zu allen Feldnamen.
+
+---
+
+## 2026-08-28 · T-014 · Durchsicht der P0/P1A-Tranche · `VERIFIED_IN_REPO` (`9de0541b`)
 
 Ein unabhängiger Prüfdurchgang über die sechs Commits. Sieben Punkte, fünf
 halten stand. Zwei davon waren echte mandantenübergreifende Wege — einer davon

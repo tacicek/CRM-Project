@@ -74,10 +74,13 @@ dependency-safe work continues.
 | T-003 | Offer create / edit / detail off the guessing helper | REQ-F-001, REQ-F-002 | T-002 | DONE | two-company contract tests |
 | T-004 | Remaining `/firma` callers (orders, settings, archive, imports, pricing, catalog, checklist, team) | REQ-F-002 | T-003 | DONE | two-company contract tests |
 | T-005 | `Auth.tsx` resolves eligible memberships; helper deleted; static gate against reintroduction | REQ-F-002 | T-004 | DONE | gate test fails when the helper returns |
-| T-R1 | Remediate the independent review of S-01/S-02: cross-tenant draft key, Besichtigungen tenant source, gate holes, verified-company auto-select, swallowed record error, manifest overclaim | REQ-F-001, REQ-F-002, REQ-NF-003 | T-005 | DONE | `npx vitest run src/test/__tests__/mandanten-quelle.test.ts` with injected violations; full suite |
+| T-014 | Remediate the independent review of S-01/S-02: cross-tenant draft key, Besichtigungen tenant source, gate holes, verified-company auto-select, swallowed record error, manifest overclaim | REQ-F-001, REQ-F-002, REQ-NF-003 | T-005 | DONE | `npx vitest run src/test/__tests__/mandanten-quelle.test.ts` with injected violations; full suite |
 | T-006 | `runSpellCheck(fields, locale)`; edge validates the three supported locales and rejects anything else | REQ-F-005 | T-001 | DONE | contract tests per locale |
-| T-007 | `buildOfferLanguageRebasePlan()`; the switch stops claiming a rebase it does not perform | REQ-F-003 | T-006 | IN_PROGRESS | pure-function contract tests |
-| T-008 | Strict send readiness blocks the first send and names the missing source | REQ-F-004 | T-007 | PROPOSED | negative case names the exact source |
+| T-007 | `buildOfferLanguageRebasePlan()`; the switch stops claiming a rebase it does not perform | REQ-F-003 | T-006 | DONE | pure-function contract tests |
+| T-008 | Strict send readiness blocks the first send and names the missing source | REQ-F-004 | T-007 | DONE | negative case names the exact source |
+| T-011 | Async tenant invariant: a delayed write carries its own tenant; payload/WHERE mismatch is an error | REQ-F-001, REQ-NF-003 | T-014 | DONE | `npx vitest run src/lib/__tests__/tenantBoundWrite.test.ts` (fake timers) |
+| T-012 | Exhaustive edge authorization manifest; mechanical facts measured, 11 gate conditions, injections proven | REQ-F-006 | T-001 | DONE | `npx vitest run src/test/__tests__/edge-auth-manifest.test.ts` |
+| T-013 | Independent review of the cumulative branch diff by a reviewer who implemented none of it | REQ-NF-001 | T-008 | IN_PROGRESS | reviewer report with injection results |
 | T-009 | Authorize before loading secrets; stop discarding query errors; one membership helper | REQ-F-006, REQ-NF-003 | T-001 | PROPOSED | handler auth negatives |
 | T-010 | Review the 4 remaining anon + SECURITY DEFINER writer RPCs individually | REQ-F-006 | T-001 | PROPOSED | catalog assertion on a disposable DB |
 

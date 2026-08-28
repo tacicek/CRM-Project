@@ -49,6 +49,8 @@ Nichts aus diesem Programm ausser der Messung selbst ist live. Zwei Befunde sind
 | **P0-S3a** drei Google-Proxys | **`ACTIVE_PRODUCTION_EXPOSURE`** | Ohne Drossel im Netz, auf kostenpflichtigen APIs. Die Drossel ist im Repo, **nicht ausgerollt**. |
 | **P1A** Mandantentrennung | `INDEPENDENT_REVIEW_PASS`, **nicht live** | Die laufende Fassung rät die Firma weiter. |
 | **P1B-1** Rechtschreibprüfung | `VERIFIED_IN_REPO`, **nicht live** | Die ausgerollte Fassung korrigiert Französisch weiter nach deutschen Regeln. |
+| **P1B-2/3** Sprachwechsel + Sendebereitschaft | `VERIFIED_IN_REPO`, **nicht live** | Die laufende Fassung schickt eine französische Offerte weiterhin mit deutschen AGB hinaus. |
+| **P1C-0** Auth-Manifest | `VERIFIED_IN_REPO` | Ein Tor im Repo. Es ändert nichts an dem, was heute in der Produktion erreichbar ist. |
 | **R-1 / R-2 / R-3** | `READY_FOR_ROLLOUT` | Pakete vollständig ([ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-28.md)), **keins ausgeführt**. |
 | **PR** | `BLOCKED_EXTERNAL` | `gh pr create` von der Berechtigungsprüfung abgewiesen. Hält die Arbeit im Repo nicht auf. |
 
@@ -146,8 +148,8 @@ Ein Prüfdurchgang, sieben Punkte, fünf halten stand. Alle behoben in `9de0541b
 | ID | Modul | Fehlerklasse | Abhängig | Zustand | Beleg vorher | Sollvertrag | Nachweis | Commit |
 |---|---|---|---|---|---|---|---|---|
 | **P1B-1** | Offerten | Rechtschreibprüfung nur Deutsch, für jede Sprache aufgerufen | P0-S8 | `VERIFIED_IN_REPO` · NICHT LIVE | fester deutscher Prompt (`ß→ss`, Substantivgrossschreibung); `runSpellCheck(fields)` ohne Sprache | `runSpellCheck(fields, locale)`; Handler prüft `de\|fr\|en` und weist Fehlendes mit 400 ab; sprachabhängige Prompts; nie übersetzen | 9 Vertragstests, u. a.: `ß` und deutsche Substantivregel kommen in `fr`/`en` NICHT vor; alle Edge Functions booten | `e4583ee9` |
-| **P1B-2** | Offerten | Sprachumschalter behauptet eine Umstellung, die nicht stattfindet | P1B-1 | `BACKLOG` |
-| **P1B-3** | Offerten | strenge Sendebereitschaft statt stiller deutscher Rückfall | P1B-2 | `BACKLOG` |
+| **P1B-2** | Offerten | Sprachumschalter behauptet eine Umstellung, die nicht stattfindet | P1B-1 | `VERIFIED_IN_REPO` · NICHT LIVE | Wähler setzte `offers.language` und sonst nichts; Hinweistext warnte nur vor Positionen und schwieg über Titel, Zahlungskondition, AGB | Plan statt Wirkung: sechs Kategorien je Feld; nichts wird erfunden, nichts still überschrieben | `buildOfferLanguageRebasePlan` + `sammleOfferteRebaseFelder` + `SprachwechselDialog`; Titelerzeugung nach `@/lib/offerTitle` gezogen | 35 Vertragstests — u. a. „kein Betrag im Ergebnis, auch bei pauschaler Zustimmung", eingefrorene Offerte ändert nicht einmal den Sprachcode, halb übersetzte Quelle = TRANSLATION_MISSING | `094cea38` |
+| **P1B-3** | Offerten | strenge Sendebereitschaft statt stiller deutscher Rückfall | P1B-2 | `VERIFIED_IN_REPO` · NICHT LIVE | `send-offer` las `agb_sections` OHNE `translations` — es konnte den deutschen Rückfall gar nicht bemerken | Ein Vertrag, zwei Laufzeiten: `_shared/offerSendReadiness.ts` von Browser UND Edge; fehlende/unbekannte Sprache wird abgewiesen statt gerundet | Blocker in `send-offer` (HTTP 422) vor jedem Versand; `sendOffer` prüft vorab und reicht die 422-Blocker durch | 29 Tests; Torprüfung gegen **drei** Einschleusungen (Prüfung entfernt · Wächter `if (false && …)` · Ergebnis kurzgeschlossen) — Fassung 1 fing nur die erste | `cf19bef2` |
 
 ⚠️ P1B-1 ist eine **Edge-Änderung** und wirkt erst nach dem Ausrollen. Reihenfolge
 bindend: **Frontend zuerst, Handler danach** — siehe R-3 im
@@ -156,10 +158,32 @@ Prüfung.
 
 ## P1C — Edge/RPC-Grenzen
 
-| ID | Modul | Fehlerklasse | Abhängig | Zustand |
+| ID | Modul | Fehlerklasse | Abhängig | Zustand | Beleg / Nachweis | Commit |
+|---|---|---|---|---|---|---|
+| **P1C-0** | Edge | Manifest prüfte Vollständigkeit, nicht ob das Modell zum Handler passt | P0-4 | `VERIFIED_IN_REPO` | 54 Einträge (alles Ausgerollte + alles im Repo); mechanische Tatsachen werden gemessen statt abgeschrieben; 11 Torbedingungen; gegen **vier** Einschleusungen geprüft | `c5f3ad8b` |
+| **P1C-1** | Finanzen/Edge | Autorisierung im `if`, Fehler verworfen; Secret-Ladung vor Prüfung (H-004) | P1C-0 | `PLANNED` — im Manifest als Ausnahme **mit Grund** vermerkt, nicht wegdefiniert | — | — |
+| **P1C-2** | Edge | 4 verbliebene `anon`+DEFINER+schreibende RPCs einzeln prüfen | P0-1 | `PLANNED` | — | — |
+
+### Was das Manifest-Tor gefunden hat (Befunde, die vorher niemand hatte)
+
+| ID | Etikett | Befund | Zustand |
+|---|---|---|---|
+| **E-01** | `VERIFIED` | `translate-content` rief `assertCompanyMembership(supabase, authHeader, company_id)` — den **rohen Header** an der Stelle der `userId`, viertes Argument fehlend. Die Abfrage lief als `user_id = 'Bearer eyJ…'` und traf nie eine Zeile: **jeder** Aufruf wurde verweigert. Fail closed, aber kaputt. Nicht ausgerollt, deshalb nie bemerkt. Nichts type-checkt die Edge Functions — `check-edge-functions-parse.sh` prüft nur, dass sie booten. | `VERIFIED_IN_REPO` — an der Wurzel behoben (`assertCompanyMembershipFromAuthHeader`) |
+| **E-02** | `VERIFIED` | `notify-appointment-reschedule` war als `capability-token` geführt. Sie **mintet** das Token und validiert keines: unauthentifiziert, service-role, sendet E-Mail an Adressen aus dem Body. | `VERIFIED_IN_REPO` — nicht ausgerollt; das Verbot steht jetzt als Bedingung im Manifest |
+| **E-03** | `VERIFIED` | `send-lead-confirmation` ebenfalls falsch als `capability-token` geführt; prüft nichts ausser einer IP-Drossel. | `VERIFIED_IN_REPO` — jetzt `public-safe` mit Rollout-Sperre |
+| **E-04** | `VERIFIED` | Zwei `normalizeServiceTypeForAgb` mit verschiedener Semantik: Frontend ein String (`.eq`), `send-offer` eine Liste (`.in`). Sie können unterschiedliche AGB-Abschnitte finden. | `PLANNED` — D-004-Befund, keine Sprachfrage |
+
+## P1A — asynchrone Mandantenkette
+
+| ID | Fehlerklasse | Zustand | Nachweis | Commit |
 |---|---|---|---|---|
-| **P1C-1** | Finanzen/Edge | Autorisierung im `if`, Fehler verworfen; Secret-Ladung vor Prüfung (H-004) | P0-4 | `BACKLOG` |
-| **P1C-2** | Edge | 4 verbliebene `anon`+DEFINER+schreibende RPCs einzeln prüfen | P0-1 | `BACKLOG` |
+| **P1A-6** | Ein verzögerter Schreibvorgang nahm den Mandanten aus dem Kontext, die Werte aus der geladenen Zeile — zwei richtige Werte zu verschiedenen Zeitpunkten | `VERIFIED_IN_REPO` · NICHT LIVE | 8 Tests mit `vi.useFakeTimers()` fahren den Ablauf ab, der A in die B-Zeile schrieb; `assertSameTenant` macht Nutzlast/WHERE-Bruch zum Fehler | `642a71df` |
+
+**Die Invariante:** *Jeder verzögerte Aufruf, jede Anfrage, jede Antwort, jeder
+Cache-Eintrag, jeder Entwurfsschlüssel und jede Mutation trägt EINE
+Mandantenidentität von Anfang bis Ende.* Ein statisches Verbot von
+`fetchSingleCompanyForUser`/`getCachedCompany` ist dafür **notwendig, aber nicht
+hinreichend** — dort rät niemand eine Firma.
 
 ## P3 / P5 — später
 
