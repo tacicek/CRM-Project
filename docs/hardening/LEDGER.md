@@ -278,12 +278,54 @@ Mandantenidentität von Anfang bis Ende.* Ein statisches Verbot von
 `fetchSingleCompanyForUser`/`getCachedCompany` ist dafür **notwendig, aber nicht
 hinreichend** — dort rät niemand eine Firma.
 
+## P4 — Modulzertifizierung
+
+| Modul | Bericht | Urteil | Blockiert durch |
+|---|---|---|---|
+| 01 Identität und Mandantenschaft | [module-certification/01-…](module-certification/01-identitaet-und-mandantenschaft.md) | **NICHT ZERTIFIZIERT** | M01-01 · Zwei-Mandanten-Durchlauf gegen eine echte DB fehlt · nichts davon ist live |
+
+### M01-01 · Vier mandantenlose Admin-Policies auf `companies` · `VERIFIED`
+
+`companies` trägt vier Policies, die einem globalen „Admin" SELECT, INSERT,
+UPDATE und DELETE auf **alle** Firmen geben:
+
+```
+USING/WITH CHECK  is_admin(auth.uid())
+is_admin(u) := EXISTS (SELECT 1 FROM user_roles
+                        WHERE user_id = u AND role IN ('super_admin','admin','moderator'))
+```
+
+Gemessen 2026-08-28: **`user_roles` hat 0 Zeilen**. Die vier Policies sind damit
+heute wirkungslos — und genau eine Zeile davon entfernt, es nicht mehr zu sein.
+
+Drei Dinge daran:
+
+1. `is_admin` ist **mandantenlos** — es fragt nicht, zu welcher Firma jemand
+   gehört. Wer drinsteht, sieht und ändert jede Firma: Adresse, IBAN,
+   Absenderidentität.
+2. **`moderator` zählt als Admin.** In `src/lib/adminPermissions.ts` ist
+   `moderator` die *schwächste* Rolle (Stufe 10). In der Datenbank hat sie
+   dieselbe Macht wie `super_admin`. Zwei Rollenmodelle, ein Name.
+3. Der Weg hinein führt an der Anwendung vorbei: `user_roles` ist per Policy nur
+   von einem bestehenden Super-Admin befüllbar — bei leerer Tabelle also von
+   niemandem. `service_role` umgeht RLS aber vollständig.
+
+**Einstufung:** kein aktiver Übertritt (0 Zeilen, gemessen), sondern eine
+**ruhende Rechteausweitung**. Sie gehört korrigiert, *bevor* jemand die erste
+Rolle vergibt — danach ist es ein Eingriff in laufenden Betrieb.
+
+**Zustand:** `PLANNED`. Die Korrektur ist eine Migration und braucht eine
+Produktentscheidung: soll es überhaupt eine firmenübergreifende Rolle geben? Bis
+die getroffen ist, wäre ein stiller Entzug genauso falsch wie das Belassen.
+
+---
+
 ## P3 / P5 — später
 
 | ID | Modul | Zustand |
 |---|---|---|
-| **P3-1** | Migrationsledger ab signierter Basislinie | `BACKLOG` |
-| **P3-2** | Repo/config/deploy-Parität als Tor | `BACKLOG` |
+| **P3-1** | Migrationsledger ab signierter Basislinie | `VERIFIED_IN_REPO` — 391 Dateien signiert; anfügend als Tor, 3 Einschleusungen |
+| **P3-2** | Repo/deploy-Parität als Tor | `VERIFIED_IN_REPO` — 12 bekannte Abweichungen mit Rollout-Einheit; neue oder veraltete Einträge sind Testfehler |
 | **P5-1** | `generate-sitemap`, `hello`, `accept-lead` zurückbauen | `BACKLOG` |
 | **P5-2** | `cookie_consent_log` — Erreichbarkeit klären | `BACKLOG` |
 
