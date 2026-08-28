@@ -816,18 +816,18 @@
     "table_name": "klaviertransport_anfragen"
   },
   {
-    "anon_delete": false,
-    "anon_insert": false,
+    "anon_delete": true,
+    "anon_insert": true,
     "anon_select": true,
-    "anon_truncate": false,
-    "anon_update": false,
+    "anon_truncate": true,
+    "anon_update": true,
     "authenticated_delete": true,
     "authenticated_insert": true,
     "authenticated_select": true,
     "authenticated_truncate": true,
     "authenticated_update": true,
     "owner": "postgres",
-    "policy_count": 1,
+    "policy_count": 2,
     "rls_enabled": true,
     "rls_forced": false,
     "table_name": "landing_page_analytics"
@@ -1681,23 +1681,6 @@
     "rls_enabled": true,
     "rls_forced": false,
     "table_name": "undo_20260809120000"
-  },
-  {
-    "anon_delete": true,
-    "anon_insert": true,
-    "anon_select": true,
-    "anon_truncate": true,
-    "anon_update": true,
-    "authenticated_delete": true,
-    "authenticated_insert": true,
-    "authenticated_select": true,
-    "authenticated_truncate": true,
-    "authenticated_update": true,
-    "owner": "postgres",
-    "policy_count": 0,
-    "rls_enabled": false,
-    "rls_forced": false,
-    "table_name": "undo_20260828100000"
   },
   {
     "anon_delete": true,

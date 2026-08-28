@@ -1,0 +1,14 @@
+[
+  {
+    "acl": "{postgres=X/postgres,service_role=X/postgres}",
+    "anon_execute": false,
+    "authenticated_execute": false,
+    "definition_length": 835,
+    "definition_sha256": "b798283739ab88693a66519260726073b456d8a177977c5795be7f9c12fffae6",
+    "owner": "postgres",
+    "schema_name": "public",
+    "security_definer": false,
+    "service_role_execute": true,
+    "signature": "execute_sql(text,boolean)"
+  }
+]

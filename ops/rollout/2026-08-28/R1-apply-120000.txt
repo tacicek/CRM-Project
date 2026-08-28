@@ -1,0 +1,5 @@
+BEGIN
+DO
+DO
+COMMIT
+psql:<stdin>:52: NOTICE:  Schreibrechte auf landing_page_analytics fuer PUBLIC und anon entzogen

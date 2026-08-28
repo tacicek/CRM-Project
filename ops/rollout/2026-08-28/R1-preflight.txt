@@ -1,0 +1,13 @@
+Output format is unaligned.
+system_identifier=7639710127421538342
+server_version=15.8
+undo_table_present=false
+table_present=true
+rls_enabled=true
+policy|Admins can view analytics|cmd=r|roles=PUBLIC|withcheck=(keine)
+policy|Service role can insert analytics|cmd=a|roles=PUBLIC|withcheck=true
+anon_insert=true
+anon_update=true
+anon_delete=true
+anon_select=true
+row_count=0

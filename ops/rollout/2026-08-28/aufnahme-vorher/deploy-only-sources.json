@@ -1,0 +1,45 @@
+{
+  "accept-lead": {
+    "redacted": true,
+    "redaction_reason": [
+      {
+        "category": "externe URL",
+        "count": 4,
+        "fingerprint": "1a8afc0dbc14"
+      }
+    ],
+    "source": null
+  },
+  "hello": {
+    "redacted": true,
+    "redaction_reason": [
+      {
+        "category": "externe URL",
+        "count": 2,
+        "fingerprint": "7483dc0feb83"
+      },
+      {
+        "category": "Bearer-Wert",
+        "count": 1,
+        "fingerprint": "06463913edda"
+      }
+    ],
+    "source": null
+  },
+  "main": {
+    "redacted": true,
+    "redaction_reason": [
+      {
+        "category": "externe URL",
+        "count": 1,
+        "fingerprint": "1f46e291a4c5"
+      },
+      {
+        "category": "Bearer-Wert",
+        "count": 2,
+        "fingerprint": "14d390205b23"
+      }
+    ],
+    "source": null
+  }
+}

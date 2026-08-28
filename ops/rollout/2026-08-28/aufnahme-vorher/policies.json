@@ -1728,6 +1728,22 @@
     "with_check_unrestricted": false
   },
   {
+    "cmd": "INSERT",
+    "contains_contact_literal": false,
+    "permissive": "PERMISSIVE",
+    "policy_name": "Service role can insert analytics",
+    "qual_absent": true,
+    "qual_md5": "d41d8cd98f00b204e9800998ecf8427e",
+    "qual_unrestricted": false,
+    "references_auth_uid": false,
+    "references_company_scope": false,
+    "roles": "{public}",
+    "table_name": "landing_page_analytics",
+    "with_check_absent": false,
+    "with_check_md5": "b326b5062b2f0e69046810717534cb09",
+    "with_check_unrestricted": true
+  },
+  {
     "cmd": "ALL",
     "contains_contact_literal": false,
     "permissive": "PERMISSIVE",

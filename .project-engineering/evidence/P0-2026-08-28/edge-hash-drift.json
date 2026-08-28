@@ -2,7 +2,7 @@
   "what_this_is": "Content comparison between one production-truth generation and the Edge source of this exact checkout. Digests are formed exactly as the capture script forms them.",
   "what_this_is_not": "Not a deployment ledger and not a gate: it reports drift, it does not decide what should be deployed.",
   "capture_generation": "ops/production-truth/2026-08-28",
-  "compared_commit": "1b99421f4ffd0dd64e484ac1b166a229a1a5e73b",
+  "compared_commit": "14a96a9317643c9f3de8a40d3e05aac61a217b71",
   "edge_source_tree_clean": true,
   "deployed_count": 42,
   "repo_count": 51,
@@ -15,6 +15,7 @@
     "admin-update-user-email",
     "analyze-besichtigung",
     "auto-archive",
+    "calculate-distance",
     "calendar-feed",
     "cleanup-besichtigung",
     "company-secrets",
@@ -42,28 +43,13 @@
       "tree_matches": false,
       "deployed": {
         "index_ts_sha256": null,
-        "tree_sha256": "2f50b4c10ff68d93d199b7c530096e8c05651fb357372190fac08e416f8ed70c",
-        "file_count": 44
+        "tree_sha256": "eddc823a6b6328845b1e4815253c161cf875f800a685e5a95fb40073a4ef2bbb",
+        "file_count": 45
       },
       "repo": {
         "index_ts_sha256": null,
         "tree_sha256": "5f969705982e9f86b7b3fd9586bc000727ced741c0a5adc9c16d086700b6b679",
         "file_count": 47
-      }
-    },
-    {
-      "name": "calculate-distance",
-      "index_ts_matches": false,
-      "tree_matches": false,
-      "deployed": {
-        "index_ts_sha256": "a792b62e847070a02e160202662ef44ded0b3bfc87ad9b274caeb8f549059fff",
-        "tree_sha256": "b4dd36390c3ae583e27f18427a8dce935cf611b0b9eba4f90121e86ca30621b8",
-        "file_count": 1
-      },
-      "repo": {
-        "index_ts_sha256": "666d2d8374007a5e2c916787a964b87123364417c8b2fa7d8680ae5a72601196",
-        "tree_sha256": "940b4ca98bc406d6d2f5a873fd71dde25ff4755a8112b243e744347523b8f335",
-        "file_count": 1
       }
     },
     {

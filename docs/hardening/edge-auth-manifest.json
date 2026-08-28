@@ -638,20 +638,16 @@
   "$known_drift": "Gemessene Inhaltsabweichung zwischen Produktion und diesem Auscheckstand, mit der Rollout-Einheit, die sie aufloest. Das Tor vergleicht die MESSUNG gegen diese Liste: eine NEUE, hier nicht eingetragene Abweichung ist ein Fehler. Eine eingetragene ist eine bekannte Schuld mit Adresse. Wer eine Function ausrollt, streicht ihren Eintrag.",
   "known_drift": {
     "_shared": {
-      "rollout_unit": "R-2",
-      "reason": "`appointmentDay.ts` fehlt auf dem Server, `emailTemplates.ts.bak-20260704` liegt dort zusaetzlich."
-    },
-    "calculate-distance": {
-      "rollout_unit": "R-2",
-      "reason": "Rate-Limit im Repo, nicht ausgerollt — P0-S3a."
+      "rollout_unit": "R-3/R-4",
+      "reason": "`appointmentDay.ts` ist seit R-2 ausgerollt. Offen bleiben drei NICHT ausgerollte neue Dateien (`localizedRow.ts`, `offerSendReadiness.ts`, `spellCheckPrompt.ts` — R-3 und R-4) sowie eine von Hand angelegte Sicherungskopie auf dem Server (`emailTemplates.ts.bak-20260704`)."
     },
     "google-places-autocomplete": {
-      "rollout_unit": "R-2",
-      "reason": "Rate-Limit im Repo, nicht ausgerollt — P0-S3a."
+      "rollout_unit": "R-2 (GESTOPPT)",
+      "reason": "Drossel im Repo, nicht ausgerollt. R-2 wurde nach Einheit 2 gestoppt: die Drossel wirkt in dieser Laufzeit NICHT (siehe R2-01) — ein Ausrollen wuerde den Befund P0-S3a nicht schliessen."
     },
     "google-places-details": {
-      "rollout_unit": "R-2",
-      "reason": "Rate-Limit im Repo, nicht ausgerollt — P0-S3a."
+      "rollout_unit": "R-2 (GESTOPPT)",
+      "reason": "Drossel im Repo, nicht ausgerollt. R-2 wurde nach Einheit 2 gestoppt: die Drossel wirkt in dieser Laufzeit NICHT (siehe R2-01) — ein Ausrollen wuerde den Befund P0-S3a nicht schliessen."
     },
     "handle-proposal-response": {
       "rollout_unit": "R-2",

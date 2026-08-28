@@ -8,10 +8,10 @@
     "deployed_function_count": 42,
     "deployed_functions": [
       {
-        "file_count": 45,
+        "file_count": 44,
         "index_ts_sha256": null,
         "name": "_shared",
-        "tree_sha256": "eddc823a6b6328845b1e4815253c161cf875f800a685e5a95fb40073a4ef2bbb"
+        "tree_sha256": "2f50b4c10ff68d93d199b7c530096e8c05651fb357372190fac08e416f8ed70c"
       },
       {
         "file_count": 1,
@@ -69,9 +69,9 @@
       },
       {
         "file_count": 1,
-        "index_ts_sha256": "666d2d8374007a5e2c916787a964b87123364417c8b2fa7d8680ae5a72601196",
+        "index_ts_sha256": "a792b62e847070a02e160202662ef44ded0b3bfc87ad9b274caeb8f549059fff",
         "name": "calculate-distance",
-        "tree_sha256": "940b4ca98bc406d6d2f5a873fd71dde25ff4755a8112b243e744347523b8f335"
+        "tree_sha256": "b4dd36390c3ae583e27f18427a8dce935cf611b0b9eba4f90121e86ca30621b8"
       },
       {
         "file_count": 2,
