@@ -17,7 +17,7 @@
   },
   "baseline": {
     "branch": "chore/produktionswahrheit-festschreiben",
-    "head": "6ea32b236d3ff00c1e47d21d84c4d5a6e635a024",
+    "head": "54c81eeb224b41ee29cb414c182f32c409e19d13",
     "dirty_paths": [
       "public/favicon.png",
       "public/logo-offerio-main-old.webp",
@@ -79,44 +79,47 @@
     }
   },
   "active": {
-    "milestone": "M-01",
-    "slice": "S-04",
-    "task": "T-011"
+    "milestone": "M-03",
+    "slice": "S-05",
+    "task": "T-012"
   },
   "queue": {
-    "ready": [
-      "T-011"
-    ],
+    "ready": [],
     "blocked": []
   },
   "last_checkpoint": {
     "at": "2026-08-28T00:00:00Z",
-    "summary": "T-010 done: the four anon-executable SECURITY DEFINER writers were read individually \u2014 none is residue; they are the customer area's public entrances. A least-privilege migration is prepared and proven on a disposable stack. Three side findings, one refuted; the sharpest is migration drift: production carries a PUBLIC grant no migration produces.",
+    "summary": "T-011 done: migrations are append-only by gate (391 files signed; two pre-existing duplicate timestamps recorded rather than hidden), and edge drift is a release failure unless it carries a rollout unit and a reason. Both proven against three injections each.",
     "verification": [
       {
-        "command": "read the four definitions read-only from production",
-        "result": "PASS"
+        "command": "npx vitest run src/test/__tests__/migration-ledger.test.ts",
+        "result": "PASS",
+        "reason": "edit / delete / new duplicate all red on injection"
       },
       {
-        "command": "apply / re-apply / rollback / re-apply on scripts/supabase-stack.sh up test",
+        "command": "npx vitest run src/test/__tests__/edge-auth-manifest.test.ts",
+        "result": "PASS",
+        "reason": "22 tests incl. 3 drift gates; undeclared / stale / unaddressed all red on injection"
+      },
+      {
+        "command": "npm run type-check",
         "result": "PASS"
       },
       {
         "command": "npm test",
         "result": "PASS",
-        "reason": "1894 tests"
+        "reason": "1903 tests"
       },
       {
-        "command": "CI on 1f8779e1",
-        "result": "PASS",
-        "reason": "CI + Edge Functions Parse Check green"
+        "command": "npm run build:vite",
+        "result": "PASS"
       }
     ]
   },
   "next_action": {
-    "task": "T-011",
-    "instruction": "P3-1: start the migration ledger from a signed baseline forward, and add the repo/config/deploy parity check as a gate (release gate 12). T10-02 is the concrete motivation: production carries a grant no migration file produces.",
-    "expected_result": "A reviewer can say which migration and which edge source production runs, and drift becomes a release failure instead of a number in a report."
+    "task": "T-012",
+    "instruction": "P4 module certification, starting with the module the evidence already covers best: Identity/tenancy. Apply the section 6 rubric and write one certification report with the tests that back each gate.",
+    "expected_result": "One module has a certification report where every claim points at a test or a measurement, and the gaps are named rather than omitted."
   },
   "pending_decisions": [
     {
@@ -181,6 +184,8 @@
     "P1A-6": "VERIFIED_IN_REPO, NOT_LIVE \u2014 async tenant invariant, fake-timer proof (642a71df)",
     "P1C-0": "INDEPENDENT_REVIEW_PASS after remediation",
     "P1C-1": "VERIFIED_IN_REPO, NOT_LIVE \u2014 fail-open membership closed in send-offer/send-quittung/send-rechnung-email",
-    "P1C-2": "READY_FOR_ROLLOUT \u2014 all four public writer RPCs read individually; migration proven on a disposable stack; R-6"
+    "P1C-2": "READY_FOR_ROLLOUT \u2014 all four public writer RPCs read individually; migration proven on a disposable stack; R-6",
+    "P3-1": "VERIFIED_IN_REPO \u2014 migration ledger signed 2026-08-28; append-only gate proven on 3 injections",
+    "P3-2": "VERIFIED_IN_REPO \u2014 drift is now a release failure unless declared with a rollout unit; proven on 3 injections"
   }
 }

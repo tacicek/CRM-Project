@@ -78,12 +78,13 @@ dependency-safe work continues.
 | T-006 | `runSpellCheck(fields, locale)`; edge validates the three supported locales and rejects anything else | REQ-F-005 | T-001 | DONE | contract tests per locale |
 | T-007 | `buildOfferLanguageRebasePlan()`; the switch stops claiming a rebase it does not perform | REQ-F-003 | T-006 | DONE | pure-function contract tests |
 | T-008 | Strict send readiness blocks the first send and names the missing source | REQ-F-004 | T-007 | DONE | negative case names the exact source |
+| T-012 | P4: certify the Identity/tenancy module against the section 6 rubric | REQ-F-001, REQ-NF-001 | T-011 | IN_PROGRESS | one certification report; every claim points at a test or a measurement |
 | T-015 | Async tenant invariant: a delayed write carries its own tenant; payload/WHERE mismatch is an error | REQ-F-001, REQ-NF-003 | T-014 | DONE | `npx vitest run src/lib/__tests__/tenantBoundWrite.test.ts` (fake timers) |
 | T-016 | Exhaustive edge authorization manifest; mechanical facts measured, 11 gate conditions, injections proven | REQ-F-006 | T-001 | DONE | `npx vitest run src/test/__tests__/edge-auth-manifest.test.ts` |
 | T-017 | Independent review of the cumulative branch diff by a reviewer who implemented none of it | REQ-NF-001 | T-008 | DONE | reviewer report with injection results |
 | T-009 | Authorize before loading secrets; stop discarding query errors; one membership helper | REQ-F-006, REQ-NF-003 | T-001 | DONE | handler auth negatives |
 | T-010 | Review the 4 remaining anon + SECURITY DEFINER writer RPCs individually | REQ-F-006 | T-001 | DONE | read each definition read-only; apply/rollback/re-apply on a disposable stack |
-| T-011 | P3-1: migration ledger from a signed baseline; repo/config/deploy parity as a gate | REQ-NF-001, REQ-F-006 | T-010 | READY | drift becomes a test failure, not a report line |
+| T-011 | P3-1: migration ledger from a signed baseline; repo/config/deploy parity as a gate | REQ-NF-001, REQ-F-006 | T-010 | DONE | drift becomes a test failure, not a report line |
 
 ## Risks and Spikes
 

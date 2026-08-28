@@ -4,6 +4,35 @@ Anfügend. Neueste zuerst.
 
 ---
 
+## 2026-08-28 · T-011 · Zwei Tore aus P3 · `VERIFIED_IN_REPO` (`54c81eeb`)
+
+**Tor 11 — Migrationen sind anfügend.** `CLAUDE.md` §6 sagte das seit langem als
+Bitte. 391 Dateien sind jetzt in `ops/migration-ledger.json` eingefroren.
+
+Dabei kam ein Bestandsbefund heraus: **zwei Zeitstempel tragen je zwei
+Vorwärtsmigrationen**. Die Reihenfolge zwischen ihnen ist alphabetisch und nicht
+beabsichtigt. Sie stehen als bekannt im Ledger — damit das Tor neue Doppelungen
+ablehnen kann, ohne die alten zu verschweigen.
+
+**Tor 12 — Drift mit Adresse.** `edge-drift.mjs` misst seit dem Morgen; messen
+allein ändert nichts. Jede der zwölf gemessenen Abweichungen trägt jetzt eine
+Rollout-Einheit und einen Grund. Eine neue, nicht eingetragene Abweichung ist ein
+Fehler — und ein Eintrag für eine Function, die gar nicht mehr abweicht, auch:
+sonst wächst die Liste zu einer Ausrede.
+
+Beide Tore gegen je drei Einschleusungen geprüft, Repository danach mit
+passender Prüfsumme wiederhergestellt.
+
+**Was Tor 12 nicht kann, und das steht auch so in der Datei:** es prüft gegen die
+letzte Aufnahme, nicht gegen die Produktion in diesem Moment. Es merkt, dass Repo
+und Aufnahme auseinandergehen — nicht, dass jemand seit der Aufnahme auf dem
+Server etwas geändert hat.
+
+**Nächstes:** T-012 — P4-Zertifizierung, beginnend mit dem Modul, für das die
+Belege schon am dichtesten sind: Identität und Mandantenschaft.
+
+---
+
 ## 2026-08-28 · T-010 · Die vier öffentlichen Schreib-RPCs · `READY_FOR_ROLLOUT` (`339ef191`)
 
 Der einfache Weg wäre gewesen, vier `anon`-ausführbare schreibende
