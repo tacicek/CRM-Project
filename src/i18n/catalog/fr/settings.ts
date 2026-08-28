@@ -212,4 +212,7 @@ export const settings: Record<keyof typeof de, string> = {
   "settings.calfeed.typ.meeting": "Réunions",
   "settings.calfeed.typ.blocked": "Plages bloquées",
   "settings.calfeed.typ.other": "Autres rendez-vous",
+  "settings.toast.tenantMismatch":
+    "Les données d'entreprise chargées n'appartiennent pas à l'entreprise sélectionnée. Veuillez recharger la page — rien n'a été enregistré.",
+
 };
