@@ -4,6 +4,38 @@ Anfügend. Neueste zuerst.
 
 ---
 
+## 2026-08-28 · T-010 · Die vier öffentlichen Schreib-RPCs · `READY_FOR_ROLLOUT` (`339ef191`)
+
+Der einfache Weg wäre gewesen, vier `anon`-ausführbare schreibende
+SECURITY-DEFINER-Funktionen pauschal zu entziehen. Gelesen habe ich sie
+trotzdem einzeln — und der pauschale Entzug wäre der Fehler gewesen: es sind die
+öffentlichen Eingänge des Kundenbereichs und der Token-Seiten. Ohne `anon` gibt
+es keinen Kundenzugang.
+
+Jede schliesst über ein Token genau eine Zeile auf, leitet den Mandanten aus
+dieser Zeile ab, prüft Status und Fristen, ist gegen Wiederholung gesichert.
+`update_offer_by_token` prüft zusätzlich die Annahmefrist aus `valid_until` UND
+`service_date` und übernimmt `agb_ip_address` ausdrücklich nicht aus dem Aufruf.
+
+Verengt wird nur das PUBLIC-Recht (Migration `20260828110000`), auf einem
+Wegwerf-Stapel bewiesen: anwenden · idempotent · zurück · wieder vor. Den Stapel
+habe ich vorgefunden und danach exakt in den vorgefundenen Zustand zurückgesetzt.
+
+**Der schärfste Nebenbefund ist nicht die Berechtigung, sondern ihre Herkunft:**
+der aus den Migrationen gebaute Stapel hat auf `update_offer_by_token` kein
+PUBLIC-Recht — die Produktion hat es. Kein Migrationsfile erzeugt es. Es ist von
+Hand entstanden, und es gibt keinen Beleg wann oder warum. Das ist die Klasse,
+für die P3 den Ledger braucht, und es ist jetzt gemessen statt vermutet.
+
+Ein Verdacht hat sich **nicht** bestätigt: `p_feld` gelangt nicht in ein
+dynamisches UPDATE. Ein CHECK beschränkt auf fünf Namen, `decide_change_request`
+schreibt über eine ausgeschriebene CASE-Zuordnung hinter einer Rollenprüfung.
+
+**Nächstes:** T-011 — Migrationsledger ab signierter Basislinie, und die
+Repo/Config/Deploy-Parität als TOR statt als Messwerkzeug.
+
+---
+
 ## 2026-08-28 · T-009 · Fail-open-Autorisierung geschlossen · `VERIFIED_IN_REPO` (`e4e40a94`)
 
 H-004, gefunden in der ersten Durchsicht, benannt im Manifest, jetzt behoben —
@@ -23,7 +55,7 @@ Die Manifest-Ausnahmen sind damit entfallen statt verlängert worden.
 
 ---
 
-## 2026-08-28 · T-013 · Zweite unabhängige Durchsicht · `INDEPENDENT_REVIEW_PASS` (`e4e40a94`)
+## 2026-08-28 · T-017 · Zweite unabhängige Durchsicht · `INDEPENDENT_REVIEW_PASS` (`e4e40a94`)
 
 Kumulierter Branch-Diff, geprüft von jemandem, der nichts davon geschrieben hat,
 mit der Auflage Gegenbeispiele **einzuschleusen** statt den Happy Path zu lesen.
@@ -53,7 +85,7 @@ danach mit passender Prüfsumme.
 
 ---
 
-## 2026-08-28 · T-012 · Auth-Manifest, das misst statt zu glauben · `VERIFIED_IN_REPO` (`c5f3ad8b`)
+## 2026-08-28 · T-016 · Auth-Manifest, das misst statt zu glauben · `VERIFIED_IN_REPO` (`c5f3ad8b`)
 
 Die erste Fassung listete 42 ausgerollte Functions und prüfte Vollständigkeit.
 Sie prüfte nicht, ob ein Modell zum Handler passt — und genau dort lagen die
@@ -77,7 +109,7 @@ Die Signale prüfen jetzt die Aufrufform, nicht den Namen.
 
 ---
 
-## 2026-08-28 · T-011 · Asynchrone Mandantenkette · `VERIFIED_IN_REPO` (`642a71df`)
+## 2026-08-28 · T-015 · Asynchrone Mandantenkette · `VERIFIED_IN_REPO` (`642a71df`)
 
 Der Befund R-01 war behoben, der Mechanismus nicht: der Schlüssel kam aus
 `company.id` statt aus dem Kontext, aber nur weil ich es an dieser einen Stelle

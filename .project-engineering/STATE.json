@@ -17,7 +17,7 @@
   },
   "baseline": {
     "branch": "chore/produktionswahrheit-festschreiben",
-    "head": "fa3db52f224465eefb3c3d68d7fc31e2a2bcc51d",
+    "head": "6ea32b236d3ff00c1e47d21d84c4d5a6e635a024",
     "dirty_paths": [
       "public/favicon.png",
       "public/logo-offerio-main-old.webp",
@@ -81,18 +81,24 @@
   "active": {
     "milestone": "M-01",
     "slice": "S-04",
-    "task": "T-010"
+    "task": "T-011"
   },
   "queue": {
-    "ready": [],
+    "ready": [
+      "T-011"
+    ],
     "blocked": []
   },
   "last_checkpoint": {
     "at": "2026-08-28T00:00:00Z",
-    "summary": "Second independent review of the cumulative branch diff: 12 findings, all upheld, all remediated. Three of my four gates proved the rule but not its application; two silent-overwrite paths and two fail-open authorizations (one in a deployed function) were found.",
+    "summary": "T-010 done: the four anon-executable SECURITY DEFINER writers were read individually \u2014 none is residue; they are the customer area's public entrances. A least-privilege migration is prepared and proven on a disposable stack. Three side findings, one refuted; the sharpest is migration drift: production carries a PUBLIC grant no migration produces.",
     "verification": [
       {
-        "command": "npm run type-check",
+        "command": "read the four definitions read-only from production",
+        "result": "PASS"
+      },
+      {
+        "command": "apply / re-apply / rollback / re-apply on scripts/supabase-stack.sh up test",
         "result": "PASS"
       },
       {
@@ -101,29 +107,16 @@
         "reason": "1894 tests"
       },
       {
-        "command": "npm run build:vite",
-        "result": "PASS"
-      },
-      {
-        "command": "bash scripts/check-edge-functions-parse.sh",
-        "result": "PASS"
-      },
-      {
-        "command": "gate injections re-run after tightening",
+        "command": "CI on 1f8779e1",
         "result": "PASS",
-        "reason": "capability-token, tenant-consumer, customer-renderer locale, all red on violation; repo restored with matching sha256"
-      },
-      {
-        "command": "CI on 6a2a6bec",
-        "result": "PASS",
-        "reason": "CI + Edge Functions Parse Check both green"
+        "reason": "CI + Edge Functions Parse Check green"
       }
     ]
   },
   "next_action": {
-    "task": "T-009",
-    "instruction": "P1C-2: review the four remaining anon-executable SECURITY DEFINER writer RPCs (portal_redeem_magic_link, portal_request_change, update_amendment_by_token, update_offer_by_token) individually against a disposable database.",
-    "expected_result": "Each either keeps a narrow, catalog-asserted public grant with a stated capability boundary, or loses it in an append-only migration."
+    "task": "T-011",
+    "instruction": "P3-1: start the migration ledger from a signed baseline forward, and add the repo/config/deploy parity check as a gate (release gate 12). T10-02 is the concrete motivation: production carries a grant no migration file produces.",
+    "expected_result": "A reviewer can say which migration and which edge source production runs, and drift becomes a release failure instead of a number in a report."
   },
   "pending_decisions": [
     {
@@ -150,6 +143,13 @@
       "what": "deploy _shared/spellCheckPrompt.ts + spell-check-ai \u2014 frontend first",
       "finding": "P0-S8",
       "package": "docs/hardening/ROLLOUT-2026-08-28.md"
+    },
+    {
+      "id": "R-6",
+      "what": "apply supabase/migrations/20260828110000_oeffentliche_rpc_rechte_verengen.sql",
+      "finding": "T10-01",
+      "package": "docs/hardening/ROLLOUT-2026-08-28.md",
+      "urgency": "low"
     }
   ],
   "lifecycle_states": {
@@ -180,6 +180,7 @@
     "P1B-3": "INDEPENDENT_REVIEW_PASS after remediation, NOT_LIVE",
     "P1A-6": "VERIFIED_IN_REPO, NOT_LIVE \u2014 async tenant invariant, fake-timer proof (642a71df)",
     "P1C-0": "INDEPENDENT_REVIEW_PASS after remediation",
-    "P1C-1": "VERIFIED_IN_REPO, NOT_LIVE \u2014 fail-open membership closed in send-offer/send-quittung/send-rechnung-email"
+    "P1C-1": "VERIFIED_IN_REPO, NOT_LIVE \u2014 fail-open membership closed in send-offer/send-quittung/send-rechnung-email",
+    "P1C-2": "READY_FOR_ROLLOUT \u2014 all four public writer RPCs read individually; migration proven on a disposable stack; R-6"
   }
 }
