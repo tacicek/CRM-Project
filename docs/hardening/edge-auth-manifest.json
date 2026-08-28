@@ -1,0 +1,92 @@
+{
+  "$comment": [
+    "Soll-Zustand: genau EIN Autorisierungsmodell je ausgerollter Edge Function.",
+    "",
+    "WARUM DIESE DATEI EXISTIERT",
+    "Diese Installation wertet `supabase/config.toml` nicht aus. Gemessen am",
+    "2026-08-28: die Edge-Laufzeit laeuft mit VERIFY_JWT=false, der ausgerollte",
+    "Router `main` ueberspringt seine JWT-Pruefung genau dann, und die Kong-Route",
+    "/functions/v1 traegt nur `cors`. Jede ausgerollte Function ist damit",
+    "unauthentifiziert erreichbar; die Pruefung IM HANDLER ist die einzige",
+    "Schranke. `config.toml` beschreibt eine Absicht, diese Datei den Vertrag.",
+    "",
+    "MODELLE",
+    "  jwt-member        Bearer-JWT + Mitgliedschaft in der Firma der betroffenen Zeile",
+    "  jwt-user          Bearer-JWT, keine Zeilenbindung (zustandslose Helfer)",
+    "  capability-token  Ein Token in der Anfrage schliesst genau eine Zeile auf",
+    "  signed-webhook    Signatur eines externen Absenders",
+    "  cron-secret       Service-Role-Bearer, nur der geplante Job",
+    "  public-safe       Bewusst offen; gibt nichts preis, was nicht ohnehin oeffentlich ist",
+    "  tombstone         Stillgelegt; antwortet fail-closed, bis das Deployment entfaellt",
+    "  infrastructure    Laufzeitbestandteil, keine Geschaeftsfunktion",
+    "",
+    "`deployed` spiegelt die Aufnahme in `capture_generation`. `repo_source`",
+    "sagt, ob der Quelltext hier liegt. `drift` sagt, ob der ausgerollte Inhalt",
+    "vom Quelltext dieses Commits abweicht — siehe scripts/edge-drift.mjs."
+  ],
+  "capture_generation": "ops/production-truth/2026-08-28",
+  "gateway_is_not_a_boundary": true,
+  "functions": {
+    "main":                          { "model": "infrastructure",  "deployed": true,  "repo_source": false, "note": "Edge-Laufzeit-Router (--main-service). Prueft JWT nur bei VERIFY_JWT=true; hier false." },
+    "hello":                         { "model": "public-safe",     "deployed": true,  "repo_source": false, "disposition": "undeploy", "note": "Supabase-Beispiel. Konstante Antwort, kein Datenzugriff." },
+    "accept-lead":                   { "model": "jwt-member",      "deployed": true,  "repo_source": false, "disposition": "undeploy-after-caller-proof", "note": "Marktplatz-Verteilung aus der Offerio-Zeit. Prueft auth.getUser + verifyCompanyMembership — kein offenes Loch, aber Rest." },
+
+    "admin-add-company-member":      { "model": "tombstone",       "deployed": true,  "repo_source": true },
+    "admin-create-user":             { "model": "tombstone",       "deployed": true,  "repo_source": true },
+    "admin-delete-user":             { "model": "tombstone",       "deployed": true,  "repo_source": true },
+    "admin-remove-company-member":   { "model": "tombstone",       "deployed": true,  "repo_source": true },
+    "admin-reset-password":          { "model": "tombstone",       "deployed": true,  "repo_source": true },
+    "admin-update-user-email":       { "model": "tombstone",       "deployed": true,  "repo_source": true },
+
+    "analyze-besichtigung":          { "model": "jwt-member",      "deployed": true,  "repo_source": true },
+    "confirm-besichtigung":          { "model": "jwt-member",      "deployed": true,  "repo_source": true },
+    "create-besichtigung-session":   { "model": "jwt-member",      "deployed": true,  "repo_source": true },
+    "extract-anfrage-ai":            { "model": "jwt-member",      "deployed": true,  "repo_source": true },
+    "import-manual-lead":            { "model": "jwt-member",      "deployed": true,  "repo_source": true },
+    "send-offer":                    { "model": "jwt-member",      "deployed": true,  "repo_source": true, "drift": "tree" },
+    "company-secrets":               { "model": "jwt-member",      "deployed": true,  "repo_source": true, "note": "verifyCompanyRole — Rolle, nicht nur Mitgliedschaft." },
+    "send-quittung":                 { "model": "jwt-member",      "deployed": true,  "repo_source": true, "open_finding": "H-004" },
+    "send-rechnung-email":           { "model": "jwt-member",      "deployed": true,  "repo_source": true, "open_finding": "H-004" },
+    "send-appointment-confirmation": { "model": "jwt-member",      "deployed": true,  "repo_source": true, "open_finding": "H-004" },
+
+    "spell-check-ai":                { "model": "jwt-user",        "deployed": true,  "repo_source": true, "note": "Zustandsloser AI-Helfer, keine Zeilenbindung. Keine Drossel — jeder angemeldete Nutzer kann Anthropic-Kosten treiben." },
+    "test-resend-email":             { "model": "jwt-user",        "deployed": true,  "repo_source": true, "disposition": "review", "note": "Diagnosewerkzeug im Netz." },
+
+    "calendar-feed":                 { "model": "capability-token", "deployed": true, "repo_source": true, "drift": "tree", "note": "token_hash, revoked_at IS NULL." },
+    "complete-besichtigung":         { "model": "capability-token", "deployed": true, "repo_source": true },
+    "confirm-lead-by-token":         { "model": "capability-token", "deployed": true, "repo_source": true },
+    "delete-besichtigung-photo":     { "model": "capability-token", "deployed": true, "repo_source": true },
+    "handle-proposal-response":      { "model": "capability-token", "deployed": true, "repo_source": true, "drift": "index+tree" },
+    "notify-appointment-cancelled":  { "model": "capability-token", "deployed": true, "repo_source": true },
+    "notify-besichtigung":           { "model": "capability-token", "deployed": true, "repo_source": true, "note": "Token schliesst die Offerte auf, bevor der service-role-Client benutzt wird." },
+    "notify-offer-response":         { "model": "capability-token", "deployed": true, "repo_source": true, "drift": "tree" },
+    "upload-besichtigung-photo":     { "model": "capability-token", "deployed": true, "repo_source": true },
+    "validate-besichtigung-token":   { "model": "capability-token", "deployed": true, "repo_source": true, "drift": "index+tree" },
+
+    "inbound-email-lead":            { "model": "signed-webhook",  "deployed": true,  "repo_source": true, "note": "svix-signature (Resend); zweiter Pfad jwt-member." },
+
+    "auto-archive":                  { "model": "cron-secret",     "deployed": true,  "repo_source": true },
+    "cleanup-besichtigung":          { "model": "cron-secret",     "deployed": true,  "repo_source": true },
+    "notify-appointment-reminder":   { "model": "cron-secret",     "deployed": true,  "repo_source": true, "drift": "index+tree" },
+    "notify-auftrag-reminder":       { "model": "cron-secret",     "deployed": true,  "repo_source": true },
+    "notify-team-reminder":          { "model": "cron-secret",     "deployed": true,  "repo_source": true },
+
+    "calculate-distance":            { "model": "public-safe",     "deployed": true,  "repo_source": true, "drift": "index+tree", "open_finding": "P0-S3a", "note": "Unauthentifizierter Proxy auf eine kostenpflichtige Google-API. Drossel im Repo, NICHT ausgerollt." },
+    "google-places-autocomplete":    { "model": "public-safe",     "deployed": true,  "repo_source": true, "drift": "index+tree", "open_finding": "P0-S3a" },
+    "google-places-details":         { "model": "public-safe",     "deployed": true,  "repo_source": true, "drift": "index+tree", "open_finding": "P0-S3a" },
+    "generate-sitemap":              { "model": "public-safe",     "deployed": true,  "repo_source": true, "disposition": "undeploy", "note": "Marktplatz-Sitemap (/partner-werden, /preise, SEO-Landingpages). Liest nur veroeffentlichte blog_posts." },
+
+    "_shared":                       { "model": "infrastructure",  "deployed": true,  "repo_source": true, "drift": "tree", "note": "Kein Endpunkt. 44 Dateien ausgerollt gegen 64 im Repo." }
+  },
+  "not_deployed_repo_only": [
+    "cleanup-box-rentals", "estimate-job-price", "handle-reschedule-response",
+    "import-swiss-plz", "notify-appointment-reschedule", "notify-box-pickup",
+    "resend-email", "send-lead-confirmation", "transcribe-voice",
+    "translate-content", "validate-lead-quality", "verify-recaptcha"
+  ],
+  "config_only_no_source_no_deploy": [
+    "admin-assign-lead", "calculate-lead-price", "generate-blog-ai",
+    "generate-landing-page-content", "match-lead", "notify-admin-new-lead",
+    "notify-companies", "send-token-notification"
+  ]
+}

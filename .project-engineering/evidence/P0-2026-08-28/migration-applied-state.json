@@ -1,0 +1,45 @@
+{
+  "what_this_is": "Read-only probe of production for objects that named migrations create. It settles applied-vs-unapplied for the migrations added since 2026-08-05; it is NOT a migration ledger and says nothing about the 380+ older files.",
+  "probed_at": "2026-08-28",
+  "target_system_identifier": "7639710127421538342",
+  "method": "docker exec -e PGOPTIONS='-c default_transaction_read_only=on' … psql -X -A -t, to_regclass()/pg_proc/pg_policy lookups only",
+  "migrations": [
+    {
+      "file": "supabase/migrations/20260805010000_kalender_feed_tokens.sql",
+      "probe": "to_regclass('public.calendar_feed_tokens'), pg_proc create_calendar_feed_token",
+      "observed": "present",
+      "verdict": "APPLIED"
+    },
+    {
+      "file": "supabase/migrations/20260807100000_kundenadresse_und_vollstaendige_zusammenfuehrung.sql",
+      "probe": "to_regclass('public.customer_addresses'), pg_proc merge_customers/customer_summary/search_customers/customer_kennzahlen",
+      "observed": "all present",
+      "verdict": "APPLIED",
+      "note": "Corrects an earlier working assumption that this migration was local-only."
+    },
+    {
+      "file": "supabase/migrations/20260809120000_funktionsrechte_zweite_welle.sql",
+      "probe": "to_regclass('public.undo_20260809120000'); anon-executable SECURITY DEFINER writers in function-authz.json",
+      "observed": "undo table present; anon+definer+write functions = 4 (portal_redeem_magic_link, portal_request_change, update_amendment_by_token, update_offer_by_token)",
+      "verdict": "APPLIED"
+    },
+    {
+      "file": "supabase/migrations/20260828100000_landing_analytics_anon_insert_entzogen.sql",
+      "probe": "to_regclass('public.undo_20260828100000'); pg_policy 'Service role can insert analytics' on public.landing_page_analytics",
+      "observed": "undo table ABSENT; policy STILL PRESENT with roles={public} and unrestricted WITH CHECK",
+      "verdict": "NOT_APPLIED",
+      "consequence": "Production currently permits unauthenticated INSERT into public.landing_page_analytics. See P0-BEFUND.md finding P0-S1."
+    }
+  ],
+  "row_counts_for_later_integrity_checks": {
+    "companies": 2,
+    "company_members": 2,
+    "leads": 115,
+    "offers": 93,
+    "offer_items": 531,
+    "auftraege": 26,
+    "appointments": 96,
+    "rechnungen": 31,
+    "quittungen": 12
+  }
+}

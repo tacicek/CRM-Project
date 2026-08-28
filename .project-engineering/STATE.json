@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "project_id": "crm-system-hardening",
+  "mode": "brownfield-repair",
+  "phase": "execution",
+  "run_status": "active",
+  "scope_version": 1,
+  "artifact_paths": {
+    "project": ".project-engineering/PROJECT.md",
+    "requirements": ".project-engineering/REQUIREMENTS.md",
+    "architecture": ".project-engineering/ARCHITECTURE.md",
+    "plan": ".project-engineering/PLAN.md",
+    "worklog": ".project-engineering/WORKLOG.md",
+    "ledger": "docs/hardening/LEDGER.md",
+    "evidence": ".project-engineering/evidence/",
+    "program": "docs/CRM_SYSTEM_HARDENING_PROGRAM.md"
+  },
+  "baseline": {
+    "branch": "chore/produktionswahrheit-festschreiben",
+    "head": "f40645604feb303709e18a70639dd81b242b9421",
+    "dirty_paths": [
+      "public/favicon.png",
+      "public/logo-offerio-main-old.webp",
+      "public/logo-offerio-main.webp",
+      "public/offerio-logo-v2.png",
+      "public/offerio-logo.png",
+      "public/pwa-192.png",
+      "public/pwa-512.png",
+      "public/pwa-maskable-512.png",
+      ".project-engineering/",
+      "CLAUDE_CODE_CRM_HARDENING_GOAL_PROMPT.md",
+      "CRM_SYSTEM_HARDENING_PROGRAM (1).md",
+      "docs/CRM_SYSTEM_HARDENING_PROGRAM.md",
+      "E-Mail-zu-Anfrage_101.pdf",
+      "claude-code-crm-wiki-implementation-prompt.md",
+      "claude-code-inbound-email-implementation-prompt.md",
+      "claude-code-independent-crm-strategy-audit-prompt.md",
+      "claude-code-offerte-preismodell-fix-prompt.md",
+      "docs/hardening/",
+      "ops/production-truth/2026-08-28/",
+      "pg_dump",
+      "review.md",
+      "scripts/edge-drift.mjs",
+      "single-company-crm-inbound-email-architecture.md",
+      "src/test/__tests__/edge-auth-manifest.test.ts",
+      "src/test/edge-auth-manifest.ts"
+    ],
+    "captured_at": "2026-08-28T00:00:00Z",
+    "checks": [
+      {
+        "command": "npm run type-check",
+        "result": "PASS"
+      },
+      {
+        "command": "npm test",
+        "result": "PASS",
+        "reason": "83 files / 1746 tests"
+      },
+      {
+        "command": "npx eslint .",
+        "result": "FAIL",
+        "reason": "88 errors, 2 warnings \u2014 pre-existing debt, unchanged"
+      }
+    ],
+    "production": {
+      "captured": "ops/production-truth/2026-08-28",
+      "generation": "b92a3bf64015b2eb",
+      "server_version": "15.8",
+      "system_identifier": "7639710127421538342",
+      "access_mode": "read-only"
+    }
+  },
+  "active": {
+    "milestone": "M-01",
+    "slice": "S-02",
+    "task": "T-002"
+  },
+  "queue": {
+    "ready": [],
+    "blocked": []
+  },
+  "last_checkpoint": {
+    "at": "2026-08-28T00:00:00Z",
+    "summary": "T-001 (P0) done: dated read-only production truth, reproducible edge content diff, migration applied-state probe, edge auth manifest with an enforcing gate.",
+    "changed_files": [
+      "ops/production-truth/2026-08-28/",
+      "scripts/edge-drift.mjs",
+      "docs/hardening/LEDGER.md",
+      "docs/hardening/edge-auth-manifest.json",
+      "src/test/edge-auth-manifest.ts",
+      "src/test/__tests__/edge-auth-manifest.test.ts",
+      ".project-engineering/"
+    ],
+    "verification": [
+      {
+        "command": "npx vitest run src/test/__tests__/edge-auth-manifest.test.ts",
+        "result": "PASS",
+        "reason": "8 tests"
+      },
+      {
+        "command": "node scripts/edge-drift.mjs ops/production-truth/2026-08-28",
+        "result": "PASS",
+        "reason": "29 identical / 10 drift / 3 deploy-only / 12 repo-only"
+      }
+    ]
+  },
+  "next_action": {
+    "task": "T-002",
+    "instruction": "Introduce fetchCompanyById and move Rechnungen/RechnungDetail/Quittungen/QuittungDetail off fetchSingleCompanyForUser onto the active company context; fail closed when the row's company_id differs from the active tenant.",
+    "expected_result": "Two-company contract tests are red before and green after; invoice/receipt identity comes from the business row, not from a guess."
+  },
+  "pending_decisions": [
+    {
+      "id": "DEC-001",
+      "question": "Is /portal retained as Kundenbereich or decommissioned?",
+      "blocks": "P5"
+    }
+  ],
+  "production_writes_awaiting_auth": [
+    {
+      "id": "PROD-1",
+      "what": "apply supabase/migrations/20260828100000_landing_analytics_anon_insert_entzogen.sql",
+      "why": "AWAITING_PRODUCTION_AUTH",
+      "finding": "P0-S1"
+    },
+    {
+      "id": "PROD-2",
+      "what": "deploy the 10 drifted edge functions; three Google proxies and _shared first",
+      "why": "AWAITING_PRODUCTION_AUTH",
+      "finding": "P0-S3/P0-S3a"
+    }
+  ]
+}

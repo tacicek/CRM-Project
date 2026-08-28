@@ -1,0 +1,272 @@
+{
+  "edge_runtime": {
+    "command": [
+      "start",
+      "--main-service",
+      "/home/deno/functions/main"
+    ],
+    "deployed_function_count": 42,
+    "deployed_functions": [
+      {
+        "file_count": 44,
+        "index_ts_sha256": null,
+        "name": "_shared",
+        "tree_sha256": "2f50b4c10ff68d93d199b7c530096e8c05651fb357372190fac08e416f8ed70c"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "f30851e91b771332d6af99b574e0f39e2891f91966087239737d440c8f73c0be",
+        "name": "accept-lead",
+        "tree_sha256": "dbe9719d1944b7cd30e3ee0ea70938b2590695b5f17f95351cdc479ed6aa2162"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "1dcb5551807bad2980d8c44936f6db9d8055a2c181fb58ec44bb8a8b1440cd49",
+        "name": "admin-add-company-member",
+        "tree_sha256": "532e3aa2428e6823ca1bab4bc5cefcd90cca41e71a78113604cb7d6ad4a72c99"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "6e2298a6dba6dac48a2a84a2506275eeab73602c5b16388aa01d7dbf23bd6141",
+        "name": "admin-create-user",
+        "tree_sha256": "33e64925d50234c51ff570cbef4e84c1a95cb27b174ba4f977a9368144b71956"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "fb26bceadee1523b7ec9f2cf4017fe574277bbe92151ed137a3fd3175be63cd3",
+        "name": "admin-delete-user",
+        "tree_sha256": "e3579268b5a44092f4a3c5bd98a9523b6df612b088d7bc3f12b6597939024126"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "d4824342a1e3ca3aedeb2f03a720fe1b1aa7a9995580cfa92a1781901ad8d059",
+        "name": "admin-remove-company-member",
+        "tree_sha256": "81728e2d522118e6c0b9f47dc4583fbef962d41871be92e4154df8af303a2acf"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "a4e26d3cbcc73b70aedcebadf33e098d35d86758d3c599d9c22b9ef135620c5b",
+        "name": "admin-reset-password",
+        "tree_sha256": "3a5a36185d707a19fcdef49de0d1f9701ac964404d1738b97f67cefade2af248"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "84919809087f91c6172ca22de613fa375d46d9d823d29f8a19b6034091e0f50f",
+        "name": "admin-update-user-email",
+        "tree_sha256": "c89c9be6c988d534e5866ba1cb67c5dbafe686ef495bf7024963916db795a2b1"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "7543780e311a1b874776259a604eae5608d3c4d291c6a7f7ae708442a48bf02f",
+        "name": "analyze-besichtigung",
+        "tree_sha256": "fb0f7380b1b3db49c80f1fba8f267d0ceb428223377311ea43902bbaa1866f14"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "6958dc6a8cb3e93537363978930aef2c9b54e60f595de4a1b93ff8e4f42340bc",
+        "name": "auto-archive",
+        "tree_sha256": "7d76cd026c4312e80064419c5a1903b9797ce204995449e6abff0fcc968b3347"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "a792b62e847070a02e160202662ef44ded0b3bfc87ad9b274caeb8f549059fff",
+        "name": "calculate-distance",
+        "tree_sha256": "b4dd36390c3ae583e27f18427a8dce935cf611b0b9eba4f90121e86ca30621b8"
+      },
+      {
+        "file_count": 2,
+        "index_ts_sha256": "95a1af053f66d06f152ea7e212d3c768a5701c41d261215155fc572b71a09f32",
+        "name": "calendar-feed",
+        "tree_sha256": "ea88497e07016a091a3369d5ac35c2bab0983c18bb99fcba4490eaa882252d97"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "98fdc54fcf0e5424a382ea2be323aeaef77317ae4e8cda6c9fe4120fec6e68e3",
+        "name": "cleanup-besichtigung",
+        "tree_sha256": "92ef762225ec6a5d94cc3e90c753fd9a3c3f966e55c9ededf18aa74d41419bb1"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "97298aed329d87db26a3920f25d73e6cb21b18e4908bc74b276ff16705b5aba1",
+        "name": "company-secrets",
+        "tree_sha256": "a3b67398dcf39ff22b218b44b5560ebc1ba2a57200484141b848ede202f7280f"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "2dc6dfc4fbd9c71fc8822dba85d95833884ed9bfa4de1575a433cddce0866262",
+        "name": "complete-besichtigung",
+        "tree_sha256": "f0b7570635fc196b7b8aaf8e09dc7ea95d8301c86b4983ba5262e9084e5b4d3f"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "62d26568452b18992b4c0164d9d78742581bb130f5554bf3163b6bec607390a3",
+        "name": "confirm-besichtigung",
+        "tree_sha256": "4f811cd99ed21c305d8f08e8b97fd0c9503029fa53a0bf52c90bbe30a081f3d8"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "dcb1b2ceb9454296a45a93915cb9128ed46ab6467103bef216a1b7280f8478ea",
+        "name": "confirm-lead-by-token",
+        "tree_sha256": "3142eb549cc6735be6d2400210321700f2546590075e40d2ed5e848473d6465f"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "4c048921ffd51548ce6268aa8897699f556d9dbc45ffdeb3cfaf94d547c3b68e",
+        "name": "create-besichtigung-session",
+        "tree_sha256": "10b444e3a44c3935a4a9a664bf2cf89c6891403a0134c26b4606985c459ceafc"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "992a8d9701b7a257e60331ff634ccec8195c3971be1d3adb14f90a8986c7b6e2",
+        "name": "delete-besichtigung-photo",
+        "tree_sha256": "e6795173623d9a8672664e211d8248d2486009497596aead5f6a388c56e81226"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "99edad61c929fbba9bb4011aeacd1ba48be7d72b2f5629ffe8bbf273f4524817",
+        "name": "extract-anfrage-ai",
+        "tree_sha256": "f892aea32f650e46573f6c47647c57345f82d66dc75967798b9a9bf185dcbf94"
+      },
+      {
+        "file_count": 3,
+        "index_ts_sha256": "4c2b1291133e5e50a19dbd3e6f606680ec1abda1e8b14da3b61c32ddc64fd35a",
+        "name": "generate-sitemap",
+        "tree_sha256": "b1d2af703227e192448c422801e30e00ccd082dfed76ffe87cd67d9fd76ae9fe"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "5667d223d3478c339408c7ec17b53641266eb1b9cc0ae126926d7832c88f7d2b",
+        "name": "google-places-autocomplete",
+        "tree_sha256": "66f12a7e8c1ac5da7935d811f7eb4fc618c13d1dabadaebc3c821384794a596c"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "9d49222791e819108e99aa1ef14abf4aab74c4f29bfef8eff18411757758d935",
+        "name": "google-places-details",
+        "tree_sha256": "f3c928e9ea9d4e06f8f39c62019cf0bbc01d6ab4ec5283adf85b01cd44bff624"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "7021c31cde948734cc9c12588bfee78c7748cb96399d3c4bb28b2035309e2150",
+        "name": "handle-proposal-response",
+        "tree_sha256": "250e12adc7b241170697ec5601f6ac6ccc4c39000b4504aa01698a14cc3afe0a"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "924360da7a031b0c649d870863aa69cfa7436550169e7cc0d163bb15de2b0e3f",
+        "name": "hello",
+        "tree_sha256": "e68fcdf32dd2c146b86fa3806ea99d27ed6c53a21c8b01fca9a23c0b5e51d20b"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "060f0e77b88631b5ccd22458d9fdc53d5537e926e82f43290d0d0bc7e0220770",
+        "name": "import-manual-lead",
+        "tree_sha256": "9e28c93104f005220f4a5070fd12cb223b04588f1f8fe77abe7a893aa04dfb33"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "3acaf56e1dc81632cc592ced4242f4d793ccb97b09feb92066c4b1822c33db5d",
+        "name": "inbound-email-lead",
+        "tree_sha256": "8a15414d57a1c1822d04b1c001214bc0729136415097e061eabdaadeec95d1e6"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "da2faf5698e1c8460f735a5c5e975fe2b5195b30a5cf512823ec4d67d700e006",
+        "name": "main",
+        "tree_sha256": "f0bac5c28d6484ebd280c4c899eb86dc38181888569f3be69519efda2fda546e"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "4c2a04387acc7a8400671f3ff3a8735fc985a1ab3313999808d9236e46f58cf6",
+        "name": "notify-appointment-cancelled",
+        "tree_sha256": "f35d74f8ec0879ad64b68ccbdc322331e2ed60467f380eeca7b30fa29205ce55"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "02781c191b7871967b2fe21058cbc6f506cf6b01d4285e1c89f0011cdea33056",
+        "name": "notify-appointment-reminder",
+        "tree_sha256": "3b3b9ccbebfe263cefd54c5202a6410effab26739e9542c1e9d876808d6ff08d"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "7ca4a719dcd9750064209d19285f349e9b99e4a839e8a024e816e3e7f613fd7f",
+        "name": "notify-auftrag-reminder",
+        "tree_sha256": "3d49bb7f9dbfad61463549ab9498d0af09dda2562406fca6755126d03e90536b"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "1404172b2e317800a19f6154bd231c017d45d102cf7464a4bbdf873881783861",
+        "name": "notify-besichtigung",
+        "tree_sha256": "7903941c56ed74944b805711a56e80b41668d44947c556927e7abefb5e29b305"
+      },
+      {
+        "file_count": 2,
+        "index_ts_sha256": "6a3eef89612309760cd3bd9839c499bb806106225c3bbf4bc32de4dcf7e16255",
+        "name": "notify-offer-response",
+        "tree_sha256": "c4d79c1836eaa92f42e7dfd258f01531d7b481829cf2d46da37030c117a02f0c"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "5bb55ebd801f32356303dfc51d33bd815670abf387e796cf3660e034a7c2af2a",
+        "name": "notify-team-reminder",
+        "tree_sha256": "9b9e0ba26c34afad292eeb1ce0e5791496b44caeef05c8c36a6b07b7ca22808b"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "6a36255fe3c07d5abe922d7892e19518f03ca7cd1812438d970538b6dba84d4f",
+        "name": "send-appointment-confirmation",
+        "tree_sha256": "20a7cf6de7652c3421f0e9f12065abfd1b8bcd0d53be5b0296d1e3335ad4b48a"
+      },
+      {
+        "file_count": 9,
+        "index_ts_sha256": "908b57f96d8af018cf054ad80334bc012df4d29f414ee36ce4489748c3182715",
+        "name": "send-offer",
+        "tree_sha256": "ebfc34d752889e42280909381128a6c839c11e279dc71da4efb510828caa4387"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "8cc419f5a54575a09cd993b8edbb9ed56fbca89942734d1c335efab3d8e519c7",
+        "name": "send-quittung",
+        "tree_sha256": "25b06043a638df6ee2d48c4e0f76cd3daf230905f2658c65f4f6eefbd3717e1b"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "1e2f2291faf56be30c3d406a3cf3b85926d17a77f5216be2325be6e21e8a2655",
+        "name": "send-rechnung-email",
+        "tree_sha256": "e286ca6218e77db0e2be69d09efc6e0506b5a0788e163523dc5da69b12b97aa6"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "8c8c9d136a7996aef08eee88d5171eb0cbd22ec3c13b7879c83dd6c79e443a6a",
+        "name": "spell-check-ai",
+        "tree_sha256": "03c93fccf3ce2cb84ea068f10017dc515b2dd44cf198fef762c6b669ea009005"
+      },
+      {
+        "file_count": 2,
+        "index_ts_sha256": "b873610d73e897ab79cac19f609e826a9a6b48ad11ac5d696dba5721d5db32fd",
+        "name": "test-resend-email",
+        "tree_sha256": "29de094a4d637de76b5f6d1bc9271783149feea370f9cfbef4213a7b081e2c32"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "6f7dadef037ac9c97a05f3210be0d8767fee0b2832581cd3259b9c350d841551",
+        "name": "upload-besichtigung-photo",
+        "tree_sha256": "e787c95e69568e4ccf31e32ef958a7f287bf047e0f19c64260817ec6a95b1c59"
+      },
+      {
+        "file_count": 1,
+        "index_ts_sha256": "932467b121185e12dcc4935b9e8673a5e72ac3ab0a5c93a5d4ad140f65d0b68e",
+        "name": "validate-besichtigung-token",
+        "tree_sha256": "9f5575052495e46c3ca77d1ce5b6c4d7f25e0de475da2c9b01e074e15f4c6546"
+      }
+    ],
+    "functions_root": "/home/deno/functions",
+    "verify_jwt": "false"
+  },
+  "gateway": {
+    "declarative_config_sha256": "034d9c6c09e1265299b3a782534b9419d4d177ac9aa2c1936931b908120f0484",
+    "functions_route_plugins": [
+      "cors"
+    ]
+  }
+}
