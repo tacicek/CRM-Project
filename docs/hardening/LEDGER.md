@@ -45,8 +45,8 @@ Nichts aus diesem Programm ausser der Messung selbst ist live. Zwei Befunde sind
 
 | | Zustand | Was das bedeutet |
 |---|---|---|
-| **P0-S1** `landing_page_analytics` | **`ACTIVE_PRODUCTION_EXPOSURE`** | Jeder unauthentifizierte Aufrufer kann Zeilen schreiben. Migration `20260828100000` existiert, ist **nicht eingespielt**. |
-| **P0-S3a** drei Google-Proxys | **`ACTIVE_PRODUCTION_EXPOSURE`** | Ohne Drossel im Netz, auf kostenpflichtigen APIs. Die Drossel ist im Repo, **nicht ausgerollt**. |
+| **P0-S1** `landing_page_analytics` | **`LIVE_VERIFIED`** ✅ | Geschlossen am 2026-08-28. Keine schreibende PUBLIC-Policy, `anon` hält kein Schreibrecht mehr, RLS aktiv, 0 Zeilen. Beleg: `ops/rollout/2026-08-28/`. |
+| **P0-S3a** drei Google-Proxys | **`ACTIVE_PRODUCTION_EXPOSURE`** — und **durch Ausrollen NICHT behebbar** | Die Drossel ist ausgerollt (calculate-distance) und wirkt trotzdem nicht: der Router erzeugt pro Anfrage einen neuen Worker, der In-Memory-Zähler startet jedes Mal bei null. Siehe **R2-01**. |
 | **P1A** Mandantentrennung | `INDEPENDENT_REVIEW_PASS`, **nicht live** | Die laufende Fassung rät die Firma weiter. |
 | **P1B-1** Rechtschreibprüfung | `VERIFIED_IN_REPO`, **nicht live** | Die ausgerollte Fassung korrigiert Französisch weiter nach deutschen Regeln. |
 | **P1B-2/3** Sprachwechsel + Sendebereitschaft | `VERIFIED_IN_REPO`, **nicht live** | Die laufende Fassung schickt eine französische Offerte weiterhin mit deutschen AGB hinaus. |
@@ -117,6 +117,35 @@ Produktion: PostgreSQL 15.8 · 101 Tabellen, alle mit RLS, 232 Policies ·
 | **P0-2** | Plattform | Repo↔Deploy nur Mengen-, kein Inhaltsvergleich | P0-1 | `LIVE_VERIFIED` | `deploy-repo-diff.json` vergleicht nur Namen | Inhaltsvergleich gegen den exakten Commit, reproduzierbar | `scripts/edge-drift.mjs` | `.project-engineering/evidence/P0-2026-08-28/edge-hash-drift.json` — 29 gleich, 10 Drift, 3 deploy-only, 12 nicht ausgerollt | T-001 | lesend erfolgt | — |
 | **P0-3** | Plattform | Migrationsstand unbelegt | P0-1 | `LIVE_VERIFIED` | „Datei vorhanden" ≠ „eingespielt" | Für die Migrationen seit 2026-08-05 gemessener Stand | Lesende Katalogsonde | `migration-applied-state.json` — 3 `APPLIED`, 1 `NOT_APPLIED` | T-001 | lesend erfolgt | Für die 380+ älteren Dateien gibt es weiterhin keinen Ledger (→ P3-1) |
 | **P0-4** | Plattform | Edge ohne Auth-Modell | P0-1, P0-2 | `LIVE_VERIFIED` | 42 ausgerollte Functions, keine Einstufung | Genau ein Modell je ausgerollter Function, als Tor erzwungen | `docs/hardening/edge-auth-manifest.json` + `src/test/__tests__/edge-auth-manifest.test.ts` | 8 Tests grün; 42/42 eingestuft | T-001 | lesend erfolgt | Bei den 10 Driftfällen gilt die Einstufung dem Repo-Stand; die ausgerollten Fassungen wurden einzeln gelesen und sind älter, nicht anders |
+
+### R2-01 · Die Drossel kann in dieser Laufzeit nicht wirken · `VERIFIED`
+
+Beim Ausrollen von `calculate-distance` gemessen — 61 Anfragen, **kein einziger
+Google-Aufruf** (die Drossel sitzt vor der Eingabeprüfung, ein leerer Rumpf endet
+mit 400):
+
+| | 400 | 429 |
+|---|---:|---:|
+| vorher, ohne Drossel | 61 | 0 |
+| **nachher, mit Drossel** | **61** | **0** |
+
+**Ursache.** Der ausgerollte Router erzeugt **pro Anfrage** einen neuen
+User-Worker (`EdgeRuntime.userWorkers.create(…)` → `worker.fetch(req)`).
+`_shared/rateLimit.ts` hält seinen Zähler in einer `Map` im Modulkörper; bei
+einem Worker je Anfrage wird der Modulkörper jedes Mal neu ausgewertet. Die
+`Map` ist immer leer, `isLimited` gibt immer `false` zurück. Der Kopf von
+`rateLimit.ts` sagt es selbst: *„resets on function cold starts"* — hier **ist**
+jede Anfrage ein Cold Start.
+
+**Das korrigiert meinen eigenen früheren Befund.** „Die Drossel steht im Repo,
+sie ist nur nicht ausgerollt" war unvollständig. Sie auszurollen schliesst
+P0-S3a **nicht**. Der Kostenabfluss bleibt offen, und kein Deployment behebt
+ihn. Nötig ist ein Zähler, der die Anfrage überlebt — Postgres oder eine Drossel
+im Gateway. **`PLANNED`**, neue Aufgabe.
+
+**Was daraus für die Methode folgt:** der Digest-Abgleich sagt, dass der richtige
+Code liegt. Er sagt nicht, dass er wirkt. Ohne den Smoke-Test hätte ich R-2
+durchgezogen und P0-S3a als geschlossen gemeldet.
 
 ### Belegte Befunde aus P0
 
@@ -338,8 +367,8 @@ Beide sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-2
 
 | ID | Was | Befund | Zustand |
 |---|---|---|---|
-| **R-1** | Migration `20260828100000_landing_analytics_anon_insert_entzogen.sql` einspielen | P0-S1 | `READY_FOR_ROLLOUT` — der Befund selbst bleibt `ACTIVE_PRODUCTION_EXPOSURE` |
-| **R-2** | `_shared/appointmentDay.ts` **zuerst**, dann sechs Handler | P0-S3, P0-S3a | `READY_FOR_ROLLOUT` — P0-S3a bleibt `ACTIVE_PRODUCTION_EXPOSURE` |
+| **R-1** | Migrationen `20260828100000` **und** `20260828120000` einspielen | P0-S1 | **`LIVE_VERIFIED`** ✅ 2026-08-28 |
+| **R-2** | `_shared/appointmentDay.ts` **zuerst**, dann sechs Handler | P0-S3, P0-S3a | **`GESTOPPT nach Einheit 2`** — Einheit 1 (`appointmentDay.ts`) und 2 (`calculate-distance`) live; Einheiten 3–7 nicht ausgerollt, weil der Smoke-Test die Abweichung R2-01 zeigte |
 | **R-3** | `_shared/spellCheckPrompt.ts` + `spell-check-ai`, **Frontend zuerst** | P0-S8 | `READY_FOR_ROLLOUT` |
 | **R-4** | `_shared/offerSendReadiness.ts` + `_shared/localizedRow.ts` + `_shared/verifyCompanyMembership.ts` **zuerst**, dann `send-offer` | P1B-3 | `READY_FOR_ROLLOUT` — fachliche Auswirkung vorher klären: unvollständig übersetzte fr/en-Offerten gehen danach nicht mehr hinaus |
 | **R-5** | Frontend neu bauen und ausrollen | P1A, P1B-2 | `READY_FOR_ROLLOUT` — ohne sie bleiben P1A und P1B-2 wirkungslos |
