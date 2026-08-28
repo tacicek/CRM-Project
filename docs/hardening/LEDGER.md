@@ -206,6 +206,8 @@ Beide sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-2
 | **R-1** | Migration `20260828100000_landing_analytics_anon_insert_entzogen.sql` einspielen | P0-S1 | `READY_FOR_ROLLOUT` — der Befund selbst bleibt `ACTIVE_PRODUCTION_EXPOSURE` |
 | **R-2** | `_shared/appointmentDay.ts` **zuerst**, dann sechs Handler | P0-S3, P0-S3a | `READY_FOR_ROLLOUT` — P0-S3a bleibt `ACTIVE_PRODUCTION_EXPOSURE` |
 | **R-3** | `_shared/spellCheckPrompt.ts` + `spell-check-ai`, **Frontend zuerst** | P0-S8 | `READY_FOR_ROLLOUT` |
+| **R-4** | `_shared/offerSendReadiness.ts` + `_shared/localizedRow.ts` + `_shared/verifyCompanyMembership.ts` **zuerst**, dann `send-offer` | P1B-3 | `READY_FOR_ROLLOUT` — fachliche Auswirkung vorher klären: unvollständig übersetzte fr/en-Offerten gehen danach nicht mehr hinaus |
+| **R-5** | Frontend neu bauen und ausrollen | P1A, P1B-2 | `READY_FOR_ROLLOUT` — ohne sie bleiben P1A und P1B-2 wirkungslos |
 
 ⚠️ **R-2 hat eine bindende Reihenfolge.** `_shared/appointmentDay.ts` ist im Repo,
 aber nicht ausgerollt; der neue `notify-appointment-reminder/index.ts` importiert
