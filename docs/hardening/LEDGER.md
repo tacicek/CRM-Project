@@ -337,7 +337,7 @@ hinreichend** — dort rät niemand eine Firma.
 
 | Modul | Bericht | Urteil | Blockiert durch |
 |---|---|---|---|
-| 01 Identität und Mandantenschaft | [module-certification/01-…](module-certification/01-identitaet-und-mandantenschaft.md) | **NICHT ZERTIFIZIERT** | M01-01 · M01-02 (`is_admin` in 59 Policies/47 Tabellen) · M01-03 · M01-04 · Zwei-Mandanten-Durchlauf gegen eine echte DB fehlt · nichts davon ist live |
+| 01 Identität und Mandantenschaft | [module-certification/01-…](module-certification/01-identitaet-und-mandantenschaft.md) | **NICHT ZERTIFIZIERT** | M01-01 · M01-02 (`is_admin` in 59 Policies/47 Tabellen) · M01-03 · M01-04 · M01-05 · Zwei-Mandanten-Durchlauf gegen eine echte DB fehlt · nichts davon ist live |
 
 ### M01-01 · Vier mandantenlose Admin-Policies auf `companies` · `VERIFIED`
 
@@ -399,6 +399,16 @@ Produktion **sieben** Policies, nicht fünf. Nach der Migration bleiben drei:
 INSERT `auth.uid() = user_id`, SELECT `is_company_member(id)`, UPDATE
 `is_company_role(id, {owner,admin})`. Für **DELETE bleibt keine einzige** — die
 Tabelle ist danach über RLS nicht mehr löschbar.
+
+**Was DEC-002 ausdrücklich NICHT schliesst.** `public.get_public_company_info(uuid)`
+ist `SECURITY DEFINER`, für `anon` und `authenticated` ausführbar und liefert
+Name, Adresse, Telefon, E-Mail, Website und Logo **jeder** Firma ohne
+Mitgliedschaftsprüfung. Das ist Absicht — `src/pages/public/OfferView.tsx:279`
+braucht es, damit ein Kunde sieht, wer ihm die Offerte geschickt hat. Es ist
+keine `is_admin`-Ausnahme (auch `anon` kommt heran) und damit ausserhalb dieser
+Entscheidung. Es steht hier, damit niemand DEC-002 für „keine
+firmenübergreifenden Lesewege mehr" hält. Der Migrationskopf sagt deshalb
+**policy-basierter** Zugriff, nicht Zugriff schlechthin.
 
 Das nimmt keinem echten Benutzer etwas: der einzige DELETE-Weg war vorher
 `Admins can delete companies` mit `is_admin`, und `user_roles` hat 0 Zeilen. Ein
@@ -472,6 +482,16 @@ zurückgeben; dafür bräuchte es DDL.
 gefälschte ein, änderte den Beleg auf `rollen=verfälscht` und löschte alles.
 Nicht Rechteausweitung — Beweismittelvernichtung.
 
+**Nach der zweiten Durchsicht überarbeitet.** Die erste Fassung behauptete „RLS
+allein würde genügen; das Entziehen ist die zweite Linie". Das war **falsch
+herum** — siehe M01-05. Ausserdem lief sie ohne Transaktion, brach bei fehlender
+Tabelle hart ab, prüfte `TRUNCATE` nicht, und Nachweis 3 belegte mit
+`rolbypassrls` von `service_role` etwas über einen Rücknahmeweg, der in
+Wahrheit Eigentümerschaft verlangt (`must be owner of table`). Alles vier
+behoben und neu bewiesen: fehlende Tabelle → `NOTICE`, kein Abbruch; `anon`
+SELECT/TRUNCATE/DELETE alle blockiert; idempotent; Rücknahme gibt `TRUNCATE`
+zurück.
+
 **Zustand:** `MIGRATION_PREPARED / NOT_LIVE`. `20260828150000` schaltet RLS ein
 und entzieht `anon`/`authenticated` das Tabellenrecht; 8 von 8 Operationen
 danach `permission denied`, `service_role` kommt weiter heran, Belegzeile
@@ -529,6 +549,50 @@ Nachweis dessen, was *lief*. Das Tor hat den Eingriff korrekt gemeldet
 prüfen will: `git log -p ops/migration-ledger.json`. Die Alternative wäre
 gewesen, eine nachweislich ausnutzbare Datei in einem Handbuch stehen zu lassen,
 das zu ihrer Ausführung auffordert.
+
+---
+
+### M01-05 · `anon` darf 97 von 102 Tabellen TRUNCATEn · `VERIFIED` · nicht erreichbar
+
+Die zweite Durchsicht widerlegte eine Annahme, auf die ich M01-03 gestützt
+hatte: dass die vier älteren Undo-Tabellen sicher seien, weil sie RLS tragen.
+
+**`TRUNCATE` unterliegt keiner Row Level Security.** In der Produktion gemessen:
+
+```
+undo_20260802110000  rls=true   anon_truncate=true
+undo_20260802120000  rls=true   anon_truncate=true
+undo_20260802130000  rls=true   anon_truncate=true
+undo_20260809120000  rls=true   anon_truncate=true
+anon darf TRUNCATEn:  97 von 102 Tabellen im public-Schema
+```
+
+Das Recht stammt wie die übrigen aus Supabases schemaweitem
+`ALTER DEFAULT PRIVILEGES`. RLS schützt Zeilen; `TRUNCATE` fragt nicht nach
+Zeilen.
+
+**Erreichbarkeit — und deshalb keine offene Lücke.** Gemessen:
+
+```
+docker port <db-container>     (keine Portfreigabe)
+anon           rolcanlogin=false
+authenticated  rolcanlogin=false
+authenticator  rolcanlogin=true      (PostgREST, setzt SET ROLE je Anfrage)
+Funktionen mit TRUNCATE im Rumpf:  keine
+```
+
+PostgREST bietet kein `TRUNCATE` an, `anon` kann sich nicht anmelden, der
+Datenbank-Port ist nicht veröffentlicht. Es gibt heute **keinen gemessenen Weg**
+von aussen. Einstufung deshalb: echtes Recht, falsch vergeben, **nicht
+erreichbar** — Härtung, nicht Vorfall. Wer es anders einstuft, muss zuerst einen
+Weg zeigen.
+
+**Zustand:** `PLANNED`. Die Korrektur wäre
+`REVOKE TRUNCATE ON ALL TABLES IN SCHEMA public FROM anon, authenticated` plus
+eine Änderung der Standardrechte für künftige Tabellen. Das berührt 97 Tabellen
+und alle künftigen — eine eigene Entscheidung, keine Beifuhr zu DEC-002. Für
+`undo_20260828100000` ist es in `20260828150000` bereits enthalten, weil dort
+`REVOKE ALL` steht.
 
 ---
 
