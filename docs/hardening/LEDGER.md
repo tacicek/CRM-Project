@@ -383,6 +383,29 @@ Beweis auf dem Wegwerf-Stapel: vorher sah ein Benutzer mit Rolle `admin`
 **4 Firmen** bei Mitgliedschaft in einer; nachher 1 eigene, 0 fremde. Benutzer
 ohne Rolle blieben unberührt. Idempotent, Rücknahme stellt 5 Policies wieder her.
 
+**Die tragende Annahme, nachgeprüft.** Alles hängt daran, dass die Helfer nicht
+selbst `is_admin` aufrufen — täten sie es, bliebe der Ausnahmeweg trotz der
+Migration offen. Lesend in der Produktion gemessen
+(`ops/rollout/2026-08-28/DEC002-helfer-und-views.txt`):
+`is_company_member`, `is_company_owner`, `is_company_role`, `has_role` → alle
+`ruft_is_admin=false`. `is_company_member` ist ein reines `EXISTS` auf
+`company_members`. Die beiden Views über `companies` (`offer_details`,
+`pending_box_pickups`) tragen `security_invoker=on`, umgehen RLS also nicht.
+Alle sieben Policies sind PERMISSIVE — sie verodern sich, das Entfernen entzieht
+also wirklich.
+
+**Eine Folge, die ich zuerst nicht benannt hatte.** `companies` trägt in der
+Produktion **sieben** Policies, nicht fünf. Nach der Migration bleiben drei:
+INSERT `auth.uid() = user_id`, SELECT `is_company_member(id)`, UPDATE
+`is_company_role(id, {owner,admin})`. Für **DELETE bleibt keine einzige** — die
+Tabelle ist danach über RLS nicht mehr löschbar.
+
+Das nimmt keinem echten Benutzer etwas: der einzige DELETE-Weg war vorher
+`Admins can delete companies` mit `is_admin`, und `user_roles` hat 0 Zeilen. Ein
+Firmeninhaber konnte seine Firma also auch vorher nicht über die Anwendung
+löschen. Löschen bleibt `service_role` vorbehalten — was der Entscheidung
+entspricht, ist aber eine Aussage, die dastehen muss, statt sich zu ergeben.
+
 ---
 
 ### M01-02 · `is_admin` regiert 59 Policies auf 47 Tabellen · `VERIFIED`

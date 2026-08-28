@@ -1,0 +1,20 @@
+Output format is unaligned.
+=== Rufen die Helfer selbst is_admin auf? ===
+helfer|has_role|ruft_is_admin=false
+helfer|is_admin|ruft_is_admin=true
+helfer|is_company_member|ruft_is_admin=false
+helfer|is_company_owner|ruft_is_admin=false
+helfer|is_company_role|ruft_is_admin=false
+=== is_company_member im Wortlaut ===
+def|CREATE OR REPLACE FUNCTION public.is_company_member(_company_id uuid, _user_id uuid DEFAULT auth.uid())  RETURNS boolean  LANGUAGE sql  STABLE SECURITY DEFINER  SET search_path TO 'public' AS $function$   SELECT EXISTS (     SELECT 1 FROM public.company_members     WHERE company_id = _company_id       AND user_id    = _user_id   ); $function$ 
+=== Alle Policies auf companies, mit Praedikat ===
+policy|Admins can delete companies|cmd=d|perm=false|using=is_admin(auth.uid())|check=-
+policy|Admins can insert companies|cmd=a|perm=false|using=-|check=is_admin(auth.uid())
+policy|Admins can update all companies|cmd=w|perm=false|using=is_admin(auth.uid())|check=-
+policy|Admins can view all companies|cmd=r|perm=false|using=is_admin(auth.uid())|check=-
+policy|Users can insert their own company|cmd=a|perm=false|using=-|check=(auth.uid() = user_id)
+policy|companies_select_member|cmd=r|perm=false|using=(is_company_member(id) OR is_admin(auth.uid()))|check=-
+policy|companies_update_owner_admin|cmd=w|perm=false|using=is_company_role(id, ARRAY['owner'::text, 'admin'::text])|check=is_company_role(id, ARRAY['owner'::text, 'admin'::text])
+=== Views auf companies, die RLS umgehen koennten ===
+view|offer_details|owner=postgres|security_invoker=on
+view|pending_box_pickups|owner=postgres|security_invoker=on
