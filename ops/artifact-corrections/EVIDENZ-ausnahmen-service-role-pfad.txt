@@ -1,0 +1,79 @@
+Ende-zu-Ende-Test der zwei Ruecknahme-Ausnahmen
+Frage: kann service_role einen Nutzlast-Text hinterlegen, den postgres spaeter ausfuehrt?
+Umgebung: supabase_db_crm-test (Wegwerf). Zeit: 2026-08-28T18:35:50Z
+
+DROP TABLE
+NOTICE:  table "beute2" does not exist, skipping
+DROP TABLE
+DROP FUNCTION
+NOTICE:  function public.harmlos() does not exist, skipping
+CREATE TABLE
+CREATE FUNCTION
+CREATE TABLE
+ALTER TABLE
+GRANT
+INSERT 0 1
+--- A. Sperrt RLS anon? (0 Policies, anon ohne BYPASSRLS) ---
+ anon sieht Zeilen: 0
+
+ROLLBACK
+--- B. service_role hinterlegt die Nutzlast (BYPASSRLS) ---
+UPDATE 1
+ service_role hat gesetzt: public.harmlos() TO PUBLIC; INSERT INTO public.beute2 VALUES ('service
+
+COMMIT
+RESET
+--- C. Was macht die Parser-Schranke to_regprocedure damit? ---
+ERROR:  expected a right parenthesis
+--- D. Betreiber fuehrt die Ruecknahme aus (als postgres, wie im Runbook) ---
+ERROR:  expected a right parenthesis
+ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ROLLBACK
+--- E. Wurde die Nutzlast ausgefuehrt? ---
+beute2: (leer)
+
+=== Kandidatenbatterie gegen die Parser-Schranke (undo_20260802130000-Form) ===
+  public.harmlos()                                  -> ok (legitim)
+  public.harmlos() <leerzeichen>                    -> ok (legitim)
+  "public"."harmlos"()                              -> ok (legitim)
+  public.harmlos() --                               -> ABGEWEHRT: expected a right parenthesis
+  public.harmlos() --
+TO PUBLIC; INSERT ...; --     -> ABGEWEHRT
+  public.harmlos() /*x*/                            -> ABGEWEHRT
+  public.harmlos()/**/TO PUBLIC; INSERT ...; --      -> ABGEWEHRT
+  public.harmlos(); INSERT INTO ...                 -> ABGEWEHRT: syntax error at or near ")"
+  public.harmlos() TO PUBLIC, anon                  -> ABGEWEHRT
+  public.harmlos                                    -> ABGEWEHRT: expected a left parenthesis
+
+  Nur syntaktisch gueltige Funktionsreferenzen passieren. Eine gueltige
+  Referenz bleibt auch nach dem Einsetzen in
+  'GRANT EXECUTE ON FUNCTION <ref> TO PUBLIC' eine gueltige Referenz —
+  es gibt keinen Ausbruch. Abweisung ist ein ERROR, der die Transaktion
+  abbricht: geschlossen scheiternd, nicht stillschweigend uebergangen.
+
+=== Zweite Ausnahme: undo_20260809120000, gleicher Ende-zu-Ende-Lauf ===
+UPDATE 1
+   service_role hat gesetzt (BYPASSRLS): ja
+
+COMMIT
+RESET
+  ERROR:  expected a right parenthesis
+  ERROR:  current transaction is aborted, commands ignored until end of transaction block
+  ROLLBACK
+  beute2 nach Lauf: (leer)
+
+=== Kann service_role eine Funktion mit boesartigem NAMEN anlegen? ===
+  CREATE auf Schema _realtime: service_role=false
+  CREATE auf Schema auth: service_role=false
+  CREATE auf Schema besichtigung: service_role=false
+  CREATE auf Schema cron: service_role=false
+  CREATE auf Schema extensions: service_role=false
+  CREATE auf Schema graphql: service_role=false
+  CREATE auf Schema graphql_public: service_role=false
+  CREATE auf Schema net: service_role=false
+  CREATE auf Schema pgbouncer: service_role=false
+  CREATE auf Schema public: service_role=false
+  CREATE auf Schema realtime: service_role=false
+  CREATE auf Schema storage: service_role=false
+  CREATE auf Schema supabase_functions: service_role=false
+  CREATE auf Schema vault: service_role=false

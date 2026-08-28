@@ -110,31 +110,49 @@ export interface Verstoss {
 export interface BekannteAusnahme {
   datei: string;
   art: VerstossArt;
+  /** Ergebnis des Ende-zu-Ende-Tests, nicht einer Ueberlegung. */
+  einstufung:
+    | "CONFIRMED_STORED_PRIVILEGE_ESCALATION"
+    | "REFUTED_BY_PARSER_AND_QUOTING"
+    | "NEEDS_MORE_EVIDENCE";
+  beleg: string;
   grund: string;
-  entscheidung_offen: boolean;
 }
 
 export const BEKANNTE_AUSNAHMEN: BekannteAusnahme[] = [
   {
     datei: "ROLLBACK_20260802130000_funktionsrechte_zurueckgenommen.sql",
     art: "gespeicherter-wert-wird-sql",
+    einstufung: "REFUTED_BY_PARSER_AND_QUOTING",
+    beleg: "ops/artifact-corrections/EVIDENZ-ausnahmen-service-role-pfad.txt",
     grund:
       "Interpoliert undo_20260802130000.func_signature mit %s in GRANT EXECUTE. " +
-      "Dieselbe Form wie der behobene Befund M01-04, aber NICHT ausnutzbar: die " +
-      "Undo-Tabelle trägt RLS (gemessen 2026-08-28), anon und authenticated " +
-      "können sie nicht beschreiben. Schreiben kann nur service_role, die das " +
-      "DDL ohnehin dürfte. Die Datei wurde nie angewendet. Korrektur wäre ein " +
-      "zweiter Eingriff in eine bestehende Migration und braucht eine eigene " +
-      "Freigabe — die Freigabe zu M01-04 war ausdrücklich eng.",
-    entscheidung_offen: true,
+      "Ende-zu-Ende geprueft, nicht ueberlegt: service_role hinterlegte per " +
+      "BYPASSRLS die Nutzlast \"public.harmlos() TO PUBLIC; INSERT INTO " +
+      "public.beute2 ...; --\", danach lief die Ruecknahme als postgres. " +
+      "Ergebnis: ERROR \"expected a right parenthesis\", Transaktion " +
+      "zurueckgerollt, Nutzlast NICHT ausgefuehrt. Ursache ist die Schranke " +
+      "`IF to_regprocedure(r.func_signature) IS NULL THEN CONTINUE` — sie " +
+      "parst den Text. Eine Batterie von zehn Formen (Kommentar, Zeilenumbruch, " +
+      "Blockkommentar, zusaetzliche Anweisung, TO-Klausel) passierte in keinem " +
+      "Fall; nur syntaktisch gueltige Funktionsreferenzen kommen durch, und die " +
+      "bleiben auch eingesetzt gueltige Referenzen. service_role hat ausserdem " +
+      "auf KEINEM Schema CREATE (alle 14 gemessen) und kann daher keine " +
+      "Funktion mit boesartigem Namen anlegen. " +
+      "Die fruehere Begruendung \"service_role haette das DDL ohnehin\" war " +
+      "FALSCH: die Durchsicht mass, dass service_role das Eigentuemer-DDL des " +
+      "Ruecknahmepfads gerade nicht ausfuehren kann.",
   },
   {
     datei: "ROLLBACK_20260809120000_funktionsrechte_zweite_welle.sql",
     art: "gespeicherter-wert-wird-sql",
+    einstufung: "REFUTED_BY_PARSER_AND_QUOTING",
+    beleg: "ops/artifact-corrections/EVIDENZ-ausnahmen-service-role-pfad.txt",
     grund:
-      "Wie oben, mit undo_20260809120000. RLS aktiv, nicht von anon " +
-      "beschreibbar, nie angewendet. Eigene Freigabe nötig.",
-    entscheidung_offen: true,
+      "Wie oben, mit undo_20260809120000.func_signature und derselben " +
+      "to_regprocedure-Schranke. Derselbe Ende-zu-Ende-Lauf: service_role " +
+      "hinterlegte die Nutzlast, postgres fuehrte die Ruecknahme aus, Ergebnis " +
+      "ERROR und ROLLBACK, Beutetabelle leer. Kein gespeicherter Text wird zu SQL.",
   },
 ];
 

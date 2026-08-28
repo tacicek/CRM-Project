@@ -140,6 +140,25 @@ describe("Rücknahme-Tor · gegen das echte Verzeichnis", () => {
     }
   });
 
+  it("jede Ausnahme trägt eine Einstufung aus einem Ende-zu-Ende-Test", () => {
+    for (const a of BEKANNTE_AUSNAHMEN) {
+      expect(
+        ["CONFIRMED_STORED_PRIVILEGE_ESCALATION", "REFUTED_BY_PARSER_AND_QUOTING", "NEEDS_MORE_EVIDENCE"],
+        `${a.datei} ohne Einstufung`,
+      ).toContain(a.einstufung);
+      expect(a.beleg, `${a.datei} ohne Belegpfad`).toMatch(/^ops\//);
+    }
+  });
+
+  it("eine bestätigte Eskalation darf NICHT als Ausnahme stehenbleiben", () => {
+    // Eine Ausnahme ist eine Feststellung, kein Freibrief. Wird eine je als
+    // CONFIRMED eingestuft, muss das Artefakt korrigiert werden — nicht der Eintrag.
+    expect(
+      BEKANNTE_AUSNAHMEN.filter((a) => a.einstufung === "CONFIRMED_STORED_PRIVILEGE_ESCALATION")
+        .map((a) => a.datei),
+    ).toEqual([]);
+  });
+
   it("die korrigierte R-1-Rücknahme ist sauber", () => {
     const verstoesse = pruefeRollbackArtefakte().filter((v) =>
       v.datei.startsWith("ROLLBACK_20260828100000"),
