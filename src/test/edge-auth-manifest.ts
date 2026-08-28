@@ -1,21 +1,29 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Liest den Soll-Vertrag (`docs/hardening/edge-auth-manifest.json`) und die
- * juengste Produktionsaufnahme (`ops/production-truth/<datum>/`) und stellt sie
- * gegenueber.
+ * Der Auth-Vertrag der Edge Functions — und was daran gemessen statt geglaubt wird.
  *
- * WARUM DAS EIN TOR IST UND KEIN BERICHT
+ * WARUM ES DIESES TOR GIBT
  *
- * Diese Installation laeuft mit `VERIFY_JWT=false` und einer Kong-Route, die auf
- * `/functions/v1` nur `cors` traegt. Jede ausgerollte Function ist damit aus dem
- * Internet erreichbar, und die Pruefung im Handler ist die einzige Schranke.
- * `supabase/config.toml` wird von dieser Installation nicht ausgewertet — es
- * beschreibt eine Absicht, keinen Zustand.
+ * Diese Installation laeuft mit `VERIFY_JWT=false`, und die Kong-Route auf
+ * `/functions/v1` traegt nur `cors`. Der ausgerollte Router `main` ueberspringt
+ * seinen 401-Block genau dann. Jede ausgerollte Function ist damit aus dem
+ * Internet erreichbar, und die Pruefung IM HANDLER ist die einzige Schranke.
+ * `supabase/config.toml` beschreibt an dieser Installation eine Absicht, keinen
+ * Zustand.
  *
- * Eine Function, die ausgerollt ist und in keinem Modell steht, ist deshalb kein
- * Dokumentationsmangel, sondern ein unbekannter oeffentlicher Endpunkt.
+ * WAS IM MANIFEST STEHT UND WAS NICHT
+ *
+ * Im Manifest steht ausschliesslich BEURTEILUNG: Modell, Mandantenherleitung,
+ * erwartete Methoden, Datenpreisgabe, gewollter Deploymentzustand, Ausnahmen mit
+ * Grund.
+ *
+ * Nicht im Manifest stehen die messbaren Tatsachen — Repo-Pfad, config-Eintrag,
+ * Deployment, Digest, Auth-Signale im Quelltext. Die holt dieses Modul sich aus
+ * der Aufnahme, dem Repo und `config.toml`. Was man messen kann, wird nicht
+ * abgeschrieben: abgeschriebene Tatsachen veralten, und dann bestaetigt das Tor
+ * einen Zustand, den es nicht geprueft hat.
  */
 
 export const ERLAUBTE_MODELLE = [
@@ -31,13 +39,24 @@ export const ERLAUBTE_MODELLE = [
 
 export type AuthModell = (typeof ERLAUBTE_MODELLE)[number];
 
+export const ERLAUBTE_DEPLOYMENT_ABSICHTEN = [
+  /** Soll laufen und laeuft. */
+  "deployed",
+  /** Soll (noch) nicht laufen. */
+  "not-deployed",
+  /** Laeuft, soll aber zurueckgebaut werden. */
+  "undeploy",
+] as const;
+
+export type DeploymentAbsicht = (typeof ERLAUBTE_DEPLOYMENT_ABSICHTEN)[number];
+
 export interface ManifestEintrag {
   model: AuthModell;
-  deployed: boolean;
-  repo_source: boolean;
-  drift?: string;
-  disposition?: string;
-  open_finding?: string;
+  tenant_derivation: string;
+  intended_deployment: DeploymentAbsicht;
+  methods: string[];
+  public_data_exposure: string;
+  exceptions?: Record<string, string>;
   note?: string;
 }
 
@@ -45,43 +64,108 @@ export interface EdgeAuthManifest {
   capture_generation: string;
   gateway_is_not_a_boundary: boolean;
   functions: Record<string, ManifestEintrag>;
-  not_deployed_repo_only: string[];
   config_only_no_source_no_deploy: string[];
 }
 
 const WURZEL = join(__dirname, "..", "..");
-
-export const manifestPfad = () => join(WURZEL, "docs", "hardening", "edge-auth-manifest.json");
+const FUNKTIONEN = join(WURZEL, "supabase", "functions");
 
 export const leseManifest = (): EdgeAuthManifest =>
-  JSON.parse(readFileSync(manifestPfad(), "utf8")) as EdgeAuthManifest;
+  JSON.parse(readFileSync(join(WURZEL, "docs", "hardening", "edge-auth-manifest.json"), "utf8"));
 
-/**
- * Die juengste Aufnahme, nach Verzeichnisnamen (ISO-Datum) sortiert. Nicht nach
- * mtime: ein `git checkout` setzt mtime neu, das Datum im Namen bleibt.
- */
+/** Juengste Aufnahme nach ISO-Datum im Verzeichnisnamen — nicht nach mtime. */
 export const juengsteAufnahme = (): string | null => {
   const basis = join(WURZEL, "ops", "production-truth");
   if (!existsSync(basis)) return null;
-  const kandidaten = readdirSync(basis, { withFileTypes: true })
+  const d = readdirSync(basis, { withFileTypes: true })
     .filter((e) => e.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(e.name))
     .map((e) => e.name)
     .sort();
-  return kandidaten.length ? join(basis, kandidaten[kandidaten.length - 1]) : null;
+  return d.length ? join(basis, d[d.length - 1]) : null;
 };
 
-/** Namen der ausgerollten Functions aus einer Aufnahme, `_shared` eingeschlossen. */
 export const ausgerollteFunktionen = (aufnahme: string): string[] => {
-  const pfad = join(aufnahme, "edge-runtime.json");
-  const roh = JSON.parse(readFileSync(pfad, "utf8")) as {
+  const roh = JSON.parse(readFileSync(join(aufnahme, "edge-runtime.json"), "utf8")) as {
     edge_runtime: { deployed_functions: Array<{ name: string }> };
   };
   return roh.edge_runtime.deployed_functions.map((f) => f.name).sort();
 };
 
-/** Function-Verzeichnisse im Repo. */
+/** `VERIFY_JWT` der Laufzeit und die Plugins der Functions-Route. */
+export const gatewayZustand = (
+  aufnahme: string,
+): { verifyJwt: string; routePlugins: string[] } => {
+  const roh = JSON.parse(readFileSync(join(aufnahme, "edge-runtime.json"), "utf8")) as {
+    edge_runtime: { verify_jwt: string };
+    gateway: { functions_route_plugins: string[] };
+  };
+  return { verifyJwt: roh.edge_runtime.verify_jwt, routePlugins: roh.gateway.functions_route_plugins };
+};
+
 export const repoFunktionen = (): string[] =>
-  readdirSync(join(WURZEL, "supabase", "functions"), { withFileTypes: true })
+  readdirSync(FUNKTIONEN, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort();
+
+/** Die in `supabase/config.toml` deklarierten Function-Namen. */
+export const konfigurierteFunktionen = (): string[] => {
+  const toml = readFileSync(join(WURZEL, "supabase", "config.toml"), "utf8");
+  const namen = new Set<string>();
+  for (const treffer of toml.matchAll(/^\s*\[functions\.([A-Za-z0-9_-]+)\]/gm)) {
+    namen.add(treffer[1]);
+  }
+  return [...namen].sort();
+};
+
+export const quelltext = (name: string): string | null => {
+  const p = join(FUNKTIONEN, name, "index.ts");
+  return existsSync(p) ? readFileSync(p, "utf8") : null;
+};
+
+/** Gemessene Auth-Signale im Quelltext — keine Beurteilung, nur Vorkommen. */
+export interface Quellsignale {
+  serviceRole: boolean;
+  cronPruefung: boolean;
+  mitgliedschaft: boolean;
+  jwtBenutzer: boolean;
+  faehigkeitsToken: boolean;
+  signatur: boolean;
+  grabstein: boolean;
+}
+
+export const signale = (quelle: string): Quellsignale => ({
+  serviceRole: quelle.includes("SUPABASE_SERVICE_ROLE_KEY"),
+  // Die WÄCHTERFORM, nicht der Name. `isCronRequestDISABLED` enthält den Namen
+  // ebenfalls und wäre trotzdem abgeschaltet — diese Einschleusung kam am
+  // 2026-08-28 durch die erste Fassung dieses Tors.
+  cronPruefung: /\bif\s*\(\s*!\s*isCronRequest\s*\(/.test(quelle),
+  // Ebenfalls die Aufrufform: ein Import allein prüft nichts.
+  mitgliedschaft:
+    /\b(verifyCompanyMembership|verifyCompanyRole|assertCompanyMembership|assertCompanyMembershipFromAuthHeader)\s*\(/.test(
+      quelle,
+    ),
+  // Auch der gemeinsame Helfer zählt: `assertCompanyMembershipFromAuthHeader`
+  // löst den Benutzer aus dem Header auf. Nur `auth.getUser` zu zählen hiesse,
+  // den richtigen Weg zu bestrafen.
+  jwtBenutzer:
+    /\bauth\.getUser\s*\(/.test(quelle) ||
+    /\bassertCompanyMembershipFromAuthHeader\s*\(/.test(quelle),
+  // `reschedule_token`, `access_token`, `action_token`, `token_hash`, RPCs auf
+  // `…_by_token`. Bewusst nur snake_case: eine camelCase-Variable wie
+  // `responseToken` ist ein ERZEUGTES Token, kein geprüftes.
+  faehigkeitsToken:
+    /[a-z0-9]+_token\b|token_hash|_by_token\b|_by_action_token\b|\.eq\(\s*["'`]token["'`]/.test(
+      quelle,
+    ),
+  signatur: /\bverifySvixSignature\s*\(/.test(quelle),
+  grabstein:
+    quelle.includes("retiredAdminEndpoint") || quelle.includes("resendEmailTombstone"),
+});
+
+/** Modelle, bei denen ein service-role-Client ohne Mandantenbindung erwartbar ist. */
+export const OHNE_MANDANTENGRENZE_ERLAUBT: ReadonlySet<AuthModell> = new Set<AuthModell>([
+  "cron-secret",
+  "tombstone",
+  "infrastructure",
+]);

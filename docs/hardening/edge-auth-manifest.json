@@ -34,67 +34,613 @@
   ],
   "capture_generation": "ops/production-truth/2026-08-28",
   "gateway_is_not_a_boundary": true,
+  "$mechanical_facts": "Repo-Pfad, config.toml-Eintrag, Deployment, Digest-Drift und die Auth-Signale im Quelltext stehen ABSICHTLICH nicht in dieser Datei. Sie werden vom Tor aus Aufnahme, Repo und config.toml neu gemessen. Was man messen kann, wird nicht abgeschrieben — abgeschriebene Fakten veralten.",
+  "$exceptions": "Jede Ausnahme traegt ihren Grund. Eine Ausnahme ohne Grund ist ein abgeschalteter Test mit besserer Presse.",
   "functions": {
-    "main":                          { "model": "infrastructure",  "deployed": true,  "repo_source": false, "note": "Edge-Laufzeit-Router (--main-service). Prueft JWT nur bei VERIFY_JWT=true; hier false." },
-    "hello":                         { "model": "public-safe",     "deployed": true,  "repo_source": false, "disposition": "undeploy", "note": "Supabase-Beispiel. Konstante Antwort, kein Datenzugriff." },
-    "accept-lead":                   { "model": "jwt-member",      "deployed": true,  "repo_source": false, "disposition": "undeploy-after-caller-proof", "evidence": "deployed-source-read-2026-08-28", "note": "Marktplatz-Verteilung aus der Offerio-Zeit. NICHT aus dem Repo belegbar: kein Quelltext hier, und die Aufnahme schwaerzt ihn (externe URLs). Die Einstufung stammt aus dem am 2026-08-28 lesend aus dem Container geholten index.ts — dort stehen auth.getUser(token) und verifyCompanyMembership. Wer sie nachpruefen will, muss erneut lesen." },
-
-    "admin-add-company-member":      { "model": "tombstone",       "deployed": true,  "repo_source": true },
-    "admin-create-user":             { "model": "tombstone",       "deployed": true,  "repo_source": true },
-    "admin-delete-user":             { "model": "tombstone",       "deployed": true,  "repo_source": true },
-    "admin-remove-company-member":   { "model": "tombstone",       "deployed": true,  "repo_source": true },
-    "admin-reset-password":          { "model": "tombstone",       "deployed": true,  "repo_source": true },
-    "admin-update-user-email":       { "model": "tombstone",       "deployed": true,  "repo_source": true },
-
-    "analyze-besichtigung":          { "model": "jwt-member",      "deployed": true,  "repo_source": true },
-    "confirm-besichtigung":          { "model": "jwt-member",      "deployed": true,  "repo_source": true },
-    "create-besichtigung-session":   { "model": "jwt-member",      "deployed": true,  "repo_source": true },
-    "extract-anfrage-ai":            { "model": "jwt-member",      "deployed": true,  "repo_source": true },
-    "import-manual-lead":            { "model": "jwt-member",      "deployed": true,  "repo_source": true },
-    "send-offer":                    { "model": "jwt-member",      "deployed": true,  "repo_source": true, "drift": "tree" },
-    "company-secrets":               { "model": "jwt-member",      "deployed": true,  "repo_source": true, "note": "verifyCompanyRole — Rolle, nicht nur Mitgliedschaft." },
-    "send-quittung":                 { "model": "jwt-member",      "deployed": true,  "repo_source": true, "open_finding": "H-004" },
-    "send-rechnung-email":           { "model": "jwt-member",      "deployed": true,  "repo_source": true, "open_finding": "H-004" },
-    "send-appointment-confirmation": { "model": "jwt-member",      "deployed": true,  "repo_source": true, "open_finding": "H-004" },
-
-    "spell-check-ai":                { "model": "jwt-user",        "deployed": true,  "repo_source": true, "note": "Zustandsloser AI-Helfer, keine Zeilenbindung. Keine Drossel — jeder angemeldete Nutzer kann Anthropic-Kosten treiben." },
-    "test-resend-email":             { "model": "jwt-user",        "deployed": true,  "repo_source": true, "disposition": "review", "note": "Diagnosewerkzeug im Netz." },
-
-    "calendar-feed":                 { "model": "capability-token", "deployed": true, "repo_source": true, "drift": "tree", "note": "token_hash, revoked_at IS NULL." },
-    "complete-besichtigung":         { "model": "capability-token", "deployed": true, "repo_source": true },
-    "confirm-lead-by-token":         { "model": "capability-token", "deployed": true, "repo_source": true },
-    "delete-besichtigung-photo":     { "model": "capability-token", "deployed": true, "repo_source": true },
-    "handle-proposal-response":      { "model": "capability-token", "deployed": true, "repo_source": true, "drift": "index+tree" },
-    "notify-appointment-cancelled":  { "model": "capability-token", "deployed": true, "repo_source": true },
-    "notify-besichtigung":           { "model": "capability-token", "deployed": true, "repo_source": true, "note": "Token schliesst die Offerte auf, bevor der service-role-Client benutzt wird." },
-    "notify-offer-response":         { "model": "capability-token", "deployed": true, "repo_source": true, "drift": "tree" },
-    "upload-besichtigung-photo":     { "model": "capability-token", "deployed": true, "repo_source": true },
-    "validate-besichtigung-token":   { "model": "capability-token", "deployed": true, "repo_source": true, "drift": "index+tree" },
-
-    "inbound-email-lead":            { "model": "signed-webhook",  "deployed": true,  "repo_source": true, "note": "svix-signature (Resend); zweiter Pfad jwt-member." },
-
-    "auto-archive":                  { "model": "cron-secret",     "deployed": true,  "repo_source": true },
-    "cleanup-besichtigung":          { "model": "cron-secret",     "deployed": true,  "repo_source": true },
-    "notify-appointment-reminder":   { "model": "cron-secret",     "deployed": true,  "repo_source": true, "drift": "index+tree" },
-    "notify-auftrag-reminder":       { "model": "cron-secret",     "deployed": true,  "repo_source": true },
-    "notify-team-reminder":          { "model": "cron-secret",     "deployed": true,  "repo_source": true },
-
-    "calculate-distance":            { "model": "public-safe",     "deployed": true,  "repo_source": true, "drift": "index+tree", "open_finding": "P0-S3a", "note": "Unauthentifizierter Proxy auf eine kostenpflichtige Google-API. Drossel im Repo, NICHT ausgerollt." },
-    "google-places-autocomplete":    { "model": "public-safe",     "deployed": true,  "repo_source": true, "drift": "index+tree", "open_finding": "P0-S3a" },
-    "google-places-details":         { "model": "public-safe",     "deployed": true,  "repo_source": true, "drift": "index+tree", "open_finding": "P0-S3a" },
-    "generate-sitemap":              { "model": "public-safe",     "deployed": true,  "repo_source": true, "disposition": "undeploy", "note": "Marktplatz-Sitemap (/partner-werden, /preise, SEO-Landingpages). Liest nur veroeffentlichte blog_posts." },
-
-    "_shared":                       { "model": "infrastructure",  "deployed": true,  "repo_source": true, "drift": "tree", "note": "Kein Endpunkt. 44 Dateien ausgerollt gegen 64 im Repo." }
+    "_shared": {
+      "model": "infrastructure",
+      "tenant_derivation": "kein Endpunkt",
+      "intended_deployment": "deployed",
+      "methods": [
+        "—"
+      ],
+      "public_data_exposure": "none"
+    },
+    "accept-lead": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id aus dem Body, gegen verifyCompanyMembership geprueft",
+      "intended_deployment": "undeploy",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "note": "Quelltext nicht im Repo; Einstufung aus einer Lesung im Container am 2026-08-28."
+    },
+    "admin-add-company-member": {
+      "model": "tombstone",
+      "tenant_derivation": "—",
+      "intended_deployment": "deployed",
+      "methods": [
+        "OPTIONS",
+        "POST"
+      ],
+      "public_data_exposure": "none"
+    },
+    "admin-create-user": {
+      "model": "tombstone",
+      "tenant_derivation": "—",
+      "intended_deployment": "deployed",
+      "methods": [
+        "OPTIONS",
+        "POST"
+      ],
+      "public_data_exposure": "none"
+    },
+    "admin-delete-user": {
+      "model": "tombstone",
+      "tenant_derivation": "—",
+      "intended_deployment": "deployed",
+      "methods": [
+        "OPTIONS",
+        "POST"
+      ],
+      "public_data_exposure": "none"
+    },
+    "admin-remove-company-member": {
+      "model": "tombstone",
+      "tenant_derivation": "—",
+      "intended_deployment": "deployed",
+      "methods": [
+        "OPTIONS",
+        "POST"
+      ],
+      "public_data_exposure": "none"
+    },
+    "admin-reset-password": {
+      "model": "tombstone",
+      "tenant_derivation": "—",
+      "intended_deployment": "deployed",
+      "methods": [
+        "OPTIONS",
+        "POST"
+      ],
+      "public_data_exposure": "none"
+    },
+    "admin-update-user-email": {
+      "model": "tombstone",
+      "tenant_derivation": "—",
+      "intended_deployment": "deployed",
+      "methods": [
+        "OPTIONS",
+        "POST"
+      ],
+      "public_data_exposure": "none"
+    },
+    "analyze-besichtigung": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id der Session-Zeile, gegen verifyCompanyMembership",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "auto-archive": {
+      "model": "cron-secret",
+      "tenant_derivation": "alle Firmen — der Job laeuft systemweit",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "calculate-distance": {
+      "model": "public-safe",
+      "tenant_derivation": "kein Mandant",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "note": "Proxy auf eine kostenpflichtige Google-API. Drossel im Repo, NICHT ausgerollt (P0-S3a)."
+    },
+    "calendar-feed": {
+      "model": "capability-token",
+      "tenant_derivation": "token_hash-Zeile traegt company_id; revoked_at IS NULL",
+      "intended_deployment": "deployed",
+      "methods": [
+        "GET",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped",
+      "exceptions": {
+        "uniform-token-errors": "Ein Kalenderclient braucht 404 gegen 410 (widerrufen), sonst versucht er ewig weiter."
+      }
+    },
+    "cleanup-besichtigung": {
+      "model": "cron-secret",
+      "tenant_derivation": "alle Firmen",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "cleanup-box-rentals": {
+      "model": "cron-secret",
+      "tenant_derivation": "alle Firmen",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "cron-checks-secret": "OHNE Pruefung geschrieben. Darf NICHT ausgerollt werden, bevor isCronRequest ergaenzt ist — sonst ist es ein offener service-role-Endpunkt."
+      }
+    },
+    "company-secrets": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id aus dem Body, gegen verifyCompanyRole (Rolle, nicht nur Mitgliedschaft)",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "complete-besichtigung": {
+      "model": "capability-token",
+      "tenant_derivation": "Session-Zeile ueber RPC by token",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped"
+    },
+    "confirm-besichtigung": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id der Offerte, gegen verifyCompanyMembership",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "confirm-lead-by-token": {
+      "model": "capability-token",
+      "tenant_derivation": "Bestaetigungszeile ueber token; expires_at geprueft",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped"
+    },
+    "create-besichtigung-session": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id aus dem Body, gegen verifyCompanyMembership",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "delete-besichtigung-photo": {
+      "model": "capability-token",
+      "tenant_derivation": "Session-Zeile ueber RPC by token",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped"
+    },
+    "estimate-job-price": {
+      "model": "public-safe",
+      "tenant_derivation": "kein Mandant — reine Rechnung",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "service-role-needs-tenant-boundary": "Liest Firmenpreise ohne Aufrufernachweis. Darf NICHT ausgerollt werden, bevor ein Auth-Modell feststeht."
+      }
+    },
+    "extract-anfrage-ai": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id aus dem Body, gegen verifyCompanyMembership",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "generate-sitemap": {
+      "model": "public-safe",
+      "tenant_derivation": "kein Mandant — liest nur blog_posts mit status='published'",
+      "intended_deployment": "undeploy",
+      "methods": [
+        "GET",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "published-only",
+      "note": "Marktplatz-Sitemap aus der Offerio-Zeit (P0-S5).",
+      "exceptions": {
+        "service-role-needs-tenant-boundary": "Bewusst mandantenlos: die Sitemap ist ein oeffentliches Dokument und liest ausschliesslich blog_posts mit status='published'. Kein Mandantendatum verlaesst die Function."
+      }
+    },
+    "google-places-autocomplete": {
+      "model": "public-safe",
+      "tenant_derivation": "kein Mandant",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "note": "wie calculate-distance (P0-S3a)."
+    },
+    "google-places-details": {
+      "model": "public-safe",
+      "tenant_derivation": "kein Mandant",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "note": "wie calculate-distance (P0-S3a)."
+    },
+    "handle-proposal-response": {
+      "model": "capability-token",
+      "tenant_derivation": "Offerte ueber access_token",
+      "intended_deployment": "deployed",
+      "methods": [
+        "GET",
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped"
+    },
+    "handle-reschedule-response": {
+      "model": "capability-token",
+      "tenant_derivation": "appointment.reschedule_token muss stimmen und darf nicht abgelaufen sein; company_id kommt danach aus der Zeile",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "GET",
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped"
+    },
+    "hello": {
+      "model": "public-safe",
+      "tenant_derivation": "kein Mandant — konstante Antwort",
+      "intended_deployment": "undeploy",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "public_data_exposure": "none"
+    },
+    "import-manual-lead": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id aus dem Body, gegen verifyCompanyMembership",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "import-swiss-plz": {
+      "model": "public-safe",
+      "tenant_derivation": "kein Mandant — schreibt aber den PLZ-Katalog",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "service-role-needs-tenant-boundary": "Der PLZ-Katalog ist systemweit und traegt keinen Mandanten. Schreibend und ohne Pruefung — darf NICHT ausgerollt werden."
+      }
+    },
+    "inbound-email-lead": {
+      "model": "signed-webhook",
+      "tenant_derivation": "Firma ueber den Empfangsalias in api_keys; zweiter Pfad jwt-member",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "main": {
+      "model": "infrastructure",
+      "tenant_derivation": "kein Mandant — Router",
+      "intended_deployment": "deployed",
+      "methods": [
+        "*"
+      ],
+      "public_data_exposure": "none"
+    },
+    "notify-appointment-cancelled": {
+      "model": "capability-token",
+      "tenant_derivation": "Termin ueber RPC cancel_appointment_by_action_token",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped"
+    },
+    "notify-appointment-reminder": {
+      "model": "cron-secret",
+      "tenant_derivation": "company_id der Terminzeile",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "notify-appointment-reschedule": {
+      "model": "capability-token",
+      "tenant_derivation": "KEINE — appointmentId kommt ungeprueft aus dem Body; die Function ERZEUGT ein Token, sie prueft keines",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped",
+      "exceptions": {
+        "capability-token-validates-a-token": "Sie MINTET das reschedule_token und validiert keines. Damit hat sie heute gar kein Auth-Modell: unauthentifiziert, service-role, und sie sendet E-Mail an Adressen aus dem Body. Darf NICHT ausgerollt werden, bevor ein Modell steht.",
+        "service-role-needs-tenant-boundary": "Siehe oben — ohne Aufrufernachweis. Der Eintrag steht hier, damit der Zustand benannt ist, nicht damit er erlaubt waere."
+      },
+      "note": "Nicht ausgerollt. Ein E-Mail-Versender ohne Aufrufernachweis waere ein offenes Relais."
+    },
+    "notify-auftrag-reminder": {
+      "model": "cron-secret",
+      "tenant_derivation": "company_id der Auftragszeile",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "notify-besichtigung": {
+      "model": "capability-token",
+      "tenant_derivation": "Offerte ueber access_token, VOR der service-role-Nutzung",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped"
+    },
+    "notify-box-pickup": {
+      "model": "cron-secret",
+      "tenant_derivation": "company_id der Mietzeile",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "cron-checks-secret": "OHNE Pruefung geschrieben. Darf NICHT ausgerollt werden, bevor isCronRequest ergaenzt ist."
+      }
+    },
+    "notify-offer-response": {
+      "model": "capability-token",
+      "tenant_derivation": "Offerte ueber access_token",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped"
+    },
+    "notify-team-reminder": {
+      "model": "cron-secret",
+      "tenant_derivation": "company_id der Terminzeile",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "resend-email": {
+      "model": "tombstone",
+      "tenant_derivation": "—",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "OPTIONS",
+        "POST"
+      ],
+      "public_data_exposure": "none"
+    },
+    "send-appointment-confirmation": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id des Termins; Mitgliedschaft INLINE geprueft",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "jwt-member-uses-shared-helper": "H-004 — wie send-quittung.",
+        "service-role-needs-tenant-boundary": "H-004: die Mitgliedschaftspruefung ist da, aber abgeschrieben statt ueber den gemeinsamen Helfer — und sie steht in einem `if (zeile)`, dessen Abfragefehler verworfen wird. Offener Befund, absichtlich nicht per Ausnahme wegdefiniert."
+      }
+    },
+    "send-lead-confirmation": {
+      "model": "public-safe",
+      "tenant_derivation": "keine — oeffentliche Eingangsbestaetigung",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "service-role-needs-tenant-boundary": "Kein service-role-Schluessel; sendet aber E-Mail an eine Adresse aus dem Body, nur durch eine IP-Drossel gebremst. Vor einem Rollout braucht sie eine Signatur oder ein Token."
+      },
+      "note": "Nicht ausgerollt. Ohne Aufrufernachweis ein moegliches Mail-Relais."
+    },
+    "send-offer": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id der Offertenzeile, gegen verifyCompanyMembership",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "send-quittung": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id der Quittungszeile; Mitgliedschaft INLINE geprueft statt ueber den gemeinsamen Helfer",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "jwt-member-uses-shared-helper": "H-004: die Pruefung ist da, aber abgeschrieben — und steht in einem `if (zeile)`, dessen Abfragefehler verworfen wird. Offener Befund, nicht bereinigt.",
+        "service-role-needs-tenant-boundary": "H-004: die Mitgliedschaftspruefung ist da, aber abgeschrieben statt ueber den gemeinsamen Helfer — und sie steht in einem `if (zeile)`, dessen Abfragefehler verworfen wird. Offener Befund, absichtlich nicht per Ausnahme wegdefiniert."
+      }
+    },
+    "send-rechnung-email": {
+      "model": "jwt-member",
+      "tenant_derivation": "company_id der Rechnungszeile; Mitgliedschaft INLINE geprueft",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "jwt-member-uses-shared-helper": "H-004 — wie send-quittung.",
+        "service-role-needs-tenant-boundary": "H-004: die Mitgliedschaftspruefung ist da, aber abgeschrieben statt ueber den gemeinsamen Helfer — und sie steht in einem `if (zeile)`, dessen Abfragefehler verworfen wird. Offener Befund, absichtlich nicht per Ausnahme wegdefiniert."
+      }
+    },
+    "spell-check-ai": {
+      "model": "jwt-user",
+      "tenant_derivation": "kein Mandant — zustandsloser Textdienst",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "note": "Keine Drossel: jeder angemeldete Nutzer kann Anthropic-Kosten treiben."
+    },
+    "test-resend-email": {
+      "model": "jwt-user",
+      "tenant_derivation": "kein Mandant — Diagnose",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "note": "Diagnosewerkzeug im Netz; Rueckbau pruefen.",
+      "exceptions": {
+        "service-role-needs-tenant-boundary": "Diagnose-Endpunkt: prueft ein JWT, liest aber keine mandantengebundene Zeile. Rueckbau ist die bessere Antwort als eine Ausnahme — siehe P5."
+      }
+    },
+    "transcribe-voice": {
+      "model": "jwt-user",
+      "tenant_derivation": "kein Mandant — zustandsloser Textdienst",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "translate-content": {
+      "model": "jwt-member",
+      "tenant_derivation": "assertCompanyMembership",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    },
+    "upload-besichtigung-photo": {
+      "model": "capability-token",
+      "tenant_derivation": "Session-Zeile ueber RPC by token; expires_at geprueft",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped"
+    },
+    "validate-besichtigung-token": {
+      "model": "capability-token",
+      "tenant_derivation": "Session-Zeile ueber RPC by token",
+      "intended_deployment": "deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "capability-scoped",
+      "exceptions": {
+        "uniform-token-errors": "410 fuer abgelaufen gegen 401 fuer unbekannt ist gewollt: der Kunde soll erfahren, dass sein Link ABGELAUFEN ist, statt vor einer stummen Wand zu stehen."
+      }
+    },
+    "validate-lead-quality": {
+      "model": "public-safe",
+      "tenant_derivation": "kein Mandant",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "service-role-needs-tenant-boundary": "Ohne Aufrufernachweis. Darf NICHT ausgerollt werden, bevor ein Auth-Modell feststeht."
+      }
+    },
+    "verify-recaptcha": {
+      "model": "public-safe",
+      "tenant_derivation": "kein Mandant",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none"
+    }
   },
-  "not_deployed_repo_only": [
-    "cleanup-box-rentals", "estimate-job-price", "handle-reschedule-response",
-    "import-swiss-plz", "notify-appointment-reschedule", "notify-box-pickup",
-    "resend-email", "send-lead-confirmation", "transcribe-voice",
-    "translate-content", "validate-lead-quality", "verify-recaptcha"
-  ],
   "config_only_no_source_no_deploy": [
-    "admin-assign-lead", "calculate-lead-price", "generate-blog-ai",
-    "generate-landing-page-content", "match-lead", "notify-admin-new-lead",
-    "notify-companies", "send-token-notification"
+    "admin-assign-lead",
+    "calculate-lead-price",
+    "generate-blog-ai",
+    "generate-landing-page-content",
+    "match-lead",
+    "notify-admin-new-lead",
+    "notify-companies",
+    "send-token-notification"
   ]
 }

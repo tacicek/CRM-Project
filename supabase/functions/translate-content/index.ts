@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
-import { assertCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
+import { assertCompanyMembershipFromAuthHeader } from "../_shared/verifyCompanyMembership.ts";
 import { createLogger } from "../_shared/logger.ts";
 import { LOCALES, toLocale, type Locale } from "../_shared/i18n/locale.ts";
 
@@ -108,7 +108,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Nicht authentifiziert." }, 401);
 
     const body = (await req.json()) as TranslateRequest;
 
@@ -116,7 +115,12 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
-    await assertCompanyMembership(supabase, authHeader, body.company_id);
+    // Hier stand `assertCompanyMembership(supabase, authHeader, body.company_id)`
+    // — der rohe Header an der Stelle der `userId`, und das vierte Argument
+    // fehlte ganz. Die Abfrage lief als `user_id = 'Bearer eyJ…'` und traf nie
+    // eine Zeile: die Function verweigerte JEDEN Aufruf. Nicht ausgerollt,
+    // deshalb nie bemerkt.
+    await assertCompanyMembershipFromAuthHeader(supabase, authHeader, body.company_id, cors);
 
     const targets = (body.target_locales ?? [])
       .map(toLocale)

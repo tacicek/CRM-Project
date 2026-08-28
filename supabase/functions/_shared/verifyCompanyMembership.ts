@@ -83,3 +83,43 @@ export async function verifyCompanyRole(
 
   return data !== null && allowedRoles.includes(data.role);
 }
+
+/**
+ * Mitgliedschaft aus dem `Authorization`-Header heraus prüfen.
+ *
+ * WARUM ES DIESE FASSUNG BRAUCHT
+ *
+ * `assertCompanyMembership` erwartet eine `userId`. `translate-content` reichte
+ * ihr stattdessen den rohen Header („Bearer eyJ…") durch — die Abfrage lief
+ * damit als `company_members.user_id = 'Bearer eyJ…'` und traf nie eine Zeile.
+ * Die Function verweigerte also JEDEN Aufruf. Fail closed, aber kaputt: sie ist
+ * nicht ausgerollt, deshalb ist es nie jemandem aufgefallen.
+ *
+ * Aufgefallen ist es dem Auth-Manifest-Tor, das `jwt-member` ohne `auth.getUser`
+ * im Handler bemängelte. Diese Fassung schliesst die Lücke an der Wurzel: wer
+ * einen Header hat, soll ihn übergeben dürfen, ohne die Auflösung abzuschreiben.
+ */
+export async function assertCompanyMembershipFromAuthHeader(
+  supabase: SupabaseClient,
+  authHeader: string | null,
+  companyId: string,
+  corsHeaders: Record<string, string>
+): Promise<string> {
+  const abweisen = (nachricht: string, code: string, status: number): never => {
+    throw new Response(JSON.stringify({ error: nachricht, code }), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  };
+
+  if (!authHeader) abweisen("Nicht authentifiziert.", "no_auth_header", 401);
+
+  const token = (authHeader as string).replace(/^bearer\s+/i, "").trim();
+  if (!token) abweisen("Nicht authentifiziert.", "no_bearer_token", 401);
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) abweisen("Ungültige Sitzung.", "invalid_session", 401);
+
+  await assertCompanyMembership(supabase, data.user!.id, companyId, corsHeaders);
+  return data.user!.id;
+}
