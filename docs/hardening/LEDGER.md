@@ -45,7 +45,9 @@ Nichts aus diesem Programm ausser der Messung selbst ist live. Zwei Befunde sind
 
 | | Zustand | Was das bedeutet |
 |---|---|---|
-| **P0-S1** `landing_page_analytics` | **`LIVE_VERIFIED`** ✅ | Geschlossen am 2026-08-28. Keine schreibende PUBLIC-Policy, `anon` hält kein Schreibrecht mehr, RLS aktiv, 0 Zeilen. Beleg: `ops/rollout/2026-08-28/`. |
+| **P0-S1** `landing_page_analytics` | **`LIVE_VERIFIED`** ✅ | Geschlossen am 2026-08-28, am selben Tag nachgemessen. Keine schreibende PUBLIC-Policy, `anon` hält kein Schreibrecht (ACL `rxt`), RLS aktiv, 0 Zeilen; die verbliebene SELECT-Policy ist `is_admin(auth.uid())`, `anon` liest 0 Zeilen. Beleg: `ops/rollout/2026-08-28/`, Rückverfolgbarkeit: [R1-RUECKVERFOLGBARKEIT.md](R1-RUECKVERFOLGBARKEIT.md). |
+| **R-1 auf `main`** | **`NICHT VORHANDEN`** ⚠️ | Die Produktion führt zwei Migrationen aus, die es auf `main` nicht gibt. Schmaler Hotfix-PR vorgeschlagen (genau `ac26a2ed` + `14a96a93`), nicht angelegt — `gh pr create` bleibt extern blockiert. |
+| **M01-03** Undo-Tabelle ohne RLS | **`MIGRATION_PREPARED / NOT_LIVE`** | `public.undo_20260828100000` ist bis heute die einzige Tabelle im `public`-Schema ohne RLS — `anon` kann den R-1-Beleg lesen, fälschen und löschen. Keine Rechteausweitung, aber Beweismittelvernichtung. Korrektur `20260828150000` liegt bereit. |
 | **P0-S3a** drei Google-Proxys | **`ACTIVE_PRODUCTION_EXPOSURE` · `ROOT_CAUSE_UNRESOLVED`** | Die Drossel ist ausgerollt (`calculate-distance`) und wirkt trotzdem nicht — siehe **R2-01**. **Diese Funktionen sind NICHT gedrosselt.** Der Modul-`Map`-Zähler kann über Worker hinweg nichts durchsetzen. |
 | **P1A** Mandantentrennung | `INDEPENDENT_REVIEW_PASS`, **nicht live** | Die laufende Fassung rät die Firma weiter. |
 | **P1B-1** Rechtschreibprüfung | `VERIFIED_IN_REPO`, **nicht live** | Die ausgerollte Fassung korrigiert Französisch weiter nach deutschen Regeln. |
@@ -311,7 +313,7 @@ hinreichend** — dort rät niemand eine Firma.
 
 | Modul | Bericht | Urteil | Blockiert durch |
 |---|---|---|---|
-| 01 Identität und Mandantenschaft | [module-certification/01-…](module-certification/01-identitaet-und-mandantenschaft.md) | **NICHT ZERTIFIZIERT** | M01-01 · Zwei-Mandanten-Durchlauf gegen eine echte DB fehlt · nichts davon ist live |
+| 01 Identität und Mandantenschaft | [module-certification/01-…](module-certification/01-identitaet-und-mandantenschaft.md) | **NICHT ZERTIFIZIERT** | M01-01 · M01-02 (`is_admin` in 59 Policies/47 Tabellen) · M01-03 · Zwei-Mandanten-Durchlauf gegen eine echte DB fehlt · nichts davon ist live |
 
 ### M01-01 · Vier mandantenlose Admin-Policies auf `companies` · `VERIFIED`
 
@@ -343,9 +345,78 @@ Drei Dinge daran:
 **ruhende Rechteausweitung**. Sie gehört korrigiert, *bevor* jemand die erste
 Rolle vergibt — danach ist es ein Eingriff in laufenden Betrieb.
 
-**Zustand:** `PLANNED`. Die Korrektur ist eine Migration und braucht eine
-Produktentscheidung: soll es überhaupt eine firmenübergreifende Rolle geben? Bis
-die getroffen ist, wäre ein stiller Entzug genauso falsch wie das Belassen.
+**Zustand:** `MIGRATION_PREPARED / NOT_LIVE`. DEC-002 ist entschieden, die
+Migration `20260828140000` geschrieben und auf dem Wegwerf-Stapel bewiesen —
+nicht angewendet.
+
+Beim Schreiben kam eine **fünfte** Stelle dazu, die im Befund oben fehlte:
+`companies_select_member` trägt `USING (is_company_member(id) OR is_admin(auth.uid()))`.
+Nur die vier benannten Policies zu entfernen hätte einen firmenübergreifenden
+SELECT-Weg offen gelassen — die Entscheidung wäre nicht umgesetzt gewesen. Die
+Migration legt die Policy ohne den `is_admin`-Zweig neu an.
+
+Beweis auf dem Wegwerf-Stapel: vorher sah ein Benutzer mit Rolle `admin`
+**4 Firmen** bei Mitgliedschaft in einer; nachher 1 eigene, 0 fremde. Benutzer
+ohne Rolle blieben unberührt. Idempotent, Rücknahme stellt 5 Policies wieder her.
+
+---
+
+### M01-02 · `is_admin` regiert 59 Policies auf 47 Tabellen · `VERIFIED`
+
+DEC-002 wurde in der Annahme entschieden, es gehe um vier Policies. Beim
+Aufzählen der Aufrufer ergab die Messung (2026-08-28, lesend, Beleg
+`ops/rollout/2026-08-28/DEC002-is_admin-aufrufer.txt`):
+
+```
+is_admin in Policies:   59
+betroffene Tabellen:    47
+```
+
+Darunter `leads`, `offers`, `offer_items`, `customers`, `email_logs`,
+`appointments`, `team_members`, `profiles`, `agb_sections`, `pricing_rules`.
+Eine einzige Zeile in `user_roles` öffnet also nicht die Firmenzeile, sondern
+einen firmenübergreifenden Zugriff quer durch das System — Angebote, Kunden,
+Preise, E-Mail-Protokolle.
+
+Einziger Funktionsaufrufer: `guard_company_ownership()`, ein Trigger auf
+`companies`. Der benutzt `is_admin`, um einen Eigentümerwechsel zu **erlauben** —
+er sperrt, statt zu öffnen, und ist eine andere Frage.
+
+**Einstufung:** dieselbe ruhende Rechteausweitung wie M01-01, nur mit rund
+zwölfmal grösserer Reichweite. `user_roles` hat weiterhin 0 Zeilen, also kein
+aktiver Übertritt.
+
+**Zustand:** `PLANNED`. Migration `20260828140000` fasst die 55 übrigen Policies
+**bewusst nicht** an — der Auftrag lautete `companies`. Das hier braucht eine
+eigene Entscheidung, und sie ist grösser als DEC-002: sie berührt jede Tabelle,
+auf der heute ein „Admin" arbeiten könnte.
+
+---
+
+### M01-03 · Meine eigene R-1-Undo-Tabelle lag ohne RLS · `VERIFIED`
+
+`public.undo_20260828100000`, angelegt von der von mir geschriebenen und
+angewendeten Migration `20260828100000`, war die **einzige** Tabelle im ganzen
+`public`-Schema ohne Row Level Security. Die vier älteren Undo-Tabellen haben
+sie, bei identischer ACL.
+
+Die `anon`-Rechte stammen nicht aus der Migration, sondern aus dem schemaweiten
+`ALTER DEFAULT PRIVILEGES` von Supabase — jede neue Tabelle bekommt sie. RLS ist
+hier die Grenze, und genau die eine Zeile fehlte.
+
+**Was das Objekt nicht kann:** es ist eine gewöhnliche Tabelle, keine Funktion —
+kein `SECURITY DEFINER`, kein dynamisches SQL, kein Trigger, kein Aufrufer. Sie
+kann die entzogene Policy **nicht** wiederherstellen und `anon` keine Rechte
+zurückgeben; dafür bräuchte es DDL.
+
+**Was sie konnte,** am Nachbau gemessen: `anon` las die Zeile, fügte eine
+gefälschte ein, änderte den Beleg auf `rollen=verfälscht` und löschte alles.
+Nicht Rechteausweitung — Beweismittelvernichtung.
+
+**Zustand:** `MIGRATION_PREPARED / NOT_LIVE`. `20260828150000` schaltet RLS ein
+und entzieht `anon`/`authenticated` das Tabellenrecht; 8 von 8 Operationen
+danach `permission denied`, `service_role` kommt weiter heran, Belegzeile
+unversehrt. Nicht angewendet.
 
 ---
 
@@ -367,14 +438,15 @@ Beide sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-2
 
 | ID | Was | Befund | Zustand |
 |---|---|---|---|
-| **R-1** | Migrationen `20260828100000` **und** `20260828120000` | P0-S1 | **`LIVE_VERIFIED`** ✅ 2026-08-28 |
+| **R-1** | Migrationen `20260828100000` **und** `20260828120000` | P0-S1 | **`LIVE_VERIFIED`** ✅ 2026-08-28 · Digests, Commits und Anwendungszeit in [R1-RUECKVERFOLGBARKEIT.md](R1-RUECKVERFOLGBARKEIT.md); beim Anwenden wurde **kein Eingabe-Digest protokolliert** — bewiesen ist Wirkungsgleichheit, nicht Byte-Herkunft |
+| **M01-03** | Migration `20260828150000` — RLS auf die R-1-Undo-Tabelle | M01-03 | **`MIGRATION_PREPARED / NOT_LIVE`** — 8/8 Operationen für `anon`/`authenticated` danach abgewiesen, `service_role` behält Zugriff |
 | **R-2 / Einheit 1** | `_shared/appointmentDay.ts` | R-2 | **`LIVE_VERIFIED`** ✅ Digest geprüft, sieben Abhängige booten |
 | **R-2 / `calculate-distance`** | Handler ausgerollt | R-2 | **`DEPLOYED / BEHAVIOUR_EQUIVALENT`** — der einzige Unterschied zur Vorfassung ist die wirkungslose Drossel; das Verhalten ist identisch |
 | **R-2 / Drosselschutz** | Rate-Limit-Wirkung | R-2 | **`REFUTED`** — 61 Anfragen, null 429, vor und nach dem Rollout gleich |
 | **R-2 gesamt** | die sechs Handler | P0-S3, P0-S3a | **`ACTIVE_PRODUCTION_EXPOSURE / ROOT_CAUSE_UNRESOLVED`** — Einheiten 3–7 nicht ausgerollt |
 | **R-3** | Frontend, dann `spell-check-ai` | R-2 | **`BLOCKED_BY_R2`** · **`BLOCKED_BY_RELEASE_COUPLING`** — das Frontend-Deployment aktiviert zugleich die strenge Sendebereitschaft aus R-4 |
 | **R-4 … R-6** | — | — | **`NOT_AUTHORIZED_FOR_PRODUCTION`** |
-| **DEC-002** | vier mandantenlose `companies`-Policies entfernen | M01-01 | **`DECIDED / MIGRATION_NOT_PREPARED / NOT_LIVE`** |
+| **DEC-002** | vier mandantenlose `companies`-Policies entfernen | M01-01 | **`DECIDED / MIGRATION_PREPARED / NOT_LIVE`** — `20260828140000`, fünfte Stelle `companies_select_member` mitgefasst |
 | **R-3** | `_shared/spellCheckPrompt.ts` + `spell-check-ai`, **Frontend zuerst** | P0-S8 | `READY_FOR_ROLLOUT` |
 | **R-4** | `_shared/offerSendReadiness.ts` + `_shared/localizedRow.ts` + `_shared/verifyCompanyMembership.ts` **zuerst**, dann `send-offer` | P1B-3 | `READY_FOR_ROLLOUT` — fachliche Auswirkung vorher klären: unvollständig übersetzte fr/en-Offerten gehen danach nicht mehr hinaus |
 | **R-5** | Frontend neu bauen und ausrollen | P1A, P1B-2 | `READY_FOR_ROLLOUT` — ohne sie bleiben P1A und P1B-2 wirkungslos |
