@@ -1,0 +1,51 @@
+Nachtraege zu den Belegen, 2026-08-28T09:33:16Z
+
+=== 1. Cherry-Pick konfliktfrei? Jetzt mit Ausgabe, nicht mit Exit-Code ===
+  ac26a2ed auf main            -> tree 3a1a36077827  rc=0
+  14a96a93 darauf              -> tree 34017d23ea1d  rc=0
+  (rc=0 und ein Baum-Hash statt Konfliktliste = konfliktfrei)
+
+=== 2. Zaehlstand JETZT, nicht von vorhin ===
+  main...HEAD (zurueck voraus): 0	42
+  auf origin/chore/...:         0d473025
+  ac26a2ed auf origin? origin/chore/produktionswahrheit-festschreiben 
+  14a96a93 auf origin? origin/chore/produktionswahrheit-festschreiben 
+
+=== 3. Blob-Identitaet statt 'git status sauber' ===
+  20260828100000_landing_analytics_anon_insert_entzogen.sql
+    blob im Einfuehrungscommit: 8f2a7acc000d80b68d8a8d729973e34431381fc0
+    blob in HEAD:               8f2a7acc000d80b68d8a8d729973e34431381fc0
+    blob im Arbeitsbaum:        8f2a7acc000d80b68d8a8d729973e34431381fc0
+  20260828120000_landing_analytics_anon_schreibrechte_entzogen.sql
+    blob im Einfuehrungscommit: d68499421dc1bad0941da37adbae75855294e4bb
+    blob in HEAD:               d68499421dc1bad0941da37adbae75855294e4bb
+    blob im Arbeitsbaum:        d68499421dc1bad0941da37adbae75855294e4bb
+
+=== 4. Sperrt das Praedikat is_admin(auth.uid()) anon WIRKLICH? ===
+    In der Produktion hat die Tabelle 0 Zeilen — ein 0-Zeilen-Ergebnis
+    beweist dort nichts. Am Wegwerf-Stapel MIT Zeilen nachgestellt:
+DROP TABLE
+CREATE TABLE
+INSERT 0 3
+ALTER TABLE
+CREATE POLICY
+GRANT
+REVOKE
+     Tabelle enthaelt: 3 Zeilen
+     anon sieht:      0 Zeilen
+ROLLBACK
+ERROR:  permission denied for table landing_page_analytics
+ROLLBACK
+    (Der Fehler bei `authenticated` ist ein Aufbau-Artefakt: ich habe SELECT nur
+     an anon vergeben. In der Produktion haelt authenticated arwdDxt und faellt
+     ebenso am Praedikat, nicht am Recht. Kein Befund.)
+
+=== 5. Was NICHT gemessen wurde ===
+    Kein Digest der beim Anwenden uebergebenen Bytes. Die Protokolle
+    R1-apply-100000.txt und R1-apply-120000.txt enthalten AUSGABE
+    (BEGIN/NOTICE/DO/COMMIT), keine EINGABE und keine Zeitstempel.
+    Die Reihenfolge der beiden Einheiten stuetzt sich allein auf
+    Dateisystem-mtimes, die git nicht mitfuehrt.
+
+    Kein zweiter Lauf von 20260828100000 / 20260828120000. Dass sie
+    idempotent sind, ist aus dem SQL GELESEN, nicht gemessen.

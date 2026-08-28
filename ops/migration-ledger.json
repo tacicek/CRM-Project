@@ -406,7 +406,7 @@
     "ROLLBACK_20260805010000_kalender_feed_tokens.sql": "62bc5cbec6dc736a00f669ddd862b3d2d60264af146ea79e24e03d7fce0e2393",
     "ROLLBACK_20260807100000_kundenadresse_und_vollstaendige_zusammenfuehrung.sql": "6ba8f9840d5f87984512d181627c25329884a892a04499db2ffd42ebd73661db",
     "ROLLBACK_20260809120000_funktionsrechte_zweite_welle.sql": "30de39911a98c1cbbb0e1096b48e47e815c4d2cfac7af53d578d348e86d47f59",
-    "ROLLBACK_20260828100000_landing_analytics_anon_insert_entzogen.sql": "c329d13bba10f96c9105fd2a55003c2d02daa088f63195e7110b98951a5b2526",
+    "ROLLBACK_20260828100000_landing_analytics_anon_insert_entzogen.sql": "581957802753d27da4633be78f485390ac61e272e4f82e221316cccbd3270ace",
     "ROLLBACK_20260828110000_oeffentliche_rpc_rechte_verengen.sql": "445f38cef7279cdfa51c65b82f8a5a480b12a706767589e41997ee8ab0811346"
   }
 }

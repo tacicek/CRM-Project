@@ -4,9 +4,10 @@ Stand 2026-08-28. Lesend gegen die Produktion erhoben, Repository-Seite aus git.
 
 ## Die Lage in einem Satz
 
-Die Produktion fuehrt zwei Migrationen aus, die auf `main` **nicht existieren**.
-Sie liegen auf `chore/produktionswahrheit-festschreiben` (auch auf `origin`),
-und dieser Branch hat keinen Pull Request — das Anlegen scheiterte an einer
+Die Produktion traegt einen Zustand, den zwei Migrationen erzeugen, die auf
+`main` **nicht existieren**. Sie liegen auf `chore/produktionswahrheit-festschreiben`;
+die beiden R-1-Commits sind auf `origin`, die drei neuesten Commits des Branches
+noch nicht. Der Branch hat keinen Pull Request — das Anlegen scheiterte an einer
 externen Blockade, nicht an einer Entscheidung.
 
 ## Die beiden angewendeten Einheiten
@@ -21,7 +22,7 @@ externen Blockade, nicht an einer Entscheidung.
 | Commit | `ac26a2ed189e15b4bb876711d09e0c98a1ffdbb6` |
 | Commit-Zeit | 2026-08-28T01:00:19+02:00 |
 | Angewendet | 2026-08-28 08:12:55.376083+00 |
-| Beleg fuer die Zeit | `public.undo_20260828100000.erfasst_am` — die Zeile, die die Migration selbst schrieb |
+| Beleg fuer die Zeit | `public.undo_20260828100000.erfasst_am` — die Zeile, die die Migration selbst schrieb. **Kein vertrauenswuerdiger Anker:** diese Tabelle liegt bis `20260828150000` ohne RLS, `anon` darf den Wert aendern (M01-03). Ein unabhaengiger Zeitstempel existiert nicht. |
 | Auf `main`? | nein |
 
 ### Einheit 2 — Tabellenrecht entzogen
@@ -33,10 +34,17 @@ externen Blockade, nicht an einer Entscheidung.
 | Groesse | 3040 Bytes |
 | Commit | `14a96a9317643c9f3de8a40d3e05aac61a217b71` |
 | Commit-Zeit | 2026-08-28T10:12:26+02:00 |
-| Angewendet | 2026-08-28, unmittelbar nach Einheit 1 (Protokoll `ops/rollout/2026-08-28/R1-apply-120000.txt`) |
+| Angewendet | 2026-08-28, nach Einheit 1. **Schwach belegt:** `R1-apply-120000.txt` enthaelt keinen Zeitstempel; die Reihenfolge stuetzt sich auf Dateisystem-mtimes, die git nicht mitfuehrt. |
 | Auf `main`? | nein |
 
-Beide Dateien sind seit ihrem Commit unveraendert (`git status` sauber).
+Beide Dateien sind seit ihrem Commit unveraendert — belegt ueber **Blob-Identitaet**,
+nicht ueber `git status` (der Arbeitsbaum ist nicht sauber, er traegt unverwandte
+Bild- und Lockfile-Aenderungen):
+
+```
+20260828100000…  Einfuehrungscommit = HEAD = Arbeitsbaum = 8f2a7acc000d80b68d8a8d729973e34431381fc0
+20260828120000…  Einfuehrungscommit = HEAD = Arbeitsbaum = d68499421dc1bad0941da37adbae75855294e4bb
+```
 
 ## Was hier ehrlicherweise NICHT bewiesen ist
 
@@ -58,12 +66,19 @@ Was daraus folgt, und was nicht:
   anon insert/update/delete    false
   anon ACL                     rxt   (Schreibrechte weg)
   verbliebene Policy           "Admins can view analytics" USING is_admin(auth.uid())
-  anon liest tatsaechlich      0 Zeilen
   Tabellenzeilen               0
   ```
 
-- **Bewiesen:** beide Migrationen sind idempotent und pruefen sich selbst. Ein
-  erneuter Lauf waere ein No-op und wuerde bei Abweichung abbrechen.
+  Zur verbliebenen SELECT-Policy: `anon` **behaelt** das SELECT-Recht (`acl anon=rxt`).
+  Gesperrt wird es vom Praedikat, nicht vom Recht. In der Produktion ist das nicht
+  beobachtbar — die Tabelle hat 0 Zeilen, ein leeres Ergebnis beweist dort nichts.
+  Am Wegwerf-Stapel mit 3 Zeilen nachgestellt: `anon sieht 0 Zeilen`
+  (`ops/rollout/2026-08-28/BELEG-NACHTRAEGE.txt`).
+
+- **Gelesen, nicht gemessen:** beide Migrationen sind idempotent und pruefen sich
+  selbst. Das steht so im SQL; ein zweiter Lauf wurde fuer diese beiden Dateien
+  **nicht** protokolliert. Fuer die spaeteren Migrationen gibt es solche Belege,
+  fuer diese nicht.
 
 Das ist Wirkungsgleichheit, nicht Byte-Herkunft. Der Unterschied ist klein, aber
 er ist keiner, den man wegrunden darf: fuer kuenftige Rollouts gehoert der
@@ -74,12 +89,18 @@ Zuordnung der Datenbank: `system_identifier 7639710127421538342`, PostgreSQL 15.
 ## Vorschlag: ein schmaler Hotfix-PR
 
 `main` steht auf `68c07c7b` (Merge von PR #25). Der Arbeitsbranch ist ein
-strenger Fast-Forward: 41 Commits voraus, **0** zurueck. Es gibt also nichts
+strenger Fast-Forward: 42 Commits voraus, **0** zurueck. Es gibt also nichts
 zu versoehnen — nur etwas nachzuziehen.
 
 Beide angewendeten Commits beruehren **ausschliesslich** neue Migrationsdateien
 (Vorwaerts- und Ruecknahmerichtung), die auf `main` nicht existieren. Ein
-Cherry-Pick ist damit konfliktfrei; der Probemerge bestaetigt es.
+Cherry-Pick ist damit konfliktfrei — nachgerechnet, nicht behauptet
+(`ops/rollout/2026-08-28/BELEG-NACHTRAEGE.txt`):
+
+```
+git merge-tree --write-tree --merge-base=ac26a2ed^ main     ac26a2ed  -> 3a1a36077827  rc=0
+git merge-tree --write-tree --merge-base=14a96a93^ 3a1a3607 14a96a93  -> 34017d23ea1d  rc=0
+```
 
 Vorgeschlagener Inhalt — genau zwei Commits, nichts sonst:
 
@@ -90,12 +111,13 @@ ac26a2ed  fix(rls): landing_page_analytics — Policy hiess service_role …
 
 Titel: `hotfix(rls): die zwei bereits angewendeten landing_page_analytics-Migrationen nachziehen`
 
-Der PR aendert an der Produktion **nichts** — sie laeuft bereits so. Er schliesst
-die Luecke, dass jemand von `main` abzweigt und ohne diese Migrationen
-deployt, und dass die angewendeten Bytes ausserhalb eines Feature-Branches
-keinen Ort haben.
+Der PR aendert an der Produktion **nichts** — ihr Zustand entspricht bereits dem,
+was diese Bytes erzeugen. Er schliesst die Luecke, dass jemand von `main`
+abzweigt und ohne diese Migrationen deployt, und dass die einzigen Dateien, die
+den Produktionszustand erklaeren, ausserhalb eines Feature-Branches keinen Ort
+haben.
 
-Die uebrigen 39 Commits des Arbeitsbranches gehoeren **nicht** in diesen PR.
+Die uebrigen 40 Commits des Arbeitsbranches gehoeren **nicht** in diesen PR.
 Sie enthalten nicht freigegebene Migrationen (`20260828130000`,
 `20260828140000`, `20260828150000`) und vorbereitete, nicht ausgerollte
 Aenderungen. Ein Hotfix-PR, der sie mitnaehme, waere kein Hotfix.

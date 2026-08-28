@@ -39,12 +39,37 @@ BEGIN
     RAISE EXCEPTION 'festgehaltene Rollen waren "%", nicht PUBLIC — diese Datei stellt nur den PUBLIC-Fall her', z.rollen;
   END IF;
 
-  EXECUTE format(
-    'CREATE POLICY %I ON public.landing_page_analytics FOR INSERT WITH CHECK (%s)',
-    z.policyname, coalesce(z.withcheck, 'true')
-  );
+  -- Der festgehaltene Text wird GEPRUEFT, nicht eingesetzt.
+  --
+  -- Frueher stand hier `format('… WITH CHECK (%s)', z.withcheck)`. `%s` setzt
+  -- roh ein, und `z.withcheck` steht in einer Tabelle, die bis zur Migration
+  -- 20260828150000 ohne RLS lag — `anon` durfte sie beschreiben. Am Wegwerf-
+  -- Stapel nachgestellt: `anon` setzte
+  --     true); INSERT INTO public.beute VALUES ('...'); --
+  -- und beim Lauf dieser Datei fuehrte `postgres` es aus. Nicht bloss ein
+  -- verfaelschter Beleg — fremdes SQL mit Eigentuemerrechten.
+  --
+  -- Deshalb erreicht der gespeicherte Wert das EXECUTE nicht mehr. Er darf nur
+  -- noch bestaetigen, dass der erwartete Fall vorliegt; alles andere bricht ab
+  -- und ueberlaesst dem Betreiber die Entscheidung. Die Ruecknahme stellt genau
+  -- EINE bekannte Policy her, und deren WITH CHECK war gemessen `true` — es gibt
+  -- nichts zu interpolieren.
+  IF coalesce(z.withcheck, 'true') <> 'true' THEN
+    RAISE EXCEPTION
+      'festgehaltenes WITH CHECK ist "%", erwartet "true". Diese Datei setzt keinen '
+      'gespeicherten Text als SQL ein. Pruefe den Eintrag in '
+      'public.undo_20260828100000 von Hand, bevor du fortfaehrst.', z.withcheck;
+  END IF;
 
-  RAISE NOTICE 'Policy % wiederhergestellt (roles=PUBLIC, WITH CHECK %)', z.policyname, coalesce(z.withcheck, 'true');
+  IF z.policyname <> 'Service role can insert analytics' THEN
+    RAISE EXCEPTION 'unerwarteter Policy-Name "%"', z.policyname;
+  END IF;
+
+  -- Konstantes DDL. Kein Wert aus der Tabelle geht hier hinein.
+  CREATE POLICY "Service role can insert analytics"
+    ON public.landing_page_analytics FOR INSERT WITH CHECK (true);
+
+  RAISE NOTICE 'Policy % wiederhergestellt (roles=PUBLIC, WITH CHECK true)', z.policyname;
 END
 $rollback$;
 

@@ -13,10 +13,12 @@ widerlegt).
 Ein einziges `DONE` für „im Repo umgesetzt", „lokal geprüft", „durchgesehen",
 „gemergt", „ausgerollt" und „live nachgewiesen" ist genau die Unschärfe, die
 dieses Programm beseitigen soll. Eine Sicherheitslücke ist nicht geschlossen,
-weil ihre Migration existiert. Deshalb sechs getrennte Stufen:
+weil ihre Migration existiert. Deshalb getrennte Stufen — die Tabelle ist die
+vollständige Liste; ein Zustand, der hier fehlt, darf unten nicht auftauchen:
 
 | Zustand | Bedeutet | Bedeutet NICHT |
 |---|---|---|
+| `BACKLOG` | erfasst, bewusst zurückgestellt | dass es erledigt ist |
 | `PLANNED` | benannt, nicht begonnen | — |
 | `IN_PROGRESS` | in Arbeit | — |
 | `VERIFIED_IN_REPO` | umgesetzt, lokale Tore grün (type-check, Tests, Build, Lint) | dass jemand anderes daraufgeschaut hat |
@@ -28,10 +30,27 @@ weil ihre Migration existiert. Deshalb sechs getrennte Stufen:
 | `BLOCKED_EXTERNAL` | etwas ausserhalb dieses Repos hält auf (Berechtigung, Zugang, Dienst) | dass die Arbeit steht |
 | `ACTIVE_PRODUCTION_EXPOSURE` | in der Produktion **jetzt** ausnutzbar, Korrektur liegt bereit | dass sie behoben ist |
 | `AWAITING_PRODUCTION_AUTH` | der nächste Schritt ist ein Produktionsschreibvorgang ohne Freigabe | — |
+| `DECIDED` | die Produktentscheidung ist gefallen | dass Code oder Migration existiert |
+| `MIGRATION_PREPARED / NOT_LIVE` | Migration geschrieben und auf dem Wegwerf-Stapel bewiesen | dass sie in der Produktion liegt |
+| `DEPLOYED / BEHAVIOUR_EQUIVALENT` | ausgerollt, aber das Verhalten ist identisch zur Vorfassung | dass der Rollout etwas bewirkt hat |
+| `ROOT_CAUSE_UNRESOLVED` | die Ursache steht, die Behebung nicht | dass ein Rollout sie behebt |
+| `BLOCKED_BY_R2` / `BLOCKED_BY_RELEASE_COUPLING` | hängt an einer anderen Einheit bzw. an einem gekoppelten Release | — |
+| `NOT_AUTHORIZED_FOR_PRODUCTION` | ausdrücklich nicht freigegeben | dass es unfertig wäre |
 
 **Nichts in diesem Repo kann `LIVE_VERIFIED` erreichen, solange kein
 Produktionsschreibvorgang freigegeben ist.** Das ist kein Mangel des Ledgers,
 sondern sein Zweck.
+
+Davon zu trennen sind die **Belegetiketten** `VERIFIED`, `HYPOTHESIS`,
+`NEEDS-PRODUCTION-CHECK` und `REFUTED`. Sie sagen, wie gut etwas belegt ist,
+nicht wie weit es ist. Ein Befund kann `VERIFIED` und trotzdem `PLANNED` sein —
+gut belegt und unangetastet.
+
+Am 2026-08-28 wurden **R-1, R-2 und R-3 gestuft freigegeben** — ausdrücklich, mit
+bindender Reihenfolge und Abbruchbedingung. R-4 bis R-6 blieben ausgenommen.
+Ausgeführt wurden davon R-1 vollständig und R-2 bis Einheit 2; danach griff die
+Abbruchbedingung. Die `LIVE_VERIFIED`-Zeilen unten stützen sich auf **diese**
+Freigabe. Seither ist nichts weiter freigegeben.
 
 Programm: [CRM_SYSTEM_HARDENING_PROGRAM.md](../CRM_SYSTEM_HARDENING_PROGRAM.md) ·
 Belege: `.project-engineering/evidence/` · Steuerung: `.project-engineering/`
@@ -40,12 +59,14 @@ Belege: `.project-engineering/evidence/` · Steuerung: `.project-engineering/`
 
 ## Was in der Produktion JETZT gilt (Stand 2026-08-28)
 
-Nichts aus diesem Programm ausser der Messung selbst ist live. Zwei Befunde sind
-**offen und ausnutzbar**, während ihre Korrektur im Repo liegt:
+Aus diesem Programm ist **R-1** live (freigegeben und ausgeführt) sowie **eine**
+gemeinsame Datei aus R-2; alles Übrige ist es nicht. Ein Befund ist **offen und
+ausnutzbar**, und für ihn liegt die Korrektur ausdrücklich *nicht* im Repo, weil
+Ausrollen ihn nicht behebt (R2-01):
 
 | | Zustand | Was das bedeutet |
 |---|---|---|
-| **P0-S1** `landing_page_analytics` | **`LIVE_VERIFIED`** ✅ | Geschlossen am 2026-08-28, am selben Tag nachgemessen. Keine schreibende PUBLIC-Policy, `anon` hält kein Schreibrecht (ACL `rxt`), RLS aktiv, 0 Zeilen; die verbliebene SELECT-Policy ist `is_admin(auth.uid())`, `anon` liest 0 Zeilen. Beleg: `ops/rollout/2026-08-28/`, Rückverfolgbarkeit: [R1-RUECKVERFOLGBARKEIT.md](R1-RUECKVERFOLGBARKEIT.md). |
+| **P0-S1** `landing_page_analytics` | **`LIVE_VERIFIED`** ✅ | Geschlossen am 2026-08-28, am selben Tag nachgemessen. Keine schreibende PUBLIC-Policy, `anon` hält kein Schreibrecht (ACL `rxt`), RLS aktiv, 0 Zeilen; die verbliebene SELECT-Policy ist `is_admin(auth.uid())`. `anon` behält das SELECT-**Recht** (`rxt`); gesperrt wird es vom Prädikat. In der Produktion nicht beobachtbar (0 Zeilen) — am Wegwerf-Stapel mit 3 Zeilen nachgestellt: `anon sieht 0`. Beleg: `ops/rollout/2026-08-28/`, Rückverfolgbarkeit: [R1-RUECKVERFOLGBARKEIT.md](R1-RUECKVERFOLGBARKEIT.md). |
 | **R-1 auf `main`** | **`NICHT VORHANDEN`** ⚠️ | Die Produktion führt zwei Migrationen aus, die es auf `main` nicht gibt. Schmaler Hotfix-PR vorgeschlagen (genau `ac26a2ed` + `14a96a93`), nicht angelegt — `gh pr create` bleibt extern blockiert. |
 | **M01-03** Undo-Tabelle ohne RLS | **`MIGRATION_PREPARED / NOT_LIVE`** | `public.undo_20260828100000` ist bis heute die einzige Tabelle im `public`-Schema ohne RLS — `anon` kann den R-1-Beleg lesen, fälschen und löschen. Keine Rechteausweitung, aber Beweismittelvernichtung. Korrektur `20260828150000` liegt bereit. |
 | **P0-S3a** drei Google-Proxys | **`ACTIVE_PRODUCTION_EXPOSURE` · `ROOT_CAUSE_UNRESOLVED`** | Die Drossel ist ausgerollt (`calculate-distance`) und wirkt trotzdem nicht — siehe **R2-01**. **Diese Funktionen sind NICHT gedrosselt.** Der Modul-`Map`-Zähler kann über Worker hinweg nichts durchsetzen. |
@@ -53,7 +74,10 @@ Nichts aus diesem Programm ausser der Messung selbst ist live. Zwei Befunde sind
 | **P1B-1** Rechtschreibprüfung | `VERIFIED_IN_REPO`, **nicht live** | Die ausgerollte Fassung korrigiert Französisch weiter nach deutschen Regeln. |
 | **P1B-2/3** Sprachwechsel + Sendebereitschaft | `VERIFIED_IN_REPO`, **nicht live** | Die laufende Fassung schickt eine französische Offerte weiterhin mit deutschen AGB hinaus. |
 | **P1C-0** Auth-Manifest | `VERIFIED_IN_REPO` | Ein Tor im Repo. Es ändert nichts an dem, was heute in der Produktion erreichbar ist. |
-| **R-1 / R-2 / R-3** | `READY_FOR_ROLLOUT` | Pakete vollständig ([ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-28.md)), **keins ausgeführt**. |
+| **R-1** | `LIVE_VERIFIED` ✅ | Freigegeben und ausgeführt. |
+| **R-2** | teils ausgeführt | Einheit 1 (`_shared/appointmentDay.ts`) `LIVE_VERIFIED`; `calculate-distance` `DEPLOYED / BEHAVIOUR_EQUIVALENT`; danach Abbruchbedingung gegriffen. |
+| **R-3** | `BLOCKED_BY_R2` · `BLOCKED_BY_RELEASE_COUPLING` | Freigegeben, aber nicht ausführbar: das Frontend-Deployment aktiviert zugleich die strenge Sendebereitschaft aus R-4. Entkoppelte Minimalfassung liegt auf `release/r3-spellcheck-locale`. |
+| **R-4 … R-6** | `NOT_AUTHORIZED_FOR_PRODUCTION` | Pakete vollständig ([ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-28.md)), **nicht freigegeben**. |
 | **PR** | `BLOCKED_EXTERNAL` | `gh pr create` von der Berechtigungsprüfung abgewiesen. Hält die Arbeit im Repo nicht auf. |
 
 ---
@@ -153,10 +177,10 @@ durchgezogen und P0-S3a als geschlossen gemeldet.
 
 | ID | Etikett | Befund | Zustand |
 |---|---|---|---|
-| **P0-S1** | `VERIFIED` | `landing_page_analytics` trägt in der Produktion eine INSERT-Policy `TO PUBLIC` mit `WITH CHECK (true)`; `anon` hat das Tabellenrecht. Die Korrektur `20260828100000` liegt im Repo, `undo_20260828100000` fehlt in der Produktion → **nicht eingespielt**. Unauthentifiziert aus dem Internet schreibbar. | **`ACTIVE_PRODUCTION_EXPOSURE`** — Korrektur liegt bereit (R-1), ist aber **nicht angewendet**. Die Lücke ist offen. |
+| **P0-S1** | `VERIFIED` | Befund bei der Messung: `landing_page_analytics` trug eine INSERT-Policy `TO PUBLIC` mit `WITH CHECK (true)`; `anon` hielt das Tabellenrecht. Unauthentifiziert aus dem Internet schreibbar. **Am 2026-08-28 geschlossen** (R-1, freigegeben): keine schreibende PUBLIC-Policy, `anon`-ACL auf `rxt`, RLS aktiv, am selben Tag lesend nachgeprüft. | **`LIVE_VERIFIED`** ✅ — Nachtrag: die Undo-Tabelle dieser Migration lag ohne RLS, siehe **M01-03** und **M01-04**. |
 | **P0-S2** | `VERIFIED` | `VERIFY_JWT=false`; der ausgerollte Router `main` überspringt seinen 401-Block genau dann; Kong-Route `/functions/v1` trägt nur `cors`. Jede ausgerollte Function ist unauthentifiziert erreichbar. `config.toml` ist an dieser Installation wirkungslos. | `LIVE_VERIFIED` (gemessener Zustand; als Vertrag im Manifest festgeschrieben) |
 | **P0-S3** | `VERIFIED` | 10 Functions driften. Alle 10 gegen den ausgerollten Quelltext diffed: die Produktion ist **älter**, nicht anders. | `READY_FOR_ROLLOUT` (R-2) |
-| **P0-S3a** | `VERIFIED` | `calculate-distance`, `google-places-autocomplete`, `google-places-details` sind unauthentifizierte Proxys auf kostenpflichtige Google-APIs. Die Drossel (60/min je IP) steht im Repo, ist aber **nicht ausgerollt**. Fremdkostenabfluss ohne jede Hürde. | **`ACTIVE_PRODUCTION_EXPOSURE`** — die Drossel ist im Repo, aber nicht ausgerollt (R-2). Der Abfluss ist offen. |
+| **P0-S3a** | `VERIFIED` | `calculate-distance`, `google-places-autocomplete`, `google-places-details` sind unauthentifizierte Proxys auf kostenpflichtige Google-APIs. Fremdkostenabfluss ohne jede Hürde. **Ausrollen behebt es nicht** — siehe R2-01: der Modul-`Map`-Zähler kann über Worker hinweg nichts durchsetzen. `calculate-distance` ist ausgerollt und trotzdem ungedrosselt. | **`ACTIVE_PRODUCTION_EXPOSURE` · `ROOT_CAUSE_UNRESOLVED`** — der Ersatz (`20260828130000` + `_shared/paidApiGuard.ts`) liegt bereit, ist **nicht** freigegeben. |
 | **P0-S4** | `REFUTED` | Sorge: unauthentifizierter deploy-only Handler. Gelesen: `accept-lead` prüft `auth.getUser` **und** `verifyCompanyMembership`; `hello` gibt eine Konstante zurück; `main` ist der Laufzeit-Router. Kein offenes Loch. | — |
 | **P0-S5** | `VERIFIED` | `generate-sitemap` läuft mit `service_role` ohne Auth und erzeugt Marktplatz-Sitemaps (`/partner-werden`, `/preise`, SEO-Landingpages). Liest nur `blog_posts` mit `status='published'` — kein Datenabfluss. | `BACKLOG` → P5-1 |
 | **P0-S6** | `VERIFIED` | 8 `config.toml`-Einträge ohne Quelle und ohne Deployment; 16 Quellen ohne Eintrag; 12 Quellen ohne Deployment. | `BACKLOG` → P3-2 |
@@ -313,7 +337,7 @@ hinreichend** — dort rät niemand eine Firma.
 
 | Modul | Bericht | Urteil | Blockiert durch |
 |---|---|---|---|
-| 01 Identität und Mandantenschaft | [module-certification/01-…](module-certification/01-identitaet-und-mandantenschaft.md) | **NICHT ZERTIFIZIERT** | M01-01 · M01-02 (`is_admin` in 59 Policies/47 Tabellen) · M01-03 · Zwei-Mandanten-Durchlauf gegen eine echte DB fehlt · nichts davon ist live |
+| 01 Identität und Mandantenschaft | [module-certification/01-…](module-certification/01-identitaet-und-mandantenschaft.md) | **NICHT ZERTIFIZIERT** | M01-01 · M01-02 (`is_admin` in 59 Policies/47 Tabellen) · M01-03 · M01-04 · Zwei-Mandanten-Durchlauf gegen eine echte DB fehlt · nichts davon ist live |
 
 ### M01-01 · Vier mandantenlose Admin-Policies auf `companies` · `VERIFIED`
 
@@ -372,6 +396,14 @@ is_admin in Policies:   59
 betroffene Tabellen:    47
 ```
 
+Zur Belegdatei selbst: sie enthält **zwei fehlgeschlagene Abfragen**
+(`array_agg is an aggregate function`, `ORDER BY position 2 is not in select
+list`). Die „47 Tabellen" stammen daher nicht aus einer Abfrage, sondern aus der
+Auszählung der 59 Zeilen. Die unabhängige Durchsicht hat beide Zahlen
+nachgerechnet und bestätigt, und die Stichprobe
+(`offers | Public can view/update offer with valid token`) gegen
+`20251223021009_…sql:20,35,40` geprüft — die Einträge tragen `is_admin` wirklich.
+
 Darunter `leads`, `offers`, `offer_items`, `customers`, `email_logs`,
 `appointments`, `team_members`, `profiles`, `agb_sections`, `pricing_rules`.
 Eine einzige Zeile in `user_roles` öffnet also nicht die Firmenzeile, sondern
@@ -379,7 +411,8 @@ einen firmenübergreifenden Zugriff quer durch das System — Angebote, Kunden,
 Preise, E-Mail-Protokolle.
 
 Einziger Funktionsaufrufer: `guard_company_ownership()`, ein Trigger auf
-`companies`. Der benutzt `is_admin`, um einen Eigentümerwechsel zu **erlauben** —
+`companies` (`20260727120000_company_role_guard.sql:83` — der einzige
+Nicht-Policy-Aufruf im gesamten Migrationsbaum, unabhängig nachgeprüft). Der benutzt `is_admin`, um einen Eigentümerwechsel zu **erlauben** —
 er sperrt, statt zu öffnen, und ist eine andere Frage.
 
 **Einstufung:** dieselbe ruhende Rechteausweitung wie M01-01, nur mit rund
@@ -405,7 +438,10 @@ Die `anon`-Rechte stammen nicht aus der Migration, sondern aus dem schemaweiten
 hier die Grenze, und genau die eine Zeile fehlte.
 
 **Was das Objekt nicht kann:** es ist eine gewöhnliche Tabelle, keine Funktion —
-kein `SECURITY DEFINER`, kein dynamisches SQL, kein Trigger, kein Aufrufer. Sie
+kein `SECURITY DEFINER`, kein dynamisches SQL, kein Trigger, und **kein Aufrufer
+in der Datenbank**. Diese Einschränkung zählt: die Abfrage sah den Katalog, nicht
+das Dateisystem. Eine `.sql`-Datei im Repo, die die Tabelle liest, konnte sie
+strukturell nicht finden — und genau eine solche gab es (M01-04). Sie
 kann die entzogene Policy **nicht** wiederherstellen und `anon` keine Rechte
 zurückgeben; dafür bräuchte es DDL.
 
@@ -417,6 +453,59 @@ Nicht Rechteausweitung — Beweismittelvernichtung.
 und entzieht `anon`/`authenticated` das Tabellenrecht; 8 von 8 Operationen
 danach `permission denied`, `service_role` kommt weiter heran, Belegzeile
 unversehrt. Nicht angewendet.
+
+**Korrektur der eigenen Einstufung:** oben stand „Nicht Rechteausweitung —
+Beweismittelvernichtung". Das war zu milde. Siehe M01-04.
+
+---
+
+### M01-04 · SQL-Injektion in die Rücknahme von R-1 · `VERIFIED` · **behoben im Repo**
+
+Die unabhängige Durchsicht fand, was mir entgangen war.
+`ROLLBACK_20260828100000_…sql` baute die wiederherzustellende Policy so:
+
+```sql
+EXECUTE format(
+  'CREATE POLICY %I ON public.landing_page_analytics FOR INSERT WITH CHECK (%s)',
+  z.policyname, coalesce(z.withcheck, 'true')
+);
+```
+
+`%s` setzt **roh** ein, und `z.withcheck` steht in genau der Tabelle, die laut
+M01-03 ohne RLS liegt und von `anon` beschreibbar ist. PL/pgSQL `EXECUTE` nimmt
+mehrere Anweisungen entgegen. Am Wegwerf-Stapel nachgestellt:
+
+```
+anon setzte:  true); INSERT INTO public.beute VALUES ('...'); --
+Betreiber führt die Rücknahme aus (als postgres)
+Ergebnis:     beute: anon hat als postgres geschrieben
+```
+
+Das ist keine Beweismittelvernichtung mehr, sondern **fremdes SQL mit
+Eigentümerrechten**. Der Weg ist real, aber nicht selbstauslösend: er verlangt,
+dass ein Betreiber die Rücknahme ausführt — und
+[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-28.md) weist ihn genau dazu an.
+
+**Warum es nur diese eine Datei trifft.** Das Muster `%s`-in-DDL steht auch in
+`ROLLBACK_20260809120000_…sql`. Dessen Undo-Tabelle hat aber RLS — nur
+`service_role` schreibt dort, und die dürfte das DDL ohnehin. Erreichbar für
+`anon` ist allein `undo_20260828100000`, die Tabelle, die ich ohne RLS angelegt
+habe. Die beiden Befunde sind dieselbe Wurzel, zweimal.
+
+**Behoben:** der gespeicherte Wert erreicht das `EXECUTE` nicht mehr. Er wird
+geprüft (`withcheck` muss `true` sein, der Name muss stimmen), und das DDL ist
+konstant. Angriff danach: `ERROR … erwartet "true"`, Transaktion zurückgerollt,
+`beute` leer. Der echte Fall stellt die Policy weiterhin her
+(`cmd=a check=true`).
+
+**Eingriff in eine bestehende Datei — bewusst und sichtbar.** Die Datei ist eine
+`ROLLBACK_`-Schwester und wurde **nie angewendet**; die Anfüge-Regel schützt den
+Nachweis dessen, was *lief*. Das Tor hat den Eingriff korrekt gemeldet
+(`keine bestehende Datei wurde geändert` → rot), und die Prüfsumme wurde
+**einzeln** nachgezogen: eine Zeile in `ops/migration-ledger.json`. Wer das
+prüfen will: `git log -p ops/migration-ledger.json`. Die Alternative wäre
+gewesen, eine nachweislich ausnutzbare Datei in einem Handbuch stehen zu lassen,
+das zu ihrer Ausführung auffordert.
 
 ---
 
@@ -431,10 +520,16 @@ unversehrt. Nicht angewendet.
 
 ---
 
-## Nicht autorisierte Produktionsschreibvorgänge (Stand 2026-08-28)
+## Produktionsschreibvorgänge — freigegeben, ausgeführt, offen (Stand 2026-08-28)
 
-Beide sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-28.md)**
-— Reihenfolge, Rücknahme und lesende Nachkontrolle. Ausgeführt wurde keiner.
+Alle sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-28.md)**
+— Reihenfolge, Rücknahme und lesende Nachkontrolle.
+
+**R-1, R-2 und R-3 wurden am 2026-08-28 gestuft freigegeben.** Ausgeführt wurden
+R-1 vollständig und R-2 bis Einheit 2; dann griff die Abbruchbedingung. Alles
+Übrige in dieser Tabelle ist **nicht** ausgeführt, und R-4 bis R-6 sind nicht
+einmal freigegeben. Die Überschrift trifft also nur noch auf die nicht
+ausgeführten Zeilen zu.
 
 | ID | Was | Befund | Zustand |
 |---|---|---|---|
@@ -447,7 +542,7 @@ Beide sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-2
 | **R-3** | Frontend, dann `spell-check-ai` | R-2 | **`BLOCKED_BY_R2`** · **`BLOCKED_BY_RELEASE_COUPLING`** — das Frontend-Deployment aktiviert zugleich die strenge Sendebereitschaft aus R-4 |
 | **R-4 … R-6** | — | — | **`NOT_AUTHORIZED_FOR_PRODUCTION`** |
 | **DEC-002** | vier mandantenlose `companies`-Policies entfernen | M01-01 | **`DECIDED / MIGRATION_PREPARED / NOT_LIVE`** — `20260828140000`, fünfte Stelle `companies_select_member` mitgefasst |
-| **R-3** | `_shared/spellCheckPrompt.ts` + `spell-check-ai`, **Frontend zuerst** | P0-S8 | `READY_FOR_ROLLOUT` |
+| **R-3 / Paketinhalt** | `_shared/spellCheckPrompt.ts` + `spell-check-ai`, **Frontend zuerst** | P0-S8 | Paket vollständig; der Zustand steht in der R-3-Zeile oben (`BLOCKED_BY_R2`), diese Zeile beschreibt nur den Inhalt |
 | **R-4** | `_shared/offerSendReadiness.ts` + `_shared/localizedRow.ts` + `_shared/verifyCompanyMembership.ts` **zuerst**, dann `send-offer` | P1B-3 | `READY_FOR_ROLLOUT` — fachliche Auswirkung vorher klären: unvollständig übersetzte fr/en-Offerten gehen danach nicht mehr hinaus |
 | **R-5** | Frontend neu bauen und ausrollen | P1A, P1B-2 | `READY_FOR_ROLLOUT` — ohne sie bleiben P1A und P1B-2 wirkungslos |
 | **R-6** | Migration `20260828110000_oeffentliche_rpc_rechte_verengen.sql` einspielen | T10-01 | `READY_FOR_ROLLOUT` — auf einem Wegwerf-Stapel bewiesen (anwenden · idempotent · Rücknahme · erneut vorwärts); geringe Dringlichkeit, gehört in dieselbe Freigabe wie R-1 |
