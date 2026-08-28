@@ -35,7 +35,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
@@ -99,6 +100,8 @@ interface DbChecklistTemplate {
 
 const FirmaCheckliste = () => {
   const { user } = useAuth();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId } = useCompanyContext();
   const { toast } = useToast();
   const t = useT();
   const { locale } = useI18n();
@@ -141,11 +144,12 @@ const FirmaCheckliste = () => {
         if (isMounted) setIsLoading(false);
         return;
       }
+      // Ohne aufgeloesten Mandanten wird nicht geladen.
+      if (!activeCompanyId) return;
 
       try {
-        const companyData = await fetchSingleCompanyForUser<Company>({
-          userId: user.id,
-          userEmail: user.email,
+        const companyData = await fetchCompanyById<Company>({
+          companyId: activeCompanyId,
           select: "id, company_name, street, house_number, plz, city, phone, email, website, logo_url, primary_color, default_language",
         });
 
@@ -180,7 +184,7 @@ const FirmaCheckliste = () => {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [user, activeCompanyId]);
 
   useEffect(() => {
     const existing = existingTemplates.find(t => t.service_type === selectedServiceType);

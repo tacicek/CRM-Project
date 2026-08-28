@@ -32,8 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useT } from "@/i18n/useI18n";
 import {
   Archive,
@@ -70,10 +69,12 @@ interface ExportableData {
 }
 
 export default function FirmaDatenarchiv() {
-  const { user } = useAuth();
+  // Das Datenarchiv wirkt LOESCHEND. Es muss auf genau die Firma zeigen, die
+  // im Kopf steht — hier stand eine Abfrage, die sie RIET. Ein geratenes Archiv
+  // ist eine geratene Loeschung.
+  const { activeCompany, companyId, loading: companyLoading } = useCompanyContext();
   const t = useT();
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  const [companyName, setCompanyName] = useState<string>("");
+  const companyName = activeCompany?.company_name ?? "";
   const [stats, setStats] = useState<DataStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -89,35 +90,12 @@ export default function FirmaDatenarchiv() {
   const [deleteConfirmed, setDeleteConfirmed] = useState(false);
   const [retentionDays, setRetentionDays] = useState(90);
 
-  // Load company data
+  // Ohne aufgeloesten Mandanten gibt es nichts zu zaehlen — und nichts zu
+  // loeschen. `loadStats` unten wartet auf `companyId`; hier wird nur der
+  // Ladezustand beendet, wenn feststeht, dass es keinen gibt.
   useEffect(() => {
-    const fetchCompany = async () => {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const company = await fetchSingleCompanyForUser<{ id: string; company_name: string }>({
-          userId: user.id,
-          userEmail: user.email,
-          select: "id, company_name",
-        });
-
-        if (company) {
-          setCompanyId(company.id);
-          setCompanyName(company.company_name);
-        } else {
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error("Error fetching company:", error);
-        setIsLoading(false);
-      }
-    };
-
-    fetchCompany();
-  }, [user]);
+    if (!companyLoading && !companyId) setIsLoading(false);
+  }, [companyLoading, companyId]);
 
   const loadStats = useCallback(async () => {
     if (!companyId) return;

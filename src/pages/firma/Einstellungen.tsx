@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SecretKeyField, type SecretStatus } from "@/components/firma/SecretKeyField";
 import { INBOUND_WEBHOOK_EVENT, buildInboundWebhookUrl } from "@/lib/inboundEmailWebhook";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompanyById } from "@/lib/fetchCompanyById";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useToast } from "@/hooks/use-toast";
@@ -61,7 +61,27 @@ interface Company {
 
 
 
-const PROFILE_DRAFT_KEY = "einstellungen_profile_draft";
+// Der Entwurf haengt an der FIRMA, nicht an der Sitzung. Bis 2026-08-28 stand er
+// unter einem festen Schluessel: wer die Einstellungen der Firma A halb ausfuellte
+// und dann zu B wechselte, bekam den A-Entwurf in das B-Formular gespielt — und
+// beim Speichern in B-Zeilen geschrieben.
+const profileDraftKey = (companyId: string) => `einstellungen_profile_draft:${companyId}`;
+
+// Die Spalten, die `interface Company` oben nennt. Vorher stand hier `*`. Die
+// Zugangsdaten sind 2026-07-27 aus `companies` nach `company_secrets` gezogen
+// worden, WEIL sie im Browser lesbar waren (20260727160000) — ein `*` holt die
+// naechste solche Spalte automatisch zurueck.
+const EINSTELLUNGEN_FIRMA_SELECT = [
+  "id", "company_name", "legal_name", "email", "phone", "website",
+  "street", "house_number", "plz", "city", "canton",
+  "notification_email", "notification_phone",
+  "logo_url", "signature_url", "mwst_number", "iban",
+  "default_terms_and_conditions", "default_payment_terms",
+  "primary_color", "pdf_template", "default_language",
+  "twilio_enabled", "twilio_phone_number", "sms_reminders_enabled",
+  "resend_enabled", "resend_from_email", "resend_from_name",
+  "lead_sharing_preference",
+].join(", ");
 
 const PROFILE_DRAFT_FIELDS = [
   "company_name", "legal_name", "email", "phone", "website",
@@ -74,7 +94,8 @@ const PROFILE_DRAFT_FIELDS = [
 
 const FirmaEinstellungen = () => {
   const { user } = useAuth();
-  const { refresh: refreshCompanyContext } = useCompanyContext();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId, refresh: refreshCompanyContext } = useCompanyContext();
   const { t, locale } = useI18n();
   const { toast } = useToast();
   const [company, setCompany] = useState<Company | null>(null);
@@ -119,16 +140,16 @@ const FirmaEinstellungen = () => {
 
   // Save draft to sessionStorage (debounced 600ms) when form is dirty
   useEffect(() => {
-    if (!isDirty || !company) return;
+    if (!isDirty || !company || !activeCompanyId) return;
     clearTimeout(draftTimerRef.current);
     draftTimerRef.current = setTimeout(() => {
       const draft = Object.fromEntries(
         PROFILE_DRAFT_FIELDS.map(f => [f, company[f as keyof Company]])
       );
-      sessionStorage.setItem(PROFILE_DRAFT_KEY, JSON.stringify(draft));
+      sessionStorage.setItem(profileDraftKey(activeCompanyId), JSON.stringify(draft));
     }, 600);
     return () => clearTimeout(draftTimerRef.current);
-  }, [company, isDirty]);
+  }, [company, isDirty, activeCompanyId]);
 
   // For AGB template selector only — keys must match the service_type values
   // stored on leads (e.g. "malerarbeit" singular, NOT "malerarbeiten").
@@ -172,13 +193,15 @@ const FirmaEinstellungen = () => {
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
+      // Ohne aufgeloesten Mandanten wird nicht geladen — die Einstellungen
+      // schreiben in `companies`, und in WELCHE Zeile darf nicht geraten werden.
+      if (!activeCompanyId) return;
 
       try {
-        // Get company
-        const companyData = await fetchSingleCompanyForUser<Company>({
-          userId: user.id,
-          userEmail: user.email,
-          select: "*",
+        // Get company — GENAU der aktive Mandant.
+        const companyData = await fetchCompanyById<Company>({
+          companyId: activeCompanyId,
+          select: EINSTELLUNGEN_FIRMA_SELECT,
         });
 
         if (!companyData) return;
@@ -205,7 +228,7 @@ const FirmaEinstellungen = () => {
         }
 
         // Restore unsaved draft if user navigated away before saving
-        const savedDraft = sessionStorage.getItem(PROFILE_DRAFT_KEY);
+        const savedDraft = sessionStorage.getItem(profileDraftKey(activeCompanyId));
         if (savedDraft) {
           try {
             const draft = JSON.parse(savedDraft);
@@ -225,7 +248,7 @@ const FirmaEinstellungen = () => {
     };
 
     fetchData();
-  }, [user, loadSecretStatus]);
+  }, [user, activeCompanyId, loadSecretStatus]);
 
   const handleSaveProfile = async () => {
     if (!company) return;
@@ -262,7 +285,7 @@ const FirmaEinstellungen = () => {
       if (error) throw error;
 
       // Clear draft — changes are now saved to DB
-      sessionStorage.removeItem(PROFILE_DRAFT_KEY);
+      if (activeCompanyId) sessionStorage.removeItem(profileDraftKey(activeCompanyId));
       setIsDirty(false);
 
       // Die Dashboard-Sprache kommt aus dem CompanyContext (activeCompany.default_language).

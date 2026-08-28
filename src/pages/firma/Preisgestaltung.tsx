@@ -13,9 +13,8 @@
 
 import { useEffect, useState, useId, useMemo, useRef, memo } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { useAuth } from '@/hooks/useAuth';
 import { useCompanyPricing } from '@/hooks/useCompanyPricing';
-import { fetchSingleCompanyForUser } from '@/lib/fetchSingleCompanyForUser';
+import { useCompanyContext } from '@/hooks/useCompanyContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -465,17 +464,17 @@ const PreviewCalculator = memo(function PreviewCalculator({ config }: PreviewCal
 // =============================================================================
 
 export default function FirmaPreisgestaltung() {
-  const { user } = useAuth();
   const t = useT();
   const { locale } = useI18n();
   const instanceId = useId(); // Stable ID for form controls
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId, loading: companyLoading } = useCompanyContext();
   
   // Company state - fetch from database like other firma pages
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [isCompanyLoading, setIsCompanyLoading] = useState(true);
   
   // Refs for async safety
-  const companyAbortRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
   
   // Cleanup on unmount
@@ -483,7 +482,6 @@ export default function FirmaPreisgestaltung() {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      companyAbortRef.current?.abort();
     };
   }, []);
   
@@ -522,46 +520,14 @@ export default function FirmaPreisgestaltung() {
   
   // Fetch company data on mount
   useEffect(() => {
-    const fetchCompany = async () => {
-      if (!user) {
-        if (isMountedRef.current) {
-          setIsCompanyLoading(false);
-        }
-        return;
-      }
-      
-      // Cancel any previous request
-      companyAbortRef.current?.abort();
-      companyAbortRef.current = new AbortController();
-      
-      try {
-        const company = await fetchSingleCompanyForUser<{ id: string }>({
-          userId: user.id,
-          userEmail: user.email,
-          select: 'id',
-        });
-        
-        // Check if still mounted before updating state
-        if (!isMountedRef.current) return;
-        
-        if (company) {
-          setCompanyId(company.id);
-        }
-      } catch (error) {
-        // Don't log abort errors
-        if (error instanceof Error && error.name === 'AbortError') return;
-        if (!isMountedRef.current) return;
-        
-        console.error('Error fetching company:', error);
-      } finally {
-        if (isMountedRef.current) {
-          setIsCompanyLoading(false);
-        }
-      }
-    };
-    
-    fetchCompany();
-  }, [user]);
+    // Die Preisgestaltung gehoert dem AKTIVEN Mandanten. Hier stand eine eigene
+    // Abfrage mit AbortController, die die Firma RIET — fuer eine ID, die der
+    // CompanyProvider bereits kennt. Ohne Abfrage gibt es auch nichts
+    // abzubrechen; `companyLoading` aus dem Kontext sagt, ob er noch aufloest.
+    if (!isMountedRef.current) return;
+    setCompanyId(activeCompanyId);
+    setIsCompanyLoading(companyLoading);
+  }, [activeCompanyId, companyLoading]);
   
   // Load pricing config when companyId is available
   useEffect(() => {

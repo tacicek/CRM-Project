@@ -34,7 +34,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -164,6 +165,8 @@ const SERVICE_TYPE_ICONS: Record<string, React.ReactNode> = {
 
 const FirmaManualImport = () => {
   const { user } = useAuth();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId } = useCompanyContext();
   const navigate = useNavigate();
   const { toast } = useToast();
   const t = useT();
@@ -206,11 +209,13 @@ const FirmaManualImport = () => {
         if (isMountedRef.current) setIsLoading(false);
         return;
       }
+      // Ohne aufgeloesten Mandanten wird nicht geladen — der Bildschirm
+      // bleibt im Ladezustand, statt eine Firma zu waehlen.
+      if (!activeCompanyId) return;
 
       try {
-        const companyData = await fetchSingleCompanyForUser<Company>({
-          userId: user.id,
-          userEmail: user.email,
+        const companyData = await fetchCompanyById<Company>({
+          companyId: activeCompanyId,
           select: "id, company_name, manual_import_monthly_fee, crm_enabled, default_language",
         });
 
@@ -232,7 +237,7 @@ const FirmaManualImport = () => {
     };
 
     fetchCompany();
-  }, [user, toast, t]);
+  }, [user, activeCompanyId, toast, t]);
 
   const processWithAI = useCallback(async () => {
     const trimmedText = rawText.trim();

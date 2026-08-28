@@ -43,9 +43,10 @@ export const setCachedCompany = (company: CachedCompanyData | null) => {
 export const useCachedCompany = (_select: string = "id") => {
   const { activeCompany, companyId, loading, refresh } = useCompanyContext();
 
-  // activeCompany ONLY contains CompanyData (id, company_name, logo_url, is_verified).
-  // If more fields (plz, iban, street, ...) are needed, fetch fresh via fetchSingleCompanyForUser
-  // — faking their presence with `as unknown as T` (silent undefined) is FORBIDDEN.
+  // activeCompany ONLY contains CompanyData (id, company_name, logo_url, is_verified,
+  // default_language). Wer mehr braucht (plz, iban, street, …), nimmt
+  // `useCompanyRecord(select)` — es laedt GENAU den aktiven Mandanten nach.
+  // Die Felder mit `as unknown as T` vorzutaeuschen (stilles undefined) ist VERBOTEN.
   return {
     company: activeCompany,
     companyId,

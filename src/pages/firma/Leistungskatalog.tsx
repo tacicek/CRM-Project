@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,7 +68,7 @@ import {
 } from "@/constants/service-catalog";
 
 export default function FirmaLeistungskatalog() {
-  const { user } = useAuth();
+  const { companyId: activeCompanyId } = useCompanyContext();
   const { t, locale } = useI18n();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [services, setServices] = useState<ServiceItem[]>([]);
@@ -112,43 +111,6 @@ export default function FirmaLeistungskatalog() {
     notes: "",
   });
 
-  // FIX: Added isMounted flag to prevent memory leaks on unmount
-  useEffect(() => {
-    let isMounted = true;
-    
-    const loadData = async () => {
-      if (!user) {
-        if (isMounted) setLoading(false);
-        return;
-      }
-      
-      try {
-        const company = await fetchSingleCompanyForUser<{ id: string }>({
-          userId: user.id,
-          userEmail: user.email,
-          select: "id",
-        });
-        
-        if (isMounted && company) {
-          setCompanyId(company.id);
-          await loadServices(company.id, true);
-        }
-      } catch (error) {
-        console.error("Error loading company:", error);
-        if (isMounted) {
-          toast.error(t("catalog.toast.loadCompanyFailed"));
-        }
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-    
-    loadData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user, t]);
   
   // FIX: Cancel inline edit when tab changes to prevent editing hidden items
   useEffect(() => {
@@ -166,7 +128,7 @@ export default function FirmaLeistungskatalog() {
 
   // loadCompanyAndServices is now inlined in useEffect to support proper cleanup
 
-  const loadServices = async (companyId: string, isInitialLoad = false) => {
+  const loadServices = useCallback(async (companyId: string, isInitialLoad = false) => {
     const [servicesRes, templatesRes] = await Promise.all([
       supabase
         .from("company_service_items")
@@ -204,7 +166,45 @@ export default function FirmaLeistungskatalog() {
         return added.length > 0 ? [...prev, ...added] : prev;
       });
     }
-  };
+  }, [t]);
+
+  // Der Katalog gehoert dem AKTIVEN Mandanten. Hier stand eine eigene Abfrage,
+  // die die Firma RIET — bei zwei Mitgliedschaften konnte der Bildschirm den
+  // Katalog der anderen Firma zeigen und bearbeiten.
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadData = async () => {
+      if (!activeCompanyId) {
+        // Kein Mandant (noch nicht aufgeloest oder keine Mitgliedschaft):
+        // nichts laden, nichts anzeigen.
+        if (isMounted) {
+          setCompanyId(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        if (!isMounted) return;
+        setCompanyId(activeCompanyId);
+        await loadServices(activeCompanyId, true);
+      } catch (error) {
+        console.error("Error loading services:", error);
+        if (isMounted) {
+          toast.error(t("catalog.toast.loadCompanyFailed"));
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeCompanyId, loadServices, t]);
 
   const openAddModal = () => {
     setEditingService(null);
