@@ -1,0 +1,157 @@
+Output format is unaligned.
+=== Objekttyp ===
+relkind|r|typ|gewoehnliche Tabelle
+=== Es ist KEINE Funktion (also auch kein SECURITY DEFINER) ===
+gleichnamige_funktionen|0
+=== Eigentuemer ===
+owner|postgres
+=== ACL ===
+acl|postgres=arwdDxt/postgres, anon=arwdDxt/postgres, authenticated=arwdDxt/postgres, service_role=arwdDxt/postgres
+=== RLS ===
+rls_enabled|false|forced|false
+policies|0
+=== Zugriff je Rolle ===
+zugriff|anon|select=true|insert=true|update=true|delete=true
+zugriff|authenticated|select=true|insert=true|update=true|delete=true
+zugriff|service_role|select=true|insert=true|update=true|delete=true
+zugriff|PUBLIC|select=false
+=== Inhalt (kein Kundendatum) ===
+zeile|public.landing_page_analytics|Service role can insert analytics|INSERT|PUBLIC|true
+=== Spalten ===
+spalte|tabelle|text
+spalte|policyname|text
+spalte|kommando|text
+spalte|rollen|text
+spalte|withcheck|text
+spalte|erfasst_am|timestamp with time zone
+Output format is unaligned.
+=== Trigger / Regeln / abhaengige Funktionen auf dem Objekt? ===
+trigger|0
+regeln|0
+=== Liest oder schreibt irgendeine Funktion diese Tabelle? (dynamisches SQL eingeschlossen) ===
+=== Gibt es weitere Tabellen OHNE RLS im public-Schema? ===
+ohne_rls|undo_20260828100000
+=== Tabellen im public-Schema, auf denen anon SCHREIBEN darf ===
+anon_schreibt|admin_activity_log|rls=true|policies=2
+anon_schreibt|agb_sections|rls=true|policies=2
+anon_schreibt|api_keys|rls=true|policies=4
+anon_schreibt|appointment_history|rls=true|policies=2
+anon_schreibt|appointment_reminders|rls=true|policies=2
+anon_schreibt|appointments|rls=true|policies=2
+anon_schreibt|archive_logs|rls=true|policies=3
+anon_schreibt|archive_settings|rls=true|policies=1
+anon_schreibt|archive_snapshots|rls=true|policies=1
+anon_schreibt|auftraege|rls=true|policies=2
+anon_schreibt|automation_deliveries|rls=true|policies=1
+anon_schreibt|blog_categories|rls=true|policies=2
+anon_schreibt|blog_posts|rls=true|policies=2
+anon_schreibt|blog_seo_performance|rls=true|policies=1
+anon_schreibt|checklist_templates|rls=true|policies=3
+anon_schreibt|communication_messages|rls=true|policies=2
+anon_schreibt|communication_threads|rls=true|policies=4
+anon_schreibt|companies|rls=true|policies=7
+anon_schreibt|company_members|rls=true|policies=3
+anon_schreibt|company_offer_settings|rls=true|policies=3
+anon_schreibt|company_offer_templates|rls=true|policies=2
+anon_schreibt|company_plz_coverage|rls=true|policies=2
+anon_schreibt|company_pricing_audit_log|rls=true|policies=1
+anon_schreibt|company_pricing_configs|rls=true|policies=4
+anon_schreibt|company_reminder_settings|rls=true|policies=3
+anon_schreibt|company_secrets|rls=true|policies=0
+anon_schreibt|company_service_items|rls=true|policies=2
+anon_schreibt|company_services|rls=true|policies=2
+anon_schreibt|cookie_consent_log|rls=true|policies=2
+anon_schreibt|credit_notes|rls=true|policies=2
+anon_schreibt|crm_tasks|rls=true|policies=4
+anon_schreibt|customer_case_events|rls=true|policies=1
+anon_schreibt|customer_cases|rls=true|policies=4
+anon_schreibt|customer_change_requests|rls=true|policies=1
+anon_schreibt|customer_merges|rls=true|policies=1
+anon_schreibt|customers|rls=true|policies=5
+anon_schreibt|edge_rate_limits|rls=true|policies=0
+anon_schreibt|email_logs|rls=true|policies=2
+anon_schreibt|fall_nr_counter|rls=true|policies=0
+anon_schreibt|firma_resources|rls=true|policies=3
+anon_schreibt|gutschrift_nr_counter|rls=true|policies=0
+anon_schreibt|inbound_emails|rls=true|policies=2
+anon_schreibt|invoice_reminders|rls=true|policies=2
+anon_schreibt|ip_blacklist|rls=true|policies=1
+anon_schreibt|job_price_estimates|rls=true|policies=2
+anon_schreibt|klaviertransport_anfragen|rls=true|policies=3
+anon_schreibt|landing_pages|rls=true|policies=2
+anon_schreibt|lead_confirmations|rls=true|policies=1
+anon_schreibt|lead_forms|rls=true|policies=2
+anon_schreibt|leistungsuebersicht_templates|rls=true|policies=3
+anon_schreibt|manual_imported_leads|rls=true|policies=2
+anon_schreibt|moebellift_anfragen|rls=true|policies=3
+anon_schreibt|moving_calculation_presets|rls=true|policies=3
+anon_schreibt|notifications|rls=true|policies=4
+anon_schreibt|offer_amendment_items|rls=true|policies=1
+anon_schreibt|offer_amendments|rls=true|policies=4
+anon_schreibt|offer_inventory_items|rls=true|policies=2
+anon_schreibt|offer_item_area_meta|rls=true|policies=2
+anon_schreibt|offer_item_breakdown|rls=true|policies=2
+anon_schreibt|offer_item_effort_meta|rls=true|policies=2
+anon_schreibt|offer_item_leistung|rls=true|policies=2
+anon_schreibt|offer_item_volume_meta|rls=true|policies=2
+anon_schreibt|offer_items|rls=true|policies=2
+anon_schreibt|offer_leistungsuebersicht|rls=true|policies=1
+anon_schreibt|offers|rls=true|policies=7
+anon_schreibt|payment_allocations|rls=true|policies=3
+anon_schreibt|payments|rls=true|policies=3
+anon_schreibt|portal_magic_links|rls=true|policies=1
+anon_schreibt|portal_sessions|rls=true|policies=1
+anon_schreibt|pricing_rules|rls=true|policies=6
+anon_schreibt|pricing_settings|rls=true|policies=3
+anon_schreibt|profiles|rls=true|policies=4
+anon_schreibt|quittungen|rls=true|policies=4
+anon_schreibt|rechnung_nr_counter|rls=true|policies=0
+anon_schreibt|rechnungen|rls=true|policies=4
+anon_schreibt|sales_stage_history|rls=true|policies=1
+anon_schreibt|service_acquisition_costs|rls=true|policies=2
+anon_schreibt|service_catalog|rls=true|policies=1
+anon_schreibt|service_detail_templates|rls=true|policies=2
+anon_schreibt|service_locations|rls=true|policies=4
+anon_schreibt|shared_content|rls=true|policies=2
+anon_schreibt|subscription_payments|rls=true|policies=2
+anon_schreibt|subscription_reminders|rls=true|policies=1
+anon_schreibt|support_ticket_messages|rls=true|policies=4
+anon_schreibt|support_tickets|rls=true|policies=2
+anon_schreibt|swiss_plz|rls=true|policies=1
+anon_schreibt|team_availability|rls=true|policies=2
+anon_schreibt|team_members|rls=true|policies=2
+anon_schreibt|umzug_anfragen|rls=true|policies=3
+anon_schreibt|umzugsbox_rentals|rls=true|policies=5
+anon_schreibt|undo_20260802110000|rls=true|policies=0
+anon_schreibt|undo_20260802120000|rls=true|policies=0
+anon_schreibt|undo_20260802130000|rls=true|policies=0
+anon_schreibt|undo_20260809120000|rls=true|policies=0
+anon_schreibt|undo_20260828100000|rls=false|policies=0
+anon_schreibt|user_roles|rls=true|policies=6
+anon_schreibt|website_settings|rls=true|policies=2
+=== Herkunft: Standardrechte im public-Schema ===
+psql:<stdin>:24: ERROR:  operator is not unique: text || "char"
+LINE 1: ...oalesce(pg_get_userbyid(d.defaclrole),'?') || '|' || d.defac...
+                                                             ^
+HINT:  Could not choose a best candidate operator. You might need to add explicit type casts.
+Output format is unaligned.
+=== Herkunft der anon-Rechte: Standardrechte im public-Schema ===
+defaultacl|postgres|typ=r|postgres=arwdDxt/postgres, anon=arwdDxt/postgres, authenticated=arwdDxt/postgres, service_role=arwdDxt/postgres
+defaultacl|postgres|typ=f|postgres=X/postgres, anon=X/postgres, authenticated=X/postgres, service_role=X/postgres
+defaultacl|postgres|typ=S|postgres=rwU/postgres, anon=rwU/postgres, authenticated=rwU/postgres, service_role=rwU/postgres
+defaultacl|supabase_admin|typ=S|postgres=rwU/supabase_admin, anon=rwU/supabase_admin, authenticated=rwU/supabase_admin, service_role=rwU/supabase_admin
+defaultacl|supabase_admin|typ=r|postgres=arwdDxt/supabase_admin, anon=arwdDxt/supabase_admin, authenticated=arwdDxt/supabase_admin, service_role=arwdDxt/supabase_admin
+defaultacl|supabase_admin|typ=f|postgres=X/supabase_admin, anon=X/supabase_admin, authenticated=X/supabase_admin, service_role=X/supabase_admin
+=== Vergleich mit den vier aelteren undo-Tabellen ===
+vergleich|undo_20260802110000_pkey|rls=false|acl=(default)
+vergleich|undo_20260802110000|rls=true|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+vergleich|undo_20260802120000_pkey|rls=false|acl=(default)
+vergleich|undo_20260802120000|rls=true|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+vergleich|undo_20260802130000_pkey|rls=false|acl=(default)
+vergleich|undo_20260802130000|rls=true|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+vergleich|undo_20260809120000_pkey|rls=false|acl=(default)
+vergleich|undo_20260809120000|rls=true|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+vergleich|undo_20260828100000_pkey|rls=false|acl=(default)
+vergleich|undo_20260828100000|rls=false|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+=== R-1: welche Migrationen haben die Tabelle angelegt? Beleg aus der Zeile selbst ===
+erfasst|2026-08-28 08:12:55.376083+00
