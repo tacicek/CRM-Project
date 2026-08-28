@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { gemesseneDrift } from "../edge-drift-gate";
 import {
   ERLAUBTE_DEPLOYMENT_ABSICHTEN,
   ERLAUBTE_MODELLE,
@@ -219,6 +220,40 @@ describe("Das Modell muss zum Handler passen", () => {
           return !hatGrenze && !ausnahme(n, "service-role-needs-tenant-boundary");
         })
         .map(({ n }) => `${n}: service-role ohne Mitgliedschafts-, Token- oder Signaturprüfung`),
+    );
+  });
+});
+
+// --- Drift gegen Produktion ------------------------------------------------
+
+describe("Was in der Produktion läuft, ist entweder gleich oder benannt", () => {
+  const gemessen = gemesseneDrift(aufnahme);
+  const erklaert = Object.keys(
+    (manifest as unknown as { known_drift?: Record<string, { rollout_unit: string; reason: string }> })
+      .known_drift ?? {},
+  );
+
+  it("keine UNBEKANNTE Abweichung", () => {
+    // Eine nicht eingetragene Abweichung heisst: in der Produktion läuft etwas,
+    // über das niemand entschieden hat. `scripts/edge-drift.mjs` hat das
+    // gemessen; hier wird es zum Fehler.
+    melde(gemessen.filter((n) => !erklaert.includes(n)).map((n) => `${n}: weicht ab, steht in keinem known_drift-Eintrag`));
+  });
+
+  it("kein Eintrag für eine Function, die gar nicht mehr abweicht", () => {
+    // Sonst wächst die Liste zu einer Ausrede. Wer ausrollt, streicht.
+    melde(erklaert.filter((n) => !gemessen.includes(n)).map((n) => `${n}: als Drift geführt, weicht aber nicht mehr ab`));
+  });
+
+  it("jeder Eintrag nennt Rollout-Einheit und Grund", () => {
+    const kd = (manifest as unknown as { known_drift: Record<string, { rollout_unit?: string; reason?: string }> }).known_drift;
+    melde(
+      Object.entries(kd).flatMap(([n, e]) => {
+        const f: string[] = [];
+        if (!e.rollout_unit?.trim() || e.rollout_unit === "?") f.push(`${n}: keine Rollout-Einheit`);
+        if (!e.reason || e.reason.trim().length <= 10) f.push(`${n}: kein Grund`);
+        return f;
+      }),
     );
   });
 });

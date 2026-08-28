@@ -634,5 +634,56 @@
     "notify-admin-new-lead",
     "notify-companies",
     "send-token-notification"
-  ]
+  ],
+  "$known_drift": "Gemessene Inhaltsabweichung zwischen Produktion und diesem Auscheckstand, mit der Rollout-Einheit, die sie aufloest. Das Tor vergleicht die MESSUNG gegen diese Liste: eine NEUE, hier nicht eingetragene Abweichung ist ein Fehler. Eine eingetragene ist eine bekannte Schuld mit Adresse. Wer eine Function ausrollt, streicht ihren Eintrag.",
+  "known_drift": {
+    "_shared": {
+      "rollout_unit": "R-2",
+      "reason": "`appointmentDay.ts` fehlt auf dem Server, `emailTemplates.ts.bak-20260704` liegt dort zusaetzlich."
+    },
+    "calculate-distance": {
+      "rollout_unit": "R-2",
+      "reason": "Rate-Limit im Repo, nicht ausgerollt — P0-S3a."
+    },
+    "google-places-autocomplete": {
+      "rollout_unit": "R-2",
+      "reason": "Rate-Limit im Repo, nicht ausgerollt — P0-S3a."
+    },
+    "google-places-details": {
+      "rollout_unit": "R-2",
+      "reason": "Rate-Limit im Repo, nicht ausgerollt — P0-S3a."
+    },
+    "handle-proposal-response": {
+      "rollout_unit": "R-2",
+      "reason": "i18n im Repo, nicht ausgerollt: die Kundenmail folgt in der Produktion nicht `offers.language`."
+    },
+    "notify-appointment-reminder": {
+      "rollout_unit": "R-2",
+      "reason": "i18n und die Zeitzonen-Rueckrichtung im Repo, nicht ausgerollt."
+    },
+    "notify-offer-response": {
+      "rollout_unit": "R-2",
+      "reason": "`index.ts` stimmt; auf dem Server liegt zusaetzlich `index.ts.bak-20260705`."
+    },
+    "send-offer": {
+      "rollout_unit": "R-2/R-4",
+      "reason": "`index.ts` stimmte zum Aufnahmezeitpunkt; auf dem Server liegen acht `.bak-*`-Kopien. Inzwischen ausserdem im Repo geaendert (Sendebereitschaft) — Rollout R-4."
+    },
+    "send-quittung": {
+      "rollout_unit": "R-4",
+      "reason": "Fail-open-Autorisierung geschlossen und Geheimnisladung hinter die Pruefung gezogen — im Repo, nicht ausgerollt (D-09)."
+    },
+    "send-rechnung-email": {
+      "rollout_unit": "R-4",
+      "reason": "Wie send-quittung (D-09)."
+    },
+    "spell-check-ai": {
+      "rollout_unit": "R-3",
+      "reason": "Sprachabhaengige Rechtschreibpruefung im Repo, nicht ausgerollt — P0-S8. Die ausgerollte Fassung korrigiert Franzoesisch weiter nach deutschen Regeln."
+    },
+    "validate-besichtigung-token": {
+      "rollout_unit": "R-2",
+      "reason": "Dokumentsprache der Besichtigungsseite im Repo, nicht ausgerollt."
+    }
+  }
 }

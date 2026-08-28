@@ -30,6 +30,8 @@ ausserdem `Type-Check (App)`, `Type-Check (Test-Infrastruktur)`, `Lint` und
 | 2 | Mandantenwechsel bei laufendem Timer | `src/lib/__tests__/tenantBoundWrite.test.ts` + Regel `verzoegerter-schreibvorgang-am-kontext` | Verbraucher nimmt den Mandanten wieder aus dem Kontext | rot (nach der zweiten Durchsicht ergänzt — vorher ging genau das durch) |
 | 15 | Kundengerichtete Renderer lesen die Bedienersprache nicht | `src/test/__tests__/kundenrenderer-sprache.test.ts` | `useT()` in `OfferPDF.tsx` | rot |
 | 5 | Sendebereitschaft als reine Funktion, nicht als Textsuche | `supabase/functions/_shared/__tests__/offerSendReadinessAssembly.test.ts` | (13 Vertragstests mit Eingabe/Ausgabe) | ersetzt den Beweis, den die Textsuche nicht tragen konnte |
+| 11 | Migrationen sind anfügend | `src/test/__tests__/migration-ledger.test.ts` | Datei geändert · Datei gelöscht · neuer doppelter Zeitstempel | 3/3 rot |
+| 12 | Repo/Deploy-Parität | `src/test/__tests__/edge-auth-manifest.test.ts` (Abschnitt Drift) | neue unerklärte Abweichung · veralteter `known_drift`-Eintrag · Eintrag ohne Rollout-Einheit | 3/3 rot |
 
 ## Vorhanden als Vertragstest
 
@@ -51,8 +53,6 @@ ausserdem `Type-Check (App)`, `Type-Check (Test-Infrastruktur)`, `Lint` und
 | 7 | Preismodell und Positions-Metadaten von der Eingabe bis zur PDF-Summe | P2 |
 | 8 | Zustandsübergänge und Idempotenz bei Wiederholung | P2 |
 | 10 | RPC-Rechte und RLS als Katalogzusicherung auf einer Wegwerf-DB | P3 |
-| 11 | Migrations-Prüfsummen, Append-only-Wächter | P3 |
-| 12 | Repo/config/deploy-Parität als **Tor** (heute nur Messwerkzeug: `scripts/edge-drift.mjs`) | P3 |
 
 Tor 15 ist seit `e4e40a94` vorhanden und wurde gegen ein eingeschleustes
 `useT()` in `OfferPDF.tsx` geprüft. Es wurde eingeführt, **solange es grün war** —
@@ -68,8 +68,12 @@ oder über das, was ein Kunde im Browser sieht. Programm §16 gilt unverändert:
 eine grüne Suite reiner Funktionen ist kein Beweis für DB-, RLS-, Edge- oder
 Komponentenverhalten.
 
-Insbesondere: **kein Tor in dieser Liste bemerkt, dass die Produktion eine
-ältere Fassung ausführt.** Dafür gibt es die Aufnahme
-(`ops/production-truth/<datum>/`) und `scripts/edge-drift.mjs` — beide sind
-Messwerkzeuge, kein Tor. Tor 12 zu schliessen hiesse, die Drift zum
-Freigabefehler zu machen; heute ist sie eine Zahl in einem Bericht.
+Seit `20260828` gilt das für die Drift **nicht mehr**: Tor 12 vergleicht die
+gemessene Abweichung gegen `known_drift` im Manifest. Eine neue, nicht
+eingetragene Abweichung ist ein Fehler; ein Eintrag für eine Function, die gar
+nicht mehr abweicht, ebenso — sonst wächst die Liste zu einer Ausrede.
+
+Was weiterhin gilt: das Tor prüft gegen die **letzte Aufnahme**, nicht gegen die
+Produktion in diesem Moment. Es merkt, dass Repo und Aufnahme auseinandergehen —
+nicht, dass jemand seit der Aufnahme auf dem Server etwas geändert hat. Dafür
+braucht es eine neue Aufnahme, und die ist ein Vorgang, kein Test.
