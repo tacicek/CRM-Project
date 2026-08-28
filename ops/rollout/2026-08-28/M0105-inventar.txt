@@ -1,0 +1,77 @@
+Output format is unaligned.
+=== 1. Welche Schemata sind ueber PostgREST exponiert? ===
+schema|auth|usage_anon=true|usage_auth=true
+schema|besichtigung|usage_anon=false|usage_auth=true
+schema|extensions|usage_anon=true|usage_auth=true
+schema|graphql_public|usage_anon=true|usage_auth=true
+schema|graphql|usage_anon=true|usage_auth=true
+schema|net|usage_anon=true|usage_auth=true
+schema|public|usage_anon=true|usage_auth=true
+schema|realtime|usage_anon=true|usage_auth=true
+schema|storage|usage_anon=true|usage_auth=true
+schema|supabase_functions|usage_anon=true|usage_auth=true
+=== 2. Betroffene Tabellen je Schema und Eigentuemer ===
+tabelle|net|supabase_admin|2 Tabellen mit anon-TRUNCATE
+tabelle|public|postgres|97 Tabellen mit anon-TRUNCATE
+tabelle|storage|supabase_storage_admin|3 Tabellen mit anon-TRUNCATE
+tabelle|supabase_functions|supabase_functions_admin|2 Tabellen mit anon-TRUNCATE
+tabelle_auth|net|2 Tabellen mit authenticated-TRUNCATE
+tabelle_auth|public|101 Tabellen mit authenticated-TRUNCATE
+tabelle_auth|storage|3 Tabellen mit authenticated-TRUNCATE
+tabelle_auth|supabase_functions|2 Tabellen mit authenticated-TRUNCATE
+=== 3. pg_default_acl — was erben kuenftige Tabellen? ===
+defacl|auth|erteiler=supabase_auth_admin|objtyp=S|postgres=rwU/supabase_auth_admin dashboard_user=rwU/supabase_auth_admin
+defacl|auth|erteiler=supabase_auth_admin|objtyp=f|postgres=X/supabase_auth_admin dashboard_user=X/supabase_auth_admin
+defacl|auth|erteiler=supabase_auth_admin|objtyp=r|postgres=arwdDxt/supabase_auth_admin dashboard_user=arwdDxt/supabase_auth_admin
+defacl|cron|erteiler=supabase_admin|objtyp=S|postgres=r*w*U*/supabase_admin
+defacl|cron|erteiler=supabase_admin|objtyp=f|postgres=X*/supabase_admin
+defacl|cron|erteiler=supabase_admin|objtyp=r|postgres=a*r*w*d*D*x*t*/supabase_admin
+defacl|extensions|erteiler=supabase_admin|objtyp=S|postgres=r*w*U*/supabase_admin
+defacl|extensions|erteiler=supabase_admin|objtyp=f|postgres=X*/supabase_admin
+defacl|extensions|erteiler=supabase_admin|objtyp=r|postgres=a*r*w*d*D*x*t*/supabase_admin
+defacl|graphql_public|erteiler=supabase_admin|objtyp=S|postgres=rwU/supabase_admin anon=rwU/supabase_admin authenticated=rwU/supabase_admin service_role=rwU/supabase_admin
+defacl|graphql_public|erteiler=supabase_admin|objtyp=f|postgres=X/supabase_admin anon=X/supabase_admin authenticated=X/supabase_admin service_role=X/supabase_admin
+defacl|graphql_public|erteiler=supabase_admin|objtyp=r|postgres=arwdDxt/supabase_admin anon=arwdDxt/supabase_admin authenticated=arwdDxt/supabase_admin service_role=arwdDxt/supabase_admin
+defacl|graphql|erteiler=supabase_admin|objtyp=S|postgres=rwU/supabase_admin anon=rwU/supabase_admin authenticated=rwU/supabase_admin service_role=rwU/supabase_admin
+defacl|graphql|erteiler=supabase_admin|objtyp=f|postgres=X/supabase_admin anon=X/supabase_admin authenticated=X/supabase_admin service_role=X/supabase_admin
+defacl|graphql|erteiler=supabase_admin|objtyp=r|postgres=arwdDxt/supabase_admin anon=arwdDxt/supabase_admin authenticated=arwdDxt/supabase_admin service_role=arwdDxt/supabase_admin
+defacl|public|erteiler=postgres|objtyp=S|postgres=rwU/postgres anon=rwU/postgres authenticated=rwU/postgres service_role=rwU/postgres
+defacl|public|erteiler=postgres|objtyp=f|postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres
+defacl|public|erteiler=postgres|objtyp=r|postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+defacl|public|erteiler=supabase_admin|objtyp=S|postgres=rwU/supabase_admin anon=rwU/supabase_admin authenticated=rwU/supabase_admin service_role=rwU/supabase_admin
+defacl|public|erteiler=supabase_admin|objtyp=f|postgres=X/supabase_admin anon=X/supabase_admin authenticated=X/supabase_admin service_role=X/supabase_admin
+defacl|public|erteiler=supabase_admin|objtyp=r|postgres=arwdDxt/supabase_admin anon=arwdDxt/supabase_admin authenticated=arwdDxt/supabase_admin service_role=arwdDxt/supabase_admin
+defacl|realtime|erteiler=supabase_admin|objtyp=S|postgres=rwU/supabase_admin dashboard_user=rwU/supabase_admin
+defacl|realtime|erteiler=supabase_admin|objtyp=f|postgres=X/supabase_admin dashboard_user=X/supabase_admin
+defacl|realtime|erteiler=supabase_admin|objtyp=r|postgres=arwdDxt/supabase_admin dashboard_user=arwdDxt/supabase_admin
+defacl|storage|erteiler=postgres|objtyp=S|postgres=rwU/postgres anon=rwU/postgres authenticated=rwU/postgres service_role=rwU/postgres
+defacl|storage|erteiler=postgres|objtyp=f|postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres
+defacl|storage|erteiler=postgres|objtyp=r|postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+defacl|supabase_functions|erteiler=postgres|objtyp=S|postgres=rwU/postgres anon=rwU/postgres authenticated=rwU/postgres service_role=rwU/postgres
+defacl|supabase_functions|erteiler=postgres|objtyp=f|postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres
+defacl|supabase_functions|erteiler=postgres|objtyp=r|postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+=== 4. Funktionen/Prozeduren in exponierten Schemata, die TRUNCATE ausloesen koennen ===
+trunc_fn_keine_wenn_leer
+=== 5. Truncate-Trigger (ON TRUNCATE) irgendwo? ===
+trunc_trigger|job|cron_job_cache_invalidate
+trunc_trigger_keine_wenn_leer
+=== 6. Laeuft ein betrieblicher Job mit TRUNCATE? (pg_cron) ===
+psql:<stdin>:30: ERROR:  "array_agg" is an aggregate function
+cron_gesamt|12
+Output format is unaligned.
+=== 6b. Enthaelt irgendein pg_cron-Job TRUNCATE? ===
+cron_mit_truncate|0
+=== 7. Kann postgres die Standardrechte von supabase_admin aendern? ===
+mitglied|postgres_in_supabase_admin=false
+rolle|postgres|super=false
+rolle|supabase_admin|super=true
+=== 8. Genau welche defacl-Zeilen im public-Schema geben TRUNCATE? ===
+defacl_public|erteiler=postgres|anon|truncate=true
+defacl_public|erteiler=postgres|authenticated|truncate=true
+defacl_public|erteiler=supabase_admin|anon|truncate=true
+defacl_public|erteiler=supabase_admin|authenticated|truncate=true
+=== 9. Halten anon/authenticated TRUNCATE auf Sequenzen oder Views? (nur Tabellen sind betroffen) ===
+relkind|r|97
+relkind|v|4
+=== 10. Gegenprobe: bleiben SELECT/INSERT/UPDATE/DELETE-Zaehler danach gleich? (Ist-Stand) ===
+ist|anon_select=98|anon_insert=97|anon_update=97|anon_delete=97|anon_truncate=97

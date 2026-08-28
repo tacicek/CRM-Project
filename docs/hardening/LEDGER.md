@@ -345,7 +345,7 @@ hinreichend** — dort rät niemand eine Firma.
 
 | Modul | Bericht | Urteil | Blockiert durch |
 |---|---|---|---|
-| 01 Identität und Mandantenschaft | [module-certification/01-…](module-certification/01-identitaet-und-mandantenschaft.md) | **NICHT ZERTIFIZIERT** | M01-01 · M01-02 (`is_admin` in 59 Policies/47 Tabellen) · M01-03 · M01-04 · M01-05 · Zwei-Mandanten-Durchlauf gegen eine echte DB fehlt · nichts davon ist live |
+| 01 Identität und Mandantenschaft | [module-certification/01-…](module-certification/01-identitaet-und-mandantenschaft.md) | **NICHT ZERTIFIZIERT** | M01-01 · M01-02 (`is_admin` in 59 Policies/47 Tabellen) · M01-03 · M01-04 · M01-05 · M01-06 · Zwei-Mandanten-Durchlauf gegen eine echte DB fehlt · nichts davon ist live |
 
 ### M01-01 · Vier mandantenlose Admin-Policies auf `companies` · `VERIFIED`
 
@@ -622,12 +622,68 @@ erreichbar** — Härtung, nicht Vorfall. Wer es anders einstuft, muss zuerst ei
 Weg zeigen.
 
 **Zustand:** `VERIFIED_PRIVILEGE_DRIFT` · `NO_MEASURED_EXTERNAL_REACHABILITY` ·
-`SEPARATE_HARDENING_DECISION_REQUIRED`. Die Korrektur wäre
-`REVOKE TRUNCATE ON ALL TABLES IN SCHEMA public FROM anon, authenticated` plus
-eine Änderung der Standardrechte für künftige Tabellen. Das berührt 97 Tabellen
-und alle künftigen — eine eigene Entscheidung, keine Beifuhr zu DEC-002. Für
-`undo_20260828100000` ist es in `20260828150000` bereits enthalten, weil dort
-`REVOKE ALL` steht.
+`SEPARATE_HARDENING_DECISION_REQUIRED` · `MIGRATION_PREPARED / NOT_LIVE`.
+
+Die Migration `20260828160000` ist geschrieben und bewiesen, **nicht angewendet**.
+Inventar vorab (`ops/rollout/2026-08-28/M0105-inventar.txt`), Nachweis
+(`ops/rollout/2026-08-28/M0105-nachweis.txt`).
+
+**Was das Inventar ergab, bevor eine Zeile SQL entstand:**
+
+| | |
+|---|---|
+| exponierte Schemata mit `anon`-USAGE | `auth`, `extensions`, `graphql`, `graphql_public`, `net`, `public`, `realtime`, `storage`, `supabase_functions` |
+| Tabellen mit `anon`-TRUNCATE | `public` 97 · `storage` 3 · `net` 2 · `supabase_functions` 2 |
+| Tabellen mit `authenticated`-TRUNCATE | `public` 101 · übrige wie oben |
+| Eigentümer im `public`-Schema | durchgängig `postgres` |
+| `pg_default_acl` für `public`, Tabellen | **zwei** Zeilen: Erteiler `postgres` **und** Erteiler `supabase_admin`, beide `arwdDxt` an `anon`/`authenticated` |
+| Funktionen, die TRUNCATE auslösen | keine, in keinem exponierten Schema |
+| `ON TRUNCATE`-Trigger | nur `cron.job` (System, nicht exponiert) |
+| `pg_cron`-Jobs mit TRUNCATE | 0 von 12 |
+| betrieblicher Bedarf an `anon`/`authenticated`-TRUNCATE | keiner gefunden |
+
+**Die Grenze, die das Inventar aufdeckte.** `postgres` ist auf dieser
+Installation **kein Superuser** und **kein Mitglied von `supabase_admin`**
+(beides gemessen). Standardrechte kann nur ihr Erteiler ändern. Eine als
+`postgres` laufende Migration räumt deshalb die bestehenden Rechte vollständig
+und die Standardrechte **nur zur Hälfte**. Von `supabase_admin` künftig
+angelegte Tabellen erben weiter TRUNCATE; die Migration meldet diesen
+Restbestand selbst und nennt die Superuser-Anweisung. Das steht im Kopf der
+Datei, statt sich später als Lücke herauszustellen.
+
+**Bewiesen** (Wegwerf-Stapel): `anon` truncierte `admin_activity_log`
+erfolgreich → danach `permission denied`, für `anon` wie `authenticated`.
+SELECT/INSERT/UPDATE/DELETE über 800 geprüfte Paare unverändert. Künftige
+Tabellen — erst nach Nachbau der Produktions-Standardrechte aussagekräftig, weil
+der Stapel keine trug — `anon_truncate` von `true` auf `false`, `select` und
+`insert` bleiben. Idempotent, Rücknahme stellt den unsicheren Zustand her.
+
+**Nicht im Umfang:** `storage`, `net`, `supabase_functions` tragen dieselbe
+Drift, gehören aber anderen Eigentümern und liegen ausserhalb des vereinbarten
+Vertrags. Eigener Befund.
+
+---
+
+### M01-06 · `get_public_company_info` — absichtlich öffentlich, eigener Prüfpunkt · `PLANNED`
+
+`public.get_public_company_info(uuid)` ist `SECURITY DEFINER`, für `anon` und
+`authenticated` ausführbar und liefert Name, Adresse, Telefon, E-Mail, Website
+und Logo **jeder** Firma ohne Mitgliedschaftsprüfung.
+
+Das ist **Absicht**: `src/pages/public/OfferView.tsx:279` braucht es, damit ein
+Kunde mit Token sieht, wer ihm die Offerte geschickt hat. Es ist keine
+`is_admin`-Ausnahme — auch `anon` kommt heran — und daher ausserhalb von DEC-002.
+
+DEC-002 schliesst den **mandantenlosen policy-basierten** Zugriff auf
+`companies`. Sie behauptet **nicht**, diese absichtliche öffentliche RPC zu
+entfernen. Der Prüfpunkt hier ist ein anderer: welche Spalten dürfen wirklich
+öffentlich sein? `public-safe` heisst nicht `alles, was in der Zeile steht`.
+
+**Zustand:** `PLANNED` — eigener Prüfpunkt, keine Beifuhr zu DEC-002.
+
+---
+
+## P3 / P5 — später
 
 ---
 
