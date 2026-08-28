@@ -1,0 +1,20 @@
+Output format is unaligned.
+=== A) Wie viele Dokumente sind ueberhaupt fr/en? ===
+offers|de|92
+offers|en|1
+leads|de|116
+auftraege|de|26
+rechnungen|de|31
+quittungen|de|12
+appointments|de|96
+customers|de|117
+=== B) Vorlagen: wie vollstaendig sind fr/en hinterlegt? ===
+agb_sections|en|gesamt=37|title_fehlt=37|content_fehlt=37
+agb_sections|fr|gesamt=37|title_fehlt=37|content_fehlt=37
+company_service_items|en|gesamt=134|name_fehlt=134|description_fehlt=134
+company_service_items|fr|gesamt=134|name_fehlt=67|description_fehlt=67
+leistungsuebersicht_templates|en|gesamt=1|fehlt=1
+leistungsuebersicht_templates|fr|gesamt=1|fehlt=1
+=== C) companies: Zahlungskondition und AGB-Grundtext ===
+companies|45a8a892-10c8-4e34-a176-4b43436e879a|Bernova Umzug|default_payment_terms=leer|fr=FEHLT|en=FEHLT|terms=leer|terms_fr=FEHLT|terms_en=FEHLT|default_language=de
+companies|f48e28b0-eee4-4bd9-873e-03eae0cc3fe5|Hirschenumzug GmbH|default_payment_terms=leer|fr=FEHLT|en=FEHLT|terms=leer|terms_fr=FEHLT|terms_en=FEHLT|default_language=de
