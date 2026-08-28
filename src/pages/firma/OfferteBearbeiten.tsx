@@ -52,7 +52,8 @@ import {
 import { metaKindForService, buildMetaPayload, metaPayloadToJson, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -143,6 +144,8 @@ const generateItemId = () => `item-${Date.now()}-${Math.random().toString(36).su
 
 const FirmaOfferteBearbeiten = () => {
   const { user } = useAuth();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId } = useCompanyContext();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { offerId } = useParams<{ offerId: string }>();
@@ -250,12 +253,17 @@ const FirmaOfferteBearbeiten = () => {
         setIsLoading(false);
         return;
       }
+      // Solange der aktive Mandant nicht feststeht, wird nicht geladen. Vorher
+      // stand hier `fetchSingleCompanyForUser`, das die Firma RIET — bei zwei
+      // Mitgliedschaften konnte die Offerte damit unter der falschen Firma
+      // gesucht und (weil `.eq("company_id", …)` dann nicht traf) als "nicht
+      // gefunden" abgewiesen werden, obwohl sie existiert.
+      if (!activeCompanyId) return;
 
       try {
-        // Get company
-        const companyData = await fetchSingleCompanyForUser<Company>({
-          userId: user.id,
-          userEmail: user.email,
+        // Get company — GENAU der aktive Mandant, nicht die geratene Firma.
+        const companyData = await fetchCompanyById<Company>({
+          companyId: activeCompanyId,
           select: "id, company_name",
         });
 
@@ -271,7 +279,7 @@ const FirmaOfferteBearbeiten = () => {
           .select("*")
           .eq("id", offerId)
           .eq("company_id", companyData.id)
-          .single();
+          .maybeSingle();
 
         if (offerError || !offerData) {
           toast({
@@ -444,7 +452,7 @@ const FirmaOfferteBearbeiten = () => {
     };
 
     fetchData();
-  }, [user, offerId, navigate, toast, t]);
+  }, [user, offerId, activeCompanyId, navigate, toast, t]);
 
   const addItem = () => {
     setItems([

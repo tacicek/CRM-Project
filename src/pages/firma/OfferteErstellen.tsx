@@ -54,7 +54,9 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { format } from "date-fns";
 import { useCompanyPricing } from "@/hooks/useCompanyPricing";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
+import { zeileGehoertZumMandanten } from "@/lib/aktiverMandant";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { normalizeToCatalogBase, groupItemsByService } from "@/lib/offerServiceType";
 import { formatFloorLabel } from "@/lib/floorUtils";
@@ -325,6 +327,8 @@ const isValidUntilShorterThanSevenDays = (isoDate: string): boolean => {
 
 const FirmaOfferteErstellen = () => {
   const { user } = useAuth();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId } = useCompanyContext();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -483,12 +487,17 @@ const FirmaOfferteErstellen = () => {
         setIsLoading(false);
         return;
       }
+      // Solange der aktive Mandant nicht feststeht, wird nicht geladen — die
+      // Seite bleibt im Ladezustand statt zu raten, fuer WEN diese Offerte
+      // entsteht.
+      if (!activeCompanyId) return;
 
       try {
-        // Get company
-        const companyData = await fetchSingleCompanyForUser<Company>({
-          userId: user.id,
-          userEmail: user.email,
+        // Get company — GENAU der aktive Mandant. Vorher riet
+        // `fetchSingleCompanyForUser` und konnte damit eine Offerte im Namen
+        // der anderen Firma anlegen, aus einem Lead der ersten.
+        const companyData = await fetchCompanyById<Company>({
+          companyId: activeCompanyId,
           select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, logo_url, default_terms_and_conditions, default_payment_terms, default_language",
         });
 
@@ -520,7 +529,11 @@ const FirmaOfferteErstellen = () => {
         // doppelt tot: die Tabelle lead_distributions hat 0 Zeilen, UND kein
         // einziger Link im Repo hat diesen Parameter je gesetzt.
 
-        if (!leadData) {
+        // Fail closed: der Lead muss dem AKTIVEN Mandanten gehoeren. Wer in
+        // beiden Firmen Mitglied ist, darf den fremden Lead per RLS lesen —
+        // daraus hier eine Offerte der eigenen Firma zu bauen, waere ein
+        // Datenuebertritt mit einem Klick. Gleiche Meldung wie "gibt es nicht".
+        if (!leadData || !zeileGehoertZumMandanten(leadData, activeCompanyId)) {
           toast({
             title: t("offer.create.toast.leadNotFound.title"),
             description: t("offer.create.toast.leadNotFound.description"),
@@ -676,7 +689,7 @@ const FirmaOfferteErstellen = () => {
     };
 
     fetchData();
-  }, [user, leadId, navigate, toast, loadPricingConfig, t]);
+  }, [user, leadId, activeCompanyId, navigate, toast, loadPricingConfig, t]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
