@@ -128,8 +128,8 @@
   },
   "next_action": {
     "task": "T-007",
-    "instruction": "buildOfferLanguageRebasePlan(): classify every field a language switch would affect (deterministic generated title, catalog-sourced item text, template/company payment+terms, free-form operator text, already-sent) and surface the plan before applying it.",
-    "expected_result": "The picker stops implying a rebase it does not perform; the operator sees exactly what is regenerated, what stays, and which translation is missing."
+    "instruction": "buildOfferLanguageRebasePlan as a pure deterministic domain function with the six classification categories, then T-008 readiness enforced in the authoritative send path.",
+    "expected_result": "The language selector stops claiming a translation it did not perform; a missing mandatory FR/EN translation blocks the first send from the send path itself, not only from the button."
   },
   "pending_decisions": [
     {
@@ -157,5 +157,30 @@
       "finding": "P0-S8",
       "package": "docs/hardening/ROLLOUT-2026-08-28.md"
     }
-  ]
+  ],
+  "lifecycle_states": {
+    "why": "A single DONE cannot mean implemented, verified, reviewed, merged, deployed and proven-live at once. A vulnerability is not closed because its migration exists.",
+    "allowed": [
+      "PLANNED",
+      "IN_PROGRESS",
+      "VERIFIED_IN_REPO",
+      "INDEPENDENT_REVIEW_PASS",
+      "READY_FOR_ROLLOUT",
+      "MERGED_NOT_DEPLOYED",
+      "LIVE_UNVERIFIED",
+      "LIVE_VERIFIED",
+      "BLOCKED_EXTERNAL",
+      "ACTIVE_PRODUCTION_EXPOSURE",
+      "AWAITING_PRODUCTION_AUTH"
+    ]
+  },
+  "status_correction_2026_08_28": {
+    "P0": "LIVE_VERIFIED \u2014 read-only measurement; nothing to deploy",
+    "P1A": "INDEPENDENT_REVIEW_PASS, NOT_LIVE \u2014 running production still guesses the company",
+    "P1B-1": "VERIFIED_IN_REPO, NOT_LIVE \u2014 deployed spell-check still applies German rules to French",
+    "R-1": "READY_FOR_ROLLOUT; the underlying finding P0-S1 stays ACTIVE_PRODUCTION_EXPOSURE",
+    "R-2": "READY_FOR_ROLLOUT, binding order: _shared/appointmentDay.ts first; P0-S3a stays ACTIVE_PRODUCTION_EXPOSURE",
+    "R-3": "READY_FOR_ROLLOUT, binding order: frontend first, then spell-check-ai",
+    "pull_request": "BLOCKED_EXTERNAL \u2014 gh pr create denied by the permission classifier; does not stop repository work"
+  }
 }

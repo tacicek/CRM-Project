@@ -1,19 +1,56 @@
 # Härtungs-Ledger
 
 Eine Zeile je Aufgabe. Die Spalten sind der Vertrag: ohne *Beleg vorher* und
-*Nachweis* wechselt keine Zeile auf `DONE`.
+*Nachweis* rückt keine Zeile weiter.
 
 **Etiketten:** `VERIFIED` (aus Quelltext, Testausgabe, Katalog oder ausgerolltem
 Code bewiesen) · `HYPOTHESIS` (plausibel, unbewiesen) · `NEEDS-PROD-CHECK`
 (braucht den Live-Zustand; die Abfrage steht dabei) · `REFUTED` (geprüft und
 widerlegt).
 
-**Zustände:** `BACKLOG → READY → IN_PROGRESS → VERIFY → REVIEW → MERGED →
-PRODUCTION_VERIFIED → DONE`, dazu `BLOCKED`, `AWAITING_PRODUCTION_AUTH`,
-`DEFERRED_WITH_OWNER_DECISION`.
+## Zustände — es gibt kein „fertig"
+
+Ein einziges `DONE` für „im Repo umgesetzt", „lokal geprüft", „durchgesehen",
+„gemergt", „ausgerollt" und „live nachgewiesen" ist genau die Unschärfe, die
+dieses Programm beseitigen soll. Eine Sicherheitslücke ist nicht geschlossen,
+weil ihre Migration existiert. Deshalb sechs getrennte Stufen:
+
+| Zustand | Bedeutet | Bedeutet NICHT |
+|---|---|---|
+| `PLANNED` | benannt, nicht begonnen | — |
+| `IN_PROGRESS` | in Arbeit | — |
+| `VERIFIED_IN_REPO` | umgesetzt, lokale Tore grün (type-check, Tests, Build, Lint) | dass jemand anderes daraufgeschaut hat |
+| `INDEPENDENT_REVIEW_PASS` | eine unabhängige Durchsicht hat die Zusagen angegriffen und sie halten | dass es gemergt oder ausgerollt ist |
+| `READY_FOR_ROLLOUT` | Rollout-Paket vollständig: Reihenfolge, Vorprüfung, Nachweis, Rücknahme | dass es angewendet wurde |
+| `MERGED_NOT_DEPLOYED` | auf `main`, aber die Produktion führt es nicht aus | dass die Wirkung eingetreten ist |
+| `LIVE_UNVERIFIED` | ausgerollt, Wirkung noch nicht gemessen | dass es funktioniert |
+| `LIVE_VERIFIED` | ausgerollt **und** am Endergebnis gemessen | — |
+| `BLOCKED_EXTERNAL` | etwas ausserhalb dieses Repos hält auf (Berechtigung, Zugang, Dienst) | dass die Arbeit steht |
+| `ACTIVE_PRODUCTION_EXPOSURE` | in der Produktion **jetzt** ausnutzbar, Korrektur liegt bereit | dass sie behoben ist |
+| `AWAITING_PRODUCTION_AUTH` | der nächste Schritt ist ein Produktionsschreibvorgang ohne Freigabe | — |
+
+**Nichts in diesem Repo kann `LIVE_VERIFIED` erreichen, solange kein
+Produktionsschreibvorgang freigegeben ist.** Das ist kein Mangel des Ledgers,
+sondern sein Zweck.
 
 Programm: [CRM_SYSTEM_HARDENING_PROGRAM.md](../CRM_SYSTEM_HARDENING_PROGRAM.md) ·
 Belege: `.project-engineering/evidence/` · Steuerung: `.project-engineering/`
+
+---
+
+## Was in der Produktion JETZT gilt (Stand 2026-08-28)
+
+Nichts aus diesem Programm ausser der Messung selbst ist live. Zwei Befunde sind
+**offen und ausnutzbar**, während ihre Korrektur im Repo liegt:
+
+| | Zustand | Was das bedeutet |
+|---|---|---|
+| **P0-S1** `landing_page_analytics` | **`ACTIVE_PRODUCTION_EXPOSURE`** | Jeder unauthentifizierte Aufrufer kann Zeilen schreiben. Migration `20260828100000` existiert, ist **nicht eingespielt**. |
+| **P0-S3a** drei Google-Proxys | **`ACTIVE_PRODUCTION_EXPOSURE`** | Ohne Drossel im Netz, auf kostenpflichtigen APIs. Die Drossel ist im Repo, **nicht ausgerollt**. |
+| **P1A** Mandantentrennung | `INDEPENDENT_REVIEW_PASS`, **nicht live** | Die laufende Fassung rät die Firma weiter. |
+| **P1B-1** Rechtschreibprüfung | `VERIFIED_IN_REPO`, **nicht live** | Die ausgerollte Fassung korrigiert Französisch weiter nach deutschen Regeln. |
+| **R-1 / R-2 / R-3** | `READY_FOR_ROLLOUT` | Pakete vollständig ([ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-28.md)), **keins ausgeführt**. |
+| **PR** | `BLOCKED_EXTERNAL` | `gh pr create` von der Berechtigungsprüfung abgewiesen. Hält die Arbeit im Repo nicht auf. |
 
 ---
 
@@ -36,24 +73,24 @@ Produktion: PostgreSQL 15.8 · 101 Tabellen, alle mit RLS, 232 Policies ·
 
 | ID | Modul | Fehlerklasse | Abhängig | Zustand | Beleg vorher | Sollvertrag | Umsetzung | Nachweis | Commit | Produktionsprüfung | Restrisiko |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| **P0-1** | Plattform | keine gemessene Wahrheit | — | `MERGED` | Letzte Aufnahme 2026-08-10, Repo seither weitergezogen | Datierte, lesende Aufnahme; jeder Driftposten benannt | `scripts/capture-production-truth.sh` gegen `7639710127421538342` | `ops/production-truth/2026-08-28/` (Generation `b92a3bf64015b2eb`) | T-001 | lesend erfolgt | — |
-| **P0-2** | Plattform | Repo↔Deploy nur Mengen-, kein Inhaltsvergleich | P0-1 | `MERGED` | `deploy-repo-diff.json` vergleicht nur Namen | Inhaltsvergleich gegen den exakten Commit, reproduzierbar | `scripts/edge-drift.mjs` | `.project-engineering/evidence/P0-2026-08-28/edge-hash-drift.json` — 29 gleich, 10 Drift, 3 deploy-only, 12 nicht ausgerollt | T-001 | lesend erfolgt | — |
-| **P0-3** | Plattform | Migrationsstand unbelegt | P0-1 | `MERGED` | „Datei vorhanden" ≠ „eingespielt" | Für die Migrationen seit 2026-08-05 gemessener Stand | Lesende Katalogsonde | `migration-applied-state.json` — 3 `APPLIED`, 1 `NOT_APPLIED` | T-001 | lesend erfolgt | Für die 380+ älteren Dateien gibt es weiterhin keinen Ledger (→ P3-1) |
-| **P0-4** | Plattform | Edge ohne Auth-Modell | P0-1, P0-2 | `MERGED` | 42 ausgerollte Functions, keine Einstufung | Genau ein Modell je ausgerollter Function, als Tor erzwungen | `docs/hardening/edge-auth-manifest.json` + `src/test/__tests__/edge-auth-manifest.test.ts` | 8 Tests grün; 42/42 eingestuft | T-001 | lesend erfolgt | Bei den 10 Driftfällen gilt die Einstufung dem Repo-Stand; die ausgerollten Fassungen wurden einzeln gelesen und sind älter, nicht anders |
+| **P0-1** | Plattform | keine gemessene Wahrheit | — | `LIVE_VERIFIED` | Letzte Aufnahme 2026-08-10, Repo seither weitergezogen | Datierte, lesende Aufnahme; jeder Driftposten benannt | `scripts/capture-production-truth.sh` gegen `7639710127421538342` | `ops/production-truth/2026-08-28/` (Generation `b92a3bf64015b2eb`) | T-001 | lesend erfolgt | — |
+| **P0-2** | Plattform | Repo↔Deploy nur Mengen-, kein Inhaltsvergleich | P0-1 | `LIVE_VERIFIED` | `deploy-repo-diff.json` vergleicht nur Namen | Inhaltsvergleich gegen den exakten Commit, reproduzierbar | `scripts/edge-drift.mjs` | `.project-engineering/evidence/P0-2026-08-28/edge-hash-drift.json` — 29 gleich, 10 Drift, 3 deploy-only, 12 nicht ausgerollt | T-001 | lesend erfolgt | — |
+| **P0-3** | Plattform | Migrationsstand unbelegt | P0-1 | `LIVE_VERIFIED` | „Datei vorhanden" ≠ „eingespielt" | Für die Migrationen seit 2026-08-05 gemessener Stand | Lesende Katalogsonde | `migration-applied-state.json` — 3 `APPLIED`, 1 `NOT_APPLIED` | T-001 | lesend erfolgt | Für die 380+ älteren Dateien gibt es weiterhin keinen Ledger (→ P3-1) |
+| **P0-4** | Plattform | Edge ohne Auth-Modell | P0-1, P0-2 | `LIVE_VERIFIED` | 42 ausgerollte Functions, keine Einstufung | Genau ein Modell je ausgerollter Function, als Tor erzwungen | `docs/hardening/edge-auth-manifest.json` + `src/test/__tests__/edge-auth-manifest.test.ts` | 8 Tests grün; 42/42 eingestuft | T-001 | lesend erfolgt | Bei den 10 Driftfällen gilt die Einstufung dem Repo-Stand; die ausgerollten Fassungen wurden einzeln gelesen und sind älter, nicht anders |
 
 ### Belegte Befunde aus P0
 
 | ID | Etikett | Befund | Zustand |
 |---|---|---|---|
-| **P0-S1** | `VERIFIED` | `landing_page_analytics` trägt in der Produktion eine INSERT-Policy `TO PUBLIC` mit `WITH CHECK (true)`; `anon` hat das Tabellenrecht. Die Korrektur `20260828100000` liegt im Repo, `undo_20260828100000` fehlt in der Produktion → **nicht eingespielt**. Unauthentifiziert aus dem Internet schreibbar. | `AWAITING_PRODUCTION_AUTH` |
-| **P0-S2** | `VERIFIED` | `VERIFY_JWT=false`; der ausgerollte Router `main` überspringt seinen 401-Block genau dann; Kong-Route `/functions/v1` trägt nur `cors`. Jede ausgerollte Function ist unauthentifiziert erreichbar. `config.toml` ist an dieser Installation wirkungslos. | `MERGED` (als Vertrag im Manifest festgeschrieben) |
-| **P0-S3** | `VERIFIED` | 10 Functions driften. Alle 10 gegen den ausgerollten Quelltext diffed: die Produktion ist **älter**, nicht anders. | `AWAITING_PRODUCTION_AUTH` |
-| **P0-S3a** | `VERIFIED` | `calculate-distance`, `google-places-autocomplete`, `google-places-details` sind unauthentifizierte Proxys auf kostenpflichtige Google-APIs. Die Drossel (60/min je IP) steht im Repo, ist aber **nicht ausgerollt**. Fremdkostenabfluss ohne jede Hürde. | `AWAITING_PRODUCTION_AUTH` |
+| **P0-S1** | `VERIFIED` | `landing_page_analytics` trägt in der Produktion eine INSERT-Policy `TO PUBLIC` mit `WITH CHECK (true)`; `anon` hat das Tabellenrecht. Die Korrektur `20260828100000` liegt im Repo, `undo_20260828100000` fehlt in der Produktion → **nicht eingespielt**. Unauthentifiziert aus dem Internet schreibbar. | **`ACTIVE_PRODUCTION_EXPOSURE`** — Korrektur liegt bereit (R-1), ist aber **nicht angewendet**. Die Lücke ist offen. |
+| **P0-S2** | `VERIFIED` | `VERIFY_JWT=false`; der ausgerollte Router `main` überspringt seinen 401-Block genau dann; Kong-Route `/functions/v1` trägt nur `cors`. Jede ausgerollte Function ist unauthentifiziert erreichbar. `config.toml` ist an dieser Installation wirkungslos. | `LIVE_VERIFIED` (gemessener Zustand; als Vertrag im Manifest festgeschrieben) |
+| **P0-S3** | `VERIFIED` | 10 Functions driften. Alle 10 gegen den ausgerollten Quelltext diffed: die Produktion ist **älter**, nicht anders. | `READY_FOR_ROLLOUT` (R-2) |
+| **P0-S3a** | `VERIFIED` | `calculate-distance`, `google-places-autocomplete`, `google-places-details` sind unauthentifizierte Proxys auf kostenpflichtige Google-APIs. Die Drossel (60/min je IP) steht im Repo, ist aber **nicht ausgerollt**. Fremdkostenabfluss ohne jede Hürde. | **`ACTIVE_PRODUCTION_EXPOSURE`** — die Drossel ist im Repo, aber nicht ausgerollt (R-2). Der Abfluss ist offen. |
 | **P0-S4** | `REFUTED` | Sorge: unauthentifizierter deploy-only Handler. Gelesen: `accept-lead` prüft `auth.getUser` **und** `verifyCompanyMembership`; `hello` gibt eine Konstante zurück; `main` ist der Laufzeit-Router. Kein offenes Loch. | — |
 | **P0-S5** | `VERIFIED` | `generate-sitemap` läuft mit `service_role` ohne Auth und erzeugt Marktplatz-Sitemaps (`/partner-werden`, `/preise`, SEO-Landingpages). Liest nur `blog_posts` mit `status='published'` — kein Datenabfluss. | `BACKLOG` → P5-1 |
 | **P0-S6** | `VERIFIED` | 8 `config.toml`-Einträge ohne Quelle und ohne Deployment; 16 Quellen ohne Eintrag; 12 Quellen ohne Deployment. | `BACKLOG` → P3-2 |
-| **P0-S7** | `VERIFIED` | `fetchSingleCompanyForUser()` rät die Firma; 17 Dateien rufen sie, 16 davon unter `/firma`. Produktion hat 2 Firmen. | **`MERGED`** — siehe P1A |
-| **P0-S8** | `VERIFIED` | `spell-check-ai` trägt einen fest deutschen Prompt (`ß→ss`, Substantivgrossschreibung); `runSpellCheck(fields)` sendet keine Sprache. Aufgerufen für jede Dokumentsprache. | **`MERGED`** — siehe P1B-1; Rollout offen |
+| **P0-S7** | `VERIFIED` | `fetchSingleCompanyForUser()` rät die Firma; 17 Dateien rufen sie, 16 davon unter `/firma`. Produktion hat 2 Firmen. | `INDEPENDENT_REVIEW_PASS` · **NICHT LIVE** — siehe P1A |
+| **P0-S8** | `VERIFIED` | `spell-check-ai` trägt einen fest deutschen Prompt (`ß→ss`, Substantivgrossschreibung); `runSpellCheck(fields)` sendet keine Sprache. Aufgerufen für jede Dokumentsprache. | `VERIFIED_IN_REPO` · **NICHT LIVE** — die ausgerollte Fassung korrigiert Französisch weiterhin nach deutschen Regeln (R-3) |
 | **P0-S9** | `VERIFIED` | `cookie_consent_log` trägt eine unbeschränkte PUBLIC-INSERT-Policy. CookieBanner ist laut `CLAUDE.md` §2 aus dem Fork entfernt — Erreichbarkeit ungeprüft. | `BACKLOG` → P5-2 |
 | **H-004** | `VERIFIED` | In `send-quittung` und `send-rechnung-email` steht die Berechtigungsprüfung in einem `if (zeile) { … }`, dessen Abfragefehler verworfen wird: fällt die zweite Abfrage aus, wird der 403 **übersprungen**. In `send-quittung` lädt `loadCompanySecrets` ausserdem **vor** der Prüfung. | `BACKLOG` → P1C-1 |
 
@@ -63,13 +100,20 @@ Produktion: PostgreSQL 15.8 · 101 Tabellen, alle mit RLS, 232 Policies ·
 
 | ID | Modul | Fehlerklasse | Abhängig | Zustand | Beleg vorher | Sollvertrag | Umsetzung | Nachweis | Commit | Produktionsprüfung | Restrisiko |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| **P1A-1** | Finanzen | geratene Firmenidentität in Rechnungen/Quittungen | P0-S7 | `MERGED` | `Rechnungen.tsx` holte Liste über aktiven Mandanten, Kopfdaten über den Ratehelfer | Firmensatz kommt aus dem aktiven Mandanten; Zeile fremder Firma fällt fail closed durch | `fetchCompanyById`, `aktiverMandant`, `useCompanyRecord`; 4 Seiten umgestellt | 12 Vertragstests; type-check, 1766 Tests, build grün | `37f9d7bc` | — (nur Browsercode) | Zwei-Firmen-Test läuft gegen reine Funktionen, nicht gegen ein laufendes DOM (§16 des Programms) |
-| **P1A-2** | Offerten | geratene Firmenidentität in Offerte anlegen/bearbeiten/Detail | P1A-1 | `MERGED` | drei Seiten am Ratehelfer; `OfferteErstellen` lud den Lead ohne Mandantenfilter | aktiver Mandant als einzige Quelle; Lead fremder Firma fällt fail closed durch | 3 Seiten umgestellt; `select: "*"` in `OfferteDetail` durch Spaltenliste ersetzt | type-check, 1766 Tests, build grün | `109289b3` | — | — |
-| **P1A-3** | Aufträge, Einstellungen, Archiv, Importe, Preise, Katalog, Checkliste, Team | restliche `/firma`-Aufrufer | P1A-2 | `MERGED` | 9 Seiten am Ratehelfer; Einstellungs-Entwurf unter festem Schlüssel; `select: "*"` | keine eigene Firmenauflösung mehr; tenant-gebundener Entwurfsschlüssel | 5 Seiten ganz ohne Abfrage (ID kommt aus dem Kontext), 4 über `fetchCompanyById` | type-check, 1766 Tests, build grün | `5d2f2976` | — | — |
-| **P1A-4** | Auth | `Auth.tsx`: „genau eine Firma" → „berechtigte Mitgliedschaften" | P1A-3 | `MERGED` | Ratehelfer entschied den Anmeldebildschirm: verifizierte Firma A + unverifizierte B konnte „Verifizierung ausstehend" ergeben | `entscheideAnmeldeZiel()` über alle Mitgliedschaften; `is_verified === true` | reine Funktion + `fetchCompaniesForUser` | 5 Vertragstests; 1772 Tests grün | `45faf73d` | — | — |
-| **P1A-5** | Plattform | Wiedereinführung des Ratehelfers | P1A-4 | `MERGED` | Helfer gelöscht — aber in zwei Zeilen neu schreibbar | Tor prüft das MUSTER (E-Mail-Suche, `created_at`-Sortierung), nicht den Namen | `src/test/__tests__/mandanten-quelle.test.ts` | **gegen eine eingeschleuste Verletzung geprüft** — schlägt bei allen drei Mustern an | `45faf73d` | — | Das Tor deckt `src/` ab, nicht `supabase/functions/` |
+| **P1A-1** | Finanzen | geratene Firmenidentität in Rechnungen/Quittungen | P0-S7 | `INDEPENDENT_REVIEW_PASS` · NICHT LIVE | `Rechnungen.tsx` holte Liste über aktiven Mandanten, Kopfdaten über den Ratehelfer | Firmensatz kommt aus dem aktiven Mandanten; Zeile fremder Firma fällt fail closed durch | `fetchCompanyById`, `aktiverMandant`, `useCompanyRecord`; 4 Seiten umgestellt | 12 Vertragstests; type-check, 1766 Tests, build grün | `37f9d7bc` | — (nur Browsercode) | Zwei-Firmen-Test läuft gegen reine Funktionen, nicht gegen ein laufendes DOM (§16 des Programms) |
+| **P1A-2** | Offerten | geratene Firmenidentität in Offerte anlegen/bearbeiten/Detail | P1A-1 | `INDEPENDENT_REVIEW_PASS` · NICHT LIVE | drei Seiten am Ratehelfer; `OfferteErstellen` lud den Lead ohne Mandantenfilter | aktiver Mandant als einzige Quelle; Lead fremder Firma fällt fail closed durch | 3 Seiten umgestellt; `select: "*"` in `OfferteDetail` durch Spaltenliste ersetzt | type-check, 1766 Tests, build grün | `109289b3` | — | — |
+| **P1A-3** | Aufträge, Einstellungen, Archiv, Importe, Preise, Katalog, Checkliste, Team | restliche `/firma`-Aufrufer | P1A-2 | `INDEPENDENT_REVIEW_PASS` · NICHT LIVE | 9 Seiten am Ratehelfer; Einstellungs-Entwurf unter festem Schlüssel; `select: "*"` | keine eigene Firmenauflösung mehr; tenant-gebundener Entwurfsschlüssel | 5 Seiten ganz ohne Abfrage (ID kommt aus dem Kontext), 4 über `fetchCompanyById` | type-check, 1766 Tests, build grün | `5d2f2976` | — | — |
+| **P1A-4** | Auth | `Auth.tsx`: „genau eine Firma" → „berechtigte Mitgliedschaften" | P1A-3 | `INDEPENDENT_REVIEW_PASS` · NICHT LIVE | Ratehelfer entschied den Anmeldebildschirm: verifizierte Firma A + unverifizierte B konnte „Verifizierung ausstehend" ergeben | `entscheideAnmeldeZiel()` über alle Mitgliedschaften; `is_verified === true` | reine Funktion + `fetchCompaniesForUser` | 5 Vertragstests; 1772 Tests grün | `45faf73d` | — | — |
+| **P1A-5** | Plattform | Wiedereinführung des Ratehelfers | P1A-4 | `INDEPENDENT_REVIEW_PASS` · NICHT LIVE | Helfer gelöscht — aber in zwei Zeilen neu schreibbar | Tor prüft das MUSTER (E-Mail-Suche, `created_at`-Sortierung), nicht den Namen | `src/test/__tests__/mandanten-quelle.test.ts` | **gegen eine eingeschleuste Verletzung geprüft** — schlägt bei allen drei Mustern an | `45faf73d` | — | Das Tor deckt `src/` ab, nicht `supabase/functions/` |
 
-**Exit-Gate P1A:** null `/firma`-Importe des Ratehelfers · null Vorkommen im Quelltext · Tor gegen die Rückkehr, negativ geprüft. **Erfüllt.**
+**Exit-Gate P1A im Repo erfüllt:** null `/firma`-Importe des Ratehelfers · null
+Vorkommen im Quelltext · Tor gegen die Rückkehr, negativ geprüft · unabhängige
+Durchsicht bestanden (7 Punkte, 5 gehalten, alle behoben).
+
+⚠️ **NICHT LIVE.** Der Browsercode läuft in der Produktion erst, wenn die
+Anwendung neu gebaut und ausgerollt wird. Bis dahin rät die laufende Fassung die
+Firma weiter — mit allem, was in P1A-1 bis P1A-5 steht. Der Zustand
+`INDEPENDENT_REVIEW_PASS` sagt genau das und nicht mehr.
 
 ### Nebenbefunde, in P1A mit erledigt
 
@@ -87,13 +131,13 @@ Ein Prüfdurchgang, sieben Punkte, fünf halten stand. Alle behoben in `9de0541b
 
 | ID | Schwere | Befund | Zustand |
 |---|---|---|---|
-| **R-01** | HOCH | Der Entwurfsschlüssel in `Einstellungen` hing an `activeCompanyId`, nicht an der Zeile, aus der die Werte stammen. Beim Wechsel schrieb der 600-ms-Timer A-Werte unter den Schlüssel von B; das Laden legte sie über die frischen B-Werte, und `handleSaveProfile` schrieb sie mit `.eq("id", company.id)` in die **B-Zeile**. **Meine eigene P1A-Korrektur hatte den falschen Tenant gewählt.** | `MERGED` |
-| **R-02** | MITTEL | `Besichtigungen.tsx` holte die Firma aus `getCachedCompany()` — synchron, und beim Wechsel nicht nachziehend. Ich hatte nur nach `fetchSingleCompanyForUser` gesucht; die Aussage „null Aufrufer" war wahr, die Aussage „eine Quelle" trotzdem falsch. | `MERGED` |
-| **R-03** | MITTEL | Das Tor kannte drei Muster, `getCachedCompany` war keines davon — es bestätigte einen Zustand, den es nicht prüfte. Zwei Regeln ergänzt (sessionStorage-Griffe, `company_members.eq("user_id")`), beide gegen eingeschleuste Verletzungen geprüft. Grenze des Tors jetzt im Kopf der Datei. | `MERGED` |
-| **R-04** | MITTEL | `CompanyProvider` wählte `fetchedCompanies[0]` ohne `is_verified` zu prüfen. Die in P1A-4 behobene Sackgasse lag damit eine Ebene tiefer weiter vor. Auto-Auswahl bevorzugt jetzt eine freigeschaltete Firma. | `MERGED` |
-| **R-05** | GERING | `useCompanyRecord` gab `error` zurück, niemand las es, der Kommentar behauptete das Gegenteil. Der Hook meldet jetzt selbst. | `MERGED` |
-| **R-06** | GERING | Das Manifest stufte `accept-lead` als `jwt-member` ein, ohne dass das aus dem Repo belegbar wäre (Quelle nicht da, Aufnahme geschwärzt). Herkunft und Grenze des Tors jetzt vermerkt. | `MERGED` |
-| **R-07** | KLEINIGKEIT | Vier Listenseiten drehten bei fehlendem Mandanten ewig — früher `return` ausserhalb des `finally`. Heute unerreichbar, behoben. | `MERGED` |
+| **R-01** | HOCH | Der Entwurfsschlüssel in `Einstellungen` hing an `activeCompanyId`, nicht an der Zeile, aus der die Werte stammen. Beim Wechsel schrieb der 600-ms-Timer A-Werte unter den Schlüssel von B; das Laden legte sie über die frischen B-Werte, und `handleSaveProfile` schrieb sie mit `.eq("id", company.id)` in die **B-Zeile**. **Meine eigene P1A-Korrektur hatte den falschen Tenant gewählt.** | `VERIFIED_IN_REPO` · NICHT LIVE |
+| **R-02** | MITTEL | `Besichtigungen.tsx` holte die Firma aus `getCachedCompany()` — synchron, und beim Wechsel nicht nachziehend. Ich hatte nur nach `fetchSingleCompanyForUser` gesucht; die Aussage „null Aufrufer" war wahr, die Aussage „eine Quelle" trotzdem falsch. | `VERIFIED_IN_REPO` · NICHT LIVE |
+| **R-03** | MITTEL | Das Tor kannte drei Muster, `getCachedCompany` war keines davon — es bestätigte einen Zustand, den es nicht prüfte. Zwei Regeln ergänzt (sessionStorage-Griffe, `company_members.eq("user_id")`), beide gegen eingeschleuste Verletzungen geprüft. Grenze des Tors jetzt im Kopf der Datei. | `VERIFIED_IN_REPO` · NICHT LIVE |
+| **R-04** | MITTEL | `CompanyProvider` wählte `fetchedCompanies[0]` ohne `is_verified` zu prüfen. Die in P1A-4 behobene Sackgasse lag damit eine Ebene tiefer weiter vor. Auto-Auswahl bevorzugt jetzt eine freigeschaltete Firma. | `VERIFIED_IN_REPO` · NICHT LIVE |
+| **R-05** | GERING | `useCompanyRecord` gab `error` zurück, niemand las es, der Kommentar behauptete das Gegenteil. Der Hook meldet jetzt selbst. | `VERIFIED_IN_REPO` · NICHT LIVE |
+| **R-06** | GERING | Das Manifest stufte `accept-lead` als `jwt-member` ein, ohne dass das aus dem Repo belegbar wäre (Quelle nicht da, Aufnahme geschwärzt). Herkunft und Grenze des Tors jetzt vermerkt. | `VERIFIED_IN_REPO` · NICHT LIVE |
+| **R-07** | KLEINIGKEIT | Vier Listenseiten drehten bei fehlendem Mandanten ewig — früher `return` ausserhalb des `finally`. Heute unerreichbar, behoben. | `VERIFIED_IN_REPO` · NICHT LIVE |
 
 ---
 
@@ -101,7 +145,7 @@ Ein Prüfdurchgang, sieben Punkte, fünf halten stand. Alle behoben in `9de0541b
 
 | ID | Modul | Fehlerklasse | Abhängig | Zustand | Beleg vorher | Sollvertrag | Nachweis | Commit |
 |---|---|---|---|---|---|---|---|---|
-| **P1B-1** | Offerten | Rechtschreibprüfung nur Deutsch, für jede Sprache aufgerufen | P0-S8 | `MERGED` | fester deutscher Prompt (`ß→ss`, Substantivgrossschreibung); `runSpellCheck(fields)` ohne Sprache | `runSpellCheck(fields, locale)`; Handler prüft `de\|fr\|en` und weist Fehlendes mit 400 ab; sprachabhängige Prompts; nie übersetzen | 9 Vertragstests, u. a.: `ß` und deutsche Substantivregel kommen in `fr`/`en` NICHT vor; alle Edge Functions booten | `e4583ee9` |
+| **P1B-1** | Offerten | Rechtschreibprüfung nur Deutsch, für jede Sprache aufgerufen | P0-S8 | `VERIFIED_IN_REPO` · NICHT LIVE | fester deutscher Prompt (`ß→ss`, Substantivgrossschreibung); `runSpellCheck(fields)` ohne Sprache | `runSpellCheck(fields, locale)`; Handler prüft `de\|fr\|en` und weist Fehlendes mit 400 ab; sprachabhängige Prompts; nie übersetzen | 9 Vertragstests, u. a.: `ß` und deutsche Substantivregel kommen in `fr`/`en` NICHT vor; alle Edge Functions booten | `e4583ee9` |
 | **P1B-2** | Offerten | Sprachumschalter behauptet eine Umstellung, die nicht stattfindet | P1B-1 | `BACKLOG` |
 | **P1B-3** | Offerten | strenge Sendebereitschaft statt stiller deutscher Rückfall | P1B-2 | `BACKLOG` |
 
@@ -135,8 +179,9 @@ Beide sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-2
 
 | ID | Was | Befund | Zustand |
 |---|---|---|---|
-| **R-1** | Migration `20260828100000_landing_analytics_anon_insert_entzogen.sql` einspielen | P0-S1 | `AWAITING_PRODUCTION_AUTH` |
-| **R-2** | `_shared/appointmentDay.ts` + sechs Handler ausrollen | P0-S3, P0-S3a | `AWAITING_PRODUCTION_AUTH` |
+| **R-1** | Migration `20260828100000_landing_analytics_anon_insert_entzogen.sql` einspielen | P0-S1 | `READY_FOR_ROLLOUT` — der Befund selbst bleibt `ACTIVE_PRODUCTION_EXPOSURE` |
+| **R-2** | `_shared/appointmentDay.ts` **zuerst**, dann sechs Handler | P0-S3, P0-S3a | `READY_FOR_ROLLOUT` — P0-S3a bleibt `ACTIVE_PRODUCTION_EXPOSURE` |
+| **R-3** | `_shared/spellCheckPrompt.ts` + `spell-check-ai`, **Frontend zuerst** | P0-S8 | `READY_FOR_ROLLOUT` |
 
 ⚠️ **R-2 hat eine bindende Reihenfolge.** `_shared/appointmentDay.ts` ist im Repo,
 aber nicht ausgerollt; der neue `notify-appointment-reminder/index.ts` importiert
