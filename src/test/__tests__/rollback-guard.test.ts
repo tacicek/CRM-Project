@@ -306,3 +306,93 @@ describe("Rücknahme-Tor · Fallmatrix der Durchsicht", () => {
     expect(pruefeDatei("erlaubt.sql", quelle)).toEqual([]);
   });
 });
+
+/**
+ * Die vier Umgehungen, die die dritte Durchsicht in den NEUEN Regeln fand.
+ *
+ * Sie waren nur ad hoc bewiesen. Ein Beweis, der nicht in der Testreihe steht,
+ * ist beim nächsten Umbau verschwunden — deshalb hier einzeln benannt, jeweils
+ * mit der Katalog-Gegenprobe daneben, damit niemand einen echten Treffer
+ * abschwächt, um ein Falsch-Positiv loszuwerden.
+ */
+describe("Rücknahme-Tor · die vier nachgereichten Umgehungen", () => {
+  const rumpf = (b: string) =>
+    `BEGIN;\nDO $r$\nDECLARE v text; v1 text; v2 text; v3 text; z record;\nBEGIN\n${b}\nEND\n$r$;\nCOMMIT;`;
+  const LIES_PERSISTENT = "SELECT withcheck INTO v FROM public.undo_20260828100000;";
+
+  describe("A · Zusammenbau über concat()", () => {
+    it("weist concat() ab", () => {
+      const q = rumpf(`${LIES_PERSISTENT}
+        v1 := concat('CREATE POLICY p ON public.t FOR INSERT WITH CHECK (', v, ')');
+        EXECUTE v1;`);
+      expect(pruefeDatei("a.sql", q).map((x) => x.art)).toContain("verkettetes-ddl");
+    });
+
+    it("weist CONCAT() in Grossschreibung ab", () => {
+      const q = rumpf(`${LIES_PERSISTENT}
+        v1 := CONCAT('CREATE POLICY p ON public.t FOR INSERT WITH CHECK (', v, ')');
+        EXECUTE v1;`);
+      expect(pruefeDatei("a.sql", q).length).toBeGreaterThan(0);
+    });
+
+    it("weist pg_catalog.concat() ab", () => {
+      const q = rumpf(`${LIES_PERSISTENT}
+        v1 := pg_catalog.concat('CREATE POLICY p ON public.t WITH CHECK (', v, ')');
+        EXECUTE v1;`);
+      expect(pruefeDatei("a.sql", q).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("B · Zusammenbau über mehrere schlichte Kopien", () => {
+    it("weist die Kette Quelle → v1 → v2 → v3 → EXECUTE ab", () => {
+      // Zwischen dem Lesen, dem format-losen Zusammenbau und dem EXECUTE liegt
+      // keine Nachbarschaft mehr. Genau darauf hatte das Tor einmal gebaut.
+      const q = rumpf(`${LIES_PERSISTENT}
+        v1 := 'CREATE POLICY p ON public.t FOR INSERT WITH CHECK (' || v;
+        v2 := v1;
+        v3 := v2;
+        EXECUTE v3;`);
+      expect(pruefeDatei("b.sql", q).map((x) => x.art)).toContain("verkettetes-ddl");
+    });
+  });
+
+  describe("C · Persistenzquelle über Komma-Join", () => {
+    it("weist FROM pg_class AS c, public.undo_… AS u ab", () => {
+      const q = rumpf(`SELECT u.withcheck INTO v FROM pg_class AS c, public.undo_20260828100000 AS u LIMIT 1;
+        EXECUTE format('CREATE POLICY p ON public.t FOR INSERT WITH CHECK (%s)', v);`);
+      expect(pruefeDatei("c.sql", q).map((x) => x.art)).toContain("gespeicherter-wert-wird-sql");
+    });
+
+    it("lässt einen reinen Katalog-Komma-Join durch", () => {
+      // Gegenprobe: die Regel darf nicht jeden Komma-Join zum Verstoss machen.
+      const q = rumpf(`SELECT p.oid::regprocedure::text INTO v FROM pg_proc AS p, pg_namespace AS n LIMIT 1;
+        EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO PUBLIC', v);`);
+      expect(pruefeDatei("c.sql", q)).toEqual([]);
+    });
+  });
+
+  describe("D · Persistenzquelle über MERGE INTO", () => {
+    it("weist ein schemaqualifiziertes MERGE INTO mit Alias ab", () => {
+      const q = rumpf(`MERGE INTO public.undo_20260828100000 AS t
+          USING (SELECT 1 AS x) AS s ON true
+          WHEN MATCHED THEN UPDATE SET withcheck = 'x';
+        SELECT 'true' INTO v;
+        EXECUTE format('CREATE POLICY p ON public.t FOR INSERT WITH CHECK (%s)', v);`);
+      expect(pruefeDatei("d.sql", q).map((x) => x.art)).toContain("gespeicherter-wert-wird-sql");
+    });
+  });
+
+  describe("Katalogfälle bleiben unangetastet", () => {
+    it.each([
+      ["regprocedure in der FOR-Form", `FOR z IN SELECT p.oid::regprocedure::text AS sig FROM pg_proc p LOOP
+        EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO PUBLIC', z.sig); END LOOP;`],
+      ["Katalog SELECT … INTO", `SELECT p.oid::regprocedure::text INTO v FROM pg_proc p LIMIT 1;
+        EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO PUBLIC', v);`],
+      ["Katalogwert über eine Zwischenvariable", `SELECT p.oid::regprocedure::text INTO v FROM pg_proc p LIMIT 1;
+        v1 := format('GRANT EXECUTE ON FUNCTION %s TO PUBLIC', v);
+        EXECUTE v1;`],
+    ])("akzeptiert: %s", (_name, koerper) => {
+      expect(pruefeDatei("katalog.sql", rumpf(koerper))).toEqual([]);
+    });
+  });
+});

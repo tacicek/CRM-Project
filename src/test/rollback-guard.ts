@@ -45,8 +45,16 @@ import { join } from "node:path";
  *     andere Umwege dieser Art nicht.
  *   · Ein Helfer, der die Tabelle liest und den Wert zurückgibt, während die
  *     Tabelle in dieser Datei **nirgends** genannt wird. Für ein dateilokales
- *     Tor grundsätzlich unerreichbar — als Fall 12 im Test festgehalten, damit
- *     das eine Entscheidung bleibt und kein ungeprüftes Schweigen.
+ *     Tor grundsätzlich unerreichbar.
+ *
+ *     Die direkten syntaktischen Regeln beweisen dazu **nichts**. Auch die
+ *     festgenagelten Angriffsformen ändern daran nichts: sie sichern die
+ *     jeweils benannte Konstruktion, nicht Helfer-Umwege im Allgemeinen.
+ *
+ *     Eine frühere Fassung dieses Satzes behauptete, der Fall sei durch einen
+ *     Test abgedeckt. Der Test existierte nicht — ausgerechnet im Absatz über
+ *     ungeprüftes Schweigen. Deshalb hier kein Verweis auf eine Testnummer:
+ *     solche Verweise werden falsch, sobald jemand Tests umsortiert.
  *   · Weitere Zusammensetz-Wege, die kein `||` und kein `concat(` benutzen
  *     (etwa `string_agg` über eine Zwischentabelle) oder die den Tabellennamen
  *     dynamisch bilden.
@@ -167,7 +175,16 @@ export const gelesenePersistenzTabellen = (quelle: string): string[] => {
     const t = tabelle.toLowerCase();
     if (schema === "pg_catalog" || schema === "information_schema") return;
     if (t.startsWith("pg_")) return;
-    if (["select", "values", "format", "execute", "lateral", "only"].includes(t)) return;
+    // Schlüsselwörter, die syntaktisch an der Stelle einer Relation stehen
+    // können, aber keine sind. `set` gehört dazu: in `MERGE … WHEN MATCHED THEN
+    // UPDATE SET spalte = …` las das Muster `UPDATE SET` als Tabelle
+    // `public.set`. Das erzeugte ein Falsch-Positiv — und liess ausgerechnet
+    // den MERGE-Test grün werden, ohne dass die MERGE-Regel etwas tat.
+    if (
+      ["select", "values", "format", "execute", "lateral", "only", "set"].includes(t)
+    ) {
+      return;
+    }
     namen.add(`${schema}.${t}`);
   };
 
