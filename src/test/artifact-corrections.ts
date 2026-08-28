@@ -36,6 +36,24 @@ const git = (...args: string[]): Buffer =>
 
 const sha = (b: Buffer): string => createHash("sha256").update(b).digest("hex");
 
+/**
+ * Ist die Arbeitskopie flach geklont?
+ *
+ * Dieses Tor rechnet gegen echte Git-Objekte. Ohne Historie kann es nichts
+ * nachrechnen — und darf das dann NICHT als „Digest stimmt nicht" ausgeben.
+ * Genau so ist es passiert: `actions/checkout@v4` klont standardmässig mit
+ * `fetch-depth: 1`, der Lauf meldete für jeden Eintrag „nicht ermittelbar" und
+ * wurde rot, obwohl nichts kaputt war. Ein Tor, das aus fehlendem Werkzeug einen
+ * inhaltlichen Befund macht, verbrennt genau das Vertrauen, für das es da ist.
+ */
+export const istFlacherKlon = (): boolean => {
+  try {
+    return git("rev-parse", "--is-shallow-repository").toString().trim() === "true";
+  } catch {
+    return false;
+  }
+};
+
 export interface GeaenderteDatei {
   pfad: string;
   einfuehrungscommit: string;
@@ -65,6 +83,12 @@ const imLedgerGefuehrt = (): Set<string> => {
 
 /** Migrationen, deren Inhalt sich seit ihrem Einführungscommit geändert hat. */
 export const geaenderteMigrationen = (): GeaenderteDatei[] => {
+  if (istFlacherKlon()) {
+    throw new Error(
+      "Flacher Klon: dieses Tor braucht die Git-Historie. " +
+        "In CI `actions/checkout` mit `fetch-depth: 0` verwenden.",
+    );
+  }
   const signiert = imLedgerGefuehrt();
   const ergebnis: GeaenderteDatei[] = [];
   for (const datei of readdirSync(VERZEICHNIS).filter((f) => f.endsWith(".sql")).sort()) {
@@ -130,6 +154,12 @@ export interface DigestBefund {
  * ausdrücklich berichtigt sein.
  */
 export const digestBefunde = (): DigestBefund[] => {
+  if (istFlacherKlon()) {
+    throw new Error(
+      "Flacher Klon: Digests lassen sich nicht gegen Git-Objekte nachrechnen. " +
+        "In CI `actions/checkout` mit `fetch-depth: 0` verwenden.",
+    );
+  }
   const eintraege = leseKorrekturen();
   const befunde: DigestBefund[] = [];
 

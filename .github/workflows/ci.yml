@@ -26,6 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Das Artefakt-Korrektur-Tor rechnet Digests gegen echte Git-Objekte
+          # nach (`git show <commit>:<pfad>`). Mit dem Standard fetch-depth: 1
+          # gibt es diese Objekte nicht — der Lauf meldete dann fuer JEDEN
+          # Eintrag "nicht ermittelbar" und wurde rot, ohne dass etwas kaputt
+          # war. Das Tor braucht die Historie, also holt CI sie.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
