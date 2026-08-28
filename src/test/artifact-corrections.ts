@@ -20,6 +20,9 @@ export interface Korrektureintrag {
   record_id: string;
   artifact_path?: string;
   classification: string;
+  corrects_record_id?: string;
+  corrected_field?: string;
+  [feld: string]: unknown;
 }
 
 export const leseKorrekturen = (): Korrektureintrag[] =>
@@ -96,3 +99,89 @@ export const ohneKorrektureintrag = (): GeaenderteDatei[] => {
   const erfasst = new Set(leseKorrekturen().map((k) => k.artifact_path).filter(Boolean));
   return geaenderteMigrationen().filter((g) => !erfasst.has(g.pfad));
 };
+
+/** Alle Digest-Felder eines Eintrags, mit dem Commit, gegen den sie gelten sollen. */
+const DIGEST_FELDER: Array<[digest: string, commit: string]> = [
+  ["sha256_old", "commit_introducing_old_form"],
+  ["sha256_reviewed", "commit_introducing"],
+  ["sha256_previous", "commit_of_correction"],
+  ["correctly_computed_digest", "measured_commit"],
+];
+
+export interface DigestBefund {
+  record_id: string;
+  feld: string;
+  eingetragen: string;
+  tatsaechlich: string | null;
+  /** true, wenn der Eintrag gar keinen Commit nennt, gegen den man rechnen könnte. */
+  nichtNachrechenbar: boolean;
+  spaeterBerichtigt: boolean;
+}
+
+/**
+ * Ein eingetragener Digest muss einem echten Git-Objekt entsprechen.
+ *
+ * Genau hier lag der Fehler, den die unabhängige Durchsicht fand: ein von Hand
+ * getippter Wert, der die ersten 16 Zeichen mit dem echten teilte und ab da
+ * erfunden war. Ein Prüfsatz, dessen Zahlen niemand nachrechnet, ist Dekoration.
+ *
+ * Ein falscher Wert darf stehenbleiben — das Protokoll ist anfügend, alte
+ * Einträge werden nicht umgeschrieben. Er muss aber von einem SPÄTEREN Eintrag
+ * ausdrücklich berichtigt sein.
+ */
+export const digestBefunde = (): DigestBefund[] => {
+  const eintraege = leseKorrekturen();
+  const befunde: DigestBefund[] = [];
+
+  for (const e of eintraege) {
+    const pfad = (e.source_path as string | undefined) ?? e.artifact_path;
+    if (!pfad) continue;
+
+    for (const [digestFeld, commitFeld] of DIGEST_FELDER) {
+      const eingetragen = e[digestFeld] as string | undefined;
+      if (!eingetragen) continue;
+
+      const commit = e[commitFeld] as string | undefined;
+      const spaeterBerichtigt = eintraege.some(
+        (k) => k.corrects_record_id === e.record_id && k.corrected_field === digestFeld,
+      );
+
+      // Ein Digest OHNE Commit-Bezug ist nicht nachrechenbar. Ihn stillschweigend
+      // zu überspringen wäre genau das Loch, durch das der erfundene Wert kam:
+      // das Tor prüfte ihn nie, weil AC-0006 kein commit_of_correction führte.
+      if (!commit || !/^[0-9a-f]{7,40}$/.test(commit)) {
+        befunde.push({
+          record_id: e.record_id,
+          feld: digestFeld,
+          eingetragen,
+          tatsaechlich: null,
+          nichtNachrechenbar: true,
+          spaeterBerichtigt,
+        });
+        continue;
+      }
+
+      let tatsaechlich: string | null = null;
+      try {
+        tatsaechlich = sha(git("show", `${commit}:${pfad}`));
+      } catch {
+        tatsaechlich = null;
+      }
+      if (tatsaechlich === eingetragen) continue;
+
+      befunde.push({
+        record_id: e.record_id,
+        feld: digestFeld,
+        eingetragen,
+        tatsaechlich,
+        nichtNachrechenbar: false,
+        spaeterBerichtigt,
+      });
+    }
+  }
+  return befunde;
+};
+
+/** Falsche Digests, die von keinem späteren Eintrag berichtigt werden. */
+export const unberichtigteDigests = (): DigestBefund[] =>
+  digestBefunde().filter((b) => !b.spaeterBerichtigt);
