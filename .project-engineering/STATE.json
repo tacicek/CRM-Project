@@ -17,7 +17,7 @@
   },
   "baseline": {
     "branch": "chore/produktionswahrheit-festschreiben",
-    "head": "54c81eeb224b41ee29cb414c182f32c409e19d13",
+    "head": "6c4462b98a8e9690ad56665e55118bdbc0f627a3",
     "dirty_paths": [
       "public/favicon.png",
       "public/logo-offerio-main-old.webp",
@@ -81,7 +81,7 @@
   "active": {
     "milestone": "M-03",
     "slice": "S-05",
-    "task": "T-012"
+    "task": "T-013"
   },
   "queue": {
     "ready": [],
@@ -89,43 +89,44 @@
   },
   "last_checkpoint": {
     "at": "2026-08-28T00:00:00Z",
-    "summary": "T-011 done: migrations are append-only by gate (391 files signed; two pre-existing duplicate timestamps recorded rather than hidden), and edge drift is a release failure unless it carries a rollout unit and a reason. Both proven against three injections each.",
+    "summary": "T-012 done: module 01 (Identity/tenancy) certified against the section 6 rubric and judged NOT CERTIFIED. The blocking finding M01-01 was not in any document before: four tenant-less admin policies on companies, inert only because user_roles is empty.",
     "verification": [
       {
-        "command": "npx vitest run src/test/__tests__/migration-ledger.test.ts",
-        "result": "PASS",
-        "reason": "edit / delete / new duplicate all red on injection"
-      },
-      {
-        "command": "npx vitest run src/test/__tests__/edge-auth-manifest.test.ts",
-        "result": "PASS",
-        "reason": "22 tests incl. 3 drift gates; undeclared / stale / unaddressed all red on injection"
-      },
-      {
-        "command": "npm run type-check",
+        "command": "read-only policy + is_admin + row-count probe against production",
         "result": "PASS"
       },
       {
-        "command": "npm test",
+        "command": "every evidence pointer in the report checked to exist",
         "result": "PASS",
-        "reason": "1903 tests"
+        "reason": "8 test files"
       },
       {
-        "command": "npm run build:vite",
+        "command": "CI on 2ba123bb",
         "result": "PASS"
       }
     ]
   },
   "next_action": {
-    "task": "T-012",
-    "instruction": "P4 module certification, starting with the module the evidence already covers best: Identity/tenancy. Apply the section 6 rubric and write one certification report with the tests that back each gate.",
-    "expected_result": "One module has a certification report where every claim points at a test or a measurement, and the gaps are named rather than omitted."
+    "task": "T-013",
+    "instruction": "Continue P4 with module 04 (Offers) \u2014 the module with the most new contracts from this session \u2014 while DEC-002 waits with the owner. Do not touch the four admin policies without that decision.",
+    "expected_result": "A second certification report; M01-01 stays PLANNED until DEC-002 is answered."
   },
   "pending_decisions": [
     {
       "id": "DEC-001",
       "question": "Is /portal retained as Kundenbereich or decommissioned?",
       "blocks": "P5"
+    },
+    {
+      "id": "DEC-002",
+      "question": "Should a cross-company role exist at all? `companies` carries four policies granting is_admin(auth.uid()) full CRUD over EVERY company; is_admin counts 'moderator' as equal to 'super_admin', contradicting src/lib/adminPermissions.ts. user_roles is empty (measured), so it is inert today.",
+      "options": [
+        "residue \u2014 drop the four policies and is_admin from company access",
+        "intended support role \u2014 keep, but tenant-scope it or make the cross-tenant reach explicit and audited"
+      ],
+      "why_not_decided_by_evidence": "The DB asserts one hierarchy, the frontend another, and nobody uses either. Both readings are consistent with D-001.",
+      "safe_to_defer": "yes \u2014 0 rows in user_roles; the risk is that someone grants the first role before the decision is made",
+      "blocks": "module certification 01"
     }
   ],
   "production_writes_awaiting_auth": [

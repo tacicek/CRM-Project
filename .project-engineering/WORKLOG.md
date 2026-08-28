@@ -4,6 +4,33 @@ Anfügend. Neueste zuerst.
 
 ---
 
+## 2026-08-28 · T-012 · Modul 01 zertifiziert — Urteil: NICHT ZERTIFIZIERT (`6c4462b9`)
+
+Die §6-Rubrik über Identität und Mandantenschaft gefahren. Jede Zusage zeigt auf
+einen Test oder eine Messung; wo keiner steht, steht LÜCKE.
+
+**Der blockierende Befund stand vorher in keinem Dokument.** `companies` trägt
+vier Policies, die `is_admin(auth.uid())` SELECT, INSERT, UPDATE und DELETE auf
+*alle* Firmen geben. `is_admin` fragt nicht, zu welcher Firma jemand gehört —
+und zählt `moderator` wie `super_admin`, während dieselbe Rolle im Frontend die
+schwächste ist.
+
+Gemessen: `user_roles` hat **null** Zeilen. Also kein aktiver Übertritt, sondern
+eine ruhende Rechteausweitung — eine Zeile davon entfernt, es nicht mehr zu sein.
+
+**Nicht behoben, mit Absicht.** Die Korrektur braucht eine Produktentscheidung
+(DEC-002): soll es überhaupt eine firmenübergreifende Rolle geben? Die Belege
+entscheiden das nicht — die Datenbank behauptet eine Hierarchie, das Frontend
+eine andere, und niemand benutzt eine von beiden. Ein stiller Entzug wäre so
+falsch wie das Belassen.
+
+Sicher aufschiebbar, solange niemand die erste Rolle vergibt. Genau das ist der
+Grund, es jetzt zu fragen und nicht später.
+
+**Nächstes:** T-013 — Modul 04 (Offerten), während DEC-002 beim Betreiber liegt.
+
+---
+
 ## 2026-08-28 · T-011 · Zwei Tore aus P3 · `VERIFIED_IN_REPO` (`54c81eeb`)
 
 **Tor 11 — Migrationen sind anfügend.** `CLAUDE.md` §6 sagte das seit langem als

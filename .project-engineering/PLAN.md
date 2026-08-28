@@ -78,7 +78,8 @@ dependency-safe work continues.
 | T-006 | `runSpellCheck(fields, locale)`; edge validates the three supported locales and rejects anything else | REQ-F-005 | T-001 | DONE | contract tests per locale |
 | T-007 | `buildOfferLanguageRebasePlan()`; the switch stops claiming a rebase it does not perform | REQ-F-003 | T-006 | DONE | pure-function contract tests |
 | T-008 | Strict send readiness blocks the first send and names the missing source | REQ-F-004 | T-007 | DONE | negative case names the exact source |
-| T-012 | P4: certify the Identity/tenancy module against the section 6 rubric | REQ-F-001, REQ-NF-001 | T-011 | IN_PROGRESS | one certification report; every claim points at a test or a measurement |
+| T-012 | P4: certify the Identity/tenancy module against the section 6 rubric | REQ-F-001, REQ-NF-001 | T-011 | DONE | one certification report; every claim points at a test or a measurement |
+| T-013 | P4: certify module 04 (Offers) against the section 6 rubric | REQ-F-003, REQ-F-004, REQ-F-008 | T-012 | IN_PROGRESS | second certification report |
 | T-015 | Async tenant invariant: a delayed write carries its own tenant; payload/WHERE mismatch is an error | REQ-F-001, REQ-NF-003 | T-014 | DONE | `npx vitest run src/lib/__tests__/tenantBoundWrite.test.ts` (fake timers) |
 | T-016 | Exhaustive edge authorization manifest; mechanical facts measured, 11 gate conditions, injections proven | REQ-F-006 | T-001 | DONE | `npx vitest run src/test/__tests__/edge-auth-manifest.test.ts` |
 | T-017 | Independent review of the cumulative branch diff by a reviewer who implemented none of it | REQ-NF-001 | T-008 | DONE | reviewer report with injection results |
@@ -94,6 +95,7 @@ dependency-safe work continues.
 | RISK-002 | No ledger for the 380+ migrations before 2026-08-05 | Claims about them stay unproven | any schema claim | Signed baseline forward only (P3-1); older claims stay `NEEDS-PROD-CHECK` | OPEN |
 | RISK-003 | 88 pre-existing lint errors | Cannot use "lint clean" as the gate | every commit | Touched files zero errors; repository total must not increase | OPEN |
 | DEC-001 | Is `/portal` a retained customer area or residue? | Blocks P5 | before any P5 deletion | Classify by reachability and business purpose, not by name | OPEN |
+| DEC-002 | Should a cross-company role exist at all? Four `companies` policies grant `is_admin(auth.uid())` full CRUD over every company; `is_admin` counts `moderator` equal to `super_admin`, contradicting `adminPermissions.ts`. `user_roles` is empty, so it is inert today. | Blocks certification of module 01; becomes a live cross-tenant path the moment anyone grants the first role | before the first role is granted | Owner decides: residue (drop) or intended support role (tenant-scope or make the reach explicit and audited) | OPEN |
 
 ## Quality Gates
 
