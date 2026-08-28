@@ -15,9 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
 import { QuittungPDF } from "@/components/quittung/QuittungPDF";
 import { logoToBase64 } from "@/lib/logoToBase64";
-import { useCachedCompany } from "@/hooks/useCachedCompany";
-import { useAuth } from "@/hooks/useAuth";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { useCompanyRecord } from "@/hooks/useCompanyRecord";
 import { useQuittungen } from "@/hooks/useQuittungen";
 import { ZahlungErfassenDialog } from "@/components/firma/ZahlungErfassenDialog";
 import { useToast } from "@/hooks/use-toast";
@@ -64,29 +62,32 @@ interface QuittungCompany {
   bewertungs_url?: string | null;
 }
 
+// Absenderangaben der Quittung. Konstante im Modulkörper — `useCompanyRecord`
+// hängt an diesem String.
+const QUITTUNG_FIRMA_SELECT =
+  "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, crm_enabled, default_language";
+
 export default function FirmaQuittungen() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
   // Dashboard locale — list amounts only. Each PDF follows its own receipt's language.
   const { locale: uiLocale } = useI18n();
-  const { companyId } = useCachedCompany();
-  // Full company record (incl. address/iban/bank) — useCachedCompany ignores the select → fresh fetch.
-  const [company, setCompany] = useState<QuittungCompany | null>(null);
-  useEffect(() => {
-    if (!user?.id) return;
-    fetchSingleCompanyForUser<QuittungCompany>({
-      userId: user.id,
-      userEmail: user.email,
-      select: "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, crm_enabled, default_language",
-    }).then((row) => { if (row) setCompany(row); });
-  }, [user?.id, user?.email]);
+  // Vollständiger Firmensatz des AKTIVEN Mandanten — dieselbe Firma, nach der
+  // auch `useQuittungen` filtert. Vorher kam er aus `fetchSingleCompanyForUser`
+  // und konnte damit eine ANDERE Firma treffen als die Liste darunter.
+  const { company, companyId } = useCompanyRecord<QuittungCompany>(QUITTUNG_FIRMA_SELECT);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   const companyLogoUrl = company?.logo_url;
   useEffect(() => {
-    logoToBase64(companyLogoUrl).then(b64 => { if (b64) setLogoBase64(b64); });
-  }, [company, companyLogoUrl]);
+    // Beim Mandantenwechsel ZUERST löschen. Die alte Fassung setzte nur bei
+    // Erfolg (`if (b64)`) — wer von einer Firma mit Logo zu einer ohne wechselt,
+    // trug das fremde Logo weiter in die eigene Quittung.
+    setLogoBase64(null);
+    let abgemeldet = false;
+    logoToBase64(companyLogoUrl).then(b64 => { if (!abgemeldet && b64) setLogoBase64(b64); });
+    return () => { abgemeldet = true; };
+  }, [companyLogoUrl]);
 
   const companyForPdf = company ? {
     company_name: company.company_name,

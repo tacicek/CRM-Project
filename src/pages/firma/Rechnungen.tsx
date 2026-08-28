@@ -8,13 +8,11 @@ import {
 import {
   Plus, Search, Eye, Download, MoreHorizontal, Loader2, X, Trash2,
 } from "lucide-react";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { useCachedCompany } from "@/hooks/useCachedCompany";
-import { useAuth } from "@/hooks/useAuth";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { useCompanyRecord } from "@/hooks/useCompanyRecord";
 import { useRechnungen, rechnungToPdfData, type Rechnung } from "@/hooks/useRechnungen";
 // downloadRechnungPdf is loaded on demand (see handler) so the @react-pdf + QR engine
 // (~1 MB) is not pulled into the Rechnungen list route just to view invoices. The type
@@ -51,25 +49,23 @@ interface CompanyRow {
   logo_url: string | null;
 }
 
+// Der Gläubiger einer QR-Rechnung. Konstante im Modulkörper: `useCompanyRecord`
+// hängt an diesem String, ein Literal in der Komponente würde bei jedem Render
+// neu erzeugt.
+const RECHNUNG_FIRMA_SELECT =
+  "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url";
+
 export default function FirmaRechnungen() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
   // Dashboard locale — list amounts follow the operator. The PDF follows the invoice row
   // (rechnungToPdfData resolves rechnungen.language), not this.
   const { locale: uiLocale } = useI18n();
-  const { companyId } = useCachedCompany();
-  // Full company record (incl. plz/iban) — useCachedCompany ignores the select and only
-  // returns activeCompany (id/name/logo); QR-Bill creditor address fields are required → fresh fetch.
-  const [c, setC] = useState<CompanyRow | null>(null);
-  useEffect(() => {
-    if (!user?.id) return;
-    fetchSingleCompanyForUser<CompanyRow>({
-      userId: user.id,
-      userEmail: user.email,
-      select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url",
-    }).then((row) => { if (row) setC(row); });
-  }, [user?.id, user?.email]);
+  // Der vollständige Firmensatz des AKTIVEN Mandanten — dieselbe Firma, nach der
+  // auch `useRechnungen` filtert. Bis 2026-08-28 kam er aus
+  // `fetchSingleCompanyForUser`, das die Firma aus der Anmeldeadresse bzw. dem
+  // Anlagedatum RIET: die Liste zeigte A, der QR-Gläubiger im PDF konnte B sein.
+  const { company: c, companyId } = useCompanyRecord<CompanyRow>(RECHNUNG_FIRMA_SELECT);
 
   const { rechnungen, loading, deleteRechnung } = useRechnungen(companyId);
   const [search, setSearch] = useState("");
