@@ -200,7 +200,29 @@ Prüfung.
 |---|---|---|---|---|---|---|
 | **P1C-0** | Edge | Manifest prüfte Vollständigkeit, nicht ob das Modell zum Handler passt | P0-4 | `VERIFIED_IN_REPO` | 54 Einträge (alles Ausgerollte + alles im Repo); mechanische Tatsachen werden gemessen statt abgeschrieben; 11 Torbedingungen; gegen **vier** Einschleusungen geprüft | `c5f3ad8b` |
 | **P1C-1** | Finanzen/Edge | Autorisierung im `if`, Fehler verworfen; Secret-Ladung vor Prüfung (H-004) | P1C-0 | `VERIFIED_IN_REPO` · NICHT LIVE — behoben in `send-offer`, `send-quittung`, `send-rechnung-email`; die Manifest-Ausnahmen sind entfallen | siehe D-09 | `e4e40a94` |
-| **P1C-2** | Edge | 4 verbliebene `anon`+DEFINER+schreibende RPCs einzeln prüfen | P0-1 | `PLANNED` | — | — |
+| **P1C-2** | Datenbank | 4 verbliebene `anon`+DEFINER+schreibende RPCs einzeln prüfen | P0-1 | `READY_FOR_ROLLOUT` — alle vier gelesen, Migration auf einem Wegwerf-Stapel bewiesen | siehe T10-* | `20260828110000` |
+
+### T-010 · Die vier öffentlichen Schreib-RPCs, einzeln gelesen
+
+Definitionen lesend aus der Produktion geholt und einzeln durchgegangen.
+**Ergebnis: keine davon ist ein Rest.** Es sind die öffentlichen Eingänge des
+Kundenbereichs und der Token-Seiten. Jede schliesst über ein Token genau eine
+Zeile auf, leitet den Mandanten aus dieser Zeile ab, prüft Status und Fristen
+und ist gegen Wiederholung gesichert. `anon` behält sein EXECUTE — ohne das gibt
+es keinen Kundenzugang.
+
+| ID | Etikett | Befund | Zustand |
+|---|---|---|---|
+| **T10-01** | `VERIFIED` | Drei der vier tragen ihr EXECUTE zusätzlich für **PUBLIC** (`=X/postgres`). `update_amendment_by_token` tut das nicht — dieselbe Aufgabe ohne PUBLIC, es geht also. Praktischer Unterschied heute klein (von aussen kommt man als `anon`/`authenticated`); der Unterschied entsteht beim nächsten Rollennamen, den jemand anlegt. Migration `20260828110000` **auf einem Wegwerf-Stapel bewiesen**: anwenden → PUBLIC weg, `anon` behält · zweiter Lauf idempotent · Rücknahme stellt her · erneut vorwärts. | `READY_FOR_ROLLOUT` |
+| **T10-02** | `VERIFIED` | **Migrationsdrift.** Der aus den Migrationen gebaute Wegwerf-Stapel hat auf `update_offer_by_token` **kein** PUBLIC-Recht — die Produktion hat es. Kein Migrationsfile erzeugt diesen Grant. Er ist von Hand entstanden. Genau die Klasse, für die P3 den Ledger braucht. | `PLANNED` → P3-1 |
+| **T10-03** | `VERIFIED` | **Zwei Token-Konventionen in einem System.** `portal_magic_links` und `calendar_feed_tokens` speichern `token_hash` (SHA-256). `offers.access_token` und `offer_amendments.access_token` stehen im **Klartext** und werden im Klartext verglichen. Wer die Zeile lesen darf — Mitglieder, Sicherungen, Protokolle — hält damit einen funktionierenden Kundenlink. D-004: eine Umsetzung je Vertrag. | `PLANNED` |
+| **T10-04** | `VERIFIED` | `portal_request_change` legt den Änderungswunsch mit `ON CONFLICT … DO UPDATE` dedupliziert an, fügt aber **bei jedem Aufruf unbedingt** eine `crm_tasks`-Zeile hinzu. Eine gültige Kundensitzung kann damit die Wiedervorlage der Firma füllen. Kein Mandantenübertritt, aber unbegrenzte Schreibvermehrung. | `PLANNED` |
+| **T10-05** | `REFUTED` | Verdacht: `p_feld` gelangt ungeprüft in `customer_change_requests` und von dort in ein dynamisches UPDATE. Falsch — `customer_change_requests_feld_check` beschränkt auf fünf Namen, und `decide_change_request` schreibt über eine **ausgeschriebene** `CASE`-Zuordnung, zusätzlich hinter `is_company_role(owner|admin)`. Kein dynamisches SQL. | — |
+
+**Was `update_offer_by_token` gut macht** (weil es sonst untergeht):
+Status-Positivliste, Endzustände unveränderlich, überholte Fassung darf nur noch
+gelesen werden, Annahmefrist aus `valid_until` **und** `service_date`, und
+`agb_ip_address` wird ausdrücklich **nicht** aus dem Aufruf übernommen. — | — |
 
 ### Was das Manifest-Tor gefunden hat (Befunde, die vorher niemand hatte)
 
@@ -279,6 +301,7 @@ Beide sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-2
 | **R-3** | `_shared/spellCheckPrompt.ts` + `spell-check-ai`, **Frontend zuerst** | P0-S8 | `READY_FOR_ROLLOUT` |
 | **R-4** | `_shared/offerSendReadiness.ts` + `_shared/localizedRow.ts` + `_shared/verifyCompanyMembership.ts` **zuerst**, dann `send-offer` | P1B-3 | `READY_FOR_ROLLOUT` — fachliche Auswirkung vorher klären: unvollständig übersetzte fr/en-Offerten gehen danach nicht mehr hinaus |
 | **R-5** | Frontend neu bauen und ausrollen | P1A, P1B-2 | `READY_FOR_ROLLOUT` — ohne sie bleiben P1A und P1B-2 wirkungslos |
+| **R-6** | Migration `20260828110000_oeffentliche_rpc_rechte_verengen.sql` einspielen | T10-01 | `READY_FOR_ROLLOUT` — auf einem Wegwerf-Stapel bewiesen (anwenden · idempotent · Rücknahme · erneut vorwärts); geringe Dringlichkeit, gehört in dieselbe Freigabe wie R-1 |
 
 ⚠️ **R-2 hat eine bindende Reihenfolge.** `_shared/appointmentDay.ts` ist im Repo,
 aber nicht ausgerollt; der neue `notify-appointment-reminder/index.ts` importiert
