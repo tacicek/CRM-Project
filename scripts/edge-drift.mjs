@@ -51,13 +51,21 @@ if (!existsSync(edgeRuntimePfad)) {
 // sha256sum-Zeile: "<hex>  <pfad>\n" — zwei Leerzeichen, so schreibt es coreutils.
 const sha256Hex = (buf) => createHash('sha256').update(buf).digest('hex');
 
+// `__tests__` wird nie ausgerollt — Vitest laeuft hier, nicht in Deno. Die
+// Verzeichnisse mitzuzaehlen liess `calendar-feed` und `_shared` als "Drift"
+// erscheinen, obwohl jede ausgelieferte Datei stimmte. Ein Tor, das ohne Grund
+// anschlaegt, bringt man sich ab.
+const NICHT_AUSGEROLLT = new Set(['__tests__']);
+
 const dateienUnter = (dir, praefix) => {
   const raus = [];
   for (const eintrag of readdirSync(dir, { withFileTypes: true })) {
     const voll = join(dir, eintrag.name);
     const rel = praefix ? `${praefix}/${eintrag.name}` : eintrag.name;
-    if (eintrag.isDirectory()) raus.push(...dateienUnter(voll, rel));
-    else if (eintrag.isFile()) raus.push({ voll, rel });
+    if (eintrag.isDirectory()) {
+      if (NICHT_AUSGEROLLT.has(eintrag.name)) continue;
+      raus.push(...dateienUnter(voll, rel));
+    } else if (eintrag.isFile()) raus.push({ voll, rel });
   }
   return raus;
 };
@@ -103,6 +111,13 @@ for (const name of beide) {
       tree_matches: d.tree_sha256 === r.tree_sha256,
       deployed: { index_ts_sha256: d.index_ts_sha256, tree_sha256: d.tree_sha256, file_count: d.file_count },
       repo: { index_ts_sha256: r.index_ts_sha256, tree_sha256: r.tree_sha256, file_count: r.file_count },
+      // Gleicher Einstiegspunkt, andere Datei-Anzahl: dann liegen auf dem
+      // Server Dateien, die es im Repo nicht gibt. Gemessen am 2026-08-28 waren
+      // das durchweg von Hand angelegte `.bak-*`-Kopien.
+      hinweis:
+        d.index_ts_sha256 === r.index_ts_sha256 && d.file_count > r.file_count
+          ? 'index.ts stimmt; die Produktion traegt zusaetzliche Dateien (Sicherungskopien?)'
+          : undefined,
     });
   }
 }

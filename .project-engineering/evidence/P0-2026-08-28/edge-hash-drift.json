@@ -2,7 +2,7 @@
   "what_this_is": "Content comparison between one production-truth generation and the Edge source of this exact checkout. Digests are formed exactly as the capture script forms them.",
   "what_this_is_not": "Not a deployment ledger and not a gate: it reports drift, it does not decide what should be deployed.",
   "capture_generation": "ops/production-truth/2026-08-28",
-  "compared_commit": "f40645604feb303709e18a70639dd81b242b9421",
+  "compared_commit": "585f70d414fb816bb71a3b822a5cdfbe19ca8980",
   "edge_source_tree_clean": true,
   "deployed_count": 42,
   "repo_count": 51,
@@ -15,6 +15,7 @@
     "admin-update-user-email",
     "analyze-besichtigung",
     "auto-archive",
+    "calendar-feed",
     "cleanup-besichtigung",
     "company-secrets",
     "complete-besichtigung",
@@ -49,8 +50,8 @@
       },
       "repo": {
         "index_ts_sha256": null,
-        "tree_sha256": "fd685d143fd4ff2e255418c185208c1b5385ef77f2bd3f78bf74fd2f40d347f5",
-        "file_count": 64
+        "tree_sha256": "b662c61f998a3c0247cfd28e48a8cd5791ed69975b90af1a48efba6932ef1afc",
+        "file_count": 44
       }
     },
     {
@@ -66,21 +67,6 @@
         "index_ts_sha256": "666d2d8374007a5e2c916787a964b87123364417c8b2fa7d8680ae5a72601196",
         "tree_sha256": "940b4ca98bc406d6d2f5a873fd71dde25ff4755a8112b243e744347523b8f335",
         "file_count": 1
-      }
-    },
-    {
-      "name": "calendar-feed",
-      "index_ts_matches": true,
-      "tree_matches": false,
-      "deployed": {
-        "index_ts_sha256": "95a1af053f66d06f152ea7e212d3c768a5701c41d261215155fc572b71a09f32",
-        "tree_sha256": "ea88497e07016a091a3369d5ac35c2bab0983c18bb99fcba4490eaa882252d97",
-        "file_count": 2
-      },
-      "repo": {
-        "index_ts_sha256": "95a1af053f66d06f152ea7e212d3c768a5701c41d261215155fc572b71a09f32",
-        "tree_sha256": "4648d2e6f0d5f6d833bcd300e3c044d28a0f4e5b506b3f30ed28bdce79f84bb9",
-        "file_count": 3
       }
     },
     {
@@ -156,7 +142,8 @@
         "index_ts_sha256": "6a3eef89612309760cd3bd9839c499bb806106225c3bbf4bc32de4dcf7e16255",
         "tree_sha256": "f476cb4705f5f2865b1d9e0384083ce23933de515870ac1f4c1b406eecb2d548",
         "file_count": 1
-      }
+      },
+      "hinweis": "index.ts stimmt; die Produktion traegt zusaetzliche Dateien (Sicherungskopien?)"
     },
     {
       "name": "send-offer",
@@ -171,7 +158,8 @@
         "index_ts_sha256": "908b57f96d8af018cf054ad80334bc012df4d29f414ee36ce4489748c3182715",
         "tree_sha256": "31901b6937e40c987a25eb05f8b5ff6a1c6800bb9031b34e9ff6f709ce2bfb07",
         "file_count": 1
-      }
+      },
+      "hinweis": "index.ts stimmt; die Produktion traegt zusaetzliche Dateien (Sicherungskopien?)"
     },
     {
       "name": "validate-besichtigung-token",

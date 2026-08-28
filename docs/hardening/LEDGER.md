@@ -109,5 +109,30 @@ Produktion: PostgreSQL 15.8 · 101 Tabellen, alle mit RLS, 232 Policies ·
 
 ## Nicht autorisierte Produktionsschreibvorgänge (Stand 2026-08-28)
 
-1. Migration `20260828100000_landing_analytics_anon_insert_entzogen.sql` einspielen (P0-S1).
-2. Die 10 driftenden Edge Functions ausrollen — vorrangig die drei Google-Proxys und `_shared` (P0-S3, P0-S3a).
+Beide sind vollständig vorbereitet: **[ROLLOUT-2026-08-28.md](ROLLOUT-2026-08-28.md)**
+— Reihenfolge, Rücknahme und lesende Nachkontrolle. Ausgeführt wurde keiner.
+
+| ID | Was | Befund | Zustand |
+|---|---|---|---|
+| **R-1** | Migration `20260828100000_landing_analytics_anon_insert_entzogen.sql` einspielen | P0-S1 | `AWAITING_PRODUCTION_AUTH` |
+| **R-2** | `_shared/appointmentDay.ts` + sechs Handler ausrollen | P0-S3, P0-S3a | `AWAITING_PRODUCTION_AUTH` |
+
+⚠️ **R-2 hat eine bindende Reihenfolge.** `_shared/appointmentDay.ts` ist im Repo,
+aber nicht ausgerollt; der neue `notify-appointment-reminder/index.ts` importiert
+sie. Handler vor der gemeinsamen Datei zu kopieren, bricht die Terminerinnerung
+zur Laufzeit.
+
+### Nachschärfung zu P0-S3 (gemessen nach der ersten Auswertung)
+
+`edge-drift.mjs` zählte anfangs `__tests__` mit — die laufen unter Vitest, nicht
+unter Deno, und werden nie ausgerollt. Dadurch erschienen `calendar-feed` und
+`_shared` als Drift, obwohl jede ausgelieferte Datei stimmte. Korrigiert; der
+Stand ist jetzt **30 identisch, 9 Drift**.
+
+Von den 9 sind nur **6 echte Rückstände** (`index.ts` unterscheidet sich).
+Bei `send-offer` und `notify-offer-response` stimmt `index.ts`; die Abweichung
+sind **neun von Hand angelegte `.bak-*`-Kopien im Produktionsverzeichnis**.
+Deno lädt nur `index.ts`, sie werden also nicht ausgeführt — es ist trotzdem
+Geschäftslogik auf dem Server, die niemand prüft. Ihr Rückbau wartet auf ein
+Deploy-Verfahren mit eigenem Rücknahmeverzeichnis (P3-2): derzeit sind sie die
+einzige vorhandene Rücknahme für frühere Rollouts.
