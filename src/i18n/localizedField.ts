@@ -86,51 +86,24 @@ export const asTranslations = (
 /**
  * Dieselbe Auflösung, aber mit Herkunftsangabe statt stillem Rückfall.
  *
- * `localizedField` ist für die VORSCHAU richtig: ein fehlendes Feld darf im
- * Dokument nicht als Leerstelle erscheinen, also gewinnt die deutsche
- * Basisspalte. Beim SENDEN ist genau dieser Rückfall der Fehler — der Kunde
- * bekommt dann deutschen Text in einer französischen Offerte, und niemand
- * erfährt davon.
+ * Die Regel selbst steht in `supabase/functions/_shared/localizedRow.ts` und
+ * wird hier nur durchgereicht. Grund: der Sendeweg ist eine Edge Function, und
+ * sie muss GENAU dieselbe Auflösung benutzen wie die Oberfläche. Zwei Kopien
+ * wären zwei Sprachverträge, und der zweite wäre der, den niemand pflegt.
  *
- * Diese Fassung trennt die beiden Fälle, statt sie zu vermischen:
- *
- *   `translation`   — es gibt eine Übersetzung für diese Sprache
- *   `base`          — die angeforderte Sprache IST die Basissprache (de)
- *   `base-fallback` — es gibt keine Übersetzung; zurück kommt die deutsche Basis
- *   `absent`        — es gibt weder Übersetzung noch Basiswert
- *
- * Die Vorschau nimmt `value` und darf `base-fallback` markieren. Der Sendeweg
- * behandelt `base-fallback` bei einer fr/en-Offerte als Blocker.
+ * `localizedField` (oben) bleibt die bequeme Fassung für die VORSCHAU: dort ist
+ * der deutsche Rückfall richtig, eine Leerstelle im Dokument wäre schlimmer.
+ * Beim SENDEN ist derselbe Rückfall der Fehler — deshalb diese Fassung.
  */
-export type LocalizedFieldSource = "translation" | "base" | "base-fallback" | "absent";
-
-export interface ResolvedLocalizedField {
-  value: string | null;
-  source: LocalizedFieldSource;
-}
+export type { LocalizedFieldSource, ResolvedLocalizedField } from "../../supabase/functions/_shared/localizedRow.ts";
+import {
+  resolveLocalizedRowField,
+  type ResolvedLocalizedField,
+} from "../../supabase/functions/_shared/localizedRow.ts";
 
 export const resolveLocalizedField = <F extends string>(
   row: TranslatableRow & { [K in F]?: string | null },
   field: F,
   locale: Locale,
-): ResolvedLocalizedField => {
-  const rawBase = row[field] ?? null;
-  const base = typeof rawBase === "string" && rawBase.trim() !== "" ? rawBase : null;
-
-  if (locale === DEFAULT_LOCALE) {
-    return base === null ? { value: null, source: "absent" } : { value: base, source: "base" };
-  }
-
-  const bundle = row.translations;
-  if (isRecord(bundle)) {
-    const forLocale = bundle[locale];
-    if (isRecord(forLocale)) {
-      const translated = forLocale[field];
-      if (typeof translated === "string" && translated.trim() !== "") {
-        return { value: translated, source: "translation" };
-      }
-    }
-  }
-
-  return base === null ? { value: null, source: "absent" } : { value: base, source: "base-fallback" };
-};
+): ResolvedLocalizedField =>
+  resolveLocalizedRowField(row as TranslatableRow & Record<string, unknown>, field, locale);

@@ -1058,4 +1058,17 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.lang.rebase.applied": "Language changed: {count} fields adapted.",
   "offer.lang.rebase.appliedNone": "Language changed. No text was altered.",
 
+  // --- Send readiness ---------------------------------------------------------------------
+  "offer.send.blocked.title": "This offer cannot be sent yet",
+  "offer.send.blocked.MISSING_LOCALE":
+    "No customer language is set for this document. Without it nothing is sent — it does not silently become German.",
+  "offer.send.blocked.UNSUPPORTED_LOCALE":
+    "This document's customer language is not one of the supported ones (German, French, English).",
+  "offer.send.blocked.GERMAN_FALLBACK":
+    "{field}: nothing is stored for {locale} — the customer would receive German text. Please add the translation at the source.",
+  "offer.send.blocked.EMPTY_REQUIRED":
+    "{field}: required content is missing — absent in every language.",
+  "offer.send.blocked.LOCALE_MISMATCH":
+    "{field}: carries a different language than the document. PDF, e-mail and the public view must share one language.",
+
 };

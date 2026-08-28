@@ -4,6 +4,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { getDefaultFrom, getDashAppUrl, getAppName } from "../_shared/envConfig.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
+import {
+  evaluateOfferSendReadiness,
+  isReadinessLocale,
+  summariseReadiness,
+  type ContentSlot,
+} from "../_shared/offerSendReadiness.ts";
+import { resolveLocalizedRowField } from "../_shared/localizedRow.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 import {
@@ -483,7 +490,10 @@ const handler = async (req: Request): Promise<Response> => {
       
       const { data: agbData } = await supabase
         .from("agb_sections")
-        .select("id, title, content, display_order")
+        // `translations` gehoert dazu: ohne sie kann die Sendebereitschaft unten
+        // nicht unterscheiden, ob eine franzoesische Offerte franzoesische AGB
+        // bekommt oder deutsche.
+        .select("id, title, content, display_order, translations")
         .eq("company_id", offer.company.id)
         .in("service_type", serviceTypes)
         .eq("is_active", true)
@@ -543,10 +553,95 @@ const handler = async (req: Request): Promise<Response> => {
     // Two recipients, two languages: the customer reads the offer in the DOCUMENT language
     // (offers.language, frozen at creation), while the confirmation copy that goes back to the
     // firm stays in the COMPANY language (companies.default_language).
+    // Die Dokumentsprache wird GEPRUEFT, nicht angenaehert. `toLocale` macht aus
+    // allem Unbekannten stillschweigend Deutsch — beim Anzeigen richtig, beim
+    // Senden der Fehler selbst.
+    if (!isReadinessLocale(offer.language)) {
+      const ergebnis = evaluateOfferSendReadiness({ requestedLocale: offer.language, slots: [] });
+      logStep("Send blocked: document locale", { summary: summariseReadiness(ergebnis) });
+      return new Response(
+        JSON.stringify({ error: "offer_not_ready", blockers: ergebnis.blockers }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
     const customerLocale = toLocale(offer.language);
     const companyLocale = toLocale(offer.company?.default_language);
     const tCustomer = createTranslator(customerLocale);
     const tCompany = createTranslator(companyLocale);
+
+    // ── Sendebereitschaft ──────────────────────────────────────────────────────
+    //
+    // Dies ist die MASSGEBLICHE Pruefung, nicht die im Browser. Ein veralteter
+    // Bundle, ein direkter Funktionsaufruf, ein Wiederholungsversuch oder die
+    // naechste Integration kommen hier vorbei — an einem Knopf nicht.
+    //
+    // Geprueft wird nur, was DIESER Weg selbst aufloest. Titel und
+    // Positionstexte sind beim Anlegen in der Kundensprache eingefroren worden;
+    // ihre Herkunft laesst sich hier nicht mehr belegen, und ein Blocker auf
+    // Verdacht wuerde jede richtige Offerte aufhalten. Was dieser Weg dagegen
+    // SELBST aus einer Vorlage holt — Zahlungskondition und AGB —, kann er auch
+    // pruefen.
+    const bereitschaftsSlots: ContentSlot[] = [];
+
+    // Zahlungskondition: stammt sie aus der Offerte selbst, ist sie eingefroren.
+    // Stammt sie aus Firma oder Vorlage, ist sie die deutsche Basisspalte —
+    // ohne jede Uebersetzungssuche.
+    const zahlungAusOfferte = ((offer as Record<string, unknown>).payment_terms as string | null) ?? null;
+    if (paymentTerms && !zahlungAusOfferte) {
+      bereitschaftsSlots.push({
+        entity: "company",
+        entityId: offer.company?.id ?? null,
+        field: "default_payment_terms",
+        required: true,
+        value: paymentTerms,
+        source: customerLocale === "de" ? "base" : "base-fallback",
+        focus: "einstellungen#zahlungskonditionen",
+      });
+    }
+
+    // AGB: die Abschnitte tragen `translations`. Fehlt die Fassung in der
+    // Kundensprache, haengt sonst ein deutsches AGB-PDF an einer franzoesischen
+    // Offerte.
+    for (const abschnitt of agbSections) {
+      for (const feld of ["title", "content"] as const) {
+        const aufgeloest = resolveLocalizedRowField(
+          abschnitt as unknown as Record<string, unknown>,
+          feld,
+          customerLocale,
+        );
+        bereitschaftsSlots.push({
+          entity: "agb_section",
+          entityId: abschnitt.id ?? null,
+          field: feld,
+          required: true,
+          value: aufgeloest.value,
+          source: aufgeloest.source,
+          focus: "einstellungen#agb",
+        });
+      }
+    }
+
+    const bereitschaft = evaluateOfferSendReadiness({
+      requestedLocale: offer.language,
+      slots: bereitschaftsSlots,
+      localeClaims: [
+        // PDF, E-Mail an den Kunden und die oeffentliche Ansicht folgen alle der
+        // Dokumentsprache. Die Bestaetigung an die Firma NICHT — sie ist der
+        // andere Empfaenger und steht deshalb nicht in dieser Liste.
+        { entity: "pdf", field: "locale", locale: customerLocale },
+        { entity: "email", field: "locale", locale: customerLocale },
+        { entity: "public_view", field: "locale", locale: customerLocale },
+      ],
+    });
+
+    if (!bereitschaft.ok) {
+      // Kein Kundentext ins Protokoll — nur welches Feld welcher Zeile fehlt.
+      logStep("Send blocked: readiness", { summary: summariseReadiness(bereitschaft) });
+      return new Response(
+        JSON.stringify({ error: "offer_not_ready", blockers: bereitschaft.blockers }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // Generate offer view URL
     const offerViewUrl = `${getDashAppUrl()}/offerte/${offer.access_token}`;

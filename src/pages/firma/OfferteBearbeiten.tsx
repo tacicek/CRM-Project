@@ -64,6 +64,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import SpellCheckModal from "@/components/offerte/SpellCheckModal";
 import { runSpellCheck, type SpellCheckFields } from "@/lib/spellCheckService";
 import { sendOffer } from "@/lib/sendOffer";
+import { blockerListe } from "@/lib/offerSendBlockerText";
 
 interface Company {
   id: string;
@@ -927,6 +928,12 @@ const FirmaOfferteBearbeiten = () => {
           toast({
             title: t("offer.list.toast.sent.title"),
             description: t("offer.edit.toast.sent.description"),
+          });
+        } else if (result.blockers?.length) {
+          toast({
+            title: t("offer.send.blocked.title"),
+            description: blockerListe(result.blockers, t),
+            variant: "destructive",
           });
         } else {
           toast({

@@ -1108,4 +1108,17 @@ export const offer = {
   "offer.lang.rebase.applied": "Sprache umgestellt: {count} Felder angepasst.",
   "offer.lang.rebase.appliedNone": "Sprache umgestellt. Kein Text wurde verändert.",
 
+  // --- Sendebereitschaft ------------------------------------------------------------------
+  "offer.send.blocked.title": "Diese Offerte kann noch nicht gesendet werden",
+  "offer.send.blocked.MISSING_LOCALE":
+    "Für dieses Dokument ist keine Kundensprache gesetzt. Ohne sie wird nicht gesendet — deutsch wird sie nicht automatisch.",
+  "offer.send.blocked.UNSUPPORTED_LOCALE":
+    "Die Kundensprache dieses Dokuments ist keine der unterstützten (Deutsch, Französisch, Englisch).",
+  "offer.send.blocked.GERMAN_FALLBACK":
+    "{field}: für {locale} ist nichts hinterlegt — der Kunde bekäme deutschen Text. Bitte die Übersetzung in der Quelle ergänzen.",
+  "offer.send.blocked.EMPTY_REQUIRED":
+    "{field}: Pflichtangabe fehlt — in keiner Sprache vorhanden.",
+  "offer.send.blocked.LOCALE_MISMATCH":
+    "{field}: trägt eine andere Sprache als das Dokument. PDF, E-Mail und die öffentliche Ansicht müssen dieselbe Sprache haben.",
+
 } as const;

@@ -76,6 +76,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { sendOffer } from "@/lib/sendOffer";
+import { blockerListe } from "@/lib/offerSendBlockerText";
 import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
 import { OfferteItemRow, type OfferItem, type ItemTimeEstimate } from "@/components/offerte/OfferteItemRow";
 import { ServiceMetaFields } from "@/components/offerte/ServiceMetaFields";
@@ -1475,13 +1476,24 @@ const FirmaOfferteErstellen = () => {
       if (sendAfterSave) {
         const result = await sendOffer({ offerId: offer.id, companyId: company.id, forceResend: false });
         if (!result.success) {
-          toast({
-            title: t("offer.create.toast.sendFailed.title"),
-            description: t("offer.create.toast.sendFailed.description", {
-              error: result.error ?? t("offer.create.toast.sendFailed.genericError"),
-            }),
-            variant: "destructive",
-          });
+          // Fehlende Uebersetzungen sind kein "Versand fehlgeschlagen" — sie sind
+          // eine Aufgabe mit Adresse. Deshalb die Blockerliste statt der
+          // Sammelmeldung.
+          toast(
+            result.blockers?.length
+              ? {
+                  title: t("offer.send.blocked.title"),
+                  description: blockerListe(result.blockers, t),
+                  variant: "destructive" as const,
+                }
+              : {
+                  title: t("offer.create.toast.sendFailed.title"),
+                  description: t("offer.create.toast.sendFailed.description", {
+                    error: result.error ?? t("offer.create.toast.sendFailed.genericError"),
+                  }),
+                  variant: "destructive" as const,
+                },
+          );
           navigate("/firma/offerten");
           return;
         }

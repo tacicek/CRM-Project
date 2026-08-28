@@ -46,6 +46,7 @@ import { fetchCompanyById } from "@/lib/fetchCompanyById";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
+import { blockerListe } from "@/lib/offerSendBlockerText";
 import { parseSurcharges, sumSurchargeAmounts, validateSurcharges } from "@/lib/offerSurcharges";
 import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import { parseOfferAgbSections } from "@/lib/offerAgbSections";
@@ -721,8 +722,12 @@ const FirmaOfferteDetail = () => {
 
       if (!result.success) {
         toast({
-          title: t("offer.list.toast.sendFailed.title"),
-          description: result.error ?? t("offer.list.toast.sendFailed.description"),
+          title: result.blockers?.length
+            ? t("offer.send.blocked.title")
+            : t("offer.list.toast.sendFailed.title"),
+          description: result.blockers?.length
+            ? blockerListe(result.blockers, t)
+            : (result.error ?? t("offer.list.toast.sendFailed.description")),
           variant: "destructive",
         });
         return;
