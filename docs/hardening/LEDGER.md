@@ -62,7 +62,45 @@ Nichts aus diesem Programm ausser der Messung selbst ist live. Zwei Befunde sind
 |---|---|
 | `npm run type-check` | PASS |
 | `npm test` | PASS — 83 Dateien, 1746 Tests |
-| `npx eslint .` | FAIL — 88 Fehler, 2 Warnungen (Altschuld) |
+| `npx eslint .` | FAIL — 88 Fehler … **aber keiner davon in diesem Repository** |
+
+### B-01 · Die „88 Lint-Fehler" gibt es in diesem Repository nicht · `VERIFIED`
+
+`CLAUDE.md` §12 hält fest: *„`npm run lint` ist derzeit NICHT sauber: auf `main`
+88 Fehler … das Tor lautet praktisch: in berührten Dateien null Fehler."* Ich
+habe diese Zahl übernommen und in jedem Commit als unveränderte Altschuld
+gemeldet.
+
+Gemessen:
+
+```
+$ npx eslint . -f json | (Fehler nach oberstem Verzeichnis)
+[('vibecosystem', 88)]
+
+$ git ls-files -s vibecosystem
+160000 6172d4ac… 0   vibecosystem        ← Gitlink, kein .gitmodules
+
+$ git ls-files '*.ts' '*.tsx' '*.js' '*.mjs' | grep -v '^vibecosystem/' | xargs npx eslint
+✖ 129 problems (0 errors, 129 warnings)      ← NULL Fehler
+```
+
+**Alle 88 Fehler liegen in `vibecosystem/`** — einem Gitlink (Modus `160000`)
+ohne `.gitmodules`-Eintrag. `actions/checkout@v4` holt ohne `submodules: true`
+keine Untermodul-Inhalte, das Verzeichnis ist in CI also leer. Deshalb läuft der
+`Lint`-Schritt in `.github/workflows/ci.yml` **ohne `continue-on-error` grün** —
+nachweisbar an den erfolgreichen CI-Läufen dieses Branches.
+
+**Warum das zählt:** die Anweisung „Gesamtzahl darf nicht steigen" klingt streng
+und ist in Wahrheit blind. Wer 89 statt 88 sieht, zuckt mit den Schultern —
+während CI in Wirklichkeit *jeden* Fehler in den eigenen Dateien ablehnt. Die
+Regel lud dazu ein, eine echte Verschlechterung für Altschuld zu halten.
+
+**Richtige Basislinie:** die eigenen Dateien dieses Repositories haben
+**0 Lint-Fehler**, und CI erzwingt das. Der lokale Befund entsteht nur, wenn
+jemand das Untermodul-Verzeichnis gefüllt hat.
+
+Nebenbefund: ein Gitlink ohne `.gitmodules` lässt sich von niemandem klonen —
+`git submodule update` kennt kein Ziel. Eigene Aufgabe, hier nur benannt.
 
 Produktion: PostgreSQL 15.8 · 101 Tabellen, alle mit RLS, 232 Policies ·
 220 Funktionen, davon 32 `anon`-ausführbar · 42 Edge Functions ausgerollt ·
