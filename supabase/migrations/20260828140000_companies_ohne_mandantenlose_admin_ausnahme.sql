@@ -85,9 +85,9 @@ BEGIN
     FROM pg_policy
    WHERE polrelid = 'public.companies'::regclass
      AND (coalesce(pg_get_expr(polqual, polrelid), '')
-            ~* '\m(is_admin|is_super_admin|is_staff|has_role)\M'
+            ~* '\m(is_[a-z_]*admin|is_staff|has_role)\M'
        OR coalesce(pg_get_expr(polwithcheck, polrelid), '')
-            ~* '\m(is_admin|is_super_admin|is_staff|has_role)\M');
+            ~* '\m(is_[a-z_]*admin|is_staff|has_role)\M');
   IF v_rest > 0 THEN
     RAISE EXCEPTION 'auf companies nennen noch % Policies eine mandantenlose Rollenpruefung', v_rest;
   END IF;
@@ -95,6 +95,12 @@ BEGIN
   -- `has_role(auth.uid(),''admin'')` oder `is_super_admin()` reisst dieselbe
   -- Luecke auf und wuerde eine Pruefung auf den blossen Namen `is_admin`
   -- klaglos passieren.
+  --
+  -- `is_[a-z_]*admin` statt einer Aufzaehlung, weil die Aufzaehlung schon einmal
+  -- zu kurz war: die Datenbank fuehrt neben is_admin und is_super_admin auch
+  -- `is_support_admin()` — dieselbe Abfrage auf user_roles, derselbe
+  -- Rollenkreis. Eine Wortgrenzen-Pruefung auf `is_admin` haette sie nicht
+  -- gefunden, weil `is_support_admin` das Wort `is_admin` gar nicht enthaelt.
 
   -- 2. Der Mitgliedschaftsweg muss WEITERHIN existieren. Ohne ihn saehe
   --    niemand mehr seine eigene Firma — das waere kein Fortschritt, sondern

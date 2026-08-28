@@ -1,0 +1,82 @@
+=== A. anon/authenticated ausfuehrbare Funktionen je Schema ===
+ausfuehrbar|auth|anon=4|auth=4|definer_anon=0
+ausfuehrbar|besichtigung|anon=2|auth=2|definer_anon=2
+ausfuehrbar|cron|anon=5|auth=5|definer_anon=0
+ausfuehrbar|extensions|anon=60|auth=60|definer_anon=0
+ausfuehrbar|graphql_public|anon=1|auth=1|definer_anon=0
+ausfuehrbar|graphql|anon=6|auth=6|definer_anon=2
+ausfuehrbar|net|anon=10|auth=10|definer_anon=0
+ausfuehrbar|public|anon=32|auth=78|definer_anon=22
+ausfuehrbar|realtime|anon=12|auth=12|definer_anon=0
+ausfuehrbar|storage|anon=15|auth=15|definer_anon=0
+ausfuehrbar|supabase_functions|anon=1|auth=1|definer_anon=1
+=== B. Davon mit dynamischem EXECUTE ===
+dyn|extensions.grant_pg_graphql_access|definer=false|anon=true|auth=true
+dyn|extensions.grant_pg_net_access|definer=false|anon=true|auth=true
+dyn|public.create_offer_revision|definer=true|anon=false|auth=true
+dyn|public.customer_merge_preview|definer=true|anon=false|auth=true
+dyn|public.merge_customers|definer=true|anon=false|auth=true
+dyn|realtime.apply_rls|definer=false|anon=true|auth=true
+dyn|realtime.cast|definer=false|anon=true|auth=true
+dyn|realtime.check_equality_op|definer=false|anon=true|auth=true
+dyn|realtime.send|definer=false|anon=true|auth=true
+dyn|storage.list_multipart_uploads_with_delimiter|definer=false|anon=true|auth=true
+dyn|storage.list_objects_with_delimiter|definer=false|anon=true|auth=true
+dyn|storage.search_by_timestamp|definer=false|anon=true|auth=true
+dyn|storage.search|definer=false|anon=true|auth=true
+dyn_keine_wenn_leer
+=== C. Davon mit format() ===
+fmt|public.create_offer_revision|definer=true
+fmt|public.customer_merge_preview|definer=true
+fmt|public.merge_customers|definer=true
+fmt|realtime.cast|definer=false
+fmt|realtime.check_equality_op|definer=false
+fmt|realtime.list_changes|definer=false
+fmt|realtime.send|definer=false
+fmt|realtime.subscription_check_filters|definer=false
+fmt|storage.search_by_timestamp|definer=false
+fmt|storage.search|definer=false
+fmt_keine_wenn_leer
+=== D. Parameter, die Objektnamen oder SQL-Text tragen koennten ===
+param|extensions.pg_stat_statements|showtext boolean, OUT userid oid, OUT dbid oid, OUT toplevel boolean, OUT queryid bigint, OUT query text, OUT plans bigint, OUT total_plan_time double precision, OUT min_plan_time double precision, OUT max_plan_time double precision, OUT mean_plan_time double precision, OUT stddev_plan_time double precision, OUT calls bigint, OUT total_exec_time double precision, OUT min_exec_time double precision, OUT max_exec_time double precision, OUT mean_exec_time double precision, OUT stddev_exec_time double precision, OUT rows bigint, OUT shared_blks_hit bigint, OUT shared_blks_read bigint, OUT shared_blks_dirtied bigint, OUT shared_blks_written bigint, OUT local_blks_hit bigint, OUT local_blks_read bigint, OUT local_blks_dirtied bigint, OUT local_blks_written bigint, OUT temp_blks_read bigint, OUT temp_blks_written bigint, OUT blk_read_time double precision, OUT blk_write_time double precision, OUT temp_blk_read_time double precision, OUT temp_blk_write_time double precision, OUT wal_records bigint, OUT wal_fpi bigint, OUT wal_bytes numeric, OUT jit_functions bigint, OUT jit_generation_time double precision, OUT jit_inlining_count bigint, OUT jit_inlining_time double precision, OUT jit_optimization_count bigint, OUT jit_optimization_time double precision, OUT jit_emission_count bigint, OUT jit_emission_time double precision|anon=true
+param|graphql._internal_resolve|query text, variables jsonb DEFAULT '{}'::jsonb, "operationName" text DEFAULT NULL::text, extensions jsonb DEFAULT NULL::jsonb|anon=true
+param|graphql.resolve|query text, variables jsonb DEFAULT '{}'::jsonb, "operationName" text DEFAULT NULL::text, extensions jsonb DEFAULT NULL::jsonb|anon=true
+param|graphql_public.graphql|"operationName" text DEFAULT NULL::text, query text DEFAULT NULL::text, variables jsonb DEFAULT NULL::jsonb, extensions jsonb DEFAULT NULL::jsonb|anon=true
+param|public.resolve_or_create_location|p_company_id uuid, p_customer_id uuid, p_address_raw text, p_kind text DEFAULT 'object'::text, p_created_via text DEFAULT 'manual'::text|anon=false
+param|realtime.broadcast_changes|topic_name text, event_name text, operation text, table_name text, table_schema text, new record, old record, level text DEFAULT 'ROW'::text|anon=true
+param|realtime.build_prepared_statement_sql|prepared_statement_name text, entity regclass, columns realtime.wal_column[]|anon=true
+param|realtime.cast|val text, type_ regtype|anon=true
+param|realtime.check_equality_op|op realtime.equality_op, type_ regtype, val_1 text, val_2 text|anon=true
+param|realtime.quote_wal2json|entity regclass|anon=true
+param_keine_wenn_leer
+=== E. Generische Verwaltungs-RPCs, die andere Anweisungen ausloesen koennen ===
+generisch|extensions.grant_pg_cron_access|definer=false|anon=true
+generisch|extensions.grant_pg_graphql_access|definer=false|anon=true
+generisch|extensions.grant_pg_net_access|definer=false|anon=true
+generisch|extensions.pgrst_ddl_watch|definer=false|anon=true
+generisch|extensions.pgrst_drop_watch|definer=false|anon=true
+generisch|public.archive_and_purge_company_data|definer=true|anon=false
+generisch|public.is_admin|definer=true|anon=true
+generisch|public.is_super_admin|definer=true|anon=true
+generisch|public.is_support_admin|definer=true|anon=true
+generisch|public.portal_revoke_access|definer=true|anon=false
+generisch|public.run_communication_backfill|definer=true|anon=false
+generisch|public.run_customer_backfill|definer=true|anon=false
+generisch|public.run_finance_backfill|definer=true|anon=false
+generisch|public.run_location_backfill|definer=true|anon=false
+generisch|realtime.build_prepared_statement_sql|definer=false|anon=true
+generisch_keine_wenn_leer
+=== format()/EXECUTE-Zeilen der drei public-Definer-Funktionen ===
+zeile|create_offer_revision|EXECUTE format(
+zeile|create_offer_revision|'INSERT INTO public.offers (%s, offer_series_id, version_number, supersedes_offer_id, revision_reason, status)
+zeile|create_offer_revision|SELECT %s, $1, $2, $3, $4, ''draft'' FROM public.offers WHERE id = $5
+zeile|create_offer_revision|EXECUTE format(
+zeile|create_offer_revision|'INSERT INTO public.%I (offer_id, %s) SELECT $1, %s FROM public.%I WHERE offer_id = $2',
+zeile|customer_merge_preview|EXECUTE format('SELECT count(*) FROM %s WHERE %I = $1', v_ref.tabelle, v_ref.spalte)
+zeile|merge_customers|EXECUTE format('UPDATE %s SET %I = $1 WHERE %I = $2',
+=== Argumente dieser drei ===
+args|create_offer_revision|p_offer_id uuid, p_reason text DEFAULT NULL::text
+args|customer_merge_preview|p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid
+args|merge_customers|p_company_id uuid, p_source_customer_id uuid, p_target_customer_id uuid, p_reason text DEFAULT NULL::text
+=== is_support_admin: was ist das, und wer darf es? ===
+def|CREATE OR REPLACE FUNCTION public.is_support_admin()  RETURNS boolean  LANGUAGE plpgsql  STABLE SECURITY DEFINER  SET search_path TO 'public' AS $function$ BEGIN   RETURN EXISTS (     SELECT 1 FROM public.user_roles     WHERE user_id = auth.uid()     AND role IN ('admin', 'super_admin', 'moderator')   ); END; $function$ 

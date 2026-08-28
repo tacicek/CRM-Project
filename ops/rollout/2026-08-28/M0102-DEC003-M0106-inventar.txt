@@ -1,0 +1,21 @@
+=== M01-02: user_roles ===
+policy|Admins can manage roles|cmd=*|roles=authenticated|using=is_admin(auth.uid())|check=is_admin(auth.uid())
+policy|Staff can view all roles|cmd=r|roles=unknown (OID=0)|using=is_staff(auth.uid())|check=-
+policy|Super admin can delete roles with hierarchy|cmd=d|roles=unknown (OID=0)|using=(is_super_admin(auth.uid()) AND can_modify_role(auth.uid(), user_id))|check=-
+policy|Super admin can insert roles|cmd=a|roles=unknown (OID=0)|using=-|check=is_super_admin(auth.uid())
+policy|Super admin can update roles with hierarchy|cmd=w|roles=unknown (OID=0)|using=(is_super_admin(auth.uid()) AND can_modify_role(auth.uid(), user_id))|check=(is_super_admin(auth.uid()) AND can_modify_role(auth.uid(), user_id))
+policy|Users can view own roles|cmd=r|roles=unknown (OID=0)|using=(auth.uid() = user_id)|check=-
+user_roles_zeilen|0
+user_roles_rechte|anon|ins=true|upd=true|del=true
+user_roles_rechte|authenticated|ins=true|upd=true|del=true
+user_roles_rechte|service_role|ins=true|upd=true|del=true
+=== DEC-003: companies-INSERT ===
+companies_insert_policy|Users can insert their own company|check=(auth.uid() = user_id)
+companies_insert_policy|Admins can insert companies|check=is_admin(auth.uid())
+companies_trigger|trigger_set_company_slug
+companies_trigger|trigger_companies_updated_at
+companies_trigger|trigger_companies_ensure_owner_membership
+companies_trigger|trigger_companies_guard_ownership
+companies_zeilen|2
+=== M01-06: get_public_company_info, genaue Rueckgabespalten ===
+rueckgabe|TABLE(id uuid, company_name character varying, street character varying, house_number character varying, city character varying, plz character varying, phone character varying, email character varying, website text, logo_url text, primary_color character varying, slogan text, pdf_template text, default_language text)
