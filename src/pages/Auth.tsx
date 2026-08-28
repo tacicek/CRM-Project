@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompaniesForUser } from "@/lib/fetchCompaniesForUser";
+import { entscheideAnmeldeZiel } from "@/lib/anmeldeZiel";
 import { validateAuthForm, type AuthMode, type AuthFormErrors } from "@/lib/authUtils";
 import {
   Mail,
@@ -53,23 +54,27 @@ const Auth = () => {
       setPendingVerification(false);
 
       try {
-        const company = await fetchSingleCompanyForUser<{ id: string; is_verified: boolean | null }>({
+        // Die Frage ist NICHT "welche eine Firma ist meine" — das entscheidet
+        // danach der CompanyProvider. Hier zaehlt nur: laesst mich ueberhaupt
+        // eine herein? Der frueher benutzte Ratehelfer waehlte EINE Firma nach
+        // Anmeldeadresse bzw. Anlagedatum; traf er die unverifizierte, sah der
+        // Benutzer "Verifizierung ausstehend", obwohl seine eigene Firma bereit war.
+        const { companies } = await fetchCompaniesForUser<{ id: string; is_verified: boolean | null }>({
           userId: user.id,
-          userEmail: user.email,
           select: "id, is_verified",
         });
 
-        if (!company) {
-          setNoCompanyAccess(true);
-          return;
+        switch (entscheideAnmeldeZiel(companies)) {
+          case "keine-firma":
+            setNoCompanyAccess(true);
+            return;
+          case "verifizierung-ausstehend":
+            setPendingVerification(true);
+            return;
+          case "dashboard":
+            navigate("/firma");
+            return;
         }
-
-        if (company.is_verified === false) {
-          setPendingVerification(true);
-          return;
-        }
-
-        navigate("/firma");
       } catch (err) {
         console.error("[Auth] redirect error:", err);
         setNoCompanyAccess(true);
