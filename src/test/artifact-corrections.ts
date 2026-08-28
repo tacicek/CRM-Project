@@ -128,7 +128,10 @@ export const ohneKorrektureintrag = (): GeaenderteDatei[] => {
 const DIGEST_FELDER: Array<[digest: string, commit: string]> = [
   ["sha256_old", "commit_introducing_old_form"],
   ["sha256_reviewed", "commit_introducing"],
-  ["sha256_previous", "commit_of_correction"],
+  // `sha256_previous` gilt gegen den Zustand VOR der Korrektur, nicht gegen den
+  // Korrekturcommit. Ein Eintrag, der dafür keinen Commit nennt, ist nicht
+  // nachrechenbar — und genau das soll auffallen.
+  ["sha256_previous", "commit_previous"],
   ["correctly_computed_digest", "measured_commit"],
 ];
 
@@ -215,3 +218,53 @@ export const digestBefunde = (): DigestBefund[] => {
 /** Falsche Digests, die von keinem späteren Eintrag berichtigt werden. */
 export const unberichtigteDigests = (): DigestBefund[] =>
   digestBefunde().filter((b) => !b.spaeterBerichtigt);
+
+export interface StandBefund {
+  record_id: string;
+  pfad: string;
+  eingetragen: string;
+  tatsaechlich: string;
+}
+
+/**
+ * Der JÜNGSTE Eintrag zu einer Datei muss deren aktuellen Stand nennen.
+ *
+ * Die zweite Durchsicht fand genau hier ein Loch: `sha256_current` wurde von
+ * keiner Prüfung angefasst, also blieb ein veralteter Eintrag grün — und einer
+ * war live, im selben Commit, dessen Botschaft die Behebung der Digest-Klasse
+ * ankündigte. Ein Prüfsatz, der den Ist-Stand nicht kennt, beschreibt eine
+ * Vergangenheit, die niemand mehr überprüfen kann.
+ *
+ * Ältere Einträge zu derselben Datei bleiben unangetastet — sie sind Historie,
+ * und das Protokoll ist anfügend.
+ */
+export const veralteterStand = (): StandBefund[] => {
+  if (istFlacherKlon()) return [];
+  const eintraege = leseKorrekturen();
+  const befunde: StandBefund[] = [];
+
+  const juengsterJePfad = new Map<string, Korrektureintrag>();
+  for (const e of eintraege) {
+    const pfad = e.artifact_path;
+    if (!pfad || typeof e.sha256_current !== "string") continue;
+    juengsterJePfad.set(pfad, e); // spätere Zeile gewinnt
+  }
+
+  for (const [pfad, e] of juengsterJePfad) {
+    let tatsaechlich: string;
+    try {
+      tatsaechlich = sha(readFileSync(join(WURZEL, pfad)));
+    } catch {
+      continue; // Datei entfernt — anderer Befund
+    }
+    if (tatsaechlich !== e.sha256_current) {
+      befunde.push({
+        record_id: e.record_id,
+        pfad,
+        eingetragen: e.sha256_current as string,
+        tatsaechlich,
+      });
+    }
+  }
+  return befunde;
+};

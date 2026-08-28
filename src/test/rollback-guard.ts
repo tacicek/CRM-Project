@@ -28,8 +28,26 @@ import { join } from "node:path";
  * einen einzigen Bezeichner quoten und das Statement zerstören. Der Wert kommt
  * aus dem Katalog, nicht aus einer beschreibbaren Tabelle.
  *
- * Die Grenze verläuft also nicht bei „dynamisch", sondern bei **der Herkunft
- * des Werts**: Katalog ja, gespeicherte Zeile nein.
+ * WAS DIESES TOR IST — WÖRTLICH
+ *
+ * Ein **konservatives Repo-Tor** auf drei gemeinsam auftretende syntaktische
+ * Merkmale: eine `%s`-Vorlage, irgendein `EXECUTE`, und der Name einer
+ * Nicht-Katalog-Relation. Für die bekannte Fehlerklasse *gespeicherte Daten →
+ * privilegiertes SQL*.
+ *
+ * **Keine Taint-Analyse.** Ein herkunftsbasierter Vertrag („Katalog ja,
+ * gespeicherte Zeile nein") stand hier einmal — die Durchsicht hat gezeigt, dass
+ * der Code ihn in beide Richtungen verfehlte. Was er wirklich leistet, steht
+ * oben; was er nicht leistet, hier:
+ *
+ *   · `format('DO %L', wert)` — `%L` quotiert das Literal, aber `DO` macht aus
+ *     dem Literal einen Codeblock. Wird als eigene Regel erkannt (siehe unten),
+ *     andere Umwege dieser Art nicht.
+ *   · Ein Helfer, der die Tabelle liest und den Wert zurückgibt, während die
+ *     Tabelle in dieser Datei **nirgends** genannt wird. Für ein dateilokales
+ *     Tor grundsätzlich unerreichbar.
+ *
+ * Diese Grenzen sind bekannt und angenommen, nicht übersehen.
  */
 
 const WURZEL = join(__dirname, "..", "..");
@@ -70,7 +88,11 @@ export const findeFormatVorlagen = (quelle: string): FormatVorlage[] => {
   while ((m = muster.exec(quelle)) !== null) {
     treffer.push({
       vorlage: m[1],
-      platzhalter: [...m[1].matchAll(/%[sIL]/g)].map((p) => p[0]),
+      // `%1$s` ist gueltiges PostgreSQL und wirkt wie `%s`. Die erste Fassung
+      // sah nur `%s` — die Durchsicht ist genau dort durchgegangen.
+      platzhalter: [...m[1].matchAll(/%(?:\d+\$)?[sIL]/g)].map((p) =>
+        p[0].replace(/\d+\$/, ""),
+      ),
     });
   }
   return treffer;
@@ -80,9 +102,32 @@ export const findeFormatVorlagen = (quelle: string): FormatVorlage[] => {
 export const fuehrtDynamischAus = (quelle: string): boolean =>
   /\bEXECUTE\b/i.test(quelle);
 
-/** `EXECUTE 'GRANT …' || irgendwas` — Verkettung umgeht jede Quotierung. */
-export const hatVerkettetesDDL = (quelle: string): boolean =>
-  /\bEXECUTE\s+(?!format\b)[^;]*\|\|/i.test(quelle);
+/**
+ * Verkettung umgeht jede Quotierung — auch über eine Variable.
+ *
+ * Die erste Fassung verlangte `||` zwischen `EXECUTE` und dem nächsten `;`.
+ * Die Durchsicht schob die Verkettung eine Zeile höher:
+ *
+ *     b := a || v_check;
+ *     EXECUTE b;
+ *
+ * Deshalb zählt jetzt auch: eine Zuweisung mit `||`, deren Ziel später blank
+ * ausgeführt wird.
+ */
+export const hatVerkettetesDDL = (quelle: string): boolean => {
+  if (/\bEXECUTE\s+(?!format\b)[^;]*\|\|/i.test(quelle)) return true;
+
+  // Variablen, die aus einer Verkettung entstehen …
+  const verkettet = new Set<string>();
+  for (const m of quelle.matchAll(/(\w+)\s*:=\s*[^;]*\|\|[^;]*;/g)) {
+    verkettet.add(m[1].toLowerCase());
+  }
+  // … und später nackt ausgeführt werden.
+  for (const m of quelle.matchAll(/\bEXECUTE\s+(\w+)\s*(?:;|USING\b)/gi)) {
+    if (verkettet.has(m[1].toLowerCase())) return true;
+  }
+  return false;
+};
 
 /**
  * Aus welchen Tabellen liest oder schreibt die Datei?
@@ -96,7 +141,11 @@ export const hatVerkettetesDDL = (quelle: string): boolean =>
  */
 export const gelesenePersistenzTabellen = (quelle: string): string[] => {
   const namen = new Set<string>();
-  const muster = /\b(?:FROM|JOIN|INTO|UPDATE|USING)\s+(?:(\w+)\.)?(\w+)/gi;
+  // `INTO` steht in PL/pgSQL fuer eine ZIELVARIABLE, nicht fuer eine Relation.
+  // Die erste Fassung las `SELECT … INTO v_sig FROM pg_proc` als Tabelle
+  // `public.v_sig` und wies damit ausgerechnet die legitime Katalogform ab.
+  // `INSERT INTO <tabelle>` wird eigens erfasst.
+  const muster = /\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO)\s+(?:(\w+)\.)?(\w+)/gi;
   for (const m of quelle.matchAll(muster)) {
     const schema = (m[1] ?? "public").toLowerCase();
     const tabelle = m[2].toLowerCase();
@@ -136,7 +185,7 @@ export interface BekannteAusnahme {
   /** Ergebnis des Ende-zu-Ende-Tests, nicht einer Ueberlegung. */
   einstufung:
     | "CONFIRMED_STORED_PRIVILEGE_ESCALATION"
-    | "REFUTED_BY_PARSER_AND_QUOTING"
+    | "REFUTED_BY_EXACT_PARSER_AND_QUOTING_TEST"
     | "NEEDS_MORE_EVIDENCE";
   beleg: string;
   grund: string;
@@ -146,7 +195,7 @@ export const BEKANNTE_AUSNAHMEN: BekannteAusnahme[] = [
   {
     datei: "ROLLBACK_20260802130000_funktionsrechte_zurueckgenommen.sql",
     art: "gespeicherter-wert-wird-sql",
-    einstufung: "REFUTED_BY_PARSER_AND_QUOTING",
+    einstufung: "REFUTED_BY_EXACT_PARSER_AND_QUOTING_TEST",
     beleg: "ops/artifact-corrections/EVIDENZ-ausnahmen-service-role-pfad.txt",
     grund:
       "Interpoliert undo_20260802130000.func_signature mit %s in GRANT EXECUTE. " +
@@ -169,7 +218,7 @@ export const BEKANNTE_AUSNAHMEN: BekannteAusnahme[] = [
   {
     datei: "ROLLBACK_20260809120000_funktionsrechte_zweite_welle.sql",
     art: "gespeicherter-wert-wird-sql",
-    einstufung: "REFUTED_BY_PARSER_AND_QUOTING",
+    einstufung: "REFUTED_BY_EXACT_PARSER_AND_QUOTING_TEST",
     beleg: "ops/artifact-corrections/EVIDENZ-ausnahmen-service-role-pfad.txt",
     grund:
       "Wie oben, mit undo_20260809120000.func_signature und derselben " +
@@ -198,6 +247,20 @@ export const pruefeDatei = (datei: string, roh: string): Verstoss[] => {
         `%s-Vorlage + EXECUTE + Lesezugriff auf ${tabellen.join(", ")}. ` +
         `Vorlage: "${mitProzentS[0].vorlage.slice(0, 80)}". ` +
         "Ein gespeicherter Wert darf eine Konstante bestaetigen, aber nicht SQL werden.",
+    });
+  }
+
+  // `%L` gilt gemeinhin als sicher — als Rumpf eines `DO` wird das Literal
+  // aber wieder Code.
+  const doMitLiteral = vorlagen.some(
+    (v) => /\bDO\b/i.test(v.vorlage) && v.platzhalter.includes("%L"),
+  );
+  if (doMitLiteral && fuehrtDynamischAus(quelle) && tabellen.length > 0) {
+    verstoesse.push({
+      datei,
+      art: "gespeicherter-wert-wird-sql",
+      detail:
+        "%L in einer DO-Vorlage: das quotierte Literal wird als Codeblock ausgefuehrt.",
     });
   }
 

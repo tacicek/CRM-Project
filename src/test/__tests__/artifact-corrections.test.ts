@@ -5,6 +5,7 @@ import {
   leseKorrekturen,
   ohneKorrektureintrag,
   unberichtigteDigests,
+  veralteterStand,
 } from "../artifact-corrections";
 
 describe("Artefakt-Korrekturen", () => {
@@ -45,5 +46,16 @@ describe("Artefakt-Korrekturen", () => {
     const bekannt = digestBefunde().filter((b) => b.record_id === "AC-0006");
     expect(bekannt).toHaveLength(1);
     expect(bekannt[0].spaeterBerichtigt).toBe(true);
+  });
+
+  it("der jüngste Eintrag je Datei nennt deren aktuellen Stand", () => {
+    expect(
+      veralteterStand()
+        .map(
+          (b) =>
+            `${b.record_id} → ${b.pfad}\n      eingetragen ${b.eingetragen}\n      tatsächlich  ${b.tatsaechlich}`,
+        )
+        .join("\n"),
+    ).toBe("");
   });
 });

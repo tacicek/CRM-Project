@@ -206,7 +206,7 @@ describe("Rücknahme-Tor · gegen das echte Verzeichnis", () => {
   it("jede Ausnahme trägt eine Einstufung aus einem Ende-zu-Ende-Test", () => {
     for (const a of BEKANNTE_AUSNAHMEN) {
       expect(
-        ["CONFIRMED_STORED_PRIVILEGE_ESCALATION", "REFUTED_BY_PARSER_AND_QUOTING", "NEEDS_MORE_EVIDENCE"],
+        ["CONFIRMED_STORED_PRIVILEGE_ESCALATION", "REFUTED_BY_EXACT_PARSER_AND_QUOTING_TEST", "NEEDS_MORE_EVIDENCE"],
         `${a.datei} ohne Einstufung`,
       ).toContain(a.einstufung);
       expect(a.beleg, `${a.datei} ohne Belegpfad`).toMatch(/^ops\//);
@@ -252,5 +252,57 @@ describe("Rücknahme-Tor · eingeschleuste Verletzung, danach zurückgebaut", ()
     } finally {
       rmSync(verzeichnis, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * Die Fallmatrix der zweiten unabhängigen Durchsicht.
+ *
+ * Sie hat drei dieser Formen durchgelassen bekommen (`%1$s`, `%L`-in-`DO`,
+ * Mehrvariablen-Verkettung) und die legitime Katalogform L2 fälschlich
+ * abgewiesen. Jeder Fall steht hier, damit keiner davon zurückkommt.
+ */
+describe("Rücknahme-Tor · Fallmatrix der Durchsicht", () => {
+  const rumpf = (b: string) =>
+    `BEGIN;\nDO $r$\nDECLARE v_check text; v_sql text; a text; b text; z record;\nBEGIN\n${b}\nEND\n$r$;\nCOMMIT;`;
+
+  const LESEN = "SELECT withcheck INTO v_check FROM public.undo_20260828100000;";
+
+  const ANGRIFFE: Array<[string, string]> = [
+    ["numerierter Platzhalter %1$s", rumpf(`${LESEN}
+      EXECUTE format('CREATE POLICY p ON public.x FOR INSERT WITH CHECK (%1$s)', v_check);`)],
+    ["%L als DO-Rumpf", rumpf(`${LESEN}\n      EXECUTE format('DO %L', v_check);`)],
+    ["Verkettung über mehrere Variablen", rumpf(`${LESEN}
+      a := 'CREATE POLICY p ON public.x FOR INSERT WITH CHECK (';
+      b := a || v_check;
+      EXECUTE b;`)],
+    ["Variablenzuweisung", rumpf(`${LESEN}
+      v_sql := format('CREATE POLICY p ON public.x FOR INSERT WITH CHECK (%s)', v_check);
+      EXECUTE v_sql;`)],
+    ["JOIN statt FROM", rumpf(`FOR z IN SELECT u.withcheck AS wc FROM pg_class c JOIN public.undo_20260828100000 u ON true LOOP
+      EXECUTE format('CREATE POLICY p ON public.x FOR INSERT WITH CHECK (%s)', z.wc); END LOOP;`)],
+    ["CTE", rumpf(`WITH x AS (SELECT withcheck w FROM public.undo_20260828100000) SELECT w INTO v_check FROM x;
+      EXECUTE format('CREATE POLICY p ON public.x FOR INSERT WITH CHECK (%s)', v_check);`)],
+    ["FOR-Schleife", rumpf(`FOR z IN SELECT * FROM public.undo_20260828100000 LOOP
+      EXECUTE format('CREATE POLICY p ON public.x FOR INSERT WITH CHECK (%s)', z.withcheck); END LOOP;`)],
+    ["quote_literal-Verkettung", rumpf(`${LESEN}\n      EXECUTE 'DO ' || quote_literal(v_check);`)],
+    ["direkte Verkettung im EXECUTE", rumpf(`${LESEN}
+      EXECUTE 'CREATE POLICY p ON public.x WITH CHECK (' || v_check || ')';`)],
+  ];
+
+  const ERLAUBT: Array<[string, string]> = [
+    ["Katalog, FOR-Form", rumpf(`FOR z IN SELECT p.oid::regprocedure::text AS sig FROM pg_proc p LOOP
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO PUBLIC', z.sig); END LOOP;`)],
+    ["Katalog, SELECT … INTO", rumpf(`SELECT p.oid::regprocedure::text INTO v_check FROM pg_proc p LIMIT 1;
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO PUBLIC', v_check);`)],
+    ["PERFORM ohne EXECUTE", rumpf(`${LESEN}\n      PERFORM format('x %s', v_check);`)],
+  ];
+
+  it.each(ANGRIFFE)("weist ab: %s", (_name, quelle) => {
+    expect(pruefeDatei("angriff.sql", quelle).length).toBeGreaterThan(0);
+  });
+
+  it.each(ERLAUBT)("lässt durch: %s", (_name, quelle) => {
+    expect(pruefeDatei("erlaubt.sql", quelle)).toEqual([]);
   });
 });
