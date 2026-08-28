@@ -685,10 +685,6 @@ entfernen. Der Prüfpunkt hier ist ein anderer: welche Spalten dürfen wirklich
 
 ## P3 / P5 — später
 
----
-
-## P3 / P5 — später
-
 | ID | Modul | Zustand |
 |---|---|---|
 | **P3-1** | Migrationsledger ab signierter Basislinie | `VERIFIED_IN_REPO` — 391 Dateien signiert; anfügend als Tor, 3 Einschleusungen |
