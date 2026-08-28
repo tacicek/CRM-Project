@@ -1,0 +1,19 @@
+Negativtest nach der Korrektur
+Artefakt: supabase/migrations/ROLLBACK_20260828100000_landing_analytics_anon_insert_entzogen.sql
+Fassung:  sha256 581957802753d27da4633be78f485390ac61e272e4f82e221316cccbd3270ace (Commit 8b8893a6)
+Umgebung: Wegwerf-Container supabase_db_crm-test — NICHT die Produktion
+Zeit:     2026-08-28T12:06:42Z
+
+=== A. Derselbe Angriff, gegen die korrigierte Fassung ===
+ERROR:  festgehaltenes WITH CHECK ist "true); INSERT INTO public.beute VALUES ('uebernommen'); --", erwartet "true". Diese Datei setzt keinen gespeicherten Text als SQL ein. Pruefe den Eintrag in public.undo_20260828100000 von Hand, bevor du fortfaehrst.
+ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ROLLBACK
+--- Fremdes SQL ausgefuehrt? ---
+beute: (leer)
+--- Policy angelegt? (darf NICHT) ---
+policies: 0
+
+=== B. Der legitime Fall: withcheck='true' ===
+NOTICE:  Policy Service role can insert analytics wiederhergestellt (roles=PUBLIC, WITH CHECK true)
+COMMIT
+  wiederhergestellt: Service role can insert analytics cmd=a check=true

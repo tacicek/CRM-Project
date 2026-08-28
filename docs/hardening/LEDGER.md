@@ -36,6 +36,14 @@ vollständige Liste; ein Zustand, der hier fehlt, darf unten nicht auftauchen:
 | `ROOT_CAUSE_UNRESOLVED` | die Ursache steht, die Behebung nicht | dass ein Rollout sie behebt |
 | `BLOCKED_BY_R2` / `BLOCKED_BY_RELEASE_COUPLING` | hängt an einer anderen Einheit bzw. an einem gekoppelten Release | — |
 | `NOT_AUTHORIZED_FOR_PRODUCTION` | ausdrücklich nicht freigegeben | dass es unfertig wäre |
+| `REVIEW_PASS` | eine unabhängige Durchsicht hat die Zusagen angegriffen; die Befunde sind behoben | dass es ausgerollt ist |
+| `NEVER_APPLIED_TO_PRODUCTION` | in der Produktion nie ausgeführt | dass es nirgends ausgeführt wurde |
+| `EXECUTED_ONLY_IN_DISPOSABLE_TEST_ENVIRONMENTS` | ausgeführt, aber ausschliesslich auf Wegwerf-Stapeln | dass es ungeprüft wäre |
+| `SAFE_ARTIFACT` | das Artefakt trägt den bekannten Defekt nicht mehr | dass es freigegeben ist |
+| `CORRECTED_BEFORE_FIRST_PRODUCTION_EXECUTION` | korrigiert, bevor es je in der Produktion lief | dass die Unveränderlichkeitsregel allgemein gelockert wäre |
+| `VERIFIED_PRIVILEGE_DRIFT` | ein Recht ist gemessen falsch vergeben | dass es erreichbar ist |
+| `NO_MEASURED_EXTERNAL_REACHABILITY` | kein gemessener Weg von aussen | dass keiner existiert — nur, dass keiner gefunden wurde |
+| `SEPARATE_HARDENING_DECISION_REQUIRED` | die Korrektur braucht eine eigene Freigabe | dass sie unklar wäre |
 
 **Nichts in diesem Repo kann `LIVE_VERIFIED` erreichen, solange kein
 Produktionsschreibvorgang freigegeben ist.** Das ist kein Mangel des Ledgers,
@@ -369,7 +377,7 @@ Drei Dinge daran:
 **ruhende Rechteausweitung**. Sie gehört korrigiert, *bevor* jemand die erste
 Rolle vergibt — danach ist es ein Eingriff in laufenden Betrieb.
 
-**Zustand:** `MIGRATION_PREPARED / NOT_LIVE`. DEC-002 ist entschieden, die
+**Zustand:** `MIGRATION_PREPARED / REVIEW_PASS / NOT_LIVE`. DEC-002 ist entschieden, die
 Migration `20260828140000` geschrieben und auf dem Wegwerf-Stapel bewiesen —
 nicht angewendet.
 
@@ -492,7 +500,7 @@ behoben und neu bewiesen: fehlende Tabelle → `NOTICE`, kein Abbruch; `anon`
 SELECT/TRUNCATE/DELETE alle blockiert; idempotent; Rücknahme gibt `TRUNCATE`
 zurück.
 
-**Zustand:** `MIGRATION_PREPARED / NOT_LIVE`. `20260828150000` schaltet RLS ein
+**Zustand:** `MIGRATION_PREPARED / REVIEW_PASS / NOT_LIVE`. `20260828150000` schaltet RLS ein
 und entzieht `anon`/`authenticated` das Tabellenrecht; 8 von 8 Operationen
 danach `permission denied`, `service_role` kommt weiter heran, Belegzeile
 unversehrt. Nicht angewendet.
@@ -535,15 +543,41 @@ dass ein Betreiber die Rücknahme ausführt — und
 `anon` ist allein `undo_20260828100000`, die Tabelle, die ich ohne RLS angelegt
 habe. Die beiden Befunde sind dieselbe Wurzel, zweimal.
 
+**Vollständiger Prüfsatz:** `ops/artifact-corrections.jsonl`, Eintrag `AC-0001` —
+alter Digest `c329d13bba10f96c9105fd2a55003c2d02daa088f63195e7110b98951a5b2526`,
+neuer `581957802753d27da4633be78f485390ac61e272e4f82e221316cccbd3270ace`,
+Einführungscommit `ac26a2ed`, Korrekturcommit `8b8893a6`, Reproduktions- und
+Negativtest-Belege, Prüferidentitäten und der Grund gegen eine Nachfolgedatei.
+Der Eintrag ist anfügend und bleibt abfragbar; ein `git diff` allein ist
+Stützbeleg, nicht das Ledger-Ereignis.
+
+*(Die Freigabe nannte `8d015e82` als Korrekturcommit. Gemessen mit
+`git log -- <pfad>` hat dieser Commit die Datei nicht angefasst — er korrigiert
+die beiden Vorwärtsmigrationen. Der Prüfsatz führt den gemessenen Commit.)*
+
 **Behoben:** der gespeicherte Wert erreicht das `EXECUTE` nicht mehr. Er wird
 geprüft (`withcheck` muss `true` sein, der Name muss stimmen), und das DDL ist
 konstant. Angriff danach: `ERROR … erwartet "true"`, Transaktion zurückgerollt,
 `beute` leer. Der echte Fall stellt die Policy weiterhin her
 (`cmd=a check=true`).
 
-**Eingriff in eine bestehende Datei — bewusst und sichtbar.** Die Datei ist eine
-`ROLLBACK_`-Schwester und wurde **nie angewendet**; die Anfüge-Regel schützt den
-Nachweis dessen, was *lief*. Das Tor hat den Eingriff korrekt gemeldet
+**Zustand des korrigierten Artefakts:** `SAFE_ARTIFACT` ·
+`NEVER_APPLIED_TO_PRODUCTION`. Einstufung der Änderung:
+`CORRECTED_BEFORE_FIRST_PRODUCTION_EXECUTION`.
+
+Zur Sprache: die Datei ist **nicht** „nie gelaufen". Sie wurde bei der
+Rücknahme-Prüfung auf Wegwerf-Stapeln ausgeführt —
+`EXECUTED_ONLY_IN_DISPOSABLE_TEST_ENVIRONMENTS`. In der Produktion lief sie nie.
+
+**Eingriff in eine bestehende Datei — freigegeben, eng.** Die Datei ist eine
+`ROLLBACK_`-Schwester und wurde in der Produktion nie angewendet; die
+Anfüge-Regel schützt den Nachweis dessen, was dort *lief*. Die Freigabe vom
+2026-08-28 ist ausdrücklich eng und schafft **keine** allgemeine Ausnahme von
+der Unveränderlichkeit von Migrationen.
+
+Eine zweite, sichere Datei neben der verwundbaren wurde **abgelehnt**: das hätte
+zwei scheinbar gültige Betreiberpfade geschaffen und die Möglichkeit erhalten,
+dass später der unsichere ausgeführt wird. Das Tor hat den Eingriff korrekt gemeldet
 (`keine bestehende Datei wurde geändert` → rot), und die Prüfsumme wurde
 **einzeln** nachgezogen: eine Zeile in `ops/migration-ledger.json`. Wer das
 prüfen will: `git log -p ops/migration-ledger.json`. Die Alternative wäre
@@ -587,7 +621,8 @@ von aussen. Einstufung deshalb: echtes Recht, falsch vergeben, **nicht
 erreichbar** — Härtung, nicht Vorfall. Wer es anders einstuft, muss zuerst einen
 Weg zeigen.
 
-**Zustand:** `PLANNED`. Die Korrektur wäre
+**Zustand:** `VERIFIED_PRIVILEGE_DRIFT` · `NO_MEASURED_EXTERNAL_REACHABILITY` ·
+`SEPARATE_HARDENING_DECISION_REQUIRED`. Die Korrektur wäre
 `REVOKE TRUNCATE ON ALL TABLES IN SCHEMA public FROM anon, authenticated` plus
 eine Änderung der Standardrechte für künftige Tabellen. Das berührt 97 Tabellen
 und alle künftigen — eine eigene Entscheidung, keine Beifuhr zu DEC-002. Für
