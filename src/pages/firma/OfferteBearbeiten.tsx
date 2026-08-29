@@ -52,7 +52,11 @@ import {
 import { metaKindForService, buildMetaPayload, metaPayloadToJson, seedMetaDraft, EMPTY_META_DRAFT, type GroupMetaDraft } from "@/lib/offerItemMeta";
 import { OFFER_ITEMS_PDF_SELECT } from "@/lib/offerItemsPdfSelect";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } from "@/lib/offerLanguageRebase";
+import { sammleOfferteRebaseFelder } from "@/lib/offerRebaseFelder";
+import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +64,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import SpellCheckModal from "@/components/offerte/SpellCheckModal";
 import { runSpellCheck, type SpellCheckFields } from "@/lib/spellCheckService";
 import { sendOffer } from "@/lib/sendOffer";
+import { blockerListe } from "@/lib/offerSendBlockerText";
 
 interface Company {
   id: string;
@@ -143,6 +148,8 @@ const generateItemId = () => `item-${Date.now()}-${Math.random().toString(36).su
 
 const FirmaOfferteBearbeiten = () => {
   const { user } = useAuth();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId } = useCompanyContext();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { offerId } = useParams<{ offerId: string }>();
@@ -234,6 +241,70 @@ const FirmaOfferteBearbeiten = () => {
   // DOCUMENT locale of this offer — the language the CUSTOMER is addressed in (PDF, e-mail,
   // public token page). Independent of the operator's dashboard language.
   const [offerLanguage, setOfferLanguage] = useState<Locale>(DEFAULT_LOCALE);
+  const [sprachPlan, setSprachPlan] = useState<RebasePlan | null>(null);
+
+  /**
+   * Sprachwechsel auf einer BESTEHENDEN Offerte.
+   *
+   * Hier ist die Lage ehrlicher — und duerftiger — als beim Anlegen: die
+   * Positionen kommen aus der Datenbank, und `offer_items` traegt keine
+   * Herkunftsspalte. Ob ein Text noch der Katalogtext ist oder laengst von Hand
+   * geaendert wurde, laesst sich nicht belegen. Der Plan stuft solche Felder
+   * darum als `unknown` ein und fasst sie nicht an.
+   *
+   * Das Ergebnis ist oft „es gibt nichts zu uebernehmen" — und genau das ist
+   * der Fortschritt: vorher behauptete der Waehler wortlos das Gegenteil.
+   *
+   * `eingefroren: false` ist hier belegt und nicht angenommen: eine gesperrte
+   * Offerte erreicht diese Seite gar nicht, der Ladeeffekt oben leitet sie auf
+   * die Detailseite um.
+   */
+  const sprachwechselStarten = (ziel: Locale) => {
+    if (ziel === offerLanguage) return;
+    setSprachPlan(
+      buildOfferLanguageRebasePlan({
+        von: offerLanguage,
+        nach: ziel,
+        eingefroren: false,
+        felder: sammleOfferteRebaseFelder({
+          von: offerLanguage,
+          nach: ziel,
+          titelQuelle: null,
+          titel: title,
+          positionen: items.map((i) => ({
+            id: i.id,
+            position: i.position,
+            description: i.description,
+            quantity: i.quantity,
+            unit: i.unit,
+            unit_price: i.unit_price,
+          })),
+          zahlungskondition: { wert: paymentTerms, quelle: null },
+          agb: { wert: "", quelle: null },
+        }),
+      }),
+    );
+  };
+
+  const sprachwechselAnwenden = (wirkung: RebaseAnwendung) => {
+    for (const [feld, wert] of Object.entries(wirkung.aenderungen)) {
+      if (feld === "title") { setTitle(wert); continue; }
+      if (feld === "payment_terms") { setPaymentTerms(wert); continue; }
+      const treffer = /^items\[(\d+)\]\.description$/.exec(feld);
+      if (treffer) {
+        const pos = Number(treffer[1]);
+        setItems((prev) => prev.map((i) => (i.position === pos ? { ...i, description: wert } : i)));
+      }
+    }
+    setOfferLanguage(wirkung.nach);
+    setSprachPlan(null);
+    const anzahl = Object.keys(wirkung.aenderungen).length;
+    toast({
+      title: anzahl > 0
+        ? t("offer.lang.rebase.applied", { count: anzahl })
+        : t("offer.lang.rebase.appliedNone"),
+    });
+  };
   // Translator for text that is WRITTEN INTO the offer (payment terms) — resolves the
   // customer's language, never the operator's. Deliberately NOT useT().
   const documentT = documentI18nFor(offerLanguage).t;
@@ -250,12 +321,17 @@ const FirmaOfferteBearbeiten = () => {
         setIsLoading(false);
         return;
       }
+      // Solange der aktive Mandant nicht feststeht, wird nicht geladen. Vorher
+      // stand hier `fetchSingleCompanyForUser`, das die Firma RIET — bei zwei
+      // Mitgliedschaften konnte die Offerte damit unter der falschen Firma
+      // gesucht und (weil `.eq("company_id", …)` dann nicht traf) als "nicht
+      // gefunden" abgewiesen werden, obwohl sie existiert.
+      if (!activeCompanyId) return;
 
       try {
-        // Get company
-        const companyData = await fetchSingleCompanyForUser<Company>({
-          userId: user.id,
-          userEmail: user.email,
+        // Get company — GENAU der aktive Mandant, nicht die geratene Firma.
+        const companyData = await fetchCompanyById<Company>({
+          companyId: activeCompanyId,
           select: "id, company_name",
         });
 
@@ -271,7 +347,7 @@ const FirmaOfferteBearbeiten = () => {
           .select("*")
           .eq("id", offerId)
           .eq("company_id", companyData.id)
-          .single();
+          .maybeSingle();
 
         if (offerError || !offerData) {
           toast({
@@ -444,7 +520,7 @@ const FirmaOfferteBearbeiten = () => {
     };
 
     fetchData();
-  }, [user, offerId, navigate, toast, t]);
+  }, [user, offerId, activeCompanyId, navigate, toast, t]);
 
   const addItem = () => {
     setItems([
@@ -719,7 +795,10 @@ const FirmaOfferteBearbeiten = () => {
 
     if (Object.keys(spellFields).length > 0) {
       setIsSpellChecking(true);
-      const result = await runSpellCheck(spellFields);
+      // Dokumentsprache, nicht Dashboard-Sprache: geprueft wird der Text, den der
+      // KUNDE liest. Ein deutscher Bediener, der eine franzoesische Offerte
+      // schreibt, darf keine deutschen Regeln auf sie loslassen.
+      const result = await runSpellCheck(spellFields, offerLanguage);
       setIsSpellChecking(false);
 
       if (result && result.hasCorrections) {
@@ -849,6 +928,12 @@ const FirmaOfferteBearbeiten = () => {
           toast({
             title: t("offer.list.toast.sent.title"),
             description: t("offer.edit.toast.sent.description"),
+          });
+        } else if (result.blockers?.length) {
+          toast({
+            title: t("offer.send.blocked.title"),
+            description: blockerListe(result.blockers, t),
+            variant: "destructive",
           });
         } else {
           toast({
@@ -1008,7 +1093,7 @@ const FirmaOfferteBearbeiten = () => {
                     </Label>
                     <Select
                       value={offerLanguage}
-                      onValueChange={(v) => setOfferLanguage(toLocale(v))}
+                      onValueChange={(v) => sprachwechselStarten(toLocale(v))}
                     >
                       <SelectTrigger id="offer-language" className="h-9 sm:h-10 text-sm">
                         <SelectValue />
@@ -1791,6 +1876,11 @@ const FirmaOfferteBearbeiten = () => {
         </div>
 
         {/* Spell Check Review Modal */}
+        <SprachwechselDialog
+          plan={sprachPlan}
+          onAbbrechen={() => setSprachPlan(null)}
+          onAnwenden={sprachwechselAnwenden}
+        />
         <SpellCheckModal
           open={spellCheckOpen}
           originalFields={spellCheckOriginal}

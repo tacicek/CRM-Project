@@ -15,9 +15,9 @@ import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
 import { KundeLink } from "@/components/firma/KundeLink";
 import { ZahlungErfassenDialog } from "@/components/firma/ZahlungErfassenDialog";
-import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { useCompanyRecord } from "@/hooks/useCompanyRecord";
+import { zeileGehoertZumMandanten } from "@/lib/aktiverMandant";
 import { useRechnungen, positionenToJson, type RechnungInsert } from "@/hooks/useRechnungen";
 import {
   buildRechnungDoc, downloadRechnungPdf, type RechnungCompany, type RechnungData, type RechnungPosition,
@@ -88,21 +88,29 @@ const stripKey = (p: EditPosition): RechnungPosition => {
   return rest;
 };
 
+// Gläubigerangaben der QR-Rechnung. Konstante im Modulkörper — `useCompanyRecord`
+// hängt an diesem String.
+const RECHNUNG_FIRMA_SELECT =
+  "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url, primary_color, legal_name, default_payment_terms, default_language";
+
 export default function RechnungDetail() {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === "neu";
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { user } = useAuth();
   // Dashboard locale — for the amounts shown in this form. The PDF uses the invoice's own
   // language (state `language` below), which is a different axis entirely.
   const { locale: uiLocale } = useI18n();
   const t = useT();
   const prefillAppliedRef = useRef(false);
 
-  const [company, setCompany] = useState<CompanyInfo | null>(null);
-  const { createRechnung, updateRechnung } = useRechnungen(company?.id);
+  // Gläubiger dieser Rechnung = der AKTIVE Mandant, nicht die geratene Firma.
+  // Vorher lieferte `fetchSingleCompanyForUser` bei zwei Mitgliedschaften unter
+  // Umständen eine andere Firma als die, unter der die Rechnung geführt wird —
+  // Name, Adresse und IBAN im PDF stammten dann von der falschen.
+  const { company, companyId } = useCompanyRecord<CompanyInfo>(RECHNUNG_FIRMA_SELECT);
+  const { createRechnung, updateRechnung } = useRechnungen(companyId ?? undefined);
 
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
@@ -150,24 +158,15 @@ export default function RechnungDetail() {
   const mwstBetrag = mwstEnabled ? round2((zwischensumme * mwstSatz) / 100) : 0;
   const total = round2(zwischensumme + mwstBetrag);
 
-  // Load company
+  // Vorbelegung aus dem Firmensatz. Der Satz selbst kommt aus `useCompanyRecord`
+  // (aktiver Mandant); hier werden nur die Felder einer NEUEN Rechnung gesetzt.
   useEffect(() => {
-    if (!user?.id) return;
-    fetchSingleCompanyForUser<CompanyInfo>({
-      userId: user.id,
-      userEmail: user.email,
-      select: "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url, primary_color, legal_name, default_payment_terms, default_language",
-    }).then((c) => {
-      if (c) {
-        setCompany(c);
-        // Neue Rechnung: Zahlungskonditionen aus Firmen-Default vorbelegen (falls noch leer).
-        if (isNew) setZahlungskonditionen((prev) => prev || c.default_payment_terms || "");
-        // A new invoice starts in the company default language; the Auftrag prefill and the
-        // language select below override it. An existing invoice keeps its stored language.
-        if (isNew && !prefillAppliedRef.current) setLanguage(toLocale(c.default_language));
-      }
-    });
-  }, [user?.id, user?.email, isNew]);
+    if (!company || !isNew) return;
+    setZahlungskonditionen((prev) => prev || company.default_payment_terms || "");
+    // A new invoice starts in the company default language; the Auftrag prefill and the
+    // language select below override it. An existing invoice keeps its stored language.
+    if (!prefillAppliedRef.current) setLanguage(toLocale(company.default_language));
+  }, [company, isNew]);
 
   // Load existing rechnung
   const loadRechnung = useCallback(async () => {
@@ -175,9 +174,22 @@ export default function RechnungDetail() {
       setIsLoading(false);
       return;
     }
+    // Solange der aktive Mandant nicht feststeht, wird NICHT geladen. Ohne ihn
+    // könnte die Prüfung unten nur raten, und Raten ist genau der Fehler, den
+    // dieser Umbau beseitigt. Der Bildschirm bleibt im Ladezustand.
+    if (!companyId) return;
     const { data, error } = await supabase
-      .from("rechnungen").select("*").eq("id", id).single();
+      .from("rechnungen").select("*").eq("id", id).maybeSingle();
     if (error || !data) {
+      toast({ title: "Nicht gefunden", variant: "destructive" });
+      navigate("/firma/rechnungen");
+      return;
+    }
+    // Fail closed: Wer in A UND B Mitglied ist, darf die B-Zeile per RLS lesen.
+    // Unter dem aktiven Mandanten A darf sie trotzdem nicht erscheinen — sonst
+    // stünde B-Inhalt unter A-Kopfdaten. Dieselbe Meldung wie bei "gibt es
+    // nicht": ein eigener Text wäre eine Auskunft über fremde Daten.
+    if (!zeileGehoertZumMandanten(data, companyId)) {
       toast({ title: "Nicht gefunden", variant: "destructive" });
       navigate("/firma/rechnungen");
       return;
@@ -214,7 +226,7 @@ export default function RechnungDetail() {
     setLinkedOfferId(data.offer_id);
     setLinkedAuftragId(data.auftrag_id);
     setIsLoading(false);
-  }, [id, isNew, navigate, toast]);
+  }, [id, isNew, companyId, navigate, toast]);
 
   useEffect(() => { loadRechnung(); }, [loadRechnung]);
 

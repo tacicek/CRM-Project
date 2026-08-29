@@ -398,7 +398,7 @@ export const offer = {
   "offer.form.customer.title": "Kundendaten",
   "offer.form.customerLanguage.label": "Sprache des Kunden",
   "offer.form.customerLanguage.hint":
-    "Bestimmt die Sprache von PDF und E-Mails an den Kunden — nicht Ihre eigene Dashboard-Sprache. Achtung: bereits erfasste Positionen bleiben so stehen, wie sie erfasst wurden; sie werden nicht automatisch übersetzt.",
+    "Bestimmt die Sprache von PDF und E-Mails an den Kunden — nicht Ihre eigene Dashboard-Sprache. Beim Umstellen zeigen wir zuerst, was übernommen werden kann und was so bleibt, wie es ist.",
 
   // --- Per-service dates + service meta (create + edit) ----------------------------------
   "offer.form.groupDates.title": "Termine pro Service",
@@ -1084,5 +1084,41 @@ export const offer = {
   "nachtrag.public.rejected": "Sie haben diesen Nachtrag am {date} abgelehnt.",
   "nachtrag.public.thanks": "Vielen Dank — wir haben Ihre Rückmeldung erhalten.",
   "nachtrag.public.error": "Ihre Rückmeldung konnte nicht gespeichert werden.",
+
+  // --- Sprachumstellung eines Entwurfs ---------------------------------------------------
+  "offer.lang.rebase.title": "Dokumentsprache umstellen",
+  "offer.lang.rebase.intro":
+    "Von {from} nach {to}. Umgestellt wird nur, was als Übersetzung hinterlegt ist — übersetzt wird hier nichts.",
+  "offer.lang.rebase.available": "Wird umgestellt",
+  "offer.lang.rebase.alreadyCorrect": "Bereits richtig",
+  "offer.lang.rebase.conflict": "Von Hand geschrieben",
+  "offer.lang.rebase.missing": "Übersetzung fehlt",
+  "offer.lang.rebase.nonLocalized": "Beträge und Mengen (unverändert)",
+  "offer.lang.rebase.conflictHint":
+    "Diese Texte weichen von der hinterlegten Quelle ab. Sie bleiben stehen, ausser Sie wählen sie ausdrücklich aus.",
+  "offer.lang.rebase.missingHint":
+    "Für diese Felder ist in der Zielsprache nichts hinterlegt. Sie bleiben in der bisherigen Sprache — pflegen Sie die Übersetzung in der Quelle.",
+  "offer.lang.rebase.nothingToDo": "Es gibt nichts umzustellen.",
+  "offer.lang.rebase.immutable":
+    "Diese Offerte ist versendet und wird nicht mehr geändert. Für eine andere Sprache legen Sie eine neue Fassung an.",
+  "offer.lang.rebase.current": "Jetzt",
+  "offer.lang.rebase.next": "Neu",
+  "offer.lang.rebase.apply": "Umstellen",
+  "offer.lang.rebase.cancel": "Abbrechen",
+  "offer.lang.rebase.applied": "Sprache umgestellt: {count} Felder angepasst.",
+  "offer.lang.rebase.appliedNone": "Sprache umgestellt. Kein Text wurde verändert.",
+
+  // --- Sendebereitschaft ------------------------------------------------------------------
+  "offer.send.blocked.title": "Diese Offerte kann noch nicht gesendet werden",
+  "offer.send.blocked.MISSING_LOCALE":
+    "Für dieses Dokument ist keine Kundensprache gesetzt. Ohne sie wird nicht gesendet — deutsch wird sie nicht automatisch.",
+  "offer.send.blocked.UNSUPPORTED_LOCALE":
+    "Die Kundensprache dieses Dokuments ist keine der unterstützten (Deutsch, Französisch, Englisch).",
+  "offer.send.blocked.GERMAN_FALLBACK":
+    "{field}: für {locale} ist nichts hinterlegt — der Kunde bekäme deutschen Text. Bitte die Übersetzung in der Quelle ergänzen.",
+  "offer.send.blocked.EMPTY_REQUIRED":
+    "{field}: Pflichtangabe fehlt — in keiner Sprache vorhanden.",
+  "offer.send.blocked.LOCALE_MISMATCH":
+    "{field}: trägt eine andere Sprache als das Dokument. PDF, E-Mail und die öffentliche Ansicht müssen dieselbe Sprache haben.",
 
 } as const;

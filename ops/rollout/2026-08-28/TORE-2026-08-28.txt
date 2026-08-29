@@ -1,0 +1,19 @@
+Repository-Tore, gemessen 2026-08-28T09:25:08Z
+HEAD bb31c3a5c8b6cb8f88e9bd28cc8baaf44f45a319
+
+type-check (tsc -b)        PASS   exit 0
+vitest                     PASS   99 Dateien, 1916 Tests, 0 Fehler
+eslint eigener Code        PASS   0 Fehler, 1 vorbestehende Warnung
+                                  (src/components/firma/PaginationBar.tsx:100,
+                                   react-refresh/only-export-components — nicht angefasst)
+eslint vibecosystem/       88 Fehler — Gitlink (mode 160000) ohne .gitmodules;
+                                  CI checkt ihn nie aus, der Lint-Schritt dort ist gruen
+DB-Zusicherungen api-budget PASS  7/7 (A-G) auf supabase_db_crm-test
+
+Nicht angewendete Migrationen im Repo:
+  20260828130000_api_budget_dauerhaft.sql
+  20260828140000_companies_ohne_mandantenlose_admin_ausnahme.sql
+  20260828150000_undo_tabelle_nachtraeglich_verriegeln.sql
+
+Nicht committet, absichtlich: deno.lock (+1 Zeile playwright-core, in
+package.json deklariert — Lockfile-Abgleich, gehoert nicht in diese Arbeit).

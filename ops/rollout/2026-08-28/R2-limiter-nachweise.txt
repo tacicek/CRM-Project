@@ -1,0 +1,37 @@
+R-2 · dauerhafter Zaehler — die zwei Beweise, die noch fehlten
+Zeit: 2026-08-28T18:54:15Z   Wegwerf-Stapel, keine echte Google-Anfrage.
+
+1. FRISCHER WORKER JE ANFRAGE (Unit, supabase/functions/_shared/__tests__/paidApiGuard.test.ts)
+
+   61 Anfragen, fuer JEDE ein frisch gebautes Abhaengigkeitsbuendel — kein
+   geteilter Modulzustand, genau wie EdgeRuntime.userWorkers.create je Anfrage
+   einen eigenen Worker erzeugt.
+     -> die ersten 60: 200
+     -> die 61.:       429
+   Der Zaehler liegt serverseitig, also greift die Grenze trotzdem.
+
+   GEGENPROBE im selben Test: dieselbe Schleife mit einem Zaehler, der je
+   Buendel neu beginnt (die alte Modul-Map-Bauart)
+     -> KEIN einziges 429.
+   Das ist der gemessene Produktionsbefund R2-01, als Test festgenagelt. Wer den
+   Zaehler je wieder in den Modulkopf verschiebt, macht diesen Test rot.
+
+2. NEBENLAUF (echte gleichzeitige Verbindungen gegen die Postgres-Funktion)
+
+   8 gleichzeitige psql-Verbindungen x 10 Anfragen = 80, Grenze 30 je Minute:
+     erlaubt     30
+     verweigert  50
+     Summe       80
+   Die atomare Erlaubnis wurde unter Nebenlauf exakt eingehalten, nicht
+   ueberschritten.
+
+BEREITS VORHER ABGEDECKT (13 Unit-Tests + 7 DB-Zusicherungen RC12):
+   kein/leerer/ungueltiger Token -> 401 ohne Verbrauch
+   gestoerte Tokenpruefung       -> 503 FAIL CLOSED
+   gestoerter Zaehler            -> 503 FAIL CLOSED
+   fehlende/unfoermige company_id-> 400 ohne Verbrauch
+   fremde und erfundene Firma    -> faellt durch, ohne Verbrauch (DB-Test B)
+   erschoepft                    -> 429 mit deterministischem Retry-After
+   Google-Transport              -> bei jedem abgewiesenen Fall NIE erreicht,
+                                    bei einer erlaubten Anfrage GENAU EINMAL
+   nur service_role kommt an die Zaehlertabelle, RLS aktiv (DB-Test F)

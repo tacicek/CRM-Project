@@ -1,0 +1,36 @@
+M01-05 · Nachweis auf dem Wegwerf-Stapel supabase_db_crm-test
+Migration: 20260828160000_truncate_recht_anon_authenticated_entziehen.sql
+Zeit: 2026-08-28T12:17:39Z   NICHT die Produktion.
+
+BESTEHENDE RECHTE
+  vorher   anon: select=92 insert=92 update=92 delete=92 TRUNCATE=92
+  nachher  anon: select=92 insert=92 update=92 delete=92 TRUNCATE=0
+  Nachweis 2 der Migration: "SELECT/INSERT/UPDATE/DELETE unveraendert (800 Paare geprueft)"
+
+EINDEUTIGER WIRKNACHWEIS (Tabelle ohne eingehende Fremdschluessel: admin_activity_log)
+  vorher   set role anon; truncate public.admin_activity_log;  -> TRUNCATE TABLE
+  nachher  set role anon;                                      -> ERROR: permission denied
+  nachher  set role authenticated;                             -> ERROR: permission denied
+
+  Anmerkung: ein erster Versuch traf public.companies und scheiterte an
+  "cannot truncate a table referenced in a foreign key constraint" — das belegt,
+  dass die RECHTEPRUEFUNG bestanden wurde, ist aber kein sauberer Beleg. Deshalb
+  eine Tabelle ohne eingehende Fremdschluessel.
+
+KUENFTIGE TABELLEN
+  Der Stapel trug KEINE public-Standardrechte — ein Test dort waere unschluessig
+  gewesen (neue Tabelle: anon_select=false schon vorher). Erst nach dem Nachbau
+  des Produktionszustands aussagekraeftig:
+    vorher   neue Tabelle: anon_truncate=true  anon_select=true
+    nachher  neue Tabelle: anon_truncate=false anon_select=true anon_insert=true
+
+RESTBESTAND, VON DER MIGRATION SELBST GEMELDET
+  "RESTBESTAND: postgres ist kein Mitglied von supabase_admin. Die
+   Standardrechte mit Erteiler supabase_admin bleiben stehen."
+  Gemessen: postgres ist weder Superuser noch Mitglied von supabase_admin.
+  Ein Superuser muss nachziehen.
+
+IDEMPOTENZ / RUECKNAHME
+  zweiter Lauf: 0 Fehler
+  Ruecknahme:   anon_truncate-Zaehler zurueck auf 100, TRUNCATE wieder moeglich
+  erneut vorwaerts: 0

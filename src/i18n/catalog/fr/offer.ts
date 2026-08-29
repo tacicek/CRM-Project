@@ -377,7 +377,7 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.customer.title": "Données du client",
   "offer.form.customerLanguage.label": "Langue du client",
   "offer.form.customerLanguage.hint":
-    "Détermine la langue du PDF et des e-mails destinés au client — pas la langue de votre tableau de bord. Attention : les postes déjà saisis restent tels quels ; ils ne sont pas traduits automatiquement.",
+    "Détermine la langue du PDF et des e-mails destinés au client — pas la langue de votre tableau de bord. Lors du changement, nous montrons d'abord ce qui peut être repris et ce qui reste tel quel.",
 
   "offer.form.groupDates.title": "Dates par service",
   "offer.form.groupDates.hint": "Vide = la date d'exécution globale s'applique.",
@@ -1041,5 +1041,41 @@ export const offer: Record<keyof typeof de, string> = {
   "nachtrag.public.rejected": "Vous avez refusé cet avenant le {date}.",
   "nachtrag.public.thanks": "Merci — nous avons bien reçu votre réponse.",
   "nachtrag.public.error": "Votre réponse n'a pas pu être enregistrée.",
+
+  // --- Changement de langue d'un brouillon -----------------------------------------------
+  "offer.lang.rebase.title": "Changer la langue du document",
+  "offer.lang.rebase.intro":
+    "De {from} vers {to}. Seul ce qui existe déjà comme traduction est repris — rien n'est traduit ici.",
+  "offer.lang.rebase.available": "Sera repris",
+  "offer.lang.rebase.alreadyCorrect": "Déjà correct",
+  "offer.lang.rebase.conflict": "Rédigé à la main",
+  "offer.lang.rebase.missing": "Traduction manquante",
+  "offer.lang.rebase.nonLocalized": "Montants et quantités (inchangés)",
+  "offer.lang.rebase.conflictHint":
+    "Ces textes diffèrent de la source enregistrée. Ils restent tels quels, sauf si vous les sélectionnez explicitement.",
+  "offer.lang.rebase.missingHint":
+    "Rien n'est enregistré dans la langue cible pour ces champs. Ils restent dans la langue actuelle — complétez la traduction à la source.",
+  "offer.lang.rebase.nothingToDo": "Il n'y a rien à reprendre.",
+  "offer.lang.rebase.immutable":
+    "Cette offre a été envoyée et n'est plus modifiée. Pour une autre langue, créez une nouvelle version.",
+  "offer.lang.rebase.current": "Actuel",
+  "offer.lang.rebase.next": "Nouveau",
+  "offer.lang.rebase.apply": "Changer",
+  "offer.lang.rebase.cancel": "Annuler",
+  "offer.lang.rebase.applied": "Langue changée : {count} champs adaptés.",
+  "offer.lang.rebase.appliedNone": "Langue changée. Aucun texte n'a été modifié.",
+
+  // --- Préparation à l'envoi ---------------------------------------------------------------
+  "offer.send.blocked.title": "Cette offre ne peut pas encore être envoyée",
+  "offer.send.blocked.MISSING_LOCALE":
+    "Aucune langue client n'est définie pour ce document. Sans elle, rien n'est envoyé — elle ne devient pas allemande automatiquement.",
+  "offer.send.blocked.UNSUPPORTED_LOCALE":
+    "La langue client de ce document n'est pas prise en charge (allemand, français, anglais).",
+  "offer.send.blocked.GERMAN_FALLBACK":
+    "{field} : rien n'est enregistré en {locale} — le client recevrait du texte allemand. Veuillez compléter la traduction à la source.",
+  "offer.send.blocked.EMPTY_REQUIRED":
+    "{field} : information obligatoire manquante — absente dans toutes les langues.",
+  "offer.send.blocked.LOCALE_MISMATCH":
+    "{field} : porte une autre langue que le document. Le PDF, l'e-mail et la vue publique doivent partager la même langue.",
 
 };

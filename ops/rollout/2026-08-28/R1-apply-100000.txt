@@ -1,0 +1,5 @@
+BEGIN
+psql:<stdin>:92: NOTICE:  Policy Service role can insert analytics entzogen (war: roles=PUBLIC, WITH CHECK true)
+DO
+DO
+COMMIT

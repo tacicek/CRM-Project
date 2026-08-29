@@ -42,9 +42,11 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { KundeLink } from "@/components/firma/KundeLink";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
 import { sendOffer } from "@/lib/sendOffer";
+import { blockerListe } from "@/lib/offerSendBlockerText";
 import { parseSurcharges, sumSurchargeAmounts, validateSurcharges } from "@/lib/offerSurcharges";
 import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import { parseOfferAgbSections } from "@/lib/offerAgbSections";
@@ -247,8 +249,14 @@ const STATUS_META: Record<string, { emoji: string; color: string; bg: string }> 
 const getStatusMeta = (status: string) =>
   STATUS_META[status] ?? { emoji: "📄", color: "text-folk-ink3", bg: "bg-folk-bg-warm" };
 
+// Die Spalten, die `interface Company` oben nennt — nicht mehr.
+const OFFERTE_FIRMA_SELECT =
+  "id, company_name, street, house_number, plz, city, phone, email, website, mwst_number, iban, logo_url, primary_color, signature_url, pdf_template, default_language";
+
 const FirmaOfferteDetail = () => {
   const { user } = useAuth();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId } = useCompanyContext();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { id } = useParams<{ id: string }>();
@@ -295,13 +303,24 @@ const FirmaOfferteDetail = () => {
         setIsLoading(false);
         return;
       }
+      // Solange der aktive Mandant nicht feststeht, wird nicht geladen —
+      // die Seite bleibt im Ladezustand statt zu raten.
+      if (!activeCompanyId) return;
 
       try {
-        // Get company
-        const companyData = await fetchSingleCompanyForUser<Company>({
-          userId: user.id,
-          userEmail: user.email,
-          select: "*",
+        // Get company — GENAU der aktive Mandant. Vorher riet
+        // `fetchSingleCompanyForUser`; traf sie die andere Firma, verfehlte der
+        // `.eq("company_id", …)`-Filter unten die Offerte und die Seite meldete
+        // "nicht gefunden" für eine Offerte, die es gibt.
+        //
+        // `select: "*"` ist ausserdem der Spaltenliste gewichen, die das
+        // Interface ohnehin nennt: die Zugangsdaten sind 2026-07-27 aus
+        // `companies` heraus nach `company_secrets` gezogen worden, WEIL sie im
+        // Browser lesbar waren. Ein `*` holt sie zurück, sobald jemand eine
+        // solche Spalte wieder anlegt.
+        const companyData = await fetchCompanyById<Company>({
+          companyId: activeCompanyId,
+          select: OFFERTE_FIRMA_SELECT,
         });
 
         if (!companyData) {
@@ -423,7 +442,7 @@ const FirmaOfferteDetail = () => {
     };
 
     fetchData();
-  }, [user, id, navigate, toast, t]);
+  }, [user, id, activeCompanyId, navigate, toast, t]);
 
   // Dashboard locale — the operator reads this page. The customer's copy of the same
   // values is rendered by the PDF from the offer's own `language`.
@@ -703,8 +722,12 @@ const FirmaOfferteDetail = () => {
 
       if (!result.success) {
         toast({
-          title: t("offer.list.toast.sendFailed.title"),
-          description: result.error ?? t("offer.list.toast.sendFailed.description"),
+          title: result.blockers?.length
+            ? t("offer.send.blocked.title")
+            : t("offer.list.toast.sendFailed.title"),
+          description: result.blockers?.length
+            ? blockerListe(result.blockers, t)
+            : (result.error ?? t("offer.list.toast.sendFailed.description")),
           variant: "destructive",
         });
         return;

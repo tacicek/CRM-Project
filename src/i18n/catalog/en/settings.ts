@@ -204,4 +204,7 @@ export const settings: Record<keyof typeof de, string> = {
   "settings.calfeed.typ.meeting": "Meetings",
   "settings.calfeed.typ.blocked": "Blocked time",
   "settings.calfeed.typ.other": "Other appointments",
+  "settings.toast.tenantMismatch":
+    "The loaded company data does not belong to the selected company. Please reload the page — nothing was saved.",
+
 };

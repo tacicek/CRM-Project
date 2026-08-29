@@ -1,0 +1,13 @@
+Output format is unaligned.
+system_identifier=7639710127421538342
+undo_20260828100000_present=true
+schreibende_PUBLIC_policies=0
+anon_insert=false
+anon_update=false
+anon_delete=false
+anon_truncate=false
+anon_select=true
+rls_enabled=true
+verbleibende_policies|Admins can view analytics|cmd=r
+row_count=0
+undo_zeile|public.landing_page_analytics|Service role can insert analytics|PUBLIC|true

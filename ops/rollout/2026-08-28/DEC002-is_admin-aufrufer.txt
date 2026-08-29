@@ -1,0 +1,78 @@
+Output format is unaligned.
+=== A) Policies, die is_admin benutzen ===
+policy|admin_activity_log|Staff can insert activity logs|cmd=a
+policy|agb_sections|Admins can manage all AGB sections|cmd=*
+policy|appointment_history|Admins can view all history|cmd=r
+policy|appointment_reminders|Admins can view all reminders|cmd=r
+policy|appointments|Admins can manage all appointments|cmd=*
+policy|checklist_templates|Admins can manage all templates|cmd=*
+policy|companies|Admins can delete companies|cmd=d
+policy|companies|Admins can insert companies|cmd=a
+policy|companies|Admins can update all companies|cmd=w
+policy|companies|Admins can view all companies|cmd=r
+policy|companies|companies_select_member|cmd=r
+policy|company_offer_settings|Admins can manage all offer settings|cmd=*
+policy|company_offer_templates|Admins can manage all templates|cmd=*
+policy|company_plz_coverage|Admins can manage all PLZ coverage|cmd=*
+policy|company_reminder_settings|Admins can manage all reminder settings|cmd=*
+policy|company_service_items|Admins can manage all service items|cmd=*
+policy|company_services|Admins can manage all company services|cmd=*
+policy|cookie_consent_log|cookie_consent_admin_read|cmd=r
+policy|customers|customers_select_admin|cmd=r
+policy|email_logs|Admins can view all email logs|cmd=r
+policy|firma_resources|Admins can manage all resources|cmd=*
+policy|inbound_emails|inbound_emails_select_admin|cmd=r
+policy|ip_blacklist|Admins can manage IP blacklist|cmd=*
+policy|job_price_estimates|Admins can manage job price estimates|cmd=*
+policy|landing_page_analytics|Admins can view analytics|cmd=r
+policy|landing_pages|Admins can manage all landing pages|cmd=*
+policy|lead_confirmations|lead_confirmations_admin_select|cmd=r
+policy|lead_forms|Admins can manage all lead forms|cmd=*
+policy|leads|leads_delete_company_or_admin|cmd=d
+policy|leads|leads_select_company_or_admin|cmd=r
+policy|leads|leads_update_company_or_admin|cmd=w
+policy|leistungsuebersicht_templates|Admins can manage all leistung templates|cmd=*
+policy|moving_calculation_presets|Admins can manage all calculation presets|cmd=*
+policy|notifications|Admins can manage all notifications|cmd=*
+policy|offer_inventory_items|Admins can view all offer inventory items|cmd=r
+policy|offer_item_area_meta|offer_item_area_meta_admin_select|cmd=r
+policy|offer_item_breakdown|offer_item_breakdown_admin_select|cmd=r
+policy|offer_item_effort_meta|offer_item_effort_meta_admin_select|cmd=r
+policy|offer_item_leistung|offer_item_leistung_admin_select|cmd=r
+policy|offer_item_volume_meta|offer_item_volume_meta_admin_select|cmd=r
+policy|offer_items|Admins can view all offer items|cmd=r
+policy|offer_leistungsuebersicht|Admins can view all offer leistungsuebersicht|cmd=r
+policy|offers|Admins can view all offers|cmd=r
+policy|offers|Public can update offer with valid token|cmd=w
+policy|offers|Public can view offer with valid token|cmd=r
+policy|pricing_rules|Admins can delete pricing rules|cmd=d
+policy|pricing_rules|Admins can insert pricing rules|cmd=a
+policy|pricing_rules|Admins can manage pricing rules|cmd=*
+policy|pricing_rules|Admins can update pricing rules|cmd=w
+policy|pricing_settings|Admins can manage pricing settings|cmd=*
+policy|profiles|Admins can update all profiles|cmd=w
+policy|profiles|Admins can view all profiles|cmd=r
+policy|service_acquisition_costs|Admins can manage acquisition costs|cmd=*
+policy|service_detail_templates|Admins can manage service templates|cmd=*
+policy|shared_content|Admins can manage shared content|cmd=*
+policy|team_availability|Admins can manage all availability|cmd=*
+policy|team_members|Admins can manage all team members|cmd=*
+policy|user_roles|Admins can manage roles|cmd=*
+policy|website_settings|website_settings_admin_write|cmd=*
+=== B) Funktionen, die is_admin aufrufen ===
+psql:<stdin>:14: ERROR:  "array_agg" is an aggregate function
+Output format is unaligned.
+=== Anzahl Policies mit is_admin, nach Tabelle ===
+psql:<stdin>:9: ERROR:  ORDER BY position 2 is not in select list
+LINE 6:    GROUP BY c.relname) x ORDER BY 2 DESC, 1;
+                                          ^
+Output format is unaligned.
+=== Funktionen, die is_admin aufrufen ===
+funktion|guard_company_ownership()
+=== Die VIER aus DEC-002 ===
+dec002|Admins can delete companies|cmd=d|using=is_admin(auth.uid())|check=-
+dec002|Admins can insert companies|cmd=a|using=-|check=is_admin(auth.uid())
+dec002|Admins can update all companies|cmd=w|using=is_admin(auth.uid())|check=-
+dec002|Admins can view all companies|cmd=r|using=is_admin(auth.uid())|check=-
+=== companies_select_member ===
+select_member|using=(is_company_member(id) OR is_admin(auth.uid()))

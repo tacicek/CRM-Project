@@ -44,7 +44,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, isPast, addDays } from "date-fns";
@@ -187,11 +187,14 @@ const STATUS_META: Record<string, { color: string; bg: string }> = {
 
 const FirmaAuftraege = () => {
   const { user } = useAuth();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma. Der
+  // fruehere lokale `companyId`-Zustand war ein Spiegel der geratenen Firma —
+  // eine zweite Stelle, die veralten konnte.
+  const { companyId: activeCompanyId } = useCompanyContext();
   const { toast } = useToast();
   const navigate = useNavigate();
   const t = useT();
   const { locale, dateLocale } = useI18n();
-  const [companyId, setCompanyId] = useState<string | null>(null);
   const [auftraege, setAuftraege] = useState<AuftragListEntry[]>([]);
   const [docsForAuftrag, setDocsForAuftrag] = useState<Record<string, { quittung: boolean; rechnung: boolean }>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -244,7 +247,7 @@ const FirmaAuftraege = () => {
           signature_url,
           default_language
         `)
-        .eq("id", companyId)
+        .eq("id", activeCompanyId)
         .single();
 
       if (companyError) throw companyError;
@@ -311,17 +314,14 @@ const FirmaAuftraege = () => {
 
   const fetchData = useCallback(async () => {
     if (!user) return;
+    // Auftraege gehoeren dem AKTIVEN Mandanten. Hier stand eine eigene Abfrage,
+    // die die Firma RIET — fuer eine ID, die der CompanyProvider schon kennt.
+    // Ohne Mandanten wird nicht geladen, statt irgendeinen zu waehlen — aber der
+    // Ladezustand wird beendet. Ein Bildschirm, der ewig dreht, sagt weniger als
+    // eine leere Liste.
+    if (!activeCompanyId) { setIsLoading(false); return; }
 
     try {
-      const company = await fetchSingleCompanyForUser<{ id: string }>({
-        userId: user.id,
-        userEmail: user.email,
-        select: "id",
-      });
-
-      if (!company) return;
-      setCompanyId(company.id);
-
       const { data, error } = await supabase
         .from("auftraege")
         .select(`
@@ -329,7 +329,7 @@ const FirmaAuftraege = () => {
           team_leader:team_leader_id (first_name, last_name, email, phone),
           offer:offer_id (id, title)
         `)
-        .eq("company_id", company.id)
+        .eq("company_id", activeCompanyId)
         .is("deleted_at", null)
         .order("scheduled_date", { ascending: true });
 
@@ -345,8 +345,8 @@ const FirmaAuftraege = () => {
       // so pre-M3 documents linked only via offer are caught too). Surfaces the double-count
       // risk in the menu — a job billed as both a receipt and a QR-invoice counts twice.
       const [qRes, rRes] = await Promise.all([
-        supabase.from("quittungen").select("auftrag_id, offer_id").eq("company_id", company.id),
-        supabase.from("rechnungen").select("auftrag_id, offer_id").eq("company_id", company.id),
+        supabase.from("quittungen").select("auftrag_id, offer_id").eq("company_id", activeCompanyId),
+        supabase.from("rechnungen").select("auftrag_id, offer_id").eq("company_id", activeCompanyId),
       ]);
       const docMap: Record<string, { quittung: boolean; rechnung: boolean }> = {};
       for (const { row } of entries) {
@@ -394,7 +394,7 @@ const FirmaAuftraege = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user, toast, t]);
+  }, [user, activeCompanyId, toast, t]);
 
   useEffect(() => {
     fetchData();
@@ -542,9 +542,9 @@ const FirmaAuftraege = () => {
     // Fail-closed: the invoice line items come from the JSON snapshot.
     if (entry.kind !== "valid") return;
     const auftrag = entry.row;
-    if (!companyId) return;
+    if (!activeCompanyId) return;
     const { data: comp } = await supabase
-      .from("companies").select("iban").eq("id", companyId).single();
+      .from("companies").select("iban").eq("id", activeCompanyId).maybeSingle();
     const iban = comp?.iban ?? "";
     if (!iban) {
       toast({
@@ -577,7 +577,7 @@ const FirmaAuftraege = () => {
       const neueRechnung = erstelleRechnungAusAuftrag(
         {
           id: auftrag.id,
-          company_id: companyId,
+          company_id: activeCompanyId,
           offer_id: auftrag.offer_id,
           status: auftrag.status,
           customer_name: auftrag.customer_name,
@@ -1022,7 +1022,7 @@ const FirmaAuftraege = () => {
           setIsModalOpen(false);
           setSelectedAuftrag(null);
         }}
-        companyId={companyId}
+        companyId={activeCompanyId}
         auftrag={selectedAuftrag}
         onSuccess={fetchData}
       />

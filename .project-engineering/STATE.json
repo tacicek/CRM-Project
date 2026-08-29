@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "project_id": "crm-system-hardening",
+  "mode": "brownfield-repair",
+  "phase": "execution",
+  "run_status": "active",
+  "scope_version": 1,
+  "artifact_paths": {
+    "project": ".project-engineering/PROJECT.md",
+    "requirements": ".project-engineering/REQUIREMENTS.md",
+    "architecture": ".project-engineering/ARCHITECTURE.md",
+    "plan": ".project-engineering/PLAN.md",
+    "worklog": ".project-engineering/WORKLOG.md",
+    "ledger": "docs/hardening/LEDGER.md",
+    "evidence": ".project-engineering/evidence/",
+    "program": "docs/CRM_SYSTEM_HARDENING_PROGRAM.md"
+  },
+  "baseline": {
+    "branch": "chore/produktionswahrheit-festschreiben",
+    "head": "6c4462b98a8e9690ad56665e55118bdbc0f627a3",
+    "dirty_paths": [
+      "public/favicon.png",
+      "public/logo-offerio-main-old.webp",
+      "public/logo-offerio-main.webp",
+      "public/offerio-logo-v2.png",
+      "public/offerio-logo.png",
+      "public/pwa-192.png",
+      "public/pwa-512.png",
+      "public/pwa-maskable-512.png",
+      ".project-engineering/",
+      "CLAUDE_CODE_CRM_HARDENING_GOAL_PROMPT.md",
+      "CRM_SYSTEM_HARDENING_PROGRAM (1).md",
+      "docs/CRM_SYSTEM_HARDENING_PROGRAM.md",
+      "E-Mail-zu-Anfrage_101.pdf",
+      "claude-code-crm-wiki-implementation-prompt.md",
+      "claude-code-inbound-email-implementation-prompt.md",
+      "claude-code-independent-crm-strategy-audit-prompt.md",
+      "claude-code-offerte-preismodell-fix-prompt.md",
+      "docs/hardening/",
+      "ops/production-truth/2026-08-28/",
+      "pg_dump",
+      "review.md",
+      "scripts/edge-drift.mjs",
+      "single-company-crm-inbound-email-architecture.md",
+      "src/test/__tests__/edge-auth-manifest.test.ts",
+      "src/test/edge-auth-manifest.ts"
+    ],
+    "captured_at": "2026-08-28T00:00:00Z",
+    "checks": [
+      {
+        "command": "npm run type-check",
+        "result": "PASS"
+      },
+      {
+        "command": "npm test",
+        "result": "PASS",
+        "reason": "97 files / 1894 tests"
+      },
+      {
+        "command": "npm run build:vite",
+        "result": "PASS"
+      },
+      {
+        "command": "bash scripts/check-edge-functions-parse.sh",
+        "result": "PASS"
+      },
+      {
+        "command": "eslint over tracked files excluding the vibecosystem gitlink",
+        "result": "PASS",
+        "reason": "0 errors, 129 warnings \u2014 the '88 errors' were all in an unfetched submodule; CI's Lint step passes"
+      }
+    ],
+    "production": {
+      "captured": "ops/production-truth/2026-08-28",
+      "generation": "b92a3bf64015b2eb",
+      "server_version": "15.8",
+      "system_identifier": "7639710127421538342",
+      "access_mode": "read-only"
+    }
+  },
+  "active": {
+    "milestone": "M-03",
+    "slice": "S-05",
+    "task": "T-013"
+  },
+  "queue": {
+    "ready": [],
+    "blocked": []
+  },
+  "last_checkpoint": {
+    "at": "2026-08-28T00:00:00Z",
+    "summary": "T-012 done: module 01 (Identity/tenancy) certified against the section 6 rubric and judged NOT CERTIFIED. The blocking finding M01-01 was not in any document before: four tenant-less admin policies on companies, inert only because user_roles is empty.",
+    "verification": [
+      {
+        "command": "read-only policy + is_admin + row-count probe against production",
+        "result": "PASS"
+      },
+      {
+        "command": "every evidence pointer in the report checked to exist",
+        "result": "PASS",
+        "reason": "8 test files"
+      },
+      {
+        "command": "CI on 2ba123bb",
+        "result": "PASS"
+      }
+    ]
+  },
+  "next_action": {
+    "task": "T-013",
+    "instruction": "Continue P4 with module 04 (Offers) \u2014 the module with the most new contracts from this session \u2014 while DEC-002 waits with the owner. Do not touch the four admin policies without that decision.",
+    "expected_result": "A second certification report; M01-01 stays PLANNED until DEC-002 is answered."
+  },
+  "pending_decisions": [
+    {
+      "id": "DEC-001",
+      "question": "Is /portal retained as Kundenbereich or decommissioned?",
+      "blocks": "P5"
+    },
+    {
+      "id": "DEC-002",
+      "question": "Should a cross-company role exist at all? `companies` carries four policies granting is_admin(auth.uid()) full CRUD over EVERY company; is_admin counts 'moderator' as equal to 'super_admin', contradicting src/lib/adminPermissions.ts. user_roles is empty (measured), so it is inert today.",
+      "options": [
+        "residue \u2014 drop the four policies and is_admin from company access",
+        "intended support role \u2014 keep, but tenant-scope it or make the cross-tenant reach explicit and audited"
+      ],
+      "why_not_decided_by_evidence": "The DB asserts one hierarchy, the frontend another, and nobody uses either. Both readings are consistent with D-001.",
+      "safe_to_defer": "yes \u2014 0 rows in user_roles; the risk is that someone grants the first role before the decision is made",
+      "blocks": "module certification 01"
+    }
+  ],
+  "production_writes_awaiting_auth": [
+    {
+      "id": "R-1",
+      "what": "apply supabase/migrations/20260828100000_landing_analytics_anon_insert_entzogen.sql",
+      "finding": "P0-S1",
+      "package": "docs/hardening/ROLLOUT-2026-08-28.md"
+    },
+    {
+      "id": "R-2",
+      "what": "deploy _shared/appointmentDay.ts FIRST, then six drifted handlers",
+      "finding": "P0-S3/P0-S3a",
+      "package": "docs/hardening/ROLLOUT-2026-08-28.md"
+    },
+    {
+      "id": "R-3",
+      "what": "deploy _shared/spellCheckPrompt.ts + spell-check-ai \u2014 frontend first",
+      "finding": "P0-S8",
+      "package": "docs/hardening/ROLLOUT-2026-08-28.md"
+    },
+    {
+      "id": "R-6",
+      "what": "apply supabase/migrations/20260828110000_oeffentliche_rpc_rechte_verengen.sql",
+      "finding": "T10-01",
+      "package": "docs/hardening/ROLLOUT-2026-08-28.md",
+      "urgency": "low"
+    }
+  ],
+  "lifecycle_states": {
+    "why": "A single DONE cannot mean implemented, verified, reviewed, merged, deployed and proven-live at once. A vulnerability is not closed because its migration exists.",
+    "allowed": [
+      "PLANNED",
+      "IN_PROGRESS",
+      "VERIFIED_IN_REPO",
+      "INDEPENDENT_REVIEW_PASS",
+      "READY_FOR_ROLLOUT",
+      "MERGED_NOT_DEPLOYED",
+      "LIVE_UNVERIFIED",
+      "LIVE_VERIFIED",
+      "BLOCKED_EXTERNAL",
+      "ACTIVE_PRODUCTION_EXPOSURE",
+      "AWAITING_PRODUCTION_AUTH"
+    ]
+  },
+  "status_correction_2026_08_28": {
+    "P0": "LIVE_VERIFIED \u2014 read-only measurement; nothing to deploy",
+    "P1A": "INDEPENDENT_REVIEW_PASS, NOT_LIVE \u2014 running production still guesses the company",
+    "P1B-1": "VERIFIED_IN_REPO, NOT_LIVE \u2014 deployed spell-check still applies German rules to French",
+    "R-1": "READY_FOR_ROLLOUT; the underlying finding P0-S1 stays ACTIVE_PRODUCTION_EXPOSURE",
+    "R-2": "READY_FOR_ROLLOUT, binding order: _shared/appointmentDay.ts first; P0-S3a stays ACTIVE_PRODUCTION_EXPOSURE",
+    "R-3": "READY_FOR_ROLLOUT, binding order: frontend first, then spell-check-ai",
+    "pull_request": "OPEN (draft) #26 \u2014 the earlier BLOCKED_EXTERNAL cleared on the single retry",
+    "P1B-2": "INDEPENDENT_REVIEW_PASS after remediation, NOT_LIVE",
+    "P1B-3": "INDEPENDENT_REVIEW_PASS after remediation, NOT_LIVE",
+    "P1A-6": "VERIFIED_IN_REPO, NOT_LIVE \u2014 async tenant invariant, fake-timer proof (642a71df)",
+    "P1C-0": "INDEPENDENT_REVIEW_PASS after remediation",
+    "P1C-1": "VERIFIED_IN_REPO, NOT_LIVE \u2014 fail-open membership closed in send-offer/send-quittung/send-rechnung-email",
+    "P1C-2": "READY_FOR_ROLLOUT \u2014 all four public writer RPCs read individually; migration proven on a disposable stack; R-6",
+    "P3-1": "VERIFIED_IN_REPO \u2014 migration ledger signed 2026-08-28; append-only gate proven on 3 injections",
+    "P3-2": "VERIFIED_IN_REPO \u2014 drift is now a release failure unless declared with a rollout unit; proven on 3 injections"
+  }
+}

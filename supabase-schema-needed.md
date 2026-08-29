@@ -1,5 +1,45 @@
 # Supabase Schema Required — Standalone CRM
 
+> # ⛔ DO NOT BUILD AN ENVIRONMENT FROM THIS FILE
+>
+> **Status as of 2026-08-28: superseded and unsafe as a recovery recipe.**
+>
+> This document once described the active schema. It no longer does, and following it
+> would not merely produce a stale environment — it would **recreate architecture that
+> was deliberately removed, including a fixed security defect**:
+>
+> - It lists `resend_api_key`, `twilio_account_sid` and `twilio_auth_token` as plain
+>   columns on `companies`. Migration
+>   [`20260727160000_drop_company_secret_columns.sql`](supabase/migrations/20260727160000_drop_company_secret_columns.sql)
+>   dropped exactly those columns because `companies` is readable by the browser; the
+>   secrets now live in `company_secrets`, reachable only through the
+>   `company-secrets` Edge Function. Rebuilding from this file puts provider
+>   credentials back in front of the client.
+> - It documents `lead_distributions` as an active table and builds an RLS policy on
+>   it. That is marketplace lead distribution — a removed Offerio surface that
+>   `CLAUDE.md` forbids reintroducing.
+> - It prescribes owner-only policies and broad public token-table access that later
+>   migrations replaced with member-aware policies.
+> - It states one company row per deployment. Production has run two companies since
+>   2026-07.
+>
+> **What to use instead**
+>
+> | Question | Source |
+> |---|---|
+> | What is the schema *right now*? | The database itself, and [`ops/production-truth/`](ops/production-truth/) for privileges, policies and deployed functions |
+> | How did it get that way? | `supabase/migrations/` — forward-only, applied by hand |
+> | What is the system, in prose? | [`docs/SISTEM_PRD.md`](docs/SISTEM_PRD.md) |
+>
+> There is **no** rebuild-from-scratch recipe in this repository, and this file is not
+> a substitute for one. Writing a real one requires a migration ledger, which does not
+> exist yet (see the roadmap in `gptpro/issue-01-fork-architektur.report.md`, rank 5).
+>
+> The text below is kept **only** as a historical record of what the fork looked like
+> when it was written. Read it as history, never as instructions.
+
+---
+
 This file documents every Supabase table, storage bucket, and Edge Function still
 actively used in the standalone CRM codebase (after portal/marketplace removal).
 Use this to set up a fresh Supabase project from scratch.

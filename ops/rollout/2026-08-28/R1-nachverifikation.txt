@@ -1,0 +1,17 @@
+Output format is unaligned.
+=== R-1 Endzustand auf landing_page_analytics ===
+rls|true
+policy|Admins can view analytics|cmd=r|roles=unknown (OID=0)
+schreibende_PUBLIC_policies|0
+anon_rechte|insert=false|update=false|delete=false|select=true
+acl|postgres=arwdDxt/postgres anon=rxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+zeilen|0
+=== Anwendungszeitpunkt, aus dem Beleg ===
+erfasst_am|2026-08-28 08:12:55.376083+00
+=== Systemidentitaet, damit der Beleg zuordenbar bleibt ===
+system_identifier|7639710127421538342
+server_version|15.8
+=== Die verbliebene SELECT-Policy im Wortlaut ===
+using|Admins can view analytics|is_admin(auth.uid())
+=== Kann anon wirklich lesen? Predikat zaehlt, nicht das Recht ===
+(Test folgt separat als Rolle)

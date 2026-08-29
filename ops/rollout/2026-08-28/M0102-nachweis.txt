@@ -1,0 +1,33 @@
+M01-02 · festgenagelte Faelle. Wegwerf-Stapel supabase_db_crm-test.
+Zeit: 2026-08-28T18:48:19Z   NICHT die Produktion.
+
+Fixture geprueft: moderator-Rolle vorhanden, is_admin(moderator)=t.
+(Ein erster Lauf war ein Fehlgruen: auth.users hat hier nur id/is_sso_user/
+ is_anonymous als Pflichtspalten, das Fixture scheiterte, und die Faelle
+ wurden aus dem falschen Grund verweigert. Ausserdem war mein Trigger auf
+ nicht existierende Spalten geschrieben und haette die legitime Rolle
+ 'user' abgewiesen. Beides behoben, bevor dieser Lauf entstand.)
+
+--- VORHER: mit Policy 'Admins can manage roles' und Tabellenrecht ---
+  (Ein erster Versuch zeigte hier "permission denied" — das Recht war aus einem
+   frueheren Lauf schon entzogen, der Vorzustand also gar nicht hergestellt.
+   Nach dem Einspielen der Ruecknahme: authenticated INSERT-Recht = t,
+   Policy vorhanden = 1.)
+
+  moderator befoerdert sich selbst -> JA — super_admin-Zeilen: 1
+
+--- NACHHER ---
+  1 moderator -> sich selbst super_admin -> VERWEIGERT (ERROR:  permission denied for table user_roles)
+  2 moderator -> anderen super_admin -> VERWEIGERT (ERROR:  permission denied for table user_roles)
+  3 gewoehnlicher Benutzer -> INSERT -> VERWEIGERT (ERROR:  permission denied for table user_roles)
+  4 gewoehnlicher Benutzer -> UPDATE -> VERWEIGERT (ERROR:  permission denied for table user_roles)
+  5 gewoehnlicher Benutzer -> DELETE -> VERWEIGERT (ERROR:  permission denied for table user_roles)
+  6 moderator -> UPDATE fremder Zeile -> VERWEIGERT (ERROR:  permission denied for table user_roles)
+
+--- 7 Betreiberweg service_role: gelingt und wird protokolliert ---
+  Zuweisung gelungen: 1 Zeile
+  protokolliert: user_roles.insert / user_roles / postgres
+--- 8 die legitime Rolle 'user' darf weiterhin vergeben werden ---
+  user-Rolle vergeben: ok
+--- 9 unbekannte Rolle wird vom Enum abgewiesen ---
+  ERROR:  invalid input value for enum app_role: "gott"

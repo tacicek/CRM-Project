@@ -82,3 +82,28 @@ export const asTranslations = (
   }
   return out;
 };
+
+/**
+ * Dieselbe Auflösung, aber mit Herkunftsangabe statt stillem Rückfall.
+ *
+ * Die Regel selbst steht in `supabase/functions/_shared/localizedRow.ts` und
+ * wird hier nur durchgereicht. Grund: der Sendeweg ist eine Edge Function, und
+ * sie muss GENAU dieselbe Auflösung benutzen wie die Oberfläche. Zwei Kopien
+ * wären zwei Sprachverträge, und der zweite wäre der, den niemand pflegt.
+ *
+ * `localizedField` (oben) bleibt die bequeme Fassung für die VORSCHAU: dort ist
+ * der deutsche Rückfall richtig, eine Leerstelle im Dokument wäre schlimmer.
+ * Beim SENDEN ist derselbe Rückfall der Fehler — deshalb diese Fassung.
+ */
+export type { LocalizedFieldSource, ResolvedLocalizedField } from "../../supabase/functions/_shared/localizedRow.ts";
+import {
+  resolveLocalizedRowField,
+  type ResolvedLocalizedField,
+} from "../../supabase/functions/_shared/localizedRow.ts";
+
+export const resolveLocalizedField = <F extends string>(
+  row: TranslatableRow & { [K in F]?: string | null },
+  field: F,
+  locale: Locale,
+): ResolvedLocalizedField =>
+  resolveLocalizedRowField(row as TranslatableRow & Record<string, unknown>, field, locale);

@@ -1,0 +1,14 @@
+{
+  "customer_change_requests": {
+    "present": true,
+    "row_count": 0
+  },
+  "portal_magic_links": {
+    "present": true,
+    "row_count": 1
+  },
+  "portal_sessions": {
+    "present": true,
+    "row_count": 0
+  }
+}

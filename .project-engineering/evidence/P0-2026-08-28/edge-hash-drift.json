@@ -1,0 +1,226 @@
+{
+  "what_this_is": "Content comparison between one production-truth generation and the Edge source of this exact checkout. Digests are formed exactly as the capture script forms them.",
+  "what_this_is_not": "Not a deployment ledger and not a gate: it reports drift, it does not decide what should be deployed.",
+  "capture_generation": "ops/production-truth/2026-08-28",
+  "compared_commit": "14a96a9317643c9f3de8a40d3e05aac61a217b71",
+  "edge_source_tree_clean": true,
+  "deployed_count": 42,
+  "repo_count": 51,
+  "identical": [
+    "admin-add-company-member",
+    "admin-create-user",
+    "admin-delete-user",
+    "admin-remove-company-member",
+    "admin-reset-password",
+    "admin-update-user-email",
+    "analyze-besichtigung",
+    "auto-archive",
+    "calculate-distance",
+    "calendar-feed",
+    "cleanup-besichtigung",
+    "company-secrets",
+    "complete-besichtigung",
+    "confirm-besichtigung",
+    "confirm-lead-by-token",
+    "create-besichtigung-session",
+    "delete-besichtigung-photo",
+    "extract-anfrage-ai",
+    "generate-sitemap",
+    "import-manual-lead",
+    "inbound-email-lead",
+    "notify-appointment-cancelled",
+    "notify-auftrag-reminder",
+    "notify-besichtigung",
+    "notify-team-reminder",
+    "send-appointment-confirmation",
+    "test-resend-email",
+    "upload-besichtigung-photo"
+  ],
+  "drifted": [
+    {
+      "name": "_shared",
+      "index_ts_matches": true,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": null,
+        "tree_sha256": "eddc823a6b6328845b1e4815253c161cf875f800a685e5a95fb40073a4ef2bbb",
+        "file_count": 45
+      },
+      "repo": {
+        "index_ts_sha256": null,
+        "tree_sha256": "5f969705982e9f86b7b3fd9586bc000727ced741c0a5adc9c16d086700b6b679",
+        "file_count": 47
+      }
+    },
+    {
+      "name": "google-places-autocomplete",
+      "index_ts_matches": false,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "5667d223d3478c339408c7ec17b53641266eb1b9cc0ae126926d7832c88f7d2b",
+        "tree_sha256": "66f12a7e8c1ac5da7935d811f7eb4fc618c13d1dabadaebc3c821384794a596c",
+        "file_count": 1
+      },
+      "repo": {
+        "index_ts_sha256": "ef62cb256ba9da6d4640520a78f9abe3d062b9c4261b9413ca6738e7dc007509",
+        "tree_sha256": "ba68de356699fa8f4a03a6c02e6179bfd7b64a7344999d141225f16b4843a3ba",
+        "file_count": 1
+      }
+    },
+    {
+      "name": "google-places-details",
+      "index_ts_matches": false,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "9d49222791e819108e99aa1ef14abf4aab74c4f29bfef8eff18411757758d935",
+        "tree_sha256": "f3c928e9ea9d4e06f8f39c62019cf0bbc01d6ab4ec5283adf85b01cd44bff624",
+        "file_count": 1
+      },
+      "repo": {
+        "index_ts_sha256": "108102b5df4df24e81ecc234fa30faabd301d90bcc732cf1028b09359ad77858",
+        "tree_sha256": "0e578553d61d61540f87c34ab91eb6031dabe6f41fda11da0bf8dc0e217db3f4",
+        "file_count": 1
+      }
+    },
+    {
+      "name": "handle-proposal-response",
+      "index_ts_matches": false,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "7021c31cde948734cc9c12588bfee78c7748cb96399d3c4bb28b2035309e2150",
+        "tree_sha256": "250e12adc7b241170697ec5601f6ac6ccc4c39000b4504aa01698a14cc3afe0a",
+        "file_count": 1
+      },
+      "repo": {
+        "index_ts_sha256": "df5e6e10207054c6b8bf2b6124550d2b782a5852fc780122eb5c876d7a20c0d7",
+        "tree_sha256": "c17008365f33aacbb2e89d1f01f2b885dcb8e6e724e885cacd06c4966b609056",
+        "file_count": 1
+      }
+    },
+    {
+      "name": "notify-appointment-reminder",
+      "index_ts_matches": false,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "02781c191b7871967b2fe21058cbc6f506cf6b01d4285e1c89f0011cdea33056",
+        "tree_sha256": "3b3b9ccbebfe263cefd54c5202a6410effab26739e9542c1e9d876808d6ff08d",
+        "file_count": 1
+      },
+      "repo": {
+        "index_ts_sha256": "81b12a1a36d4030f7456659d3071978410adbd0c90766433326489f905dbd460",
+        "tree_sha256": "8bf22594644bd3734cbce932e10cbc879bf0c25680c3c897051a9ef3673e48c0",
+        "file_count": 1
+      }
+    },
+    {
+      "name": "notify-offer-response",
+      "index_ts_matches": true,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "6a3eef89612309760cd3bd9839c499bb806106225c3bbf4bc32de4dcf7e16255",
+        "tree_sha256": "c4d79c1836eaa92f42e7dfd258f01531d7b481829cf2d46da37030c117a02f0c",
+        "file_count": 2
+      },
+      "repo": {
+        "index_ts_sha256": "6a3eef89612309760cd3bd9839c499bb806106225c3bbf4bc32de4dcf7e16255",
+        "tree_sha256": "f476cb4705f5f2865b1d9e0384083ce23933de515870ac1f4c1b406eecb2d548",
+        "file_count": 1
+      },
+      "hinweis": "index.ts stimmt; die Produktion traegt zusaetzliche Dateien (Sicherungskopien?)"
+    },
+    {
+      "name": "send-offer",
+      "index_ts_matches": false,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "908b57f96d8af018cf054ad80334bc012df4d29f414ee36ce4489748c3182715",
+        "tree_sha256": "ebfc34d752889e42280909381128a6c839c11e279dc71da4efb510828caa4387",
+        "file_count": 9
+      },
+      "repo": {
+        "index_ts_sha256": "910bb7b81aa1f68c0bdfcf9bbb534f18a7930f5b6796e83a3fcefea3b048b308",
+        "tree_sha256": "522a3d04fa157e1f31ba806dc92e0a81cf5f53b2533a3ddef1f8526513be4732",
+        "file_count": 1
+      }
+    },
+    {
+      "name": "send-quittung",
+      "index_ts_matches": false,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "8cc419f5a54575a09cd993b8edbb9ed56fbca89942734d1c335efab3d8e519c7",
+        "tree_sha256": "25b06043a638df6ee2d48c4e0f76cd3daf230905f2658c65f4f6eefbd3717e1b",
+        "file_count": 1
+      },
+      "repo": {
+        "index_ts_sha256": "769c5f854bb271426b263b741bf211a4950a75fdebeac1cf91c7f34f93bee217",
+        "tree_sha256": "bbea7982f24fae39f2dea7d390592ef90ef33db83e874ea8d9950aad18667555",
+        "file_count": 1
+      }
+    },
+    {
+      "name": "send-rechnung-email",
+      "index_ts_matches": false,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "1e2f2291faf56be30c3d406a3cf3b85926d17a77f5216be2325be6e21e8a2655",
+        "tree_sha256": "e286ca6218e77db0e2be69d09efc6e0506b5a0788e163523dc5da69b12b97aa6",
+        "file_count": 1
+      },
+      "repo": {
+        "index_ts_sha256": "5b703798f432b7128c8a4bb285462a65b84d04afe3a4838b36ec439306173f2a",
+        "tree_sha256": "eb1cdac4acac31d3bfdd60e94dd27355e8681e08c5033ea0c8ade9e8251af1f6",
+        "file_count": 1
+      }
+    },
+    {
+      "name": "spell-check-ai",
+      "index_ts_matches": false,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "8c8c9d136a7996aef08eee88d5171eb0cbd22ec3c13b7879c83dd6c79e443a6a",
+        "tree_sha256": "03c93fccf3ce2cb84ea068f10017dc515b2dd44cf198fef762c6b669ea009005",
+        "file_count": 1
+      },
+      "repo": {
+        "index_ts_sha256": "048dfd6cf837f3a674f7b27fd6b5e9e2f76e0c1e5c6f8bdc009b900a09d9159b",
+        "tree_sha256": "e4386b0773be8562d0da10647bd70462244f297bbcfe1ff8b7645dcebb4fa398",
+        "file_count": 1
+      }
+    },
+    {
+      "name": "validate-besichtigung-token",
+      "index_ts_matches": false,
+      "tree_matches": false,
+      "deployed": {
+        "index_ts_sha256": "932467b121185e12dcc4935b9e8673a5e72ac3ab0a5c93a5d4ad140f65d0b68e",
+        "tree_sha256": "9f5575052495e46c3ca77d1ce5b6c4d7f25e0de475da2c9b01e074e15f4c6546",
+        "file_count": 1
+      },
+      "repo": {
+        "index_ts_sha256": "dec9a14e0812887191ff4024543b018481476d8036ceeeb348a2b90bf5f6636d",
+        "tree_sha256": "0029e24af7f476ac00292eb2fea655c8f4b9f52457cc55c27a385126af831654",
+        "file_count": 1
+      }
+    }
+  ],
+  "deploy_only": [
+    "accept-lead",
+    "hello",
+    "main"
+  ],
+  "repo_only_not_deployed": [
+    "cleanup-box-rentals",
+    "estimate-job-price",
+    "handle-reschedule-response",
+    "import-swiss-plz",
+    "notify-appointment-reschedule",
+    "notify-box-pickup",
+    "resend-email",
+    "send-lead-confirmation",
+    "transcribe-voice",
+    "translate-content",
+    "validate-lead-quality",
+    "verify-recaptcha"
+  ]
+}

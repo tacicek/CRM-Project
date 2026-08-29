@@ -18,9 +18,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { KundeLink } from "@/components/firma/KundeLink";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { useCompanyRecord } from "@/hooks/useCompanyRecord";
+import { zeileGehoertZumMandanten } from "@/lib/aktiverMandant";
 import { logoToBase64 } from "@/lib/logoToBase64";
-import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
 import { SignaturePad, SignaturePadRef } from "@/components/quittung/SignaturePad";
@@ -115,19 +115,26 @@ const blobToBase64 = (blob: Blob): Promise<string> =>
     reader.readAsDataURL(blob);
   });
 
+// Absenderangaben der Quittung. Konstante im Modulkörper — `useCompanyRecord`
+// hängt an diesem String.
+const QUITTUNG_FIRMA_SELECT =
+  "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, default_language";
+
 export default function QuittungDetail() {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === "neu";
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { user } = useAuth();
   // Dashboard locale — only for the amounts/status shown in this form. The receipt itself
   // is rendered in `language` (the customer's language), which is a separate axis.
   const { locale: uiLocale } = useI18n();
   const prefillAppliedRef = useRef(false);
 
-  const [company, setCompany] = useState<CompanyInfo | null>(null);
+  // Absender dieser Quittung = der AKTIVE Mandant. Vorher riet
+  // `fetchSingleCompanyForUser` die Firma; bei zwei Mitgliedschaften konnte auf
+  // der Quittung ein anderer Absender stehen als der, unter dem sie geführt wird.
+  const { company, companyId } = useCompanyRecord<CompanyInfo>(QUITTUNG_FIRMA_SELECT);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -224,23 +231,26 @@ export default function QuittungDetail() {
     });
   }, []);
 
-  // Load company + pre-fetch logo as base64 so @react-pdf/renderer can embed it (bypasses CORS)
+  // Sprache einer NEUEN Quittung aus der Firmenvorgabe. Der Firmensatz selbst
+  // kommt aus `useCompanyRecord` (aktiver Mandant).
   useEffect(() => {
-    if (!user?.id) return;
-    fetchSingleCompanyForUser<CompanyInfo>({
-      userId: user.id,
-      userEmail: user.email,
-      select: "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, default_language",
-    }).then(async c => {
-      if (!c) return;
-      setCompany(c);
-      // A new receipt starts in the company default language; the operator can switch it
-      // per receipt below. An existing receipt keeps the language it was written in.
-      if (isNew) applyLanguage(toLocale(c.default_language));
-      const b64 = await logoToBase64(c.logo_url);
-      if (b64) setLogoBase64(b64);
-    });
-  }, [user?.id, user?.email, isNew, applyLanguage]);
+    if (!company || !isNew) return;
+    // A new receipt starts in the company default language; the operator can switch it
+    // per receipt below. An existing receipt keeps the language it was written in.
+    applyLanguage(toLocale(company.default_language));
+  }, [company, isNew, applyLanguage]);
+
+  // Logo als base64 vorladen, damit @react-pdf/renderer es einbetten kann (umgeht CORS).
+  const companyLogoUrl = company?.logo_url;
+  useEffect(() => {
+    // Beim Mandantenwechsel ZUERST löschen: die alte Fassung setzte nur bei
+    // Erfolg, also blieb bei einem Wechsel zu einer Firma ohne Logo das fremde
+    // Logo auf der Quittung stehen.
+    setLogoBase64(null);
+    let abgemeldet = false;
+    logoToBase64(companyLogoUrl).then(b64 => { if (!abgemeldet && b64) setLogoBase64(b64); });
+    return () => { abgemeldet = true; };
+  }, [companyLogoUrl]);
 
   // Load offers for linking
   const loadOffers = useCallback(async (companyId: string) => {
@@ -296,9 +306,20 @@ export default function QuittungDetail() {
   // Load existing quittung
   const loadQuittung = useCallback(async () => {
     if (isNew || !id) { setIsLoading(false); return; }
+    // Solange der aktive Mandant nicht feststeht, wird nicht geladen — die
+    // Prüfung unten könnte sonst nur raten. Der Bildschirm bleibt im Ladezustand.
+    if (!companyId) return;
     const { data, error } = await supabase
-      .from("quittungen").select("*").eq("id", id).single();
+      .from("quittungen").select("*").eq("id", id).maybeSingle();
     if (error || !data) {
+      toast({ title: "Nicht gefunden", variant: "destructive" });
+      navigate("/firma/quittungen");
+      return;
+    }
+    // Fail closed: eine Quittung aus der anderen Firma erscheint hier nicht,
+    // auch wenn RLS sie dem Mitglied zeigen würde. Gleiche Meldung wie bei
+    // "gibt es nicht" — alles andere wäre eine Auskunft über fremde Daten.
+    if (!zeileGehoertZumMandanten(data, companyId)) {
       toast({ title: "Nicht gefunden", variant: "destructive" });
       navigate("/firma/quittungen");
       return;
@@ -331,7 +352,7 @@ export default function QuittungDetail() {
     setKundeSignedAt(q.kunde_signed_at || null);
     setTeamchefSignedAt(q.teamchef_signed_at || null);
     setIsLoading(false);
-  }, [id, isNew, navigate, toast]);
+  }, [id, isNew, companyId, navigate, toast]);
 
   useEffect(() => { loadQuittung(); }, [loadQuittung]);
 

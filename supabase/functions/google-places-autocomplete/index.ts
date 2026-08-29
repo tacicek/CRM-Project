@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-import { createRateLimiter } from "../_shared/rateLimit.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { guardAntwortHeaders, guardPaidApiCall } from "../_shared/paidApiGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,8 +9,6 @@ const corsHeaders = {
 };
 
 // This is an unauthenticated proxy to the paid Google Places API — throttle per client IP
-// so nobody can run up the Google bill with unlimited scripted calls.
-const limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
 
 // Zod Schema für Input-Validierung
 const AutocompleteRequestSchema = z.object({
@@ -24,15 +23,58 @@ serve(async (req) => {
   }
 
   try {
-    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    if (limiter.isLimited(clientIp)) {
+    // ── Wer, und wie viel noch ────────────────────────────────────────────
+    //
+    // Bis 2026-08-28 stand hier ein Zaehler in einer `Map` im Modulkoerper und
+    // sonst nichts: kein Token, keine Firma. Der Router erzeugt pro Anfrage
+    // einen neuen Worker, also war die `Map` immer leer und die Drossel
+    // wirkungslos (gemessen: 61 Anfragen, null 429). Und eine bezahlte API
+    // anonym erreichbar zu lassen, waere ohnehin die falsche Antwort gewesen —
+    // alle Aufrufer liegen hinter /firma.
+    const dienst = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const rumpf = await req.json().catch(() => null);
+    const wache = await guardPaidApiCall(
+      {
+        bucket: "google-places",
+        authorizationHeader: req.headers.get("Authorization") ?? req.headers.get("authorization"),
+        companyId: (rumpf as { company_id?: unknown } | null)?.company_id,
+      },
+      {
+        // Der Benutzer wird SERVERSEITIG aus dem Token abgeleitet, nie aus dem Rumpf.
+        verifyToken: async (token) => {
+          const { data, error } = await dienst.auth.getUser(token);
+          if (error || !data.user) return null;
+          return data.user.id;
+        },
+        // Der Zaehler liegt in Postgres: er ueberlebt Worker und Neustarts, ist
+        // atomar, und er prueft die Mitgliedschaft in der angegebenen Firma.
+        consumeBudget: async (topf, userId, companyId) => {
+          const { data, error } = await dienst.rpc("consume_api_budget", {
+            p_bucket: topf, p_user_id: userId, p_company_id: companyId,
+          });
+          if (error) throw new Error(error.message);
+          return data as { allowed: boolean; retry_after: number };
+        },
+        log: (n, f) => console.error(`[google-places-autocomplete] ${n}`, f ?? {}),
+      },
+    );
+
+    if (!wache.ok) {
       return new Response(
-        JSON.stringify({ predictions: [], error: "Zu viele Anfragen. Bitte kurz warten." }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: wache.message, code: wache.code }),
+        {
+          status: wache.status,
+          headers: { ...corsHeaders, ...guardAntwortHeaders(wache), "Content-Type": "application/json" },
+        },
       );
     }
 
-    const rawBody = await req.json();
+    // Der Rumpf wurde oben schon gelesen — ein Request-Body laesst sich nur
+    // einmal lesen. `rumpf` ist derselbe Wert.
+    const rawBody = rumpf;
 
     // Validiere Input mit Zod
     const parseResult = AutocompleteRequestSchema.safeParse(rawBody);

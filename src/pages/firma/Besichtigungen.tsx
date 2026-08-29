@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
-import { getCachedCompany } from "@/hooks/useCachedCompany";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -99,9 +99,17 @@ interface ConfirmedBesichtigung {
 }
 
 const FirmaBesichtigungen = () => {
-  // Use cached company ID for instant page load - no database call needed
-  const cachedCompany = getCachedCompany();
-  const companyId = cachedCompany?.id || null;
+  // Bis 2026-08-28 stand hier `getCachedCompany()` — ein synchroner Griff in den
+  // sessionStorage, "for instant page load". Er war zweierlei: eine zweite
+  // Antwort auf "welche Firma", und eine, die beim Wechsel NICHT nachzieht. Der
+  // `CompanyProvider` schreibt den Cache erst in einem Effekt NACH dem Rendern,
+  // und dieses Schreiben loest kein Rendern aus. Wer also mit offener Seite von
+  // A nach B wechselte, sah weiter die Besichtigungen und Sitzungstokens von A —
+  // unter der Ueberschrift B, ohne Fehler, bis zum naechsten Neuladen.
+  //
+  // Der Kontext ist genauso schnell (er haelt die Firmen bereits im Zustand) und
+  // zieht beim Wechsel mit.
+  const { companyId } = useCompanyContext();
   const t = useT();
   const { locale, dateLocale } = useI18n();
 

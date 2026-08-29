@@ -222,4 +222,7 @@ export const settings = {
   "settings.calfeed.typ.meeting": "Besprechungen",
   "settings.calfeed.typ.blocked": "Blockierte Zeiten",
   "settings.calfeed.typ.other": "Weitere Termine",
+  "settings.toast.tenantMismatch":
+    "Die geladenen Firmendaten gehören nicht zur ausgewählten Firma. Bitte die Seite neu laden — gespeichert wurde nichts.",
+
 } as const;

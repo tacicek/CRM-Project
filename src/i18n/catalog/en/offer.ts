@@ -371,7 +371,7 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.customer.title": "Customer details",
   "offer.form.customerLanguage.label": "Customer's language",
   "offer.form.customerLanguage.hint":
-    "Determines the language of the PDF and the e-mails sent to the customer — not your own dashboard language. Note: line items already entered stay as they were written; they are not translated automatically.",
+    "Determines the language of the PDF and the e-mails sent to the customer — not your own dashboard language. When you change it, we first show what can be carried over and what stays as it is.",
 
   "offer.form.groupDates.title": "Dates per service",
   "offer.form.groupDates.hint": "Empty = the global execution date applies.",
@@ -1034,5 +1034,41 @@ export const offer: Record<keyof typeof de, string> = {
   "nachtrag.public.rejected": "You declined this amendment on {date}.",
   "nachtrag.public.thanks": "Thank you — we have received your response.",
   "nachtrag.public.error": "Your response could not be saved.",
+
+  // --- Changing a draft's document language ----------------------------------------------
+  "offer.lang.rebase.title": "Change document language",
+  "offer.lang.rebase.intro":
+    "From {from} to {to}. Only content that already exists as a stored translation is carried over — nothing is translated here.",
+  "offer.lang.rebase.available": "Will be carried over",
+  "offer.lang.rebase.alreadyCorrect": "Already correct",
+  "offer.lang.rebase.conflict": "Written by hand",
+  "offer.lang.rebase.missing": "Translation missing",
+  "offer.lang.rebase.nonLocalized": "Amounts and quantities (unchanged)",
+  "offer.lang.rebase.conflictHint":
+    "These texts differ from their stored source. They stay as they are unless you select them explicitly.",
+  "offer.lang.rebase.missingHint":
+    "Nothing is stored in the target language for these fields. They stay in the current language — add the translation at the source.",
+  "offer.lang.rebase.nothingToDo": "There is nothing to carry over.",
+  "offer.lang.rebase.immutable":
+    "This offer has been sent and is no longer changed. For a different language, create a new version.",
+  "offer.lang.rebase.current": "Now",
+  "offer.lang.rebase.next": "New",
+  "offer.lang.rebase.apply": "Change",
+  "offer.lang.rebase.cancel": "Cancel",
+  "offer.lang.rebase.applied": "Language changed: {count} fields adapted.",
+  "offer.lang.rebase.appliedNone": "Language changed. No text was altered.",
+
+  // --- Send readiness ---------------------------------------------------------------------
+  "offer.send.blocked.title": "This offer cannot be sent yet",
+  "offer.send.blocked.MISSING_LOCALE":
+    "No customer language is set for this document. Without it nothing is sent — it does not silently become German.",
+  "offer.send.blocked.UNSUPPORTED_LOCALE":
+    "This document's customer language is not one of the supported ones (German, French, English).",
+  "offer.send.blocked.GERMAN_FALLBACK":
+    "{field}: nothing is stored for {locale} — the customer would receive German text. Please add the translation at the source.",
+  "offer.send.blocked.EMPTY_REQUIRED":
+    "{field}: required content is missing — absent in every language.",
+  "offer.send.blocked.LOCALE_MISMATCH":
+    "{field}: carries a different language than the document. PDF, e-mail and the public view must share one language.",
 
 };

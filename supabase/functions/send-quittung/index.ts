@@ -7,6 +7,7 @@ import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
 import { buildInvoiceEmailHtml, buildInvoiceEmailSubject, fmtChf, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
 import { createTranslator, toLocale, type Locale } from "../_shared/i18n/index.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
+import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -193,41 +194,33 @@ serve(async (req) => {
       });
     }
 
-    // Zugangsdaten stehen nicht mehr in `companies` (Browser-Leck), sondern in
-    // `company_secrets`. Ueberlagern statt umschreiben: die Verwendungsstellen
-    // unten lesen weiterhin quittung.companies.resend_api_key.
-    if (quittung.companies) Object.assign(quittung.companies, await loadCompanySecrets(supabase, quittung.companies?.id));
-
-    // Ownership check — user must belong to the quittung's company
-    const { data: quittungCompany } = await supabase
-      .from("quittungen")
-      .select("company_id")
-      .eq("id", quittungId)
-      .single();
-
-    if (quittungCompany) {
-      const { data: ownerRow } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("id", quittungCompany.company_id)
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (!ownerRow) {
-        const { data: memberRow } = await supabase
-          .from("company_members")
-          .select("id")
-          .eq("company_id", quittungCompany.company_id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (!memberRow) {
-          return new Response(JSON.stringify({ error: "Keine Berechtigung" }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-      }
+    // ZUERST autorisieren, DANN Geheimnisse laden.
+    //
+    // Bis 2026-08-28 stand es umgekehrt, und die Pruefung selbst stand in
+    // `if (quittungCompany) { … }` — der Abfragefehler wurde verworfen. Fiel die
+    // zweite Abfrage aus, wurde die Berechtigung schlicht NICHT geprueft und die
+    // Quittung ging hinaus. Ein fehlender Wert ist keine Erlaubnis.
+    //
+    // Ausserdem lud `loadCompanySecrets` den Resend-Schluessel der Firma, BEVOR
+    // feststand, ob der Aufrufer ueberhaupt zu ihr gehoert.
+    const firmaDerQuittung = (quittung.companies as { id?: string } | null)?.id;
+    if (!firmaDerQuittung) {
+      return new Response(JSON.stringify({ error: "Der Quittung ist keine Firma zugeordnet" }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    const istMitglied = await verifyCompanyMembership(supabase, user.id, firmaDerQuittung);
+    if (!istMitglied) {
+      return new Response(JSON.stringify({ error: "Keine Berechtigung" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Erst jetzt: Zugangsdaten stehen nicht mehr in `companies` (Browser-Leck),
+    // sondern in `company_secrets`. Ueberlagern statt umschreiben — die
+    // Verwendungsstellen unten lesen weiterhin quittung.companies.resend_api_key.
+    Object.assign(quittung.companies as object, await loadCompanySecrets(supabase, firmaDerQuittung));
 
     const q = quittung as unknown as QuittungRow;
     const company = q.companies;

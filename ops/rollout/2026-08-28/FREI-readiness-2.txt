@@ -1,0 +1,31 @@
+Output format is unaligned.
+=== D) checklist_templates ===
+checklist_templates|zeilen=0
+=== E) Die eine nicht-deutsche Offerte ===
+offer|a83d8a84-b292-4133-99ed-ae839d1ec07b|nr=10089|lang=en|status=draft|sent_at=(nie)|locked_at=(null)|payment_terms=gesetzt|service_type=umzug_privat|firma=Hirschenumzug GmbH
+=== F) Ihre Positionen: Herkunft nicht belegbar ===
+offer_item|bfa32d6e-def6-404e-821d-dfd7f4440c7f|pos=1|desc_leer=nein
+offer_item|784f1dd8-333a-4dc6-9b08-94c4bf9a8d65|pos=2|desc_leer=nein
+offer_item|76a20258-96fb-4697-aeec-117f17084e41|pos=3|desc_leer=nein
+offer_item|a441a033-80f0-4c9a-b7aa-5eda04ae26e1|pos=4|desc_leer=nein
+offer_item|6a700321-b962-43fe-acef-7a37f0f59c6a|pos=5|desc_leer=nein
+offer_item|d0c892f7-6105-424d-bcff-3400d946374d|pos=6|desc_leer=nein
+offer_item|20b1e78f-d493-406a-b809-cf317bcd664a|pos=7|desc_leer=nein
+offer_item|2aff1560-849c-456e-9a08-48ddd2382e4f|pos=8|desc_leer=nein
+=== G) Wuerden fuer diese Offerte AGB angehaengt? ===
+agb_fuer_service|entsorgung|aktive=5
+agb_fuer_service|lagerung|aktive=4
+agb_fuer_service|raeumung|aktive=5
+agb_fuer_service|reinigung|aktive=5
+agb_fuer_service|sonstige|aktive=6
+agb_fuer_service|transport|aktive=6
+agb_fuer_service|umzug|aktive=6
+=== H) company_service_items: welche Sprache je Firma ===
+csi|Bernova Umzug|gesamt=67|fr_name=1|fr_desc=0|en_name=0
+csi|Hirschenumzug GmbH|gesamt=67|fr_name=66|fr_desc=67|en_name=0
+=== I) agb_sections je Firma ===
+agb|Hirschenumzug GmbH|aktive=37
+=== J) Freitext des Bedieners ohne Uebersetzungsquelle ===
+offers_mit_eigenem_payment_terms|93
+offers_mit_eigenem_titel|93
+offer_items_gesamt|531

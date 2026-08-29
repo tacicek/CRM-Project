@@ -33,6 +33,16 @@ type AttachmentResult = {
   offerPdfBase64: string | null;
   agbPdfBase64: string | null;
   checklistPdfBase64: string | null;
+  /**
+   * Die Sprache, in der die Anhänge TATSÄCHLICH gerendert wurden.
+   *
+   * Sie wird mitgeschickt und serverseitig gegen `offers.language` geprüft.
+   * Ohne sie vergleicht die Sendebereitschaft einen Wert mit sich selbst: der
+   * Server leitet die Sprache aus derselben Zeile ab, aus der er sie schon hat,
+   * während die PDF-Bytes aus dem Browser kommen. Ein veralteter Bundle, der
+   * deutsch rendert und an eine französische Offerte hängt, käme so durch.
+   */
+  documentLocale: string;
 };
 
 export const buildOfferEmailAttachments = async (
@@ -163,11 +173,16 @@ export const buildOfferEmailAttachments = async (
   let agbPdfBase64: string | null = null;
   let checklistPdfBase64: string | null = null;
 
+  // Document (customer) language, derived once — the AGB and checklist attachments both
+  // render their chrome (and, for AGB, their section text) in it.
+  //
+  // Ausserhalb des `if` gezogen, weil sie mitgeschickt und serverseitig gegen
+  // `offers.language` geprüft wird: eine Offerte ohne AGB-Anhänge muss ihre
+  // Renderer-Sprache genauso melden wie eine mit.
+  const documentLocale = resolveDocumentLocale(offerData, companyData);
+
   if (leadData?.service_type) {
     const normalizedType = normalizeServiceTypeForAgb(leadData.service_type);
-    // Document (customer) language, derived once — the AGB and checklist attachments both
-    // render their chrome (and, for AGB, their section text) in it.
-    const documentLocale = resolveDocumentLocale(offerData, companyData);
 
     const [agbRes, checklistRes] = await Promise.all([
       supabase
@@ -237,5 +252,5 @@ export const buildOfferEmailAttachments = async (
     }
   }
 
-  return { offerPdfBase64, agbPdfBase64, checklistPdfBase64 };
+  return { offerPdfBase64, agbPdfBase64, checklistPdfBase64, documentLocale };
 };

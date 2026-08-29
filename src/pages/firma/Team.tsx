@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
-import { useAuth } from "@/hooks/useAuth";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,10 +60,12 @@ import { isValidEmail, sanitizePhone, parseCapacity, parseQuantity, getInitials 
 import { useI18n, useT } from "@/i18n/useI18n";
 
 const TeamPage = () => {
-  const { user } = useAuth();
   const t = useT();
   const { locale } = useI18n();
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  // Der ausgewaehlte Mandant IST die Firmen-ID. Hier stand ein eigener
+  // Zustand plus eine Abfrage, die die Firma RIET — fuer eine ID, die der
+  // CompanyProvider schon kennt. Ein Spiegel ist eine Stelle, die veralten kann.
+  const { companyId } = useCompanyContext();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,30 +98,6 @@ const TeamPage = () => {
     quantity: "1",
   });
 
-  // FIX: Add isMounted flag to prevent memory leak
-  useEffect(() => {
-    let isMounted = true;
-    
-    const loadCompany = async () => {
-      if (!user) return;
-      try {
-        const company = await fetchSingleCompanyForUser<{ id: string }>({
-          userId: user.id,
-          userEmail: user.email,
-          select: "id",
-        });
-        if (isMounted && company) setCompanyId(company.id);
-      } catch (e) {
-        if (isMounted) console.error("Error loading company:", e);
-      }
-    };
-    
-    loadCompany();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [user]);
 
   const fetchData = useCallback(async (isMounted = true) => {
     if (!companyId) return;

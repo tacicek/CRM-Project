@@ -7,11 +7,13 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Save, Building2, Bell, FileText, MessageSquare, CheckCircle, Mail, Bot, Languages, Inbox, Copy } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SecretKeyField, type SecretStatus } from "@/components/firma/SecretKeyField";
 import { INBOUND_WEBHOOK_EVENT, buildInboundWebhookUrl } from "@/lib/inboundEmailWebhook";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { assertSameTenant, createTenantScopedDebounce, tenantBound } from "@/lib/tenantBoundWrite";
+import { antwortGehoertNochZumMandanten } from "@/lib/aktiverMandant";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useToast } from "@/hooks/use-toast";
@@ -61,7 +63,33 @@ interface Company {
 
 
 
-const PROFILE_DRAFT_KEY = "einstellungen_profile_draft";
+// Der Entwurf haengt an der FIRMA, nicht an der Sitzung. Bis 2026-08-28 stand er
+// unter einem festen Schluessel: wer die Einstellungen der Firma A halb ausfuellte
+// und dann zu B wechselte, bekam den A-Entwurf in das B-Formular gespielt — und
+// beim Speichern in B-Zeilen geschrieben.
+//
+// Der Schluessel kommt aus `company.id` — der Zeile, aus der die Werte
+// TATSAECHLICH stammen —, nicht aus dem Kontextwert. Die beiden laufen beim
+// Wechsel auseinander: `activeCompanyId` springt sofort auf B, `company` traegt
+// bis zum Ende der Abfrage noch A. Ein an den Kontext gebundener Schluessel
+// haette in genau diesem Fenster A-Werte unter B abgelegt.
+const profileDraftKey = (companyId: string) => `einstellungen_profile_draft:${companyId}`;
+
+// Die Spalten, die `interface Company` oben nennt. Vorher stand hier `*`. Die
+// Zugangsdaten sind 2026-07-27 aus `companies` nach `company_secrets` gezogen
+// worden, WEIL sie im Browser lesbar waren (20260727160000) — ein `*` holt die
+// naechste solche Spalte automatisch zurueck.
+const EINSTELLUNGEN_FIRMA_SELECT = [
+  "id", "company_name", "legal_name", "email", "phone", "website",
+  "street", "house_number", "plz", "city", "canton",
+  "notification_email", "notification_phone",
+  "logo_url", "signature_url", "mwst_number", "iban",
+  "default_terms_and_conditions", "default_payment_terms",
+  "primary_color", "pdf_template", "default_language",
+  "twilio_enabled", "twilio_phone_number", "sms_reminders_enabled",
+  "resend_enabled", "resend_from_email", "resend_from_name",
+  "lead_sharing_preference",
+].join(", ");
 
 const PROFILE_DRAFT_FIELDS = [
   "company_name", "legal_name", "email", "phone", "website",
@@ -74,7 +102,8 @@ const PROFILE_DRAFT_FIELDS = [
 
 const FirmaEinstellungen = () => {
   const { user } = useAuth();
-  const { refresh: refreshCompanyContext } = useCompanyContext();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId, refresh: refreshCompanyContext } = useCompanyContext();
   const { t, locale } = useI18n();
   const { toast } = useToast();
   const [company, setCompany] = useState<Company | null>(null);
@@ -109,7 +138,20 @@ const FirmaEinstellungen = () => {
 
   // Draft tracking: user's unsaved profile changes persist across navigation
   const [isDirty, setIsDirty] = useState(false);
-  const draftTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const entwurfSchreiber = useMemo(
+    () =>
+      createTenantScopedDebounce<Record<string, unknown>>({
+        delayMs: 600,
+        write: (tenantId, entwurf) => {
+          try {
+            sessionStorage.setItem(profileDraftKey(tenantId), JSON.stringify(entwurf));
+          } catch {
+            /* privater Modus o. ae. — ein fehlender Entwurf ist kein Datenverlust */
+          }
+        },
+      }),
+    [],
+  );
 
   // Update a profile field and mark form as dirty
   const setProfileField = useCallback(<K extends keyof Company>(field: K, value: Company[K]) => {
@@ -117,18 +159,33 @@ const FirmaEinstellungen = () => {
     setIsDirty(true);
   }, []);
 
-  // Save draft to sessionStorage (debounced 600ms) when form is dirty
+  // Save draft to sessionStorage (debounced 600ms) when form is dirty.
+  //
+  // Mandant und Nutzlast reisen im selben Paket: `createTenantScopedDebounce`
+  // gibt dem Schreibvorgang die `tenantId`, die beim PLANEN galt — nicht die,
+  // die beim Ausloesen des Timers gerade aktuell ist. Genau dort lag der
+  // Befund: der Schluessel kam aus dem Kontext (springt sofort auf B), die
+  // Werte aus der geladenen Zeile (bleibt bis zum Ende der Abfrage A).
   useEffect(() => {
-    if (!isDirty || !company) return;
-    clearTimeout(draftTimerRef.current);
-    draftTimerRef.current = setTimeout(() => {
-      const draft = Object.fromEntries(
-        PROFILE_DRAFT_FIELDS.map(f => [f, company[f as keyof Company]])
-      );
-      sessionStorage.setItem(PROFILE_DRAFT_KEY, JSON.stringify(draft));
-    }, 600);
-    return () => clearTimeout(draftTimerRef.current);
-  }, [company, isDirty]);
+    if (!isDirty || !company?.id) return;
+    entwurfSchreiber.schedule(
+      tenantBound(
+        company.id,
+        Object.fromEntries(PROFILE_DRAFT_FIELDS.map(f => [f, company[f as keyof Company]])),
+      ),
+    );
+    return () => entwurfSchreiber.cancel();
+  }, [company, isDirty, entwurfSchreiber]);
+
+  // Mandantenwechsel: das Formular gehoert ab sofort einer anderen Firma. Den
+  // alten Satz stehen zu lassen hiesse, A-Werte unter der Ueberschrift B
+  // anzuzeigen — und `handleSaveProfile` schreibt mit `.eq("id", company.id)`,
+  // also in die Zeile, die gerade im Zustand liegt. Erst leeren, dann laden.
+  useEffect(() => {
+    setCompany(null);
+    setIsDirty(false);
+    entwurfSchreiber.cancel();
+  }, [activeCompanyId, entwurfSchreiber]);
 
   // For AGB template selector only — keys must match the service_type values
   // stored on leads (e.g. "malerarbeit" singular, NOT "malerarbeiten").
@@ -172,13 +229,20 @@ const FirmaEinstellungen = () => {
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
+      // Ohne aufgeloesten Mandanten wird nicht geladen — die Einstellungen
+      // schreiben in `companies`, und in WELCHE Zeile darf nicht geraten werden.
+      if (!activeCompanyId) return;
+      // Der Mandant, fuer den DIESER Lauf laedt. Beim Eintreffen der Antwort
+      // wird verglichen: eine ueberholte A-Antwort darf den B-Bildschirm nicht
+      // fuellen. Der verzoegerte SCHREIBvorgang war abgesichert, der LESEweg
+      // nicht — gefunden von der unabhaengigen Durchsicht am 2026-08-28.
+      const geladenFuer = activeCompanyId;
 
       try {
-        // Get company
-        const companyData = await fetchSingleCompanyForUser<Company>({
-          userId: user.id,
-          userEmail: user.email,
-          select: "*",
+        // Get company — GENAU der aktive Mandant.
+        const companyData = await fetchCompanyById<Company>({
+          companyId: activeCompanyId,
+          select: EINSTELLUNGEN_FIRMA_SELECT,
         });
 
         if (!companyData) return;
@@ -205,7 +269,13 @@ const FirmaEinstellungen = () => {
         }
 
         // Restore unsaved draft if user navigated away before saving
-        const savedDraft = sessionStorage.getItem(PROFILE_DRAFT_KEY);
+        // Der Entwurf wird unter der ID der GELADENEN Zeile gesucht, nicht unter
+        // dem Kontextwert — sonst koennte hier der Entwurf einer anderen Firma
+        // ueber die frisch geladenen Werte gelegt werden.
+        // Ueberholt? Dann gehoert diese Antwort einem anderen Bildschirm.
+        if (!antwortGehoertNochZumMandanten(geladenFuer, activeCompanyId)) return;
+
+        const savedDraft = sessionStorage.getItem(profileDraftKey(companyData.id));
         if (savedDraft) {
           try {
             const draft = JSON.parse(savedDraft);
@@ -213,9 +283,15 @@ const FirmaEinstellungen = () => {
             setIsDirty(true);
           } catch {
             setCompany(companyData);
+            setIsDirty(false);
           }
         } else {
           setCompany(companyData);
+          // Kein Entwurf heisst: das Formular steht auf dem gespeicherten Stand.
+          // Ohne dieses Zuruecksetzen bliebe ein `isDirty` aus der vorigen Firma
+          // stehen und der Speichern-Knopf verspraeche ungespeicherte Aenderungen,
+          // die es nicht gibt.
+          setIsDirty(false);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -225,10 +301,28 @@ const FirmaEinstellungen = () => {
     };
 
     fetchData();
-  }, [user, loadSecretStatus]);
+  }, [user, activeCompanyId, loadSecretStatus]);
 
   const handleSaveProfile = async () => {
     if (!company) return;
+
+    // Nutzlast und Ziel muessen denselben Mandanten tragen. Die Werte kommen aus
+    // `company` (der geladenen Zeile), der aktive Mandant aus dem Kontext — beide
+    // richtig, beide zu verschiedenen Zeitpunkten entstanden. Weichen sie ab,
+    // waere das Ergebnis ein Schreibvorgang mit zwei plausibel aussehenden
+    // Haelften. Hier wird daraus ein Fehler.
+    let zielFirma: string;
+    try {
+      zielFirma = assertSameTenant(company.id, activeCompanyId);
+    } catch {
+      toast({
+        title: t("common.error"),
+        description: t("settings.toast.tenantMismatch"),
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -257,12 +351,12 @@ const FirmaEinstellungen = () => {
           // Spalte ist NOT NULL DEFAULT 'de'; toLocale() verwirft unbekannte Werte
           default_language: toLocale(company.default_language),
         })
-        .eq("id", company.id);
+        .eq("id", zielFirma);
 
       if (error) throw error;
 
       // Clear draft — changes are now saved to DB
-      sessionStorage.removeItem(PROFILE_DRAFT_KEY);
+      sessionStorage.removeItem(profileDraftKey(zielFirma));
       setIsDirty(false);
 
       // Die Dashboard-Sprache kommt aus dem CompanyContext (activeCompany.default_language).

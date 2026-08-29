@@ -552,7 +552,7 @@ echo "── Produktionszugang (Attrappen-ssh, kein Netzverkehr) ─────
 # ueberschreiben.
 SANDKASTEN="$ARBEIT/repo"
 mkdir -p "$SANDKASTEN/scripts" "$SANDKASTEN/supabase-test/baseline"
-cp scripts/refresh-test-baseline.sh scripts/baseline-artifacts.sh \
+cp scripts/refresh-test-baseline.sh scripts/baseline-artifacts.sh scripts/prod-readonly.sh \
    scripts/baseline-sanitize.py scripts/baseline-manifest.py "$SANDKASTEN/scripts/"
 attrappe "$SANDKASTEN/supabase-test/baseline" legacy
 

@@ -185,29 +185,29 @@ serve(async (req) => {
       });
     }
 
-    // Zugangsdaten stehen nicht mehr in `companies` (Browser-Leck), sondern in
-    // `company_secrets`. Ueberlagern statt umschreiben: die Verwendungsstellen
-    // unten lesen weiterhin rechnung.companies.resend_api_key.
-    if (rechnung.companies) Object.assign(rechnung.companies, await loadCompanySecrets(supabase, rechnung.companies?.id));
-
-    // Ownership check — user must own or be member of the rechnung's company
-    const { data: ownerInfo } = await supabase
-      .from("rechnungen").select("company_id").eq("id", rechnungId).single();
-
-    if (ownerInfo) {
-      const { data: ownerRow } = await supabase
-        .from("companies").select("id").eq("id", ownerInfo.company_id).eq("user_id", user.id).maybeSingle();
-      if (!ownerRow) {
-        const { data: memberRow } = await supabase
-          .from("company_members").select("id")
-          .eq("company_id", ownerInfo.company_id).eq("user_id", user.id).maybeSingle();
-        if (!memberRow) {
-          return new Response(JSON.stringify({ error: "Keine Berechtigung" }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-      }
+    // ZUERST autorisieren, DANN Geheimnisse laden.
+    //
+    // Bis 2026-08-28 stand es umgekehrt, und die Pruefung selbst stand in
+    // `if (ownerInfo) { … }` — der Abfragefehler wurde verworfen. Fiel die
+    // Abfrage aus, wurde die Berechtigung NICHT geprueft und die Rechnung ging
+    // hinaus. Ein fehlender Wert ist keine Erlaubnis.
+    const firmaDerRechnung = (rechnung.companies as { id?: string } | null)?.id;
+    if (!firmaDerRechnung) {
+      return new Response(JSON.stringify({ error: "Der Rechnung ist keine Firma zugeordnet" }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    const istMitglied = await verifyCompanyMembership(supabase, user.id, firmaDerRechnung);
+    if (!istMitglied) {
+      return new Response(JSON.stringify({ error: "Keine Berechtigung" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Erst jetzt die Zugangsdaten: sie stehen nicht mehr in `companies`
+    // (Browser-Leck), sondern in `company_secrets`.
+    Object.assign(rechnung.companies as object, await loadCompanySecrets(supabase, firmaDerRechnung));
 
     const r = rechnung as unknown as RechnungRow;
     const company = r.companies;

@@ -4,6 +4,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
 import { getDefaultFrom, getDashAppUrl, getAppName } from "../_shared/envConfig.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
+import {
+  buildOfferSendReadiness,
+  evaluateOfferSendReadiness,
+  isReadinessLocale,
+  summariseReadiness,
+} from "../_shared/offerSendReadiness.ts";
+import { resolveLocalizedRowField } from "../_shared/localizedRow.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 import {
@@ -37,6 +44,16 @@ interface SendOfferRequest {
   agbPdfBase64?: string;
   /** If true, allows resending an already-sent offer. */
   force_resend?: boolean;
+  /**
+   * Die Sprache, in der der Aufrufer die Anhänge GERENDERT hat.
+   *
+   * Sie kommt aus dem Aufrufer und NICHT aus der Zeile: die PDF-Bytes entstehen
+   * im Browser, und nur er weiss, in welcher Sprache er sie gesetzt hat. Fehlt
+   * die Angabe, obwohl Anhänge mitkommen, ist der Aufrufer ein veralteter
+   * Bundle — dann gibt es über die Bytes keine Zusicherung, und die
+   * Sendebereitschaft blockiert.
+   */
+  attachmentLocale?: string;
 }
 
 interface ChecklistSection {
@@ -238,6 +255,7 @@ const handler = async (req: Request): Promise<Response> => {
       checklistPdfBase64: preGeneratedChecklistPdf,
       agbPdfBase64: preGeneratedAgbPdf,
       force_resend: forceResendFromBody = false,
+      attachmentLocale: declaredAttachmentLocale,
     }: SendOfferRequest = await req.json();
     logStep("Processing offer", {
       offerId,
@@ -284,16 +302,27 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // SECURITY: Check if the authenticated user is a member of the offer's company
+    //
+    // Bis 2026-08-28 stand die Prüfung in `if (offerCompanyId) { … }`. Löste der
+    // `companies`-Join zu `null` auf — eine Offerte ohne Firma, ein
+    // umbenanntes Feld, ein Selektfehler —, wurde die Mitgliedschaft schlicht
+    // NICHT geprüft und der Versand lief weiter. Ein fehlender Wert ist keine
+    // Erlaubnis. Fail closed: ohne Firma an der Offerte geht nichts hinaus.
     const offerCompanyId = (offer.company as unknown as { id?: string } | null)?.id;
-    if (offerCompanyId) {
-      const isMember = await verifyCompanyMembership(supabase, user.id, offerCompanyId);
-      if (!isMember) {
-        logStep("Unauthorized access attempt — not a company member", { userId: user.id, companyId: offerCompanyId });
-        return new Response(
-          JSON.stringify({ error: "Sie haben keine Berechtigung für diese Offerte" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    if (!offerCompanyId) {
+      logStep("Offer has no resolvable company — refusing to send", { offerId });
+      return new Response(
+        JSON.stringify({ error: "Der Offerte ist keine Firma zugeordnet" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const isMember = await verifyCompanyMembership(supabase, user.id, offerCompanyId);
+    if (!isMember) {
+      logStep("Unauthorized access attempt — not a company member", { userId: user.id, companyId: offerCompanyId });
+      return new Response(
+        JSON.stringify({ error: "Sie haben keine Berechtigung für diese Offerte" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Offers in a terminal status cannot be sent — to prevent status regression
@@ -483,7 +512,10 @@ const handler = async (req: Request): Promise<Response> => {
       
       const { data: agbData } = await supabase
         .from("agb_sections")
-        .select("id, title, content, display_order")
+        // `translations` gehoert dazu: ohne sie kann die Sendebereitschaft unten
+        // nicht unterscheiden, ob eine franzoesische Offerte franzoesische AGB
+        // bekommt oder deutsche.
+        .select("id, title, content, display_order, translations")
         .eq("company_id", offer.company.id)
         .in("service_type", serviceTypes)
         .eq("is_active", true)
@@ -543,10 +575,59 @@ const handler = async (req: Request): Promise<Response> => {
     // Two recipients, two languages: the customer reads the offer in the DOCUMENT language
     // (offers.language, frozen at creation), while the confirmation copy that goes back to the
     // firm stays in the COMPANY language (companies.default_language).
+    // Die Dokumentsprache wird GEPRUEFT, nicht angenaehert. `toLocale` macht aus
+    // allem Unbekannten stillschweigend Deutsch — beim Anzeigen richtig, beim
+    // Senden der Fehler selbst.
+    if (!isReadinessLocale(offer.language)) {
+      const ergebnis = evaluateOfferSendReadiness({ requestedLocale: offer.language, slots: [] });
+      logStep("Send blocked: document locale", { summary: summariseReadiness(ergebnis) });
+      return new Response(
+        JSON.stringify({ error: "offer_not_ready", blockers: ergebnis.blockers }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
     const customerLocale = toLocale(offer.language);
     const companyLocale = toLocale(offer.company?.default_language);
     const tCustomer = createTranslator(customerLocale);
     const tCompany = createTranslator(companyLocale);
+
+    // ── Sendebereitschaft ──────────────────────────────────────────────────────
+    //
+    // Dies ist die MASSGEBLICHE Prüfung, nicht die im Browser. Ein veralteter
+    // Bundle, ein direkter Funktionsaufruf, ein Wiederholungsversuch oder die
+    // nächste Integration kommen hier vorbei — an einem Knopf nicht.
+    //
+    // Der Zusammenbau steht in `_shared/offerSendReadiness.ts` und ist dort mit
+    // Eingabe und Ausgabe geprüft. Er stand bis zum 2026-08-28 hier inline, und
+    // ein Quelltext-Tor suchte nach seinen Literalen — die unabhängige
+    // Durchsicht hat es mit einer Zuweisung eine Zeile darüber ausgehebelt.
+    // Eine Textsuche belegt Anwesenheit, nicht Wirkung.
+    const bereitschaft = buildOfferSendReadiness(
+      {
+        offerLanguage: offer.language,
+        paymentTerms,
+        paymentTermsFromOfferRow:
+          ((offer as Record<string, unknown>).payment_terms as string | null) !== null &&
+          ((offer as Record<string, unknown>).payment_terms as string | null) !== "",
+        companyId: offer.company?.id ?? null,
+        agbSections: agbSections as unknown as Array<Record<string, unknown>>,
+        // Die Sprache, in der der Aufrufer die Anhänge GERENDERT hat. Sie kommt
+        // aus dem Body, nicht aus der Zeile — sonst verglichen wir einen Wert
+        // mit sich selbst, während die PDF-Bytes aus dem Browser stammen.
+        declaredAttachmentLocale,
+        hasAttachments: Boolean(offerPdfBase64 || agbPdfBase64 || checklistPdfBase64),
+      },
+      resolveLocalizedRowField,
+    );
+
+    if (!bereitschaft.ok) {
+      // Kein Kundentext ins Protokoll — nur welches Feld welcher Zeile fehlt.
+      logStep("Send blocked: readiness", { summary: summariseReadiness(bereitschaft) });
+      return new Response(
+        JSON.stringify({ error: "offer_not_ready", blockers: bereitschaft.blockers }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // Generate offer view URL
     const offerViewUrl = `${getDashAppUrl()}/offerte/${offer.access_token}`;

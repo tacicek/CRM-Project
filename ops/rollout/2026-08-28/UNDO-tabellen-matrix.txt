@@ -1,0 +1,37 @@
+Output format is unaligned.
+=== Undo-/Beleg-Tabellen: Eigentuemer, ACL, RLS, Zeilen ===
+tab|undo_20260802110000|owner=postgres|rls=true|forced=false|policies=0|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+tab|undo_20260802120000|owner=postgres|rls=true|forced=false|policies=0|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+tab|undo_20260802130000|owner=postgres|rls=true|forced=false|policies=0|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+tab|undo_20260809120000|owner=postgres|rls=true|forced=false|policies=0|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+tab|undo_20260828100000|owner=postgres|rls=false|forced=false|policies=0|acl=postgres=arwdDxt/postgres anon=arwdDxt/postgres authenticated=arwdDxt/postgres service_role=arwdDxt/postgres
+=== Zeilenzahlen ===
+zeilen|undo_20260802110000|7
+zeilen|undo_20260802120000|1
+zeilen|undo_20260802130000|22
+zeilen|undo_20260809120000|122
+zeilen|undo_20260828100000|1
+=== Spalten-ACL (aclitem je Spalte) ===
+spalten_acl_keine_wenn_leer
+=== Wer darf die Signaturspalte SCHREIBEN? (Recht, RLS separat) ===
+schreibrecht|undo_20260802130000|anon|insert=true|update=true|delete=true|truncate=true|select=true
+schreibrecht|undo_20260802130000|authenticated|insert=true|update=true|delete=true|truncate=true|select=true
+schreibrecht|undo_20260802130000|service_role|insert=true|update=true|delete=true|truncate=true|select=true
+schreibrecht|undo_20260809120000|anon|insert=true|update=true|delete=true|truncate=true|select=true
+schreibrecht|undo_20260809120000|authenticated|insert=true|update=true|delete=true|truncate=true|select=true
+schreibrecht|undo_20260809120000|service_role|insert=true|update=true|delete=true|truncate=true|select=true
+=== Spalten der beiden Tabellen ===
+spalte|undo_20260802130000|func_name|text
+spalte|undo_20260802130000|func_signature|text
+spalte|undo_20260802130000|had_public|boolean
+spalte|undo_20260802130000|had_anon|boolean
+spalte|undo_20260802130000|had_authenticated|boolean
+spalte|undo_20260802130000|noted_at|timestamp with time zone
+spalte|undo_20260809120000|func_signature|text
+spalte|undo_20260809120000|hatte_public|boolean
+spalte|undo_20260809120000|hatte_anon|boolean
+spalte|undo_20260809120000|hatte_auth|boolean
+spalte|undo_20260809120000|erfasst_am|timestamp with time zone
+  db_fn_keine_wenn_leer
+  view_keine_wenn_leer
+  trigger_keine_wenn_leer

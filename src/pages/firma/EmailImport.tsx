@@ -25,7 +25,8 @@ import { toLocale } from "@/i18n/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { fetchSingleCompanyForUser } from "@/lib/fetchSingleCompanyForUser";
+import { fetchCompanyById } from "@/lib/fetchCompanyById";
+import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { ExtractedLeadForm } from "@/components/leads/ExtractedLeadForm";
 import { extractedLeadToLeadData } from "@/lib/extractedLeadToLeadData";
 import type { ExtractedData } from "@/types/extractedLead";
@@ -166,6 +167,8 @@ const confidenceTone = (score: number | null): string => {
 
 const FirmaEmailImport = () => {
   const { user } = useAuth();
+  // Der ausgewaehlte Mandant ist die einzige Firmenquelle unter /firma.
+  const { companyId: activeCompanyId } = useCompanyContext();
   const t = useT();
   // Dashboard locale — the operator reads this screen. The CUSTOMER's language is
   // a separate, captured value (extractedData.language) and never comes from here.
@@ -198,10 +201,12 @@ const FirmaEmailImport = () => {
         if (isMountedRef.current) setIsLoading(false);
         return;
       }
+      // Ohne aufgeloesten Mandanten wird nicht geladen; der Ladezustand endet
+      // trotzdem, sonst dreht der Bildschirm ewig.
+      if (!activeCompanyId) { if (isMountedRef.current) setIsLoading(false); return; }
       try {
-        const companyData = await fetchSingleCompanyForUser<Company>({
-          userId: user.id,
-          userEmail: user.email,
+        const companyData = await fetchCompanyById<Company>({
+          companyId: activeCompanyId,
           select: "id, company_name, default_language, email, notification_email, resend_from_email",
         });
         if (isMountedRef.current) setCompany(companyData ?? null);
@@ -218,7 +223,7 @@ const FirmaEmailImport = () => {
       }
     };
     load();
-  }, [user, t, toast]);
+  }, [user, activeCompanyId, t, toast]);
 
   const loadRows = useCallback(async () => {
     if (!company) return;

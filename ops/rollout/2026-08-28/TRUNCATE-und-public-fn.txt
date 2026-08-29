@@ -1,0 +1,18 @@
+Output format is unaligned.
+=== Darf anon die Undo-Tabellen TRUNCATEn? (RLS schuetzt davor NICHT) ===
+undo|undo_20260802110000|rls=true|anon_truncate=true|auth_truncate=true|zeilen=1
+undo|undo_20260802120000|rls=true|anon_truncate=true|auth_truncate=true|zeilen=1
+undo|undo_20260802130000|rls=true|anon_truncate=true|auth_truncate=true|zeilen=1
+undo|undo_20260809120000|rls=true|anon_truncate=true|auth_truncate=true|zeilen=1
+undo|undo_20260828100000|rls=false|anon_truncate=true|auth_truncate=true|zeilen=1
+=== Wie viele Tabellen im public-Schema darf anon insgesamt TRUNCATEn? ===
+anon_truncate_gesamt|97
+tabellen_gesamt|102
+=== get_public_company_info: Sicherheit und Rechte ===
+fn|get_public_company_info|definer=true|anon=true|auth=true
+Output format is unaligned.
+keine_treffer_bedeutet_kein_weg
+=== Rolle anon: darf sie sich ueberhaupt anmelden? ===
+rolle|authenticated|login=false
+rolle|anon|login=false
+rolle|authenticator|login=true
