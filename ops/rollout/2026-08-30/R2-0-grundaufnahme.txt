@@ -1,0 +1,19 @@
+R2-0 · Lesende Grundaufnahme vor dem R-2-Rollout
+Zeit: 2026-08-30T01:09:26Z   NUR LESEND.
+
+=== Coolify (App 36) ===
+  autodeploy=false
+  status=running:healthy
+  letzte_deployment_id=2666
+
+=== Ausgerollte Digests der betroffenen Dateien ===
+  666d2d8374007a5e2c916787a964b871  calculate-distance/index.ts
+  5667d223d3478c339408c7ec17b53641  google-places-autocomplete/index.ts
+  9d49222791e819108e99aa1ef14abf4a  google-places-details/index.ts
+  (fehlt)                            _shared/paidApiGuard.ts
+  f85461d619f79c8528bb1a3b9894f023  _shared/boundedBody.ts
+
+=== Datenbank: gibt es die Budgetobjekte schon? (erwartet: nein) ===
+  api_rate_budget vorhanden: false
+  consume_api_budget vorhanden: false
+  system_identifier: 7639710127421538342

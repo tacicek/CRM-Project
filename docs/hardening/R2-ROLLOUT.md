@@ -15,6 +15,11 @@ Systemkennung, angewandte Migrationen, Frontend-Asset-Fingerabdrücke, Digests
 der drei Handler und der gemeinsamen Dateien, Gateway-Verhalten,
 unauthentifiziertes Verhalten. **Und: Coolify Auto-Deploy ist noch `false`.**
 
+Bereits erhoben: `ops/rollout/2026-08-30/R2-0-grundaufnahme.txt`
+(`system_identifier 7639710127421538342`, Auto-Deploy `false`, letzte
+Deployment-Id 2666, `api_rate_budget` und `consume_api_budget` **existieren noch
+nicht** — die drei Migrationen sind also wirklich ungespielt).
+
 ### R2-1 · `20260828130000_api_budget_dauerhaft.sql`
 
 Legt Tabelle und erste Funktionsfassung an.
@@ -35,11 +40,34 @@ Rollen), RLS an, 0 Policies, `EXECUTE` nur für `service_role`, Eigentümer,
 `search_path`, und dass keine weitere Funktion oder View `api_rate_budget`
 anfasst.
 
-### R2-4 · `_shared/paidApiHttp.ts` kopieren
+### R2-4 · Gemeinsame Dateien kopieren — **zwei**, nicht eine
 
-Die Datei allein ändert kein Handlerverhalten. `_shared/boundedBody.ts` und
-`_shared/paidApiGuard.ts` liegen bereits in der Produktion; `boundedBody.ts`
-wird von den Termin-Wächtern mitbenutzt und ist **unverändert**.
+**Korrektur gegenüber einer früheren Fassung dieses Plans.** Die
+Grundaufnahme R2-0 hat gemessen:
+
+```
+666d2d8374007a5e…  calculate-distance/index.ts
+5667d223d3478c33…  google-places-autocomplete/index.ts
+9d49222791e81910…  google-places-details/index.ts
+(fehlt)            _shared/paidApiGuard.ts        ← nicht in der Produktion
+f85461d619f79c85…  _shared/boundedBody.ts
+```
+
+`_shared/paidApiGuard.ts` liegt **nicht** in der Produktion. Ich hatte
+angenommen, sie sei dort — sie war nur im Repo. `paidApiHttp.ts` importiert aus
+ihr `istMitgliedschaftsAbweisung`; ohne sie bootet kein neuer Handler.
+
+Zu kopieren sind daher **in dieser Reihenfolge**:
+
+1. `_shared/paidApiGuard.ts`
+2. `_shared/paidApiHttp.ts`
+
+Beide allein ändern kein Handlerverhalten — sie haben ohne Aufrufer keine
+Wirkung. `_shared/boundedBody.ts` liegt bereits dort, wird von den
+Termin-Wächtern mitbenutzt und ist in diesem Zweig **unverändert**; sie darf
+nicht überschrieben werden.
+
+Nach dem Kopieren: Import-/Bootprobe, bevor irgendein Handler folgt.
 
 ### R2-5 · `google-places-details` als Kanarienvogel
 
