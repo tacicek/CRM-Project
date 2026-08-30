@@ -205,9 +205,15 @@ GRANT EXECUTE ON FUNCTION public.consume_api_budget(text, uuid, uuid) TO service
 
 -- ── Nachweise ───────────────────────────────────────────────────────────────
 
--- Nachweis 1: kein Tabellenrecht mehr, in allen sieben Auspraegungen, fuer alle
--- vier Rollen. PUBLIC wird ueber die ACL geprueft, nicht ueber
+-- Nachweis 1: kein Tabellenrecht mehr, in allen sieben Auspraegungen, fuer die
+-- vier BENANNTEN Empfaenger. PUBLIC wird ueber die ACL geprueft, nicht ueber
 -- has_table_privilege — PUBLIC ist dort kein zulaessiger Rollenname.
+--
+-- REICHWEITE, ehrlich: geprueft werden PUBLIC, anon, authenticated und
+-- service_role. Eine spaeter angelegte eigene Rolle mit einem eigenen GRANT
+-- faellt hier NICHT auf — das verlangt Eigentuemer- oder Superuserrechte, ist
+-- also kein Weg fuer einen Aufrufer, aber es ist auch nicht "0 Tabellenrechte
+-- ueberhaupt". Wer diese Zusicherung zitiert, zitiere sie mit dieser Grenze.
 DO $pruefung$
 DECLARE
   v_rolle text;

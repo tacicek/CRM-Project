@@ -28,6 +28,20 @@ export const BEZAHLTE_ENDPUNKTE = [
 export const quelle = (endpunkt: string): string =>
   readFileSync(join(WURZEL, "supabase", "functions", endpunkt, "index.ts"), "utf8");
 
+/**
+ * Auch die gemeinsame Ablaufdatei gehoert geprueft.
+ *
+ * Die erste Fassung las nur die drei `index.ts`. Jeder `umg.log(...)`-Aufruf und
+ * der einzige Google-`fetch` liegen aber in `_shared/paidApiHttp.ts` — ein
+ * `console.log(nutzlast)` oder ein Modulzaehler dort haette alle drei Endpunkte
+ * getroffen, und das Tor waere gruen geblieben. Gefunden von der unabhaengigen
+ * Durchsicht.
+ */
+export const GEMEINSAME_DATEIEN = ["_shared/paidApiHttp.ts"] as const;
+
+export const gemeinsameQuelle = (pfad: string): string =>
+  readFileSync(join(WURZEL, "supabase", "functions", pfad), "utf8");
+
 export const ohneKommentare = (s: string): string =>
   s
     .replace(/\/\*[\s\S]*?\*\//g, " ")
@@ -102,5 +116,11 @@ export const pruefeEndpunkt = (endpunkt: string, roh: string): Verstoss[] => {
   return verstoesse;
 };
 
-export const pruefeAlleEndpunkte = (): Verstoss[] =>
-  BEZAHLTE_ENDPUNKTE.flatMap((e) => pruefeEndpunkt(e, quelle(e)));
+export const pruefeAlleEndpunkte = (): Verstoss[] => [
+  ...BEZAHLTE_ENDPUNKTE.flatMap((e) => pruefeEndpunkt(e, quelle(e))),
+  // Die gemeinsame Datei traegt den Ablauf, nicht den Endpunktvertrag — sie
+  // muss `bearbeitePaidApiAnfrage` nicht AUFRUFEN, sondern definiert es.
+  ...GEMEINSAME_DATEIEN.flatMap((f) =>
+    pruefeEndpunkt(f, gemeinsameQuelle(f)).filter((v) => v.art !== "kein-gemeinsamer-ablauf"),
+  ),
+];

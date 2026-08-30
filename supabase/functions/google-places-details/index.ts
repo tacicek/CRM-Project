@@ -6,6 +6,7 @@ import {
   type EndpunktVertrag,
   type PaidApiUmgebung,
 } from "../_shared/paidApiHttp.ts";
+import { erstelleTokenPruefung } from "../_shared/paidApiGuard.ts";
 
 /**
  * Adressdetails zu einer place_id — ein BEZAHLTER Google-Aufruf je Auswahl.
@@ -97,11 +98,9 @@ const produktionsUmgebung = (): PaidApiUmgebung => {
     { auth: { persistSession: false } },
   );
   return {
-    verifyToken: async (token) => {
-      const { data, error } = await dienst.auth.getUser(token);
-      if (error) throw error;
-      return data.user?.id ?? null;
-    },
+    // Ein abgelehntes Token ist 401, ein gestoerter Anmeldedienst 503.
+    // `erstelleTokenPruefung` haelt diese Unterscheidung an einer Stelle.
+    verifyToken: erstelleTokenPruefung(dienst),
     consumeBudget: async (bucket, userId, companyId) => {
       const { data, error } = await dienst.rpc("consume_api_budget", {
         p_bucket: bucket,

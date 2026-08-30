@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   BEZAHLTE_ENDPUNKTE,
+  GEMEINSAME_DATEIEN,
+  gemeinsameQuelle,
   pruefeAlleEndpunkte,
   pruefeEndpunkt,
   quelle,
@@ -11,6 +13,12 @@ describe("Tor fuer die bezahlten Google-Endpunkte", () => {
     expect(
       pruefeAlleEndpunkte().map((v) => `${v.endpunkt} · ${v.art}\n    ${v.detail}`).join("\n"),
     ).toBe("");
+  });
+
+  it("die gemeinsame Ablaufdatei wird mitgeprueft", () => {
+    // Sie traegt alle Protokollaufrufe und den einzigen Google-fetch.
+    expect(GEMEINSAME_DATEIEN).toContain("_shared/paidApiHttp.ts");
+    expect(gemeinsameQuelle("_shared/paidApiHttp.ts").length).toBeGreaterThan(500);
   });
 
   it("es prueft ueberhaupt drei Dateien", () => {

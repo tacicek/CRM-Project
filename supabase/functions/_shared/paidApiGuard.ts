@@ -171,3 +171,68 @@ export const istMitgliedschaftsAbweisung = (fehler: unknown): boolean => {
     (typeof f.detail === "string" ? f.detail : "");
   return code === "R2403" && detail.includes("r2_membership_denied");
 };
+
+/**
+ * Ist das ein ABGELEHNTES Token — oder ein Ausfall des Anmeldedienstes?
+ *
+ * `supabase-js` liefert `auth.getUser(jwt)` bei einem ungueltigen ODER
+ * abgelaufenen Token einen `AuthApiError` zurueck — nicht nur bei einer
+ * Stoerung. Die erste Fassung der drei Adapter warf jeden Fehler weiter, und
+ * der gemeinsame Ablauf stuft jeden Wurf als 503 `auth_unavailable` ein.
+ *
+ * Folge: eine abgelaufene Sitzung meldete dem Bedienenden "Dienst nicht
+ * verfuegbar" statt "bitte neu anmelden", und das Betriebsprotokoll fuellte
+ * sich mit erfundenen Ausfaellen. Die 401-Klasse war in der Produktion
+ * unerreichbar.
+ *
+ * Bitter daran: fuer den Budgetweg hatte ich genau dieses Argument selbst
+ * aufgeschrieben — `42501` darf nicht als 403 durchgehen, sonst sieht man die
+ * Stoerung nie — und auf dem Anmeldeweg nicht angewandt. Gefunden von der
+ * unabhaengigen Durchsicht.
+ *
+ * Die Unterscheidung: eine ANTWORT des Auth-Dienstes (4xx) heisst "Token
+ * abgelehnt" und wird zu 401. Alles andere — Netzfehler, 5xx, unbekannte Form —
+ * bleibt ein Wurf und damit 503. Im Zweifel Ausfall, nicht Ablehnung: eine
+ * faelschlich als 401 gemeldete Stoerung wuerde den Bedienenden in eine
+ * endlose Neuanmeldung schicken.
+ */
+export const istAbgelehntesToken = (fehler: unknown): boolean => {
+  if (typeof fehler !== "object" || fehler === null) return false;
+  const f = fehler as { status?: unknown; name?: unknown; __isAuthError?: unknown };
+  const status = typeof f.status === "number" ? f.status : undefined;
+
+  if (status === 401 || status === 403) return true;
+
+  // Ein AuthApiError mit einem anderen 4xx-Status ist ebenfalls eine Antwort
+  // des Dienstes und keine Stoerung.
+  const istAuthFehler = f.name === "AuthApiError" || f.__isAuthError === true;
+  if (istAuthFehler && status !== undefined && status >= 400 && status < 500) return true;
+
+  return false;
+};
+
+/**
+ * Der gemeinsame Adapter fuer `verifyToken`.
+ *
+ * Er stand dreimal wortgleich in den Handlern — und war dreimal gleich falsch.
+ * Einmal hier ist eine Stelle zum Pruefen statt drei zum Vergessen.
+ */
+export interface AuthDienst {
+  auth: {
+    getUser: (token: string) => Promise<{
+      data: { user: { id: string } | null };
+      error: unknown;
+    }>;
+  };
+}
+
+export const erstelleTokenPruefung =
+  (dienst: AuthDienst) =>
+  async (token: string): Promise<string | null> => {
+    const { data, error } = await dienst.auth.getUser(token);
+    if (error) {
+      if (istAbgelehntesToken(error)) return null; // 401
+      throw error; // 503
+    }
+    return data.user?.id ?? null;
+  };

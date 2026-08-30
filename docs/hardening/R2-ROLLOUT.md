@@ -35,6 +35,14 @@ Kurzschluss `global → firma → benutzer`, plus `R2403` / `r2_membership_denie
 **Zwischen R2-1 und R2-3 existiert kurz die alte, vergiftbare Fassung. Kein
 Handler darf in diesem Fenster ausgerollt werden.**
 
+> ⚠️ **Die Reihenfolge ist dokumentiert, nicht erzwungen.** Nichts im Repo
+> hindert jemanden daran, `20260830100000` ohne `20260829120000` einzuspielen.
+> Das Ergebnis waere ein korrekter Zaehler, aber `service_role` behielte die
+> Tabellenrechte aus `20260828130000` — und keine Zusicherung wuerde rot, weil
+> `20260830100000` nur Funktionsrechte und `search_path` prueft.
+> **Vor R2-4 daher lesend belegen:** `service_role` hat 0 Tabellenrechte, und
+> die Funktionsdefinition enthaelt `denied_at`.
+
 Danach lesend prüfen: Funktionsdefinition, ACL (alle sieben Rechte × vier
 Rollen), RLS an, 0 Policies, `EXECUTE` nur für `service_role`, Eigentümer,
 `search_path`, und dass keine weitere Funktion oder View `api_rate_budget`
