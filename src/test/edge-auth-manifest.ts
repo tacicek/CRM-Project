@@ -156,7 +156,7 @@ export const signale = (quelle: string): Quellsignale => ({
   cronPruefung: /\bif\s*\(\s*!\s*isCronRequest\s*\(/.test(quelle),
   // Ebenfalls die Aufrufform: ein Import allein prüft nichts.
   mitgliedschaft:
-    /\b(verifyCompanyMembership|verifyCompanyRole|assertCompanyMembership|assertCompanyMembershipFromAuthHeader|guardPaidApiCall)\s*\(/.test(
+    /\b(verifyCompanyMembership|verifyCompanyRole|assertCompanyMembership|assertCompanyMembershipFromAuthHeader|guardPaidApiCall|bearbeitePaidApiAnfrage)\s*\(/.test(
       quelle,
     ),
   // Auch der gemeinsame Helfer zählt: `assertCompanyMembershipFromAuthHeader`
@@ -167,7 +167,11 @@ export const signale = (quelle: string): Quellsignale => ({
     /\bassertCompanyMembershipFromAuthHeader\s*\(/.test(quelle) ||
     // `guardPaidApiCall` prueft das Token ueber die uebergebene `verifyToken`-
     // Abhaengigkeit und leitet die Benutzer-ID serverseitig ab.
-    /\bguardPaidApiCall\s*\(/.test(quelle),
+    /\bguardPaidApiCall\s*\(/.test(quelle) ||
+      // `bearbeitePaidApiAnfrage` ist der Nachfolger: dieselbe Zusage, nur mit
+      // der vollstaendigen Reihenfolge davor. Die Mitgliedschaft entscheidet
+      // dabei `consume_api_budget` serverseitig statt im Handler.
+      /\bbearbeitePaidApiAnfrage\s*\(/.test(quelle),
   // Die WÄCHTERFORM, nicht das Vokabular.
   //
   // Die erste Fassung suchte nach Bezeichnern wie `access_token`. Die
