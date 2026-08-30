@@ -73,7 +73,16 @@ export const pruefeEndpunkt = (endpunkt: string, roh: string): Verstoss[] => {
   const s = ohneKommentare(roh);
   const verstoesse: Verstoss[] = [];
 
-  if (/\bnew\s+(Map|Set)\s*\(/.test(s)) {
+  // `[<(]`, nicht nur `(`: in TypeScript steht zwischen Konstruktor und Klammer
+  // eine Typargumentliste. Die erste Fassung suchte nur `new Map(` — und war
+  // damit blind fuer genau die Schreibweise, aus der sie entstanden ist:
+  //
+  //     _shared/rateLimit.ts:40  const records = new Map<string, RateLimitRecord>();
+  //
+  // Also: die einzige Regel, fuer die dieses Tor gebaut wurde, traf den einzigen
+  // Fall nicht, aus dem es gebaut wurde. Gefunden von der unabhaengigen
+  // Durchsicht; die generische Form ist in diesem Repo die uebliche.
+  if (/\bnew\s+(Map|Set)\s*[<(]/.test(s)) {
     verstoesse.push({
       endpunkt, art: "modulzaehler-als-drossel",
       detail: "new Map/Set im Modulkoerper — genau die Bauart, die ueber Worker hinweg nichts durchsetzt.",

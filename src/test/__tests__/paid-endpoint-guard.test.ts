@@ -33,12 +33,22 @@ serve((req) => bearbeitePaidApiAnfrage(req, vertrag, umgebung()));
 
   it.each([
     ["Modulzaehler als Drossel", `const zaehler = new Map();\n${basis}`, "modulzaehler-als-drossel"],
+    // Die generische Schreibweise ist im Repo die uebliche — und war blind.
+    ["Modulzaehler generisch getypt", `const zaehler = new Map<string, number>();\n${basis}`, "modulzaehler-als-drossel"],
+    ["Set generisch getypt", `const gesehen = new Set<string>();\n${basis}`, "modulzaehler-als-drossel"],
     ["console.log", `console.log("x");\n${basis}`, "console-log"],
     ["Kundeninhalt im Protokoll", `${basis}\nlog("x", { origin: o });`, "kundeninhalt-im-protokoll"],
     ["direkter Google-fetch", `${basis}\nawait fetch("https://maps.googleapis.com/x");`, "google-fetch-ausserhalb-des-ablaufs"],
     ["ohne gemeinsamen Ablauf", `serve((req) => new Response("x"));`, "kein-gemeinsamer-ablauf"],
   ])("weist ab: %s", (_n, code, art) => {
     expect(pruefeEndpunkt("probe", code).map((v) => v.art)).toContain(art);
+  });
+
+  it("faengt die Schreibweise aus _shared/rateLimit.ts — den Ursprungsfall", () => {
+    // Genau diese Zeile ist der Grund, warum es dieses Tor gibt.
+    const wieImOriginal = `const records = new Map<string, RateLimitRecord>();\n${basis}`;
+    expect(pruefeEndpunkt("probe", wieImOriginal).map((v) => v.art))
+      .toContain("modulzaehler-als-drossel");
   });
 
   it("ein Kommentar, der den alten Fehler beschreibt, ist kein Verstoss", () => {

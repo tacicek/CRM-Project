@@ -196,15 +196,55 @@ export const istMitgliedschaftsAbweisung = (fehler: unknown): boolean => {
  * faelschlich als 401 gemeldete Stoerung wuerde den Bedienenden in eine
  * endlose Neuanmeldung schicken.
  */
+/**
+ * GoTrue-Fehlercodes, die eine ABLEHNUNG bedeuten. Sie sind die verlaesslichste
+ * Auskunft, die der Dienst gibt — verlaesslicher als der Status, den auch ein
+ * Gateway davor setzen kann.
+ */
+const ABLEHNUNGSCODES = new Set([
+  "bad_jwt",
+  "session_expired",
+  "session_not_found",
+  "refresh_token_not_found",
+  "user_not_found",
+  "invalid_credentials",
+  "no_authorization",
+]);
+
+/**
+ * Status, die NIE eine Ablehnung sind, obwohl sie im 4xx-Bereich liegen.
+ *
+ * `429` ist der gefaehrlichste: wer bei einer Drosselung "Sitzung ungueltig"
+ * hoert, meldet sich neu an — und erhoeht damit genau die Last, die ihn
+ * gedrosselt hat. `408` ist eine Zeitueberschreitung, also eine Stoerung.
+ */
+const AUSFALL_TROTZ_4XX = new Set([408, 429]);
+
 export const istAbgelehntesToken = (fehler: unknown): boolean => {
   if (typeof fehler !== "object" || fehler === null) return false;
-  const f = fehler as { status?: unknown; name?: unknown; __isAuthError?: unknown };
+  const f = fehler as {
+    status?: unknown;
+    name?: unknown;
+    code?: unknown;
+    error_code?: unknown;
+    __isAuthError?: unknown;
+  };
   const status = typeof f.status === "number" ? f.status : undefined;
+  const code =
+    (typeof f.code === "string" ? f.code : "") ||
+    (typeof f.error_code === "string" ? f.error_code : "");
 
-  if (status === 401 || status === 403) return true;
+  // 1. Sagt GoTrue selbst, dass es eine Ablehnung ist, glauben wir das.
+  if (ABLEHNUNGSCODES.has(code)) return true;
 
-  // Ein AuthApiError mit einem anderen 4xx-Status ist ebenfalls eine Antwort
-  // des Dienstes und keine Stoerung.
+  // 2. Stoerungen bleiben Stoerungen, auch mit 4xx-Status.
+  if (status !== undefined && (AUSFALL_TROTZ_4XX.has(status) || status >= 500)) return false;
+
+  // 3. Sonst nur, wenn es wirklich ein Auth-Fehler ist. Ein nacktes
+  //    `{ status: 401 }` ohne Auth-Kennzeichen kann auch vom Gateway kommen —
+  //    etwa ein rotierter API-Schluessel, also eine Fehlkonfiguration. Die als
+  //    "Sitzung ungueltig" zu melden, schickt jeden Bedienenden in eine
+  //    Neuanmeldung, die nichts hilft.
   const istAuthFehler = f.name === "AuthApiError" || f.__isAuthError === true;
   if (istAuthFehler && status !== undefined && status >= 400 && status < 500) return true;
 

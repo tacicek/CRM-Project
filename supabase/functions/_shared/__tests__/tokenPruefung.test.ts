@@ -35,7 +35,8 @@ describe("istAbgelehntesToken", () => {
     ["AuthApiError 401", authApiError(401)],
     ["AuthApiError 403", authApiError(403)],
     ["AuthApiError 400 (unfoermiges JWT)", authApiError(400, "bad_jwt")],
-    ["nackter 401 ohne Namen", { status: 401 }],
+    ["GoTrue-Code bad_jwt ohne Status", { code: "bad_jwt" }],
+    ["GoTrue-Code session_expired", { error_code: "session_expired", status: 401 }],
   ])("erkennt eine Ablehnung: %s", (_n, fehler) => {
     expect(istAbgelehntesToken(fehler)).toBe(true);
   });
@@ -47,6 +48,10 @@ describe("istAbgelehntesToken", () => {
     ["Zeitueberschreitung ohne Status", { name: "TypeError", message: "timeout" }],
     ["null", null],
     ["Zeichenkette", "kaputt"],
+    // Die drei, die die Durchsicht als gefaehrlich falsch eingestuft hat:
+    ["GoTrue 429 Drosselung", authApiError(429, "over_request_rate_limit")],
+    ["408 Zeitueberschreitung", authApiError(408, "timeout")],
+    ["Gateway-401 ohne Auth-Kennzeichen (rotierter Schluessel)", { status: 401, message: "Invalid authentication credentials" }],
   ])("haelt eine Stoerung NICHT fuer eine Ablehnung: %s", (_n, fehler) => {
     // Im Zweifel Ausfall, nicht Ablehnung: eine faelschlich als 401 gemeldete
     // Stoerung schickt den Bedienenden in eine endlose Neuanmeldung.
@@ -73,6 +78,23 @@ describe("erstelleTokenPruefung · der ausgelieferte Adapter", () => {
   it("Anmeldedienst gestoert → wirft, damit der Ablauf 503 daraus macht", async () => {
     const pruefe = erstelleTokenPruefung(dienst({ error: authApiError(503, "unavailable") }));
     await expect(pruefe("t")).rejects.toBeTruthy();
+  });
+
+  it("Drosselung (429) wirft — sonst meldet sich der Bedienende neu an und erhoeht die Last", async () => {
+    const pruefe = erstelleTokenPruefung(dienst({ error: authApiError(429, "over_request_rate_limit") }));
+    await expect(pruefe("t")).rejects.toBeTruthy();
+  });
+
+  it("Gateway-401 ohne Auth-Kennzeichen wirft — eine Fehlkonfiguration ist kein Sitzungsende", async () => {
+    const pruefe = erstelleTokenPruefung(
+      dienst({ error: { status: 401, message: "Invalid authentication credentials" } }),
+    );
+    await expect(pruefe("t")).rejects.toBeTruthy();
+  });
+
+  it("GoTrue-Code entscheidet auch ohne Status", async () => {
+    const pruefe = erstelleTokenPruefung(dienst({ error: { code: "bad_jwt" } }));
+    await expect(pruefe("t")).resolves.toBeNull();
   });
 
   it("Netzfehler → wirft", async () => {
