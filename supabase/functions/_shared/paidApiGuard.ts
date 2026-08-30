@@ -144,3 +144,30 @@ export const guardAntwortHeaders = (
   ergebnis.retryAfterSeconds !== undefined
     ? { "Retry-After": String(ergebnis.retryAfterSeconds) }
     : {};
+
+/**
+ * Ist dieser Fehler die Mitgliedschafts-Abweisung — und nicht Rechteschwund?
+ *
+ * Bis `20260830100000` hob `consume_api_budget` bei fehlender Mitgliedschaft
+ * `insufficient_privilege` (42501). Denselben Code hebt Postgres auch, wenn ein
+ * GRANT kaputt ist. Ein Handler konnte beides nicht unterscheiden und haette
+ * einen Ausfall als 403 an den Kunden gemeldet — eine falsche Auskunft ueber
+ * die Ursache, und eine, die den Betreiber die Stoerung nicht sehen laesst.
+ *
+ * Seither hat die Abweisung eine eigene Identitaet:
+ *
+ *     SQLSTATE R2403   DETAIL r2_membership_denied
+ *
+ * Geprueft werden BEIDE. Der Code allein koennte irgendwann anderweitig
+ * vergeben werden; der Marker allein koennte in einer fremden Meldung
+ * auftauchen. Alles andere — auch 42501 — ist 503.
+ */
+export const istMitgliedschaftsAbweisung = (fehler: unknown): boolean => {
+  if (typeof fehler !== "object" || fehler === null) return false;
+  const f = fehler as { code?: unknown; details?: unknown; detail?: unknown; message?: unknown };
+  const code = typeof f.code === "string" ? f.code : "";
+  const detail =
+    (typeof f.details === "string" ? f.details : "") ||
+    (typeof f.detail === "string" ? f.detail : "");
+  return code === "R2403" && detail.includes("r2_membership_denied");
+};
