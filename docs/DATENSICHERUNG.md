@@ -189,27 +189,54 @@ Serverpruefsummen verglichen — `PGDMP` im Dump, 14 `CREATE ROLE`, 2 Objekte im
 Storage-Archiv. **Diese Probe gehoert in regelmaessigen Abstaenden wiederholt.**
 Sie ist die einzige, die den ganzen Weg abdeckt.
 
-### Auslagerung scharfschalten
+### Auslagerung — laeuft seit 2026-09-01
 
-Ohne `/etc/crm-sicherung.conf` wird nichts ausgelagert; das Skript ist
-vollstaendig und wird durch Ablegen dieser Datei aktiv:
+Ziel ist eine Hetzner Storage Box, konfiguriert in `/etc/crm-sicherung.conf`:
 
-    FERN_ZIEL="uXXXXXX@uXXXXXX.your-storagebox.de:crm-sicherungen/"
+    FERN_ZIEL="u660829@u660829.your-storagebox.de:crm-sicherungen/"
     FERN_SSH_KEY="/root/.ssh/storagebox_ed25519"
+    FERN_SSH_PORT="23"
 
-Uebertragen werden **ausschliesslich** die `.enc`-Dateien. Nach der Uebertragung
-prueft das Skript drueben nach, ob die heutige Datei angekommen und gleich gross
-ist; erst dann meldet es `ausgelagert`.
+**Die Portangabe ist nicht kosmetisch.** Eine Storage Box nimmt rsync auf 23
+entgegen; auf 22 spricht sie nur SFTP. Ohne sie schlaegt die Auslagerung fehl,
+ohne dass jemand sieht warum.
 
-Faellt die Auslagerung aus, bleiben die oertlichen Sicherungen stehen und das
-Skript endet mit 0. Ein Problem beim Auslagern darf die Sicherung nicht
-mitreissen — nachgestellt.
+Die Box hat eine **eingeschraenkte Shell**: `echo` gibt es nicht, `ls`, `stat`,
+`mkdir`, `rm` und `df` schon. Darauf ist die Nachpruefung aufgebaut.
+
+Uebertragen werden **ausschliesslich** die `.enc`-Dateien. Danach prueft das
+Skript drueben nach, ob die heutige Datei angekommen und gleich gross ist; erst
+dann meldet es `ausgelagert`.
+
+Faellt Verschluesselung oder Auslagerung aus, bleiben die oertlichen Sicherungen
+stehen und das Skript endet mit 0. Ein Problem beim Auslagern darf die Sicherung
+nicht mitreissen — nachgestellt.
+
+**Drueben wird ebenfalls aufgeraeumt**, sonst waechst die Box unbemerkt: `find`
+gibt es auf der eingeschraenkten Shell nicht, das Alter kommt deshalb aus dem
+Dateinamen. Das ist der einzige Pfad im Skript, der die einzige Aussenkopie
+loescht — mit zwei kuenstlich alten Dateien nachgestellt: genau diese zwei
+verschwanden, alle neun aktuellen blieben.
+
+### Der Ernstfall, durchgespielt
+
+Am 2026-09-01 so durchgefuehrt, als waere der Server verloren — nur Storage Box
+und privater Schluessel:
+
+    rsync -a -e "ssh -i <key> -p 23" u660829@u660829.your-storagebox.de:crm-sicherungen/ ./
+    openssl cms -decrypt -binary -inform DER -in crm-postgres-<datum>.dump.enc \
+      -inkey ~/.crm-backup/wiederherstellung.key.pem -out crm-postgres-<datum>.dump
+
+Ergebnis: alle drei Dateien mit Rueckgabewert 0 geoeffnet, `PGDMP` im Dump,
+`pg_restore --list` zeigt **2753** Eintraege und **154** Tabellendatenabschnitte,
+darunter `public offers`. 14 `CREATE ROLE`, 2 Objekte im Storage-Archiv.
 
 ## Was NICHT abgedeckt ist
 
 - **Ueberwachung.** Ein fehlgeschlagener Lauf schreibt ins Protokoll und setzt
   `.letzter-lauf` auf `fehlgeschlagen`, meldet sich aber bei niemandem.
 
-Dieser Punkt ist bekannt und offen, nicht uebersehen. Solange die Auslagerung
-nicht scharfgeschaltet ist, gilt zusaetzlich der alte Vorbehalt: alle
-Sicherungen liegen auf demselben Host wie die Datenbank.
+Dieser Punkt ist bekannt und offen, nicht uebersehen. Er wiegt jetzt schwerer
+als vorher: seit die Auslagerung laeuft, kann sie auch ausfallen, ohne dass es
+jemandem auffaellt. `/data/crm-backups/.letzter-lauf` und die Zeile
+`ausgelagert:` im Protokoll sind bis dahin die einzige Kontrolle.

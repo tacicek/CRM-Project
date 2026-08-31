@@ -200,6 +200,12 @@ fi
 #
 #   FERN_ZIEL="uXXXXXX@uXXXXXX.your-storagebox.de:crm-sicherungen/"
 #   FERN_SSH_KEY="/root/.ssh/storagebox_ed25519"
+#   FERN_SSH_PORT="23"
+#
+# Die Portangabe ist nicht kosmetisch: eine Hetzner Storage Box nimmt rsync auf
+# 23 entgegen, auf 22 spricht sie nur SFTP. Ohne sie schlaegt die Auslagerung
+# fehl, ohne dass jemand sieht warum. Fehlt sie in der Konfiguration, wird 22
+# angenommen — der uebliche Fall fuer andere Ziele.
 #
 # Uebertragen werden AUSSCHLIESSLICH die .enc-Dateien. Der Klartext verlaesst
 # diesen Rechner nie.
@@ -210,17 +216,38 @@ if [ -f "$FERNZIEL" ]; then
     melde "WARNUNG: $FERNZIEL unvollstaendig — nicht ausgelagert"
   elif [ "$VERSCHLUESSELT" -eq 0 ]; then
     melde "WARNUNG: nichts Verschluesseltes vorhanden — nicht ausgelagert"
-  elif ! rsync -a --timeout=300 -e "ssh -i $FERN_SSH_KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
+  elif ! rsync -a --timeout=300 \
+         -e "ssh -i $FERN_SSH_KEY -p ${FERN_SSH_PORT:-22} -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
          "$ZIEL"/*.enc "$FERN_ZIEL" 2>>"$LOG"; then
     melde "WARNUNG: Auslagerung fehlgeschlagen — die oertlichen Sicherungen stehen"
   else
     # Gegenprobe: liegt die heutige Datei drueben, und ist sie gleich gross?
     FERN_NAME=$(basename "$DATEI").enc
-    FERN_GROESSE=$(ssh -i "$FERN_SSH_KEY" -o BatchMode=yes "${FERN_ZIEL%%:*}" \
-                   "stat -c%s ${FERN_ZIEL#*:}$FERN_NAME" 2>/dev/null | tr -d ' \r')
+    FERN_GROESSE=$(ssh -i "$FERN_SSH_KEY" -p "${FERN_SSH_PORT:-22}" -o BatchMode=yes \
+                   "${FERN_ZIEL%%:*}" "stat -c%s ${FERN_ZIEL#*:}$FERN_NAME" 2>/dev/null | tr -d ' \r')
     HIER_GROESSE=$(stat -c%s "$DATEI.enc" 2>/dev/null)
     if [ -n "$FERN_GROESSE" ] && [ "$FERN_GROESSE" = "$HIER_GROESSE" ]; then
       melde "ausgelagert: $VERSCHLUESSELT Datei(en), $FERN_NAME drueben bestaetigt"
+
+      # Drueben aufraeumen. Ohne das waechst die Storage Box unbegrenzt, und
+      # zwar unbemerkt — hier sieht man ja nur das eigene Verzeichnis. `find` gibt
+      # es auf der eingeschraenkten Shell nicht, deshalb per Namensliste: alles,
+      # was aelter als BEHALTEN Tage ist, kennt man aus dem Dateinamen.
+      GRENZE=$(date -d "-$BEHALTEN days" +%Y%m%d 2>/dev/null)
+      if [ -n "$GRENZE" ]; then
+      ALT=$(ssh -i "$FERN_SSH_KEY" -p "${FERN_SSH_PORT:-22}" -o BatchMode=yes \
+      "${FERN_ZIEL%%:*}" "ls ${FERN_ZIEL#*:}" 2>/dev/null \
+      | grep -oE 'crm-(postgres|storage)-[0-9]{8}-[0-9]{4}[^ ]*\.enc' \
+      | awk -v g="$GRENZE" -F'-' '{ d=$3; if (d < g) print }' | sort -u)
+      if [ -n "$ALT" ]; then
+      ANZ=$(echo "$ALT" | wc -l)
+      echo "$ALT" | while read -r f; do
+      [ -n "$f" ] && ssh -i "$FERN_SSH_KEY" -p "${FERN_SSH_PORT:-22}" -o BatchMode=yes \
+      "${FERN_ZIEL%%:*}" "rm ${FERN_ZIEL#*:}$f" >/dev/null 2>>"$LOG"
+      done
+      melde "drueben aufgeraeumt: $ANZ Datei(en) aelter als $BEHALTEN Tage"
+      fi
+      fi
     else
       melde "WARNUNG: Auslagerung nicht bestaetigt (drueben '$FERN_GROESSE', hier '$HIER_GROESSE')"
     fi
