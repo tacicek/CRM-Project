@@ -28,6 +28,7 @@ Je Lauf entstehen zwei Dateien in `/data/crm-backups/` (Modus 700, Dateien 600):
 |---|---|---|
 | `crm-postgres-<datum>.dump` | die Datenbank, Format `custom` | ~2.9 MB |
 | `crm-postgres-<datum>.rollen.sql` | die Cluster-Rollen | ~5 KB |
+| `crm-storage-<datum>.tar.gz` | die hochgeladenen Dateien aus MinIO | ~27 KB |
 
 Aufbewahrung 30 Tage. Protokoll: `/data/crm-backups/backup.log`,
 letzter Lauf zusaetzlich in `/data/crm-backups/.letzter-lauf`.
@@ -43,6 +44,24 @@ zurueck und oeffnet dabei 22 Funktionen wieder fuer `anon` — die Luecke, die
 2026 geschlossen wurde. Das Skript weist einen Abzug mit weniger als 100
 ACL-Eintraegen zurueck; nachgestellt, es haelt.
 
+**Warum drei Dateien.** Der Dump enthaelt `storage.objects` — die Buchhaltung
+darueber, welche Datei es gibt und wem sie gehoert — aber kein einziges Byte des
+Inhalts. Wer nur den Dump hat, bekommt eine Storage-Tabelle voller Verweise ins
+Leere. Das Archiv nimmt auch `.minio.sys` mit: darin stehen `format.json`, die
+Bucket-Anlage und die Zugangsregeln. Ohne dieses Verzeichnis erkennt ein
+frisches MinIO die zurueckgespielten Dateien nicht als seine eigenen.
+
+Stand 2026-09-01 sind das **2 Objekte, 22 kB** — zwei Firmenlogos. `document-pdfs`
+und `besichtigung-uploads` sind leer: Offerten-PDFs werden bei jedem Abruf neu
+erzeugt und nirgends abgelegt. Die Mechanik entstand also, solange sie nichts
+kostete, nicht an dem Tag, an dem jemand anfaengt, Besichtigungsfotos
+hochzuladen.
+
+Ein Storage-Problem darf die Datensicherung nicht mitreissen: fehlt das
+Verzeichnis oder ist das Archiv unbrauchbar, wird das protokolliert und
+verworfen — der Datenbankteil laeuft trotzdem durch und das Skript endet mit 0.
+Nachgestellt, es haelt.
+
 ## Was das Skript prueft, bevor es eine Sicherung behaelt
 
 | Pruefung | Schwelle | nachgestellt |
@@ -54,6 +73,15 @@ ACL-Eintraegen zurueck; nachgestellt, es haelt.
 | ACL-Eintraege | >= 100 | ja, `--no-privileges`-Abzug verworfen |
 | RLS-Policies | >= 100 | — |
 | Rollen im Rollenabzug | >= 10 | — |
+| Storage-Archiv lesbar | — | ja |
+| `.minio.sys/format.json` im Archiv | — | ja, sonst verworfen |
+| Objektzahl gegen `storage.objects` | Hinweis, kein Abbruch | ja |
+
+Die letzte Zeile ist bewusst nur ein Hinweis: eine Abweichung entsteht auch,
+wenn waehrend der Sicherung jemand hochlaedt. Ein Archiv deswegen wegzuwerfen
+waere schlimmer als eines mit einer Notiz. (Die erste Fassung zaehlte die
+`xl.meta`-Dateien unter `.minio.sys` mit und meldete deshalb bei **jedem** Lauf
+eine Abweichung — eine Warnung, die immer feuert, liest bald niemand mehr.)
 
 Faellt eine Pruefung, wird die Datei geloescht, `FEHLGESCHLAGEN` ins Protokoll
 geschrieben und mit Rueckgabewert 1 beendet. **Alte Sicherungen werden erst
@@ -98,14 +126,26 @@ die das Abbild selbst mitbringt. Sie sind erwartet.
 **Danach zaehlen, nicht hoffen.** Zeilenzahlen der Geschaeftstabellen,
 `auth.users`, Anzahl Policies und Funktionen gegen die Quelle vergleichen.
 
+### Storage zurueckspielen — ebenfalls erprobt
+
+    tar -xzf crm-storage-<datum>.tar.gz -C /zielverzeichnis
+    docker run -d --name minio -e MINIO_ROOT_USER=... -e MINIO_ROOT_PASSWORD=... \
+      -v /zielverzeichnis/storage:/data ghcr.io/coollabsio/minio:<fassung> server /data
+
+Die Wurzelzugangsdaten kommen aus der Umgebung, nicht aus dem Archiv — ein
+frisches MinIO nimmt neue an und findet die alten Objekte trotzdem.
+
+Am 2026-09-01 durchgespielt: das frische MinIO meldete den Bucket `stub` und
+beide Objekte mit den richtigen Groessen. Beide herausgeholt und gegen die
+Datenbank geprueft — 12114 und 9914 Byte, exakt wie in `storage.objects`,
+Kopfkennung `RIFF…WEBP`.
+
 ## Was NICHT abgedeckt ist
 
-- **Storage-Dateien.** Der Dump enthaelt die Tabelle `storage.objects`, aber
-  nicht die Dateien in MinIO. Hochgeladene PDFs und Bilder sind ungesichert.
 - **Auslagerung.** Alle Sicherungen liegen auf demselben Server wie die
   Datenbank. Faellt die Platte aus, ist beides weg. Eine Kopie ausserhalb des
   Hosts fehlt.
 - **Ueberwachung.** Ein fehlgeschlagener Lauf schreibt ins Protokoll und setzt
   `.letzter-lauf` auf `fehlgeschlagen`, meldet sich aber bei niemandem.
 
-Diese drei Punkte sind bekannt und offen, nicht uebersehen.
+Diese beiden Punkte sind bekannt und offen, nicht uebersehen.
