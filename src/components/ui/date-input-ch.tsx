@@ -1,10 +1,14 @@
 /**
  * Swiss-format date input (DD.MM.YYYY).
  * Internally stores ISO (YYYY-MM-DD); displays and accepts CH format.
+ *
+ * The parsing lives in `@/lib/dateInputCH` so it can be tested; that file also
+ * explains why the validity check is stricter than it looks like it needs to be.
  */
 import { forwardRef, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { autoFormat, displayToIso, isoToDisplay } from "@/lib/dateInputCH";
 
 interface DateInputCHProps {
   value: string;          // ISO: "YYYY-MM-DD" or ""
@@ -12,38 +16,6 @@ interface DateInputCHProps {
   id?: string;
   className?: string;
   placeholder?: string;
-}
-
-/** "2026-04-29" → "29.04.2026" */
-function isoToDisplay(iso: string): string {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-");
-  if (!y || !m || !d) return "";
-  return `${d}.${m}.${y}`;
-}
-
-/** "29.04.2026" → "2026-04-29" or "" if invalid */
-function displayToIso(display: string): string {
-  const clean = display.replace(/[^0-9.]/g, "");
-  const parts = clean.split(".");
-  if (parts.length !== 3) return "";
-  const [d, m, y] = parts;
-  if (!d || !m || !y || y.length !== 4) return "";
-  const day = d.padStart(2, "0");
-  const mon = m.padStart(2, "0");
-  const iso = `${y}-${mon}-${day}`;
-  // Basic validity check
-  const date = new Date(`${y}-${mon}-${day}`);
-  if (isNaN(date.getTime())) return "";
-  return iso;
-}
-
-/** Auto-insert dots as user types: "2904" → "29.04." */
-function autoFormat(raw: string): string {
-  const digits = raw.replace(/[^0-9]/g, "");
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
-  return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4, 8)}`;
 }
 
 export const DateInputCH = forwardRef<HTMLInputElement, DateInputCHProps>(
@@ -71,7 +43,8 @@ export const DateInputCH = forwardRef<HTMLInputElement, DateInputCHProps>(
         setDisplay(isoToDisplay(iso)); // normalise
         onChange(iso);
       } else if (display !== "") {
-        // Invalid — revert to last known good value
+        // Not a date anybody could have meant — revert to the last good value
+        // instead of leaving a half-typed entry on screen that saves nothing.
         setDisplay(isoToDisplay(value));
       }
     };
