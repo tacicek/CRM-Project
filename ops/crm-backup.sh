@@ -23,6 +23,9 @@ ZIEL=/data/crm-backups
 STORAGE=/data/coolify/services/aw0c0w440o8k0cccokow0csw/volumes/storage
 LOG=$ZIEL/backup.log
 BEHALTEN=30           # Tage; bei ~3 MB je Sicherung sind das unter 100 MB
+ZERTIFIKAT=/etc/crm-sicherung.cert.pem   # oeffentlich; der passende private
+                                          # Schluessel liegt NICHT auf diesem Rechner
+FERNZIEL=/etc/crm-sicherung.conf          # Auslagerung; fehlt sie, wird nicht ausgelagert
 STATUS=$ZIEL/.letzter-lauf
 
 melde() { echo "$(date '+%Y-%m-%d %H:%M:%S')  $*" >> "$LOG"; }
@@ -147,9 +150,86 @@ fi
 melde "ok  $(basename "$DATEI")  $(numfmt --to=iec "$GROESSE")  Daten=$DATEN ACL=$ACL Policies=$POLICY Rollen=${ROLLENZAHL:-0} Dateien=$STORAGE_OBJEKTE"
 echo "ok $(date -Iseconds) $(basename "$DATEI") $GROESSE" > "$STATUS"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Verschluesseln fuer die Auslagerung
+#
+# Der Klartext BLEIBT hier liegen: wer auf diesem Rechner wiederherstellt, hat
+# ohnehin Zugriff auf die laufende Datenbank, und eine Wiederherstellung soll
+# nicht am Schluessel scheitern. Was den Rechner VERLAESST, ist verschluesselt.
+#
+# Verschluesselt wird gegen ein Zertifikat. Der passende private Schluessel liegt
+# nicht hier — dieser Rechner kann seine eigenen Auslagerungen also nicht wieder
+# oeffnen. Wer den Server uebernimmt, bekommt die ausgelagerten Sicherungen nicht
+# dazu.
+#
+# WAS DIESER RECHNER NICHT PRUEFEN KANN: ob das Verschluesselte auch wirklich
+# entschluesselbar ist. Dafuer braeuchte er den privaten Schluessel, und genau den
+# soll er nicht haben. Geprueft wird deshalb nur die Struktur. Der vollstaendige
+# Hin- und Rueckweg wurde am 2026-09-01 von Hand durchgespielt (byte-genau) und
+# gehoert in regelmaessigen Abstaenden wiederholt — siehe docs/DATENSICHERUNG.md.
+VERSCHLUESSELT=0
+if [ ! -f "$ZERTIFIKAT" ]; then
+  melde "WARNUNG: $ZERTIFIKAT fehlt — nichts verschluesselt, nichts ausgelagert"
+else
+  for QUELLE in "$DATEI" "$ROLLEN" "$ARCHIV"; do
+    [ -f "$QUELLE" ] || continue
+    ZIEL_ENC="$QUELLE.enc"
+    if ! openssl cms -encrypt -binary -aes-256-cbc -stream \
+           -in "$QUELLE" -outform DER -out "$ZIEL_ENC" "$ZERTIFIKAT" 2>>"$LOG"; then
+      rm -f "$ZIEL_ENC"
+      melde "WARNUNG: Verschluesselung von $(basename "$QUELLE") fehlgeschlagen"
+      continue
+    fi
+    chmod 600 "$ZIEL_ENC"
+    # Ist es ueberhaupt eine CMS-Struktur? Eine abgeschnittene Datei faellt hier.
+    if ! openssl cms -cmsout -inform DER -in "$ZIEL_ENC" -noout 2>>"$LOG"; then
+      rm -f "$ZIEL_ENC"
+      melde "WARNUNG: $(basename "$ZIEL_ENC") ist keine gueltige CMS-Struktur — verworfen"
+      continue
+    fi
+    VERSCHLUESSELT=$((VERSCHLUESSELT + 1))
+  done
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auslagerung
+#
+# Ohne /etc/crm-sicherung.conf passiert hier nichts — das Skript ist vollstaendig,
+# die Auslagerung wird durch Ablegen der Konfiguration scharfgeschaltet. Erwartet
+# werden dort zwei Zeilen:
+#
+#   FERN_ZIEL="uXXXXXX@uXXXXXX.your-storagebox.de:crm-sicherungen/"
+#   FERN_SSH_KEY="/root/.ssh/storagebox_ed25519"
+#
+# Uebertragen werden AUSSCHLIESSLICH die .enc-Dateien. Der Klartext verlaesst
+# diesen Rechner nie.
+if [ -f "$FERNZIEL" ]; then
+  # shellcheck disable=SC1090
+  . "$FERNZIEL"
+  if [ -z "${FERN_ZIEL:-}" ] || [ -z "${FERN_SSH_KEY:-}" ]; then
+    melde "WARNUNG: $FERNZIEL unvollstaendig — nicht ausgelagert"
+  elif [ "$VERSCHLUESSELT" -eq 0 ]; then
+    melde "WARNUNG: nichts Verschluesseltes vorhanden — nicht ausgelagert"
+  elif ! rsync -a --timeout=300 -e "ssh -i $FERN_SSH_KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
+         "$ZIEL"/*.enc "$FERN_ZIEL" 2>>"$LOG"; then
+    melde "WARNUNG: Auslagerung fehlgeschlagen — die oertlichen Sicherungen stehen"
+  else
+    # Gegenprobe: liegt die heutige Datei drueben, und ist sie gleich gross?
+    FERN_NAME=$(basename "$DATEI").enc
+    FERN_GROESSE=$(ssh -i "$FERN_SSH_KEY" -o BatchMode=yes "${FERN_ZIEL%%:*}" \
+                   "stat -c%s ${FERN_ZIEL#*:}$FERN_NAME" 2>/dev/null | tr -d ' \r')
+    HIER_GROESSE=$(stat -c%s "$DATEI.enc" 2>/dev/null)
+    if [ -n "$FERN_GROESSE" ] && [ "$FERN_GROESSE" = "$HIER_GROESSE" ]; then
+      melde "ausgelagert: $VERSCHLUESSELT Datei(en), $FERN_NAME drueben bestaetigt"
+    else
+      melde "WARNUNG: Auslagerung nicht bestaetigt (drueben '$FERN_GROESSE', hier '$HIER_GROESSE')"
+    fi
+  fi
+fi
+
 # Aufraeumen erst NACH einer geglueckten Sicherung — nie die alten wegwerfen,
 # solange keine neue steht.
-ENTFERNT=$(find "$ZIEL" -maxdepth 1 \( -name 'crm-postgres-*.dump' -o -name 'crm-postgres-*.rollen.sql' -o -name 'crm-storage-*.tar.gz' \) -mtime +$BEHALTEN -print -delete | wc -l)
+ENTFERNT=$(find "$ZIEL" -maxdepth 1 \( -name 'crm-postgres-*.dump' -o -name 'crm-postgres-*.rollen.sql' -o -name 'crm-storage-*.tar.gz' -o -name '*.enc' \) -mtime +$BEHALTEN -print -delete | wc -l)
 [ "$ENTFERNT" -gt 0 ] && melde "aufgeraeumt: $ENTFERNT Sicherung(en) aelter als $BEHALTEN Tage"
 
 exit 0

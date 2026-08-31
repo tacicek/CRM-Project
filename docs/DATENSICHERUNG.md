@@ -29,6 +29,7 @@ Je Lauf entstehen zwei Dateien in `/data/crm-backups/` (Modus 700, Dateien 600):
 | `crm-postgres-<datum>.dump` | die Datenbank, Format `custom` | ~2.9 MB |
 | `crm-postgres-<datum>.rollen.sql` | die Cluster-Rollen | ~5 KB |
 | `crm-storage-<datum>.tar.gz` | die hochgeladenen Dateien aus MinIO | ~27 KB |
+| `*.enc` | dieselben drei, verschluesselt fuer die Auslagerung | ~2.9 MB |
 
 Aufbewahrung 30 Tage. Protokoll: `/data/crm-backups/backup.log`,
 letzter Lauf zusaetzlich in `/data/crm-backups/.letzter-lauf`.
@@ -140,12 +141,75 @@ beide Objekte mit den richtigen Groessen. Beide herausgeholt und gegen die
 Datenbank geprueft — 12114 und 9914 Byte, exakt wie in `storage.objects`,
 Kopfkennung `RIFF…WEBP`.
 
+## Verschluesselung und Auslagerung
+
+Der Klartext **bleibt** auf dem Server. Wer dort wiederherstellt, hat ohnehin
+Zugriff auf die laufende Datenbank; eine Wiederherstellung soll nicht am
+Schluessel scheitern. Was den Server **verlaesst**, ist verschluesselt.
+
+Verschluesselt wird gegen `/etc/crm-sicherung.cert.pem`. Der passende private
+Schluessel liegt **nicht** auf dem Server, sondern beim Betreiber. Der Server
+kann seine eigenen Auslagerungen also nicht wieder oeffnen — nachgestellt, er
+scheitert mit `Could not read signing key`. Wer den Server uebernimmt, bekommt
+die ausgelagerten Sicherungen nicht dazu.
+
+### Der private Schluessel
+
+    ~/.crm-backup/wiederherstellung.key.pem     (Modus 600)
+
+**Geht dieser Schluessel verloren, ist jede ausgelagerte Sicherung wertlos.**
+Die oertlichen Sicherungen auf dem Server bleiben davon unberuehrt — sie liegen
+im Klartext. Der Schluessel gehoert in einen Passwortmanager, nicht nur auf eine
+Festplatte.
+
+### Entschluesseln
+
+    openssl cms -decrypt -binary -inform DER \
+      -in crm-postgres-<datum>.dump.enc \
+      -inkey ~/.crm-backup/wiederherstellung.key.pem \
+      -out crm-postgres-<datum>.dump
+    echo $?      # <-- DIESE Zahl entscheidet
+
+**Auf den Rueckgabewert achten, nicht auf die Datei.** Mit einem falschen
+Schluessel endet openssl mit 4 und meldet `bad decrypt` — schreibt aber trotzdem
+eine Ausgabedatei in voller Groesse, gefuellt mit Muell. Wer unter Druck nur
+sieht, dass eine 3-MB-Datei entstanden ist, haelt eine unbrauchbare Sicherung
+fuer eine gute. Nachgestellt: gleiche Groesse, voellig anderer Inhalt, kein
+einziges gemeinsames Byte am Anfang.
+
+### Was der Server NICHT pruefen kann
+
+Ob das Verschluesselte auch entschluesselbar ist. Dafuer braeuchte er den
+privaten Schluessel, und genau den soll er nicht haben. Das Skript prueft nur
+die CMS-Struktur.
+
+Der vollstaendige Hin- und Rueckweg wurde am 2026-09-01 von Hand durchgespielt:
+alle drei Dateien heruntergeladen, entschluesselt, byte-genau gegen die
+Serverpruefsummen verglichen — `PGDMP` im Dump, 14 `CREATE ROLE`, 2 Objekte im
+Storage-Archiv. **Diese Probe gehoert in regelmaessigen Abstaenden wiederholt.**
+Sie ist die einzige, die den ganzen Weg abdeckt.
+
+### Auslagerung scharfschalten
+
+Ohne `/etc/crm-sicherung.conf` wird nichts ausgelagert; das Skript ist
+vollstaendig und wird durch Ablegen dieser Datei aktiv:
+
+    FERN_ZIEL="uXXXXXX@uXXXXXX.your-storagebox.de:crm-sicherungen/"
+    FERN_SSH_KEY="/root/.ssh/storagebox_ed25519"
+
+Uebertragen werden **ausschliesslich** die `.enc`-Dateien. Nach der Uebertragung
+prueft das Skript drueben nach, ob die heutige Datei angekommen und gleich gross
+ist; erst dann meldet es `ausgelagert`.
+
+Faellt die Auslagerung aus, bleiben die oertlichen Sicherungen stehen und das
+Skript endet mit 0. Ein Problem beim Auslagern darf die Sicherung nicht
+mitreissen — nachgestellt.
+
 ## Was NICHT abgedeckt ist
 
-- **Auslagerung.** Alle Sicherungen liegen auf demselben Server wie die
-  Datenbank. Faellt die Platte aus, ist beides weg. Eine Kopie ausserhalb des
-  Hosts fehlt.
 - **Ueberwachung.** Ein fehlgeschlagener Lauf schreibt ins Protokoll und setzt
   `.letzter-lauf` auf `fehlgeschlagen`, meldet sich aber bei niemandem.
 
-Diese beiden Punkte sind bekannt und offen, nicht uebersehen.
+Dieser Punkt ist bekannt und offen, nicht uebersehen. Solange die Auslagerung
+nicht scharfgeschaltet ist, gilt zusaetzlich der alte Vorbehalt: alle
+Sicherungen liegen auf demselben Host wie die Datenbank.
