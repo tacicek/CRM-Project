@@ -51,6 +51,7 @@ import { PaginationBar, PAGE_SIZE_OPTIONS, type PageSizeOption } from "@/compone
 import { LOCALES, LOCALE_NAMES, toLocale, type Locale } from "@/i18n/locale";
 import { formatCurrency, formatDate } from "@/i18n/format";
 import { sendOffer } from "@/lib/sendOffer";
+import { blockerListe } from "@/lib/offerSendBlockerText";
 
 interface Offer {
   id: string;
@@ -215,9 +216,17 @@ const FirmaOfferten = () => {
       const result = await sendOffer({ offerId, companyId, forceResend: true });
 
       if (!result.success) {
+        // Fehlende Uebersetzungen sind kein "Versand fehlgeschlagen" — sie sind eine
+        // Aufgabe mit Adresse. Die Liste war der einzige Sendeweg, der die Blocker
+        // zur Fehlermeldung "offer_not_ready" verflacht hat; Detail-, Erstellen- und
+        // Bearbeiten-Seite zeigen sie seit dem 2026-08-28.
         toast({
-          title: t("offer.list.toast.sendFailed.title"),
-          description: result.error ?? t("offer.list.toast.sendFailed.description"),
+          title: result.blockers?.length
+            ? t("offer.send.blocked.title")
+            : t("offer.list.toast.sendFailed.title"),
+          description: result.blockers?.length
+            ? blockerListe(result.blockers, t)
+            : (result.error ?? t("offer.list.toast.sendFailed.description")),
           variant: "destructive",
         });
         return;
