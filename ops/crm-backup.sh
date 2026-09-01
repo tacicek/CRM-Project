@@ -21,6 +21,7 @@ set -uo pipefail
 CONTAINER=supabase-db-aw0c0w440o8k0cccokow0csw
 ZIEL=/data/crm-backups
 STORAGE=/data/coolify/services/aw0c0w440o8k0cccokow0csw/volumes/storage
+DIENST=/data/coolify/services/aw0c0w440o8k0cccokow0csw
 LOG=$ZIEL/backup.log
 BEHALTEN=30           # Tage; bei ~3 MB je Sicherung sind das unter 100 MB
 ZERTIFIKAT=/etc/crm-sicherung.cert.pem   # oeffentlich; der passende private
@@ -80,6 +81,56 @@ POLICY=$(echo "$TOC" | grep -c ' POLICY ')
 # Ohne ACL-Eintraege waere es der --no-privileges-Fall, der Rechte oeffnet.
 [ "$ACL"   -lt 100 ] && { rm -f "$DATEI"; abbruch "nur $ACL ACL-Eintraege — Rechte fehlen im Abzug"; }
 [ "$POLICY" -lt 100 ] && { rm -f "$DATEI"; abbruch "nur $POLICY Policies — RLS fehlt im Abzug"; }
+
+# Die Daten allein ergeben kein laufendes System.
+#
+# Am 2026-09-01 nachgezaehlt, was auf einem leeren Rechner fehlen wuerde:
+#
+#   .env                123 Zeilen, darunter JWT_SECRET, AUTH_JWT_SECRET,
+#                       GOTRUE_JWT_SECRET, ANON_KEY, DB_PASSWORD, CRYPTO_KEY.
+#                       Geht das JWT-Geheimnis verloren, aendert sich der
+#                       ANON_KEY — dann muss auch das Frontend neu gebaut werden,
+#                       sonst kommt niemand mehr hinein.
+#   docker-compose.yml  48 kB; definiert Kong, GoTrue, PostgREST, Realtime,
+#                       Storage und die Edge-Laufzeit.
+#   volumes/functions   41 Functions. Und git ist hier KEINE ausreichende Quelle:
+#                       `main`, `hello` und `accept-lead` liegen dort ueberhaupt
+#                       nicht, sieben weitere weichen ab. `main` ist der Router
+#                       der Edge-Laufzeit — ohne ihn antwortet keine Function.
+#
+# Zusammen unter 2 MB. Der Klartext bleibt hier liegen wie die uebrigen; was den
+# Rechner verlaesst, ist die verschluesselte Fassung.
+KONFIG="$ZIEL/crm-konfig-$(date +%Y%m%d-%H%M).tar.gz"
+KONFIG_FUNKTIONEN=0
+if [ ! -d "$DIENST" ]; then
+  melde "WARNUNG: Dienstverzeichnis $DIENST fehlt — keine Konfigurationssicherung"
+elif ! tar -czf "$KONFIG" -C "$DIENST" \
+       .env docker-compose.yml entrypoint.sh volumes/functions 2>>"$LOG"; then
+  rm -f "$KONFIG"
+  melde "WARNUNG: Konfigurationsarchiv fehlgeschlagen — die Datensicherung selbst steht"
+else
+  chmod 600 "$KONFIG"
+  if ! tar -tzf "$KONFIG" > /tmp/.konfig-toc.$$ 2>>"$LOG"; then
+    rm -f "$KONFIG" /tmp/.konfig-toc.$$
+    melde "WARNUNG: Konfigurationsarchiv nicht lesbar — verworfen"
+  else
+    # Drei Dinge muessen drin sein, sonst ist es keine Wiederherstellungsgrundlage:
+    # die Geheimnisse, die Stapeldefinition und der Router der Edge-Laufzeit.
+    FEHLT=""
+    grep -q '^\.env$' /tmp/.konfig-toc.$$ || FEHLT="$FEHLT .env"
+    grep -q '^docker-compose\.yml$' /tmp/.konfig-toc.$$ || FEHLT="$FEHLT docker-compose.yml"
+    grep -q 'volumes/functions/main/index\.ts$' /tmp/.konfig-toc.$$ || FEHLT="$FEHLT functions/main"
+    KONFIG_FUNKTIONEN=$(grep -c 'volumes/functions/[^/]*/index\.ts$' /tmp/.konfig-toc.$$ | tr -d ' ')
+    rm -f /tmp/.konfig-toc.$$
+    if [ -n "$FEHLT" ]; then
+      rm -f "$KONFIG"; KONFIG_FUNKTIONEN=0
+      melde "WARNUNG: Konfigurationsarchiv unvollstaendig ($FEHLT) — verworfen"
+    elif [ "$KONFIG_FUNKTIONEN" -lt 20 ]; then
+      rm -f "$KONFIG"; KONFIG_FUNKTIONEN=0
+      melde "WARNUNG: nur $KONFIG_FUNKTIONEN Functions im Archiv — verworfen"
+    fi
+  fi
+fi
 
 # Die hochgeladenen Dateien liegen NICHT in der Datenbank. Der Dump enthaelt
 # `storage.objects` — also die Buchhaltung darueber, welche Datei es gibt und wem
@@ -147,7 +198,7 @@ else
   fi
 fi
 
-melde "ok  $(basename "$DATEI")  $(numfmt --to=iec "$GROESSE")  Daten=$DATEN ACL=$ACL Policies=$POLICY Rollen=${ROLLENZAHL:-0} Dateien=$STORAGE_OBJEKTE"
+melde "ok  $(basename "$DATEI")  $(numfmt --to=iec "$GROESSE")  Daten=$DATEN ACL=$ACL Policies=$POLICY Rollen=${ROLLENZAHL:-0} Dateien=$STORAGE_OBJEKTE Functions=$KONFIG_FUNKTIONEN"
 echo "ok $(date -Iseconds) $(basename "$DATEI") $GROESSE" > "$STATUS"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -171,7 +222,7 @@ VERSCHLUESSELT=0
 if [ ! -f "$ZERTIFIKAT" ]; then
   melde "WARNUNG: $ZERTIFIKAT fehlt — nichts verschluesselt, nichts ausgelagert"
 else
-  for QUELLE in "$DATEI" "$ROLLEN" "$ARCHIV"; do
+  for QUELLE in "$DATEI" "$ROLLEN" "$ARCHIV" "$KONFIG"; do
     [ -f "$QUELLE" ] || continue
     ZIEL_ENC="$QUELLE.enc"
     if ! openssl cms -encrypt -binary -aes-256-cbc -stream \
@@ -237,7 +288,7 @@ if [ -f "$FERNZIEL" ]; then
       if [ -n "$GRENZE" ]; then
       ALT=$(ssh -i "$FERN_SSH_KEY" -p "${FERN_SSH_PORT:-22}" -o BatchMode=yes \
       "${FERN_ZIEL%%:*}" "ls ${FERN_ZIEL#*:}" 2>/dev/null \
-      | grep -oE 'crm-(postgres|storage)-[0-9]{8}-[0-9]{4}[^ ]*\.enc' \
+      | grep -oE 'crm-(postgres|storage|konfig)-[0-9]{8}-[0-9]{4}[^ ]*\.enc' \
       | awk -v g="$GRENZE" -F'-' '{ d=$3; if (d < g) print }' | sort -u)
       if [ -n "$ALT" ]; then
       ANZ=$(echo "$ALT" | wc -l)
@@ -256,7 +307,7 @@ fi
 
 # Aufraeumen erst NACH einer geglueckten Sicherung — nie die alten wegwerfen,
 # solange keine neue steht.
-ENTFERNT=$(find "$ZIEL" -maxdepth 1 \( -name 'crm-postgres-*.dump' -o -name 'crm-postgres-*.rollen.sql' -o -name 'crm-storage-*.tar.gz' -o -name '*.enc' \) -mtime +$BEHALTEN -print -delete | wc -l)
+ENTFERNT=$(find "$ZIEL" -maxdepth 1 \( -name 'crm-postgres-*.dump' -o -name 'crm-postgres-*.rollen.sql' -o -name 'crm-storage-*.tar.gz' -o -name 'crm-konfig-*.tar.gz' -o -name '*.enc' \) -mtime +$BEHALTEN -print -delete | wc -l)
 [ "$ENTFERNT" -gt 0 ] && melde "aufgeraeumt: $ENTFERNT Sicherung(en) aelter als $BEHALTEN Tage"
 
 exit 0
