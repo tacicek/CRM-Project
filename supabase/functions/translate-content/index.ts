@@ -205,6 +205,13 @@ Deno.serve(async (req: Request) => {
     // Vorschlag zurück an die UI — bewusst KEIN Schreiben in die DB. Die Firma gibt frei.
     return json({ items: parsed.items });
   } catch (err) {
+    // `assertCompanyMembershipFromAuthHeader` kuerzt mit `throw new Response(...)`
+    // ab — das Geworfene IST die Antwort, kein Fehler. Ohne diesen Zweig lief sie
+    // in die Zeile darunter, wurde als `String(err)` zu "[object Response]" und
+    // kam als 500 heraus: jede Zurueckweisung sah aus wie ein Serverdefekt, und
+    // der Bediener konnte "Sitzung abgelaufen" nicht von "kaputt" unterscheiden.
+    if (err instanceof Response) return err;
+
     const message = err instanceof Error ? err.message : String(err);
     logger.error("unhandled", { message });
     return json({ error: message }, 500);
