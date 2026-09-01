@@ -1,0 +1,38 @@
+R2-0 · Salt-okunur temel ölçüm vor dem R-2-Rollout
+Zeit: 2026-08-30T22:56:47Z
+main: b239d51b73c4a4f4191d2c1319d2d2af73eddb79
+
+=== 1. Systemidentitaet ===
+  system_identifier: 7639710127421538342
+  server_version:    15.8
+
+=== 2. Budgetobjekte: existieren sie schon? (nein erwartet) ===
+  api_rate_budget:    false
+  consume_api_budget: false
+
+=== 3. Ausgerollte Digests (Ist-Zustand vor dem Eingriff) ===
+  666d2d8374007a5e2c916787a964b871  calculate-distance/index.ts
+  5667d223d3478c339408c7ec17b53641  google-places-autocomplete/index.ts
+  9d49222791e819108e99aa1ef14abf4a  google-places-details/index.ts
+  (FEHLT)                            _shared/paidApiGuard.ts
+  (FEHLT)                            _shared/paidApiHttp.ts
+  f85461d619f79c8528bb1a3b9894f023  _shared/boundedBody.ts
+  a5043d2c88a877050efcb8ad8c139f75  _shared/rateLimit.ts
+
+=== 4. Erwartete Ziel-Digests aus main ===
+  5ecac9a205d8eb36e32caaa4155fbedc  calculate-distance/index.ts
+  50ff488bf810897ec246b44f9b3dafe1  google-places-autocomplete/index.ts
+  41c4f4011928019cac258e4a6229fc5b  google-places-details/index.ts
+  51e87510ab3290edd0a8ef95730ce954  _shared/paidApiGuard.ts
+  2f246381e811d6f0eb873b6c5ef789e3  _shared/paidApiHttp.ts
+  f85461d619f79c8528bb1a3b9894f023  _shared/boundedBody.ts
+
+=== 5. Migrationen, die angewendet werden sollen ===
+  98103e18fff511b91c75196aa5906217  20260828130000_api_budget_dauerhaft.sql
+  945ea006184f7b3b7856ada173f00b2c  20260829120000_api_budget_ohne_topfvergiftung.sql
+  59533871057437088315d760f4eb798c  20260830100000_api_budget_hierarchisch_kurzschliessen.sql
+
+=== 6. Coolify ===
+  autodeploy=false
+  letzte_deployment_id=2666
+  status=running:healthy
