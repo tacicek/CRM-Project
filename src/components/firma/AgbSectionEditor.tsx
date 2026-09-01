@@ -17,7 +17,8 @@ import {
   FileText,
   Wand2,
   Eye,
-  Copy
+  Copy,
+  Languages
 } from "lucide-react";
 import {
   Select,
@@ -54,6 +55,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { ContentTranslationDialog } from "@/components/firma/ContentTranslationDialog";
+import { asTranslations } from "@/i18n/localizedField";
 
 interface AgbSection {
   id?: string;
@@ -63,6 +66,13 @@ interface AgbSection {
   content: string;
   display_order: number;
   is_active: boolean;
+  /**
+   * Kundensprachen-Fassung von `title`/`content` als JSONB: {"fr": {...}, "en": {...}}.
+   * Die deutschen Spalten bleiben Basis und Fallback — hier steht nur, was der
+   * franzoesische oder englische Kunde stattdessen liest. Ungeprueft aus der DB;
+   * `asTranslations` engt es fuer die Bearbeitung ein.
+   */
+  translations?: unknown;
 }
 
 interface AgbSectionEditorProps {
@@ -375,6 +385,9 @@ export const AgbSectionEditor = ({
   const [newContent, setNewContent] = useState("");
   const [isAddingNew, setIsAddingNew] = useState(false);
   
+  // Kundensprachen-Fassung der Abschnitte (fr/en)
+  const [translationOpen, setTranslationOpen] = useState(false);
+
   // Copy to another service type
   const [isCopying, setIsCopying] = useState(false);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
@@ -687,6 +700,10 @@ export const AgbSectionEditor = ({
         service_type: selectedTargetService,
         title: section.title,
         content: section.content,
+        // Die Uebersetzungen gehoeren zum Text, nicht zur Servicegruppe. Blieben sie
+        // hier zurueck, waere die Kopie fuer einen fr/en-Kunden wieder ungesendet —
+        // dieselbe Arbeit ein zweites Mal, ohne dass jemand sieht warum.
+        translations: asTranslations(section.translations),
         display_order: startOrder + index,
         is_active: true,
       }));
@@ -743,6 +760,15 @@ export const AgbSectionEditor = ({
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Kundensprachen. Ohne sie blockiert die Sendebereitschaftspruefung jede
+              fr/en-Offerte: die AGB wuerden auf Deutsch beim Kunden landen. */}
+          {sections.filter(s => s.is_active).length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setTranslationOpen(true)}>
+              <Languages className="w-4 h-4 mr-2" />
+              {t("catalog.translation.open")}
+            </Button>
+          )}
+
           {/* Copy to another service type */}
           {sections.filter(s => s.is_active).length > 0 && allServiceTypes.length > 1 && (
             <Dialog open={copyDialogOpen} onOpenChange={setCopyDialogOpen}>
@@ -872,6 +898,30 @@ export const AgbSectionEditor = ({
           )}
         </div>
       </div>
+
+      {/* Kundensprachen-Fassung der aktiven Abschnitte. Nur aktive: die Sende-
+          bereitschaftspruefung laedt genau diese, und was nicht hinausgeht,
+          muss auch niemand uebersetzen. */}
+      <ContentTranslationDialog
+        open={translationOpen}
+        onOpenChange={setTranslationOpen}
+        companyId={companyId}
+        table="agb_sections"
+        context="Allgemeine Geschaeftsbedingungen einer Schweizer Umzugs-, Transport- und Reinigungsfirma. Die Texte sind Vertragsbedingungen und erscheinen im Anhang der Offerte."
+        fields={[
+          { key: "title", label: t("agb.field.title") },
+          { key: "content", label: t("agb.field.content"), multiline: true },
+        ]}
+        records={sections
+          .filter((section): section is AgbSection & { id: string } =>
+            Boolean(section.id) && section.is_active)
+          .map((section) => ({
+            id: section.id,
+            source: { title: section.title, content: section.content },
+            translations: asTranslations(section.translations),
+          }))}
+        onSaved={fetchSections}
+      />
 
       {/* Existing Sections */}
       {sections.length > 0 ? (
