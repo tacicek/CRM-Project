@@ -1,6 +1,10 @@
 # Datensicherung und Wiederherstellung
 
-Stand 2026-08-31. Jede Zahl hier ist gemessen, nicht geschaetzt.
+Stand 2026-09-01. Jede Zahl hier ist gemessen, nicht geschaetzt.
+
+> **Im Ernstfall nicht dieses Dokument lesen, sondern
+> [NOTFALL_WIEDERHERSTELLUNG.md](NOTFALL_WIEDERHERSTELLUNG.md).**
+> Hier steht, wie die Sicherung laeuft; dort steht der Weg zurueck.
 
 ## Wie der Zustand vorher war
 
@@ -29,7 +33,8 @@ Je Lauf entstehen zwei Dateien in `/data/crm-backups/` (Modus 700, Dateien 600):
 | `crm-postgres-<datum>.dump` | die Datenbank, Format `custom` | ~2.9 MB |
 | `crm-postgres-<datum>.rollen.sql` | die Cluster-Rollen | ~5 KB |
 | `crm-storage-<datum>.tar.gz` | die hochgeladenen Dateien aus MinIO | ~27 KB |
-| `*.enc` | dieselben drei, verschluesselt fuer die Auslagerung | ~2.9 MB |
+| `crm-konfig-<datum>.tar.gz` | `.env`, `docker-compose.yml`, alle Edge Functions | ~335 KB |
+| `*.enc` | dieselben vier, verschluesselt fuer die Auslagerung | ~3.3 MB |
 
 Aufbewahrung 30 Tage. Protokoll: `/data/crm-backups/backup.log`,
 letzter Lauf zusaetzlich in `/data/crm-backups/.letzter-lauf`.
@@ -140,6 +145,26 @@ Am 2026-09-01 durchgespielt: das frische MinIO meldete den Bucket `stub` und
 beide Objekte mit den richtigen Groessen. Beide herausgeholt und gegen die
 Datenbank geprueft — 12114 und 9914 Byte, exakt wie in `storage.objects`,
 Kopfkennung `RIFF…WEBP`.
+
+### Warum eine vierte Datei
+
+Die Daten allein ergeben kein laufendes System. Am 2026-09-01 nachgezaehlt, was
+auf einem leeren Rechner fehlen wuerde:
+
+- **`.env`, 123 Zeilen** — `JWT_SECRET`, `AUTH_JWT_SECRET`, `GOTRUE_JWT_SECRET`,
+  `ANON_KEY`, `DB_PASSWORD`, `CRYPTO_KEY` und weitere. Geht das JWT-Geheimnis
+  verloren, aendert sich der `ANON_KEY`; dann muss auch das Frontend neu gebaut
+  werden, sonst kommt niemand hinein.
+- **`docker-compose.yml`, 48 kB** — definiert alle 15 Dienste.
+- **`volumes/functions`, 41 Functions** — und git ist hier **keine ausreichende
+  Quelle**: `main`, `hello` und `accept-lead` liegen dort ueberhaupt nicht,
+  sieben weitere weichen ab. `main` ist der Router der Edge-Laufzeit; ohne ihn
+  antwortet keine einzige Function.
+
+Das Archiv wird verworfen, wenn eines der drei Pflichtstuecke fehlt oder weniger
+als 20 Functions drin sind. Nachgestellt: ein Archiv ohne `functions/main` wurde
+mit `Konfigurationsarchiv unvollstaendig ( functions/main)` abgelehnt, die
+Datenbanksicherung stand trotzdem.
 
 ## Verschluesselung und Auslagerung
 
