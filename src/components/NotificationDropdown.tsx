@@ -96,12 +96,16 @@ const notificationConfig: Record<string, {
   },
 };
 
-const getNotificationConfig = (type?: string) => {
+const getNotificationConfig = (type?: string, status?: string) => {
   if (!type) return notificationConfig.default;
 
-  // Check for offer_response with accepted/rejected status
+  // Der Ausloeser schreibt fuer Zusage und Absage denselben Typ
+  // ('offer_response'); die Entscheidung steht allein in metadata.status.
+  // Ohne diese Verzweigung trug auch eine Absage das gruene Zusage-Zeichen.
   if (type === "offer_response") {
-    return notificationConfig.offer_response;
+    return status === "rejected"
+      ? notificationConfig.offer_rejected
+      : notificationConfig.offer_response;
   }
 
   return notificationConfig[type] || notificationConfig.default;
@@ -380,7 +384,7 @@ export const NotificationDropdown = ({
           <ScrollArea className="h-[420px]">
             <div className="p-2 space-y-1">
               {notifications.map((notification, index) => {
-                const config = getNotificationConfig(notification.type);
+                const config = getNotificationConfig(notification.type, notification.metadata?.status);
                 const IconComponent = config.icon;
 
                 return (
