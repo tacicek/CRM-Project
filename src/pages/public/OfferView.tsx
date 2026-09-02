@@ -44,6 +44,10 @@ import {
 } from "@/lib/offerPricing";
 import { PositionDescription, InklusiveList } from "@/components/offerte/PositionDisplay";
 import { parseOfferAgbSections } from "@/lib/offerAgbSections";
+import {
+  evaluateAcceptanceWindow,
+  heuteIso,
+} from "../../../supabase/functions/_shared/offerAcceptanceWindow.ts";
 import type { OfferAgbSection } from "@/components/pdf/types/offer.types";
 import { documentI18nFor, resolveDocumentLocale } from "@/i18n/documentLocale";
 import { toLocale } from "@/i18n/locale";
@@ -344,36 +348,25 @@ const PublicOfferView = () => {
   const showDate = (value: string | Date | null | undefined) =>
     value ? formatDate(value, locale) : "-";
 
-  const parseDateOnly = (dateString: string) => {
-    const date = new Date(`${dateString}T00:00:00`);
-    date.setHours(0, 0, 0, 0);
-    return date;
-  };
+  /**
+   * Die Annahmefrist stand bis hierher zweimal im Haus: einmal hier, einmal
+   * serverseitig. Jetzt einmal — `_shared/offerAcceptanceWindow.ts`, dieselbe
+   * Datei, die `send-offer` und das Offertenformular fragen.
+   *
+   * Gerechnet wird dabei in UTC statt wie vorher in der Zeit des Besuchers.
+   * Ueber die Zusage entscheidet `update_offer_by_token` mit `CURRENT_DATE`,
+   * und die Datenbank laeuft in UTC; vorher konnten die Seite und die Regel,
+   * die sie ankuendigt, kurz nach Mitternacht verschiedene Tage meinen.
+   */
+  const annahmefenster = evaluateAcceptanceWindow(
+    offer?.valid_until ?? null,
+    offer?.service_date ?? null,
+    heuteIso(),
+  );
 
-  const getAcceptanceDeadline = () => {
-    if (!offer) return null;
+  const getAcceptanceDeadline = () => annahmefenster.frist;
 
-    const candidates: Date[] = [];
-    if (offer.valid_until) {
-      candidates.push(parseDateOnly(offer.valid_until));
-    }
-    if (offer.service_date) {
-      const serviceMinusOne = parseDateOnly(offer.service_date);
-      serviceMinusOne.setDate(serviceMinusOne.getDate() - 1);
-      candidates.push(serviceMinusOne);
-    }
-
-    if (candidates.length === 0) return null;
-    return candidates.reduce((min, current) => (current < min ? current : min));
-  };
-
-  const isExpired = () => {
-    const deadline = getAcceptanceDeadline();
-    if (!deadline) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today > deadline;
-  };
+  const isExpired = () => !annahmefenster.offen;
 
   const canRespond = () => {
     if (!offer) return false;

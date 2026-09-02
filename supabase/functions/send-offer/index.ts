@@ -10,6 +10,7 @@ import {
   isReadinessLocale,
   summariseReadiness,
 } from "../_shared/offerSendReadiness.ts";
+import { evaluateAcceptanceWindow, heuteIso } from "../_shared/offerAcceptanceWindow.ts";
 import { resolveLocalizedRowField } from "../_shared/localizedRow.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
@@ -341,6 +342,33 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(
         JSON.stringify({ error: "Diese Offerte wurde bereits gesendet. Verwenden Sie force_resend: true um erneut zu senden." }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Annahmefenster ─────────────────────────────────────────────────────────
+    //
+    // Eine Offerte, die der Kunde am Tag des Empfangs schon nicht mehr annehmen
+    // kann, darf nicht hinausgehen. Die Frist ist der frühere von «Gültig bis»
+    // und dem Tag VOR der Ausführung — dieselbe Rechnung, mit der
+    // `update_offer_by_token` die Zusage später annimmt oder abweist.
+    //
+    // Ohne dieses Tor entstand Offerte 10095: Ausführung auf den Anlagetag
+    // gesetzt, «Gültig bis» eine Woche später, Frist damit der Vortag. Sie sah
+    // in Liste, Detail und PDF vollständig aus und war beim Öffnen abgelaufen.
+    //
+    // Hier steht die MASSGEBLICHE Prüfung. Der Browser prüft dasselbe vorher,
+    // damit der Bediener es früher erfährt — vorbei kommt er hier nicht.
+    const annahme = evaluateAcceptanceWindow(offer.valid_until, offer.service_date, heuteIso());
+    if (!annahme.offen) {
+      logStep("Send blocked: acceptance window closed", {
+        offerId,
+        deadline: annahme.frist,
+        serviceDate: offer.service_date,
+        validUntil: offer.valid_until,
+      });
+      return new Response(
+        JSON.stringify({ error: "offer_acceptance_window_closed", acceptanceDeadline: annahme.frist }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 

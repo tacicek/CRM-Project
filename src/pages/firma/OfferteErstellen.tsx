@@ -8,7 +8,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInputCH } from "@/components/ui/date-input-ch";
@@ -46,7 +45,6 @@ import {
   MessageSquare,
   CheckCircle,
   Route,
-  AlertCircle,
   Languages,
 } from "lucide-react";
 import { MovingCalculatorWithLead, CalculationResult, formatTime } from "@/components/offers/moving-calculator";
@@ -59,6 +57,7 @@ import { buildOfferTitle } from "@/lib/offerTitle";
 import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } from "@/lib/offerLanguageRebase";
 import { sammleOfferteRebaseFelder, type KatalogHerkunft } from "@/lib/offerRebaseFelder";
 import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
+import { AnnahmefristHinweis } from "@/components/offerte/AnnahmefristHinweis";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { zeileGehoertZumMandanten } from "@/lib/aktiverMandant";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
@@ -280,17 +279,10 @@ const PAYMENT_QUICK_PICKS: readonly { valueKey: MessageKey; labelKey: MessageKey
   { valueKey: "offer.doc.payment.card", labelKey: "offer.form.payment.quick.card" },
 ];
 
-/** Gültig bis kürzer als 7 Tage ab heute — nur Hinweis im Formular */
-const isValidUntilShorterThanSevenDays = (isoDate: string): boolean => {
-  const [y, m, d] = isoDate.split("-").map(Number);
-  if (!y || !m || !d) return false;
-  const end = new Date(y, m - 1, d);
-  const min = new Date();
-  min.setHours(0, 0, 0, 0);
-  min.setDate(min.getDate() + 7);
-  end.setHours(0, 0, 0, 0);
-  return end < min;
-};
+// Die frühere Prüfung «Gültig bis liegt weniger als 7 Tage ab heute» stand hier.
+// Sie hat die falsche Zahl gemessen: massgeblich ist nicht «Gültig bis», sondern
+// die Annahmefrist, in die das Ausführungsdatum hineinredet. Sie sitzt jetzt in
+// `AnnahmefristHinweis` und rechnet mit `_shared/offerAcceptanceWindow.ts`.
 
 const FirmaOfferteErstellen = () => {
   const { user } = useAuth();
@@ -2008,14 +2000,7 @@ const FirmaOfferteErstellen = () => {
                       )}
                     </div>
                   </div>
-                  {validUntil && isValidUntilShorterThanSevenDays(validUntil) && (
-                    <Alert className="bg-amber-50 border-amber-200">
-                      <AlertCircle className="h-4 w-4 text-amber-600" />
-                      <AlertDescription className="text-amber-800 text-sm">
-                        {t("offer.form.validUntil.shortWarning")}
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                  <AnnahmefristHinweis serviceDate={serviceDate} validUntil={validUntil} />
                   {/* Startzeit/Endzeit — customer-facing, rendered on the PDF next to the
                       Ausführungsdatum. Bound to offerDetails.service*Time (single source of
                       truth). Kept visible here rather than in the collapsed advanced panel. */}

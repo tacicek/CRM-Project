@@ -143,8 +143,13 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.field.serviceDate": "Service date",
   "offer.form.field.validUntil": "Valid until",
   "offer.form.validUntil.add": "+ Add a validity date",
-  "offer.form.validUntil.shortWarning":
-    "Note: “Valid until” is less than 7 days from today. A validity of at least 7 days is customary.",
+  "offer.form.acceptance.open": "The customer can accept until {date}.",
+  "offer.form.acceptance.short":
+    "Tight: the customer can only accept until {date}. Seven days is the usual minimum.",
+  "offer.form.acceptance.expired":
+    "The acceptance deadline passed on {date}. The offer cannot be sent like this.",
+  "offer.form.acceptance.hint":
+    "It is the earlier of “valid until” and the day before the service date.",
   "offer.form.field.description": "Description / remarks",
   "offer.form.placeholder.description": "Additional information …",
   "offer.form.priceModel.title": "Pricing model",

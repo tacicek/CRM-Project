@@ -56,6 +56,7 @@ import { fetchCompanyById } from "@/lib/fetchCompanyById";
 import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } from "@/lib/offerLanguageRebase";
 import { sammleOfferteRebaseFelder } from "@/lib/offerRebaseFelder";
 import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
+import { AnnahmefristHinweis } from "@/components/offerte/AnnahmefristHinweis";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
@@ -1179,6 +1180,7 @@ const FirmaOfferteBearbeiten = () => {
                       )}
                     </div>
                   </div>
+                  <AnnahmefristHinweis serviceDate={serviceDate} validUntil={validUntil} />
                   {/* Startzeit/Endzeit — customer-facing, rendered on the PDF next to the
                       Ausführungsdatum (offers.service_start_time / service_end_time). */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">

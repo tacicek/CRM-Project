@@ -145,8 +145,13 @@ export const offer: Record<keyof typeof de, string> = {
   "offer.form.field.serviceDate": "Date d'exécution",
   "offer.form.field.validUntil": "Valable jusqu'au",
   "offer.form.validUntil.add": "+ Ajouter une date de validité",
-  "offer.form.validUntil.shortWarning":
-    "Remarque : la date de validité est à moins de 7 jours. Une validité d'au moins 7 jours est d'usage.",
+  "offer.form.acceptance.open": "Le client peut accepter jusqu'au {date}.",
+  "offer.form.acceptance.short":
+    "Court : le client ne peut accepter que jusqu'au {date}. Sept jours au minimum sont d'usage.",
+  "offer.form.acceptance.expired":
+    "Le délai d'acceptation a expiré le {date}. L'offre ne peut pas être envoyée ainsi.",
+  "offer.form.acceptance.hint":
+    "Il correspond à la première des deux dates : «valable jusqu'au» et la veille de l'exécution.",
   "offer.form.field.description": "Description / remarques",
   "offer.form.placeholder.description": "Informations complémentaires …",
   "offer.form.priceModel.title": "Modèle tarifaire",
