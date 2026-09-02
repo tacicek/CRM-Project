@@ -158,8 +158,17 @@ export const offer = {
   "offer.form.field.serviceDate": "Ausführungsdatum",
   "offer.form.field.validUntil": "Gültig bis",
   "offer.form.validUntil.add": "+ Gültig bis hinzufügen",
-  "offer.form.validUntil.shortWarning":
-    "Hinweis: «Gültig bis» liegt weniger als 7 Tage ab heute. Üblich sind mindestens 7 Tage Gültigkeit.",
+  // Die Annahmefrist — der frühere Tag aus «Gültig bis» und dem Tag vor der
+  // Ausführung. Sie ersetzt die frühere Warnung, die nur «Gültig bis» gegen
+  // heute mass und deshalb schwieg, wenn das Ausführungsdatum die Frist längst
+  // geschlossen hatte.
+  "offer.form.acceptance.open": "Der Kunde kann bis {date} zusagen.",
+  "offer.form.acceptance.short":
+    "Knapp: der Kunde kann nur bis {date} zusagen. Üblich sind mindestens 7 Tage.",
+  "offer.form.acceptance.expired":
+    "Die Annahmefrist ist am {date} abgelaufen. So lässt sich die Offerte nicht senden.",
+  "offer.form.acceptance.hint":
+    "Sie ist der frühere Tag aus «Gültig bis» und dem Tag vor der Ausführung.",
   "offer.form.field.description": "Beschreibung / Anmerkungen",
   "offer.form.placeholder.description": "Zusätzliche Informationen …",
   "offer.form.priceModel.title": "Preismodell",

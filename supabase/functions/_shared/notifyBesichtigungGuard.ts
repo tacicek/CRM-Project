@@ -26,6 +26,9 @@
 // also holt sich diese Datei damit keine Laufzeitabhaengigkeit ins Haus und
 // bleibt unter vitest lauffaehig.
 import type { Locale } from "./i18n/index.ts";
+// Die Annahmefrist ist keine Besichtigungsfrage — sie entscheidet auch im
+// Formular und im Sendeweg. Deshalb liegt sie in einer eigenen Datei.
+import { evaluateAcceptanceWindow } from "./offerAcceptanceWindow.ts";
 
 // ── Request contract ────────────────────────────────────────────────────────────────
 // Five fields. Everything the old contract carried — companyId, companyEmail, companyName,
@@ -154,36 +157,21 @@ export interface OfferRow {
 export type EligibilityResult = { ok: true; reason?: undefined } | { ok: false; reason: string };
 
 /**
- * The acceptance deadline the public page shows: the earlier of `valid_until` and the day
- * before `service_date`. Mirrors `getAcceptanceDeadline` in OfferView.tsx — the server must
- * not accept what the UI would have refused, because the UI is only a suggestion.
- */
-export const computeAcceptanceDeadline = (
-  validUntil: string | null,
-  serviceDate: string | null,
-): string | null => {
-  const kandidaten: string[] = [];
-  if (validUntil && DATE.test(validUntil)) kandidaten.push(validUntil);
-  if (serviceDate && DATE.test(serviceDate)) {
-    const d = new Date(`${serviceDate}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() - 1);
-    kandidaten.push(d.toISOString().slice(0, 10));
-  }
-  if (kandidaten.length === 0) return null;
-  return kandidaten.sort()[0];
-};
-
-/**
  * Same three conditions the page uses to decide whether it offers the button at all:
  * status is `sent` or `viewed`, the version is not superseded, the deadline has not passed.
+ *
+ * Die Frist selbst wird hier nicht mehr gerechnet: sie steht in
+ * `offerAcceptanceWindow.ts`, weil ausser dieser Funktion auch das Formular,
+ * der Sendeweg und die oeffentliche Seite sie brauchen.
  */
 export const evaluateOfferEligibility = (offer: OfferRow, heute: string): EligibilityResult => {
   if (offer.superseded_at !== null) return { ok: false, reason: "superseded" };
   if (offer.status !== "sent" && offer.status !== "viewed") {
     return { ok: false, reason: "status_not_open" };
   }
-  const frist = computeAcceptanceDeadline(offer.valid_until, offer.service_date);
-  if (frist !== null && heute > frist) return { ok: false, reason: "expired" };
+  if (!evaluateAcceptanceWindow(offer.valid_until, offer.service_date, heute).offen) {
+    return { ok: false, reason: "expired" };
+  }
   return { ok: true };
 };
 

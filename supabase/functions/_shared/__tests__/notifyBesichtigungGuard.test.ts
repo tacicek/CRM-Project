@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   parseNotifyBesichtigungRequest,
   evaluateOfferEligibility,
-  computeAcceptanceDeadline,
   handleNotifyBesichtigung,
   MAX_NOTE_LENGTH,
   type NotifyBesichtigungDeps,
@@ -181,12 +180,11 @@ describe("evaluateOfferEligibility", () => {
     expect(evaluateOfferEligibility(offer({ valid_until: "2026-08-02" }), "2026-08-02").ok).toBe(true);
   });
 
-  it("die Frist ist die frühere aus valid_until und service_date minus ein Tag", () => {
-    expect(computeAcceptanceDeadline("2026-08-20", "2026-08-10")).toBe("2026-08-09");
-    expect(computeAcceptanceDeadline("2026-08-05", "2026-08-30")).toBe("2026-08-05");
-    expect(computeAcceptanceDeadline(null, null)).toBeNull();
-    // service_date am Monatsanfang: der Vortag liegt im Vormonat.
-    expect(computeAcceptanceDeadline(null, "2026-09-01")).toBe("2026-08-31");
+  it("das Ausführungsdatum schliesst die Frist mit, nicht nur valid_until", () => {
+    // Die Rechnung selbst steht in offerAcceptanceWindow.test.ts; hier zählt,
+    // dass diese Funktion sie benutzt.
+    expect(evaluateOfferEligibility(offer({ valid_until: "2026-08-20", service_date: "2026-08-02" }), "2026-08-02"))
+      .toEqual({ ok: false, reason: "expired" });
   });
 });
 

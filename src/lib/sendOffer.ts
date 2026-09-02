@@ -1,7 +1,28 @@
 import { supabase } from "@/integrations/supabase/client";
+import { isoToDisplay } from "@/lib/dateInputCH";
 import { buildOfferEmailAttachments } from "@/lib/buildOfferEmailAttachments";
 import { ladeOfferSendReadiness } from "@/lib/offerSendReadinessInput";
+import {
+  evaluateAcceptanceWindow,
+  heuteIso,
+} from "../../supabase/functions/_shared/offerAcceptanceWindow.ts";
 import type { ReadinessFinding } from "../../supabase/functions/_shared/offerSendReadiness.ts";
+
+/**
+ * Der Satz zum geschlossenen Annahmefenster — an einer Stelle, weil ihn zwei
+ * Wege brauchen: die schnelle Prüfung hier und die Antwort der massgeblichen
+ * Prüfung aus `send-offer`. Der Server schickt einen Schlüssel, keinen Satz;
+ * gelesen wird er hier.
+ *
+ * Deutsch wie die übrigen Meldungen dieser Datei. Sie gehen an den Bediener,
+ * nicht an den Kunden, und laufen nicht durch den i18n-Katalog.
+ */
+const annahmefristAbgelaufenText = (frist: string | null): string => {
+  const tag = frist ? isoToDisplay(frist) : null;
+  return tag
+    ? `Die Annahmefrist ist am ${tag} abgelaufen. Der Kunde könnte diese Offerte nicht mehr annehmen. Prüfen Sie Ausführungsdatum und «Gültig bis».`
+    : "Die Annahmefrist ist abgelaufen. Prüfen Sie Ausführungsdatum und «Gültig bis».";
+};
 
 interface SendOfferOptions {
   offerId: string;
@@ -55,6 +76,28 @@ export async function sendOffer({
     return { success: false, error: "Sitzung abgelaufen. Bitte neu einloggen und erneut versuchen." };
   }
 
+  // Kann der Kunde überhaupt noch zusagen? Eine Offerte, deren Annahmefrist
+  // schon abgelaufen ist, wäre beim Öffnen "abgelaufen" — sie zu senden hiesse,
+  // dem Kunden etwas zu schicken, das er nicht annehmen kann. Die massgebliche
+  // Prüfung steht in `send-offer`; diese hier spart Weg und sagt es früher.
+  const { data: fristZeile } = await supabase
+    .from("offers")
+    .select("valid_until, service_date")
+    .eq("id", offerId)
+    .maybeSingle();
+  if (fristZeile) {
+    const fenster = evaluateAcceptanceWindow(
+      fristZeile.valid_until,
+      fristZeile.service_date,
+      heuteIso(),
+    );
+    if (!fenster.offen) {
+      return { success: false, error: annahmefristAbgelaufenText(fenster.frist) };
+    }
+  }
+  // Keine Zeile gelesen: das ist KEINE Freigabe, sondern nur das Ende dieser
+  // Abkürzung. `send-offer` prüft dasselbe noch einmal.
+
   // Zuerst die Sprache und die Vorlagen prüfen. Eine französische Offerte, der
   // die französischen AGB fehlen, soll nicht erst ein PDF erzeugen und dann am
   // Server scheitern — und schon gar nicht mit deutschem Anhang hinausgehen.
@@ -103,9 +146,15 @@ export async function sendOffer({
     let message = "Die E-Mail konnte nicht gesendet werden.";
     let blockers: ReadinessFinding[] | undefined;
     try {
-      const body: { error?: string; blockers?: ReadinessFinding[] } | undefined =
-        await (error as unknown as { context?: Response }).context?.json();
+      const body:
+        | { error?: string; blockers?: ReadinessFinding[]; acceptanceDeadline?: string | null }
+        | undefined = await (error as unknown as { context?: Response }).context?.json();
       if (body?.error) message = String(body.error);
+      // Schlüssel der massgeblichen Prüfung in einen Satz — sonst stünde
+      // "offer_acceptance_window_closed" im Toast.
+      if (body?.error === "offer_acceptance_window_closed") {
+        message = annahmefristAbgelaufenText(body.acceptanceDeadline ?? null);
+      }
       // 422 der massgeblichen Prüfung: die Blocker durchreichen, statt sie zu
       // einer Standardmeldung zu verflachen.
       if (Array.isArray(body?.blockers)) blockers = body.blockers;
