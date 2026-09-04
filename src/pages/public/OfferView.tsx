@@ -48,6 +48,11 @@ import {
   evaluateAcceptanceWindow,
   heuteIso,
 } from "../../../supabase/functions/_shared/offerAcceptanceWindow.ts";
+import {
+  groupTermin,
+  resolveOfferTermin,
+  terminItemsFromRows,
+} from "../../../supabase/functions/_shared/offerTermin.ts";
 import type { OfferAgbSection } from "@/components/pdf/types/offer.types";
 import { documentI18nFor, resolveDocumentLocale } from "@/i18n/documentLocale";
 import { toLocale } from "@/i18n/locale";
@@ -358,9 +363,16 @@ const PublicOfferView = () => {
    * und die Datenbank laeuft in UTC; vorher konnten die Seite und die Regel,
    * die sie ankuendigt, kurz nach Mitternacht verschiedene Tage meinen.
    */
+  /**
+    * Der Termin dieser Offerte — eine Regel fuer alle Dokumente und Ansichten.
+    */
+  const terminDate = resolveOfferTermin(terminItemsFromRows(items), offer?.service_date ?? null);
+
+  // Die Annahmefrist rechnet mit DEM Termin, nicht mit dem rohen Feld: liegt die
+  // Leistung laut Positionen spaeter, darf die Zusage nicht vorher ablaufen.
   const annahmefenster = evaluateAcceptanceWindow(
     offer?.valid_until ?? null,
-    offer?.service_date ?? null,
+    terminDate,
     heuteIso(),
   );
 
@@ -901,14 +913,14 @@ const PublicOfferView = () => {
                 <p className="text-muted-foreground">{offer.description}</p>
               )}
               <div className="flex flex-wrap gap-6">
-                {offer.service_date && (
+                {terminDate && (
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
                     <div>
                       <p className="text-xs text-muted-foreground">
                         {t("public.offer.serviceDate")}
                       </p>
-                      <p className="font-medium">{showDate(offer.service_date)}</p>
+                      <p className="font-medium">{showDate(terminDate)}</p>
                     </div>
                   </div>
                 )}
@@ -975,7 +987,7 @@ const PublicOfferView = () => {
                                     // shown only when at least one group carries its own date.
                                     if (!items.some((i) => i.scheduled_date)) return null;
                                     const sched = group.items.find((i) => i.scheduled_date);
-                                    const date = sched?.scheduled_date ?? offer.service_date;
+                                    const date = groupTermin(terminItemsFromRows(group.items), offer.service_date);
                                     if (!date) return null;
                                     const st = sched?.scheduled_start_time?.slice(0, 5);
                                     const et = sched?.scheduled_end_time?.slice(0, 5);

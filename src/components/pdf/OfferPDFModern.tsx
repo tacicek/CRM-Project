@@ -16,6 +16,7 @@ import {
   groupScheduled,
   type ServiceGroup as ServiceGroupOf,
 } from "@/lib/offerServiceType";
+import { groupTermin, resolveOfferTermin } from "../../../supabase/functions/_shared/offerTermin.ts";
 import { documentI18nFor } from "@/i18n/documentLocale";
 import { getAppointmentLabel, getServiceLabel, getYesNo } from "@/i18n/domain";
 import { formatPercent } from "@/i18n/format";
@@ -733,8 +734,12 @@ export const OfferPDFModern = ({ data }: OfferPDFModernProps) => {
     return [extras, capSentence].filter(Boolean).join(" ") || null;
   })();
 
-  // ── Termin (Offerte-Datum, sonst Datum der Hauptgruppe) ─────────────────────
-  const terminDate = data.executionDate ?? (primary ? groupScheduled(primary.items)?.date ?? undefined : undefined);
+  // ── Termin ──────────────────────────────────────────────────────────────────
+  // Hier stand `data.executionDate ?? Gruppendatum` — global zuerst. Vierzehn
+  // Zeilen weiter unten stand dieselbe Frage richtig herum, und das Formular
+  // verspricht dem Bediener das Gruppendatum. Offerte 10098 druckte deshalb in
+  // den Bändern den 02.10. und hier den 04.09. Beide fragen jetzt dieselbe Regel.
+  const terminDate = resolveOfferTermin(data.items, data.executionDate) ?? undefined;
 
   // ── Adressen / Route ────────────────────────────────────────────────────────
   const from = data.addresses?.from;
@@ -748,7 +753,7 @@ export const OfferPDFModern = ({ data }: OfferPDFModernProps) => {
   const bandDate = (group: ServiceGroup): string | null => {
     if (!hasAnyGroupDate) return null;
     const sched = groupScheduled(group.items);
-    const date = sched?.date ?? data.executionDate;
+    const date = groupTermin(group.items, data.executionDate);
     if (!date) return null;
     const start = sched?.startTime?.slice(0, 5);
     const end = sched?.endTime?.slice(0, 5);
@@ -1021,8 +1026,9 @@ export const OfferPDFModern = ({ data }: OfferPDFModernProps) => {
           </Text>
           <Text style={styles.summaryLine}>
             {[
-              data.executionDate
-                ? `${t("doc.offer.summary.date")}${formatDate(data.executionDate, locale)}`
+              // Dieselbe Zahl wie oben in «Auf einen Blick» — nicht das rohe Feld.
+              terminDate
+                ? `${t("doc.offer.summary.date")}${formatDate(terminDate, locale)}`
                 : null,
               t("doc.offer.typeValue", { value: offerteArtLabel }),
             ]

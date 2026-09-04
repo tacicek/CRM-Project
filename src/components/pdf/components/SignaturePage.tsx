@@ -2,6 +2,7 @@ import { Image, Link, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
 import { formatCurrency, formatDate } from "../utils/formatters";
+import { resolveOfferTermin } from "../../../../supabase/functions/_shared/offerTermin.ts";
 import { lightenHex } from "../utils/colors";
 import { documentI18nFor } from "@/i18n/documentLocale";
 import { getServiceLabel } from "@/i18n/domain";
@@ -136,6 +137,7 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
         ? t("doc.offer.type.blindShort")
         : t("doc.offer.type.normal"),
   });
+  const terminDate = resolveOfferTermin(data.items ?? [], data.executionDate);
   const primary = data.company.primaryColor || COLORS.primary;
   const primaryLight = data.company.primaryColor ? lightenHex(data.company.primaryColor, 0.9) : "#F0F9FF";
   // The acceptance URL ends in a long random token with no spaces or hyphens, and react-pdf can
@@ -206,10 +208,11 @@ export const SignaturePage = ({ data }: SignaturePageProps) => {
           {t("doc.offer.summary.customer")}
           {data.customer.name}
         </Text>
-        {data.executionDate ? (
+        {/* Dieselbe Zahl wie im Rest des Dokuments, nicht das rohe Feld. */}
+        {terminDate ? (
           <Text style={styles.summaryLine}>
             {t("doc.offer.summary.date")}
-            {formatDate(data.executionDate, locale)}
+            {formatDate(terminDate, locale)}
           </Text>
         ) : null}
         {data.pricing.hasRateItem ? (

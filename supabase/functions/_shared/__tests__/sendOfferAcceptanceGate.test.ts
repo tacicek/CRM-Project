@@ -36,7 +36,24 @@ describe("send-offer prüft das Annahmefenster", () => {
     // `heuteIso()` rechnet in UTC — `update_offer_by_token` entscheidet mit
     // CURRENT_DATE, und die Datenbank läuft in UTC. Ein lokaler Tag hier hiesse,
     // dass Tor und Datenbank sich kurz nach Mitternacht widersprechen.
-    expect(QUELLE).toContain("evaluateAcceptanceWindow(offer.valid_until, offer.service_date, heuteIso())");
+    expect(QUELLE).toContain("evaluateAcceptanceWindow(offer.valid_until, terminDate, heuteIso())");
+  });
+
+  it("rechnet mit DEM Termin, nicht mit dem rohen Feld", () => {
+    // Liegt die Leistung laut Positionen später als `offers.service_date`, darf
+    // die Frist nicht vom früheren Feld abgeleitet werden — sonst sperrt das Tor
+    // eine Offerte, die in Wahrheit noch offen ist.
+    expect(QUELLE).toContain('from "../_shared/offerTermin.ts"');
+    expect(QUELLE).toContain("const terminDate = resolveOfferTermin(terminItemsFromRows(items ?? []), offer.service_date)");
+    const termin = positionVon("const terminDate = resolveOfferTermin(");
+    const tor = positionVon("const annahme = evaluateAcceptanceWindow(");
+    expect(termin).toBeGreaterThan(-1);
+    expect(termin).toBeLessThan(tor);
+  });
+
+  it("die E-Mail nennt denselben Termin wie das PDF", () => {
+    expect(QUELLE).toContain("${formatDate(terminDate)}");
+    expect(QUELLE).not.toContain("${formatDate(offer.service_date)}");
   });
 
   it("bricht mit 422 ab und nennt die Frist, statt still weiterzusenden", () => {

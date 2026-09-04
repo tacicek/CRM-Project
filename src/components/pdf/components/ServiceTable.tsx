@@ -16,6 +16,7 @@ import {
 import { formatQuantityUnit } from "../utils/formatQuantityUnit";
 import { isFreeItem, itemAmountDisplay, toAmountBasis } from "@/lib/offerPricing";
 import { groupItemsByService, groupScheduled } from "@/lib/offerServiceType";
+import { groupTermin } from "../../../../supabase/functions/_shared/offerTermin.ts";
 import { documentI18nFor } from "@/i18n/documentLocale";
 import { getAppointmentLabel, getServiceLabel } from "@/i18n/domain";
 import { formatPercent } from "@/i18n/format";
@@ -666,7 +667,7 @@ export const ServiceTable = ({
   const bandDate = (group: (typeof groups)[number]): string | null => {
     if (!hasAnyGroupDate) return null;
     const sched = groupScheduled(group.items);
-    const date = sched?.date ?? data.executionDate;
+    const date = groupTermin(group.items, data.executionDate);
     if (!date) return null;
     const start = sched?.startTime?.slice(0, 5);
     const end = sched?.endTime?.slice(0, 5);

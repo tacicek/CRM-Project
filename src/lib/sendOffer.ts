@@ -6,6 +6,10 @@ import {
   evaluateAcceptanceWindow,
   heuteIso,
 } from "../../supabase/functions/_shared/offerAcceptanceWindow.ts";
+import {
+  resolveOfferTermin,
+  terminItemsFromRows,
+} from "../../supabase/functions/_shared/offerTermin.ts";
 import type { ReadinessFinding } from "../../supabase/functions/_shared/offerSendReadiness.ts";
 
 /**
@@ -82,13 +86,19 @@ export async function sendOffer({
   // Prüfung steht in `send-offer`; diese hier spart Weg und sagt es früher.
   const { data: fristZeile } = await supabase
     .from("offers")
-    .select("valid_until, service_date")
+    .select("valid_until, service_date, offer_items(service_type, scheduled_date)")
     .eq("id", offerId)
     .maybeSingle();
   if (fristZeile) {
+    // Der Termin, nicht das rohe Feld: tragen die Positionen ein späteres Datum,
+    // läuft die Zusage auch später ab. Dieselbe Regel wie PDF und Kundenseite.
+    const termin = resolveOfferTermin(
+      terminItemsFromRows(fristZeile.offer_items ?? []),
+      fristZeile.service_date,
+    );
     const fenster = evaluateAcceptanceWindow(
       fristZeile.valid_until,
-      fristZeile.service_date,
+      termin,
       heuteIso(),
     );
     if (!fenster.offen) {

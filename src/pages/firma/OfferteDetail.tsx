@@ -50,6 +50,11 @@ import { blockerListe } from "@/lib/offerSendBlockerText";
 import { parseSurcharges, sumSurchargeAmounts, validateSurcharges } from "@/lib/offerSurcharges";
 import { parseTimeEstimate } from "@/lib/offerTimeEstimate";
 import { parseOfferAgbSections } from "@/lib/offerAgbSections";
+import {
+  groupTermin,
+  resolveOfferTermin,
+  terminItemsFromRows,
+} from "../../../supabase/functions/_shared/offerTermin.ts";
 import { resolveDocumentLocale } from "@/i18n/documentLocale";
 import { localizedField } from "@/i18n/localizedField";
 import type { OfferAgbSection } from "@/components/pdf/types/offer.types";
@@ -457,12 +462,20 @@ const FirmaOfferteDetail = () => {
    * code read offer.time_estimate, an offer-level field that is never written, so the range
    * was always null and the firm saw only the min total for a blind offer.)
    */
+  /**
+    * Der Termin dieser Offerte — dieselbe Regel wie PDF, Kundenseite und E-Mail.
+    * Die Oberflaeche zeigte bisher `offer.service_date` roh; stand in den
+    * Positionen ein anderes Datum, sah der Bediener hier eine Zahl und der Kunde
+    * im PDF eine andere.
+    */
+  const terminDate = resolveOfferTermin(terminItemsFromRows(items), offer?.service_date ?? null);
+
   // Per-service date label for a group header — own value, fallback offer.service_date;
   // rendered only when at least one group carries its own date.
   const groupDateLabel = (group: { serviceType: string | null; items: OfferItem[] }): string | null => {
     if (!items.some((i) => i.scheduled_date)) return null;
     const sched = group.items.find((i) => i.scheduled_date);
-    const date = sched?.scheduled_date ?? offer?.service_date;
+    const date = groupTermin(terminItemsFromRows(group.items), offer?.service_date ?? null);
     if (!date) return null;
     const st = sched?.scheduled_start_time?.slice(0, 5);
     const et = sched?.scheduled_end_time?.slice(0, 5);
@@ -1070,7 +1083,10 @@ const FirmaOfferteDetail = () => {
                       <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs sm:text-sm text-muted-foreground">{t("offer.detail.execution")}</p>
-                        <p className="font-medium text-sm sm:text-base">{formatDate(offer.service_date)}</p>
+                        {/* Der Termin, den auch PDF, Kundenseite und E-Mail nennen. Das rohe
+                            Feld stand hier und wich von den Positionen ab, ohne dass es
+                            jemand sah. */}
+                        <p className="font-medium text-sm sm:text-base">{formatDate(terminDate)}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-2">
