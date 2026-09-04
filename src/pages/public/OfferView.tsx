@@ -49,6 +49,7 @@ import {
   heuteIso,
 } from "../../../supabase/functions/_shared/offerAcceptanceWindow.ts";
 import {
+  earliestTermin,
   groupTermin,
   resolveOfferTermin,
   terminItemsFromRows,
@@ -368,11 +369,12 @@ const PublicOfferView = () => {
     */
   const terminDate = resolveOfferTermin(terminItemsFromRows(items), offer?.service_date ?? null);
 
-  // Die Annahmefrist rechnet mit DEM Termin, nicht mit dem rohen Feld: liegt die
-  // Leistung laut Positionen spaeter, darf die Zusage nicht vorher ablaufen.
+  // Die Frist haengt am ERSTEN Arbeitstag, nicht an der Kopfzeile: bei Gruppen an
+  // verschiedenen Tagen nennt das Dokument keinen einzelnen Termin, eine Zusage
+  // nach Arbeitsbeginn waere aber trotzdem keine mehr.
   const annahmefenster = evaluateAcceptanceWindow(
     offer?.valid_until ?? null,
-    terminDate,
+    earliestTermin(terminItemsFromRows(items), offer?.service_date ?? null),
     heuteIso(),
   );
 

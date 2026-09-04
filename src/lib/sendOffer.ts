@@ -7,7 +7,7 @@ import {
   heuteIso,
 } from "../../supabase/functions/_shared/offerAcceptanceWindow.ts";
 import {
-  resolveOfferTermin,
+  earliestTermin,
   terminItemsFromRows,
 } from "../../supabase/functions/_shared/offerTermin.ts";
 import type { ReadinessFinding } from "../../supabase/functions/_shared/offerSendReadiness.ts";
@@ -90,9 +90,9 @@ export async function sendOffer({
     .eq("id", offerId)
     .maybeSingle();
   if (fristZeile) {
-    // Der Termin, nicht das rohe Feld: tragen die Positionen ein späteres Datum,
-    // läuft die Zusage auch später ab. Dieselbe Regel wie PDF und Kundenseite.
-    const termin = resolveOfferTermin(
+    // Der erste Arbeitstag, nicht das rohe Feld: tragen die Positionen ein
+    // späteres Datum, läuft die Zusage auch später ab.
+    const termin = earliestTermin(
       terminItemsFromRows(fristZeile.offer_items ?? []),
       fristZeile.service_date,
     );

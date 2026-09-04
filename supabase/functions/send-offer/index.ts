@@ -11,7 +11,7 @@ import {
   summariseReadiness,
 } from "../_shared/offerSendReadiness.ts";
 import { evaluateAcceptanceWindow, heuteIso } from "../_shared/offerAcceptanceWindow.ts";
-import { resolveOfferTermin, terminItemsFromRows } from "../_shared/offerTermin.ts";
+import { earliestTermin, resolveOfferTermin, terminItemsFromRows } from "../_shared/offerTermin.ts";
 import { resolveLocalizedRowField } from "../_shared/localizedRow.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
@@ -353,10 +353,15 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("offer_id", offerId)
       .order("position", { ascending: true });
 
-    // Der Termin dieser Offerte: Gruppendatum vor globalem Feld — dieselbe Regel,
-    // die auch das PDF und die Kundenseite drucken. Steht hier und nicht weiter
-    // oben, weil sie die Positionen braucht.
-    const terminDate = resolveOfferTermin(terminItemsFromRows(items ?? []), offer.service_date);
+    // Zwei Fragen, zwei Antworten, beide aus derselben Datei:
+    //   terminDate    — was das Dokument als DEN Termin nennen darf (die E-Mail
+    //                   nennt dieselbe Zahl wie das PDF; bei Gruppen an
+    //                   verschiedenen Tagen schweigt sie).
+    //   arbeitsbeginn — der erste Arbeitstag, an dem die Annahmefrist haengt.
+    // Steht hier und nicht weiter oben, weil beide die Positionen brauchen.
+    const terminItems = terminItemsFromRows(items ?? []);
+    const terminDate = resolveOfferTermin(terminItems, offer.service_date);
+    const arbeitsbeginn = earliestTermin(terminItems, offer.service_date);
 
     // ── Annahmefenster ─────────────────────────────────────────────────────────
     //
@@ -371,12 +376,12 @@ const handler = async (req: Request): Promise<Response> => {
     //
     // Hier steht die MASSGEBLICHE Prüfung. Der Browser prüft dasselbe vorher,
     // damit der Bediener es früher erfährt — vorbei kommt er hier nicht.
-    const annahme = evaluateAcceptanceWindow(offer.valid_until, terminDate, heuteIso());
+    const annahme = evaluateAcceptanceWindow(offer.valid_until, arbeitsbeginn, heuteIso());
     if (!annahme.offen) {
       logStep("Send blocked: acceptance window closed", {
         offerId,
         deadline: annahme.frist,
-        termin: terminDate,
+        arbeitsbeginn,
         validUntil: offer.valid_until,
       });
       return new Response(

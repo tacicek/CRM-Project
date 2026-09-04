@@ -57,7 +57,7 @@ import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } f
 import { sammleOfferteRebaseFelder } from "@/lib/offerRebaseFelder";
 import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
 import { AnnahmefristHinweis } from "@/components/offerte/AnnahmefristHinweis";
-import { resolveOfferTermin } from "../../../supabase/functions/_shared/offerTermin.ts";
+import { earliestTermin } from "../../../supabase/functions/_shared/offerTermin.ts";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useParams } from "react-router-dom";
@@ -743,11 +743,11 @@ const FirmaOfferteBearbeiten = () => {
     setTimeout(() => handleSaveRef.current(pendingSpellSaveRef.current), 0);
   }, []);
 
-  // Der Termin, den dieses Formular gerade beschreibt: das Gruppendatum, wenn
-  // eines gesetzt ist, sonst das globale Feld. Dieselbe Regel, die das PDF
-  // druckt — sonst nennte der Fristhinweis eine Zahl, die im Dokument nicht
-  // vorkommt.
-  const terminDate = resolveOfferTermin(
+  // Der erste Arbeitstag dieser Offerte: das Gruppendatum, wenn eines gesetzt
+  // ist, sonst das globale Feld. Die Annahmefrist haengt daran, nicht am rohen
+  // Feld — sonst nennte der Hinweis eine Frist, die fuer das gedruckte Dokument
+  // gar nicht gilt.
+  const arbeitsbeginn = earliestTermin(
     items.map((it) => ({
       serviceType: it.serviceType ?? null,
       scheduledDate: groupDates[serviceGroupKey(it.serviceType)]?.date || null,
@@ -1193,7 +1193,7 @@ const FirmaOfferteBearbeiten = () => {
                       )}
                     </div>
                   </div>
-                  <AnnahmefristHinweis terminDate={terminDate} validUntil={validUntil} />
+                  <AnnahmefristHinweis arbeitsbeginn={arbeitsbeginn} validUntil={validUntil} />
                   {/* Startzeit/Endzeit — customer-facing, rendered on the PDF next to the
                       Ausführungsdatum (offers.service_start_time / service_end_time). */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">

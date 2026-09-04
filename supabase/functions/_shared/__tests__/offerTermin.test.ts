@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  earliestTermin,
   groupTermin,
   hasGroupTermine,
   resolveOfferTermin,
@@ -75,5 +76,33 @@ describe("resolveOfferTermin", () => {
       resolveOfferTermin([pos(" Umzug ", "2026-10-02"), pos("umzug")], "2026-09-04"),
     ).toBe("2026-10-02");
     expect(resolveOfferTermin([pos("", "2026-10-02"), pos(null)], "2026-09-04")).toBe("2026-10-02");
+  });
+});
+
+describe("earliestTermin — wann fängt die Arbeit an?", () => {
+  it("ohne Gruppendaten gilt das globale Feld", () => {
+    expect(earliestTermin([pos("umzug")], "2026-09-04")).toBe("2026-09-04");
+    expect(earliestTermin([], "2026-09-04")).toBe("2026-09-04");
+    expect(earliestTermin([pos("umzug")], null)).toBeNull();
+  });
+
+  it("eine Gruppe mit eigenem Datum schlägt das globale Feld", () => {
+    expect(earliestTermin([pos("umzug", "2026-10-02")], "2026-09-04")).toBe("2026-10-02");
+  });
+
+  it("bei mehreren Tagen der früheste — anders als die Kopfzeile, die schweigt", () => {
+    const items = [pos("umzug", "2026-10-05"), pos("reinigung", "2026-10-02")];
+    expect(resolveOfferTermin(items, "2026-09-04")).toBeNull();
+    expect(earliestTermin(items, "2026-09-04")).toBe("2026-10-02");
+  });
+
+  it("eine Gruppe ohne eigenes Datum zählt mit ihrem Rückfall mit", () => {
+    expect(earliestTermin([pos("umzug", "2026-10-02"), pos("reinigung")], "2026-09-04")).toBe(
+      "2026-09-04",
+    );
+  });
+
+  it("ohne globales Feld bleibt das Gruppendatum übrig (Offerte 10092)", () => {
+    expect(earliestTermin([pos("umzug", "2026-11-30"), pos("reinigung")], null)).toBe("2026-11-30");
   });
 });
