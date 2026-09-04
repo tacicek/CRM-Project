@@ -84,7 +84,40 @@ export const resolveOfferTermin = (
   items: ReadonlyArray<TerminItem>,
   executionDate: string | null | undefined,
 ): string | null => {
-  if (items.length === 0) return executionDate ?? null;
+  const daten = effektiveGruppendaten(items, executionDate);
+  if (daten.length === 1) return daten[0];
+  if (daten.length === 0) return executionDate ?? null;
+  return null;
+};
+
+/**
+ * Wann FÄNGT die Arbeit an? Der früheste der Gruppentage.
+ *
+ * Das ist eine andere Frage als die oben, und sie braucht immer eine Antwort:
+ * ein Auftrag hat ein Datum, und eine Zusage nach dem ersten Arbeitstag ist
+ * keine Zusage mehr. Wo die Kopfzeile schweigen darf, muss hier der früheste
+ * Tag herauskommen.
+ *
+ * `update_offer_by_token` rechnet dasselbe in SQL — die Annahmefrist und das
+ * Datum des Auftrags. SQL kann diese Datei nicht importieren; die Doppelung ist
+ * bewusst und steht in der Migration mit demselben Wortlaut.
+ */
+export const earliestTermin = (
+  items: ReadonlyArray<TerminItem>,
+  executionDate: string | null | undefined,
+): string | null => {
+  const daten = effektiveGruppendaten(items, executionDate);
+  if (daten.length === 0) return executionDate ?? null;
+  // ISO-Datumsstrings sind lexikographisch sortierbar.
+  return [...daten].sort()[0];
+};
+
+/** Je Servicegruppe ein Tag: ihr eigener, sonst der globale. Ohne Dubletten. */
+const effektiveGruppendaten = (
+  items: ReadonlyArray<TerminItem>,
+  executionDate: string | null | undefined,
+): string[] => {
+  if (items.length === 0) return [];
 
   const proGruppe = new Map<string | null, TerminItem[]>();
   for (const item of items) {
@@ -99,7 +132,5 @@ export const resolveOfferTermin = (
     const d = groupTermin(gruppe, executionDate);
     if (d) daten.add(d);
   }
-
-  if (daten.size === 1) return [...daten][0];
-  return null;
+  return [...daten];
 };

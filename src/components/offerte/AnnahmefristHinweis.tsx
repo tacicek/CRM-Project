@@ -32,21 +32,21 @@ const KNAPP_AB_TAGEN = 7;
 
 interface AnnahmefristHinweisProps {
   /**
-   * DER Termin dieser Offerte, nicht das rohe Feld: tragen die Positionen ein
-   * eigenes Datum, gilt dieses. Die Seite löst es mit `resolveOfferTermin` auf —
-   * dieselbe Regel, die PDF, Kundenseite und E-Mail drucken. Rechnete der
-   * Hinweis mit dem globalen Feld, nennte er eine Frist, die für das gedruckte
-   * Dokument gar nicht gilt.
+   * Der ERSTE Arbeitstag dieser Offerte (`earliestTermin`), nicht das rohe Feld
+   * und nicht die Kopfzeile des Dokuments: die Annahmefrist endet am Tag davor,
+   * und eine Zusage nach Arbeitsbeginn ist keine mehr. Bei Gruppen an
+   * verschiedenen Tagen schweigt die Kopfzeile — hier muss trotzdem ein Tag
+   * herauskommen, sonst liefe die Frist ins Leere.
    */
-  terminDate: string | null;
+  arbeitsbeginn: string | null;
   /** ISO `YYYY-MM-DD` oder "" */
   validUntil: string;
 }
 
-export const AnnahmefristHinweis = ({ terminDate, validUntil }: AnnahmefristHinweisProps) => {
+export const AnnahmefristHinweis = ({ arbeitsbeginn, validUntil }: AnnahmefristHinweisProps) => {
   const t = useT();
   const heute = heuteIso();
-  const { frist, offen } = evaluateAcceptanceWindow(validUntil || null, terminDate || null, heute);
+  const { frist, offen } = evaluateAcceptanceWindow(validUntil || null, arbeitsbeginn || null, heute);
 
   // Ohne beide Daten ist die Annahme unbefristet — dann gibt es nichts zu sagen.
   if (frist === null) return null;

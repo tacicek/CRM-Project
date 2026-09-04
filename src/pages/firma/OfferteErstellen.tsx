@@ -58,7 +58,7 @@ import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } f
 import { sammleOfferteRebaseFelder, type KatalogHerkunft } from "@/lib/offerRebaseFelder";
 import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
 import { AnnahmefristHinweis } from "@/components/offerte/AnnahmefristHinweis";
-import { resolveOfferTermin } from "../../../supabase/functions/_shared/offerTermin.ts";
+import { earliestTermin } from "../../../supabase/functions/_shared/offerTermin.ts";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { zeileGehoertZumMandanten } from "@/lib/aktiverMandant";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
@@ -1180,11 +1180,11 @@ const FirmaOfferteErstellen = () => {
   }, []);
 
 
-  // Der Termin, den dieses Formular gerade beschreibt: das Gruppendatum, wenn
-  // eines gesetzt ist, sonst das globale Feld. Dieselbe Regel, die das PDF
-  // druckt — sonst nennte der Fristhinweis eine Zahl, die im Dokument nicht
-  // vorkommt.
-  const terminDate = resolveOfferTermin(
+  // Der erste Arbeitstag dieser Offerte: das Gruppendatum, wenn eines gesetzt
+  // ist, sonst das globale Feld. Die Annahmefrist haengt daran, nicht am rohen
+  // Feld — sonst nennte der Hinweis eine Frist, die fuer das gedruckte Dokument
+  // gar nicht gilt.
+  const arbeitsbeginn = earliestTermin(
     items.map((it) => ({
       serviceType: it.serviceType ?? null,
       scheduledDate: groupDates[serviceGroupKey(it.serviceType)]?.date || null,
@@ -2014,7 +2014,7 @@ const FirmaOfferteErstellen = () => {
                       )}
                     </div>
                   </div>
-                  <AnnahmefristHinweis terminDate={terminDate} validUntil={validUntil} />
+                  <AnnahmefristHinweis arbeitsbeginn={arbeitsbeginn} validUntil={validUntil} />
                   {/* Startzeit/Endzeit — customer-facing, rendered on the PDF next to the
                       Ausführungsdatum. Bound to offerDetails.service*Time (single source of
                       truth). Kept visible here rather than in the collapsed advanced panel. */}

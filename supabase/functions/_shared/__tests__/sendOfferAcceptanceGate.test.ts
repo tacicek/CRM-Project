@@ -36,7 +36,7 @@ describe("send-offer prüft das Annahmefenster", () => {
     // `heuteIso()` rechnet in UTC — `update_offer_by_token` entscheidet mit
     // CURRENT_DATE, und die Datenbank läuft in UTC. Ein lokaler Tag hier hiesse,
     // dass Tor und Datenbank sich kurz nach Mitternacht widersprechen.
-    expect(QUELLE).toContain("evaluateAcceptanceWindow(offer.valid_until, terminDate, heuteIso())");
+    expect(QUELLE).toContain("evaluateAcceptanceWindow(offer.valid_until, arbeitsbeginn, heuteIso())");
   });
 
   it("rechnet mit DEM Termin, nicht mit dem rohen Feld", () => {
@@ -44,8 +44,8 @@ describe("send-offer prüft das Annahmefenster", () => {
     // die Frist nicht vom früheren Feld abgeleitet werden — sonst sperrt das Tor
     // eine Offerte, die in Wahrheit noch offen ist.
     expect(QUELLE).toContain('from "../_shared/offerTermin.ts"');
-    expect(QUELLE).toContain("const terminDate = resolveOfferTermin(terminItemsFromRows(items ?? []), offer.service_date)");
-    const termin = positionVon("const terminDate = resolveOfferTermin(");
+    expect(QUELLE).toContain("const arbeitsbeginn = earliestTermin(terminItems, offer.service_date)");
+    const termin = positionVon("const arbeitsbeginn = earliestTermin(");
     const tor = positionVon("const annahme = evaluateAcceptanceWindow(");
     expect(termin).toBeGreaterThan(-1);
     expect(termin).toBeLessThan(tor);
@@ -114,8 +114,8 @@ describe("Das Formular zeigt die Frist, statt sie erst beim Senden zu nennen", (
     // gedruckte Dokument gar nicht gilt, sobald die Positionen ein eigenes
     // Datum tragen.
     for (const seite of seiten) {
-      expect(seite).toContain("<AnnahmefristHinweis terminDate={terminDate} validUntil={validUntil} />");
-      expect(seite).toContain("const terminDate = resolveOfferTermin(");
+      expect(seite).toContain("<AnnahmefristHinweis arbeitsbeginn={arbeitsbeginn} validUntil={validUntil} />");
+      expect(seite).toContain("const arbeitsbeginn = earliestTermin(");
       expect(seite).toContain('_shared/offerTermin.ts"');
     }
   });
