@@ -58,6 +58,7 @@ import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } f
 import { sammleOfferteRebaseFelder, type KatalogHerkunft } from "@/lib/offerRebaseFelder";
 import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
 import { AnnahmefristHinweis } from "@/components/offerte/AnnahmefristHinweis";
+import { resolveOfferTermin } from "../../../supabase/functions/_shared/offerTermin.ts";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { zeileGehoertZumMandanten } from "@/lib/aktiverMandant";
 import { normalizeServiceTypeForAgb } from "@/lib/normalizeServiceType";
@@ -1178,6 +1179,19 @@ const FirmaOfferteErstellen = () => {
     setTimeout(() => handleSaveRef.current(pendingSpellSaveRef.current), 0);
   }, []);
 
+
+  // Der Termin, den dieses Formular gerade beschreibt: das Gruppendatum, wenn
+  // eines gesetzt ist, sonst das globale Feld. Dieselbe Regel, die das PDF
+  // druckt — sonst nennte der Fristhinweis eine Zahl, die im Dokument nicht
+  // vorkommt.
+  const terminDate = resolveOfferTermin(
+    items.map((it) => ({
+      serviceType: it.serviceType ?? null,
+      scheduledDate: groupDates[serviceGroupKey(it.serviceType)]?.date || null,
+    })),
+    serviceDate || null,
+  );
+
   const handleSave = async (sendAfterSave: boolean = false) => {
     if (!company?.id || !lead || !leadId) return;
 
@@ -2000,7 +2014,7 @@ const FirmaOfferteErstellen = () => {
                       )}
                     </div>
                   </div>
-                  <AnnahmefristHinweis serviceDate={serviceDate} validUntil={validUntil} />
+                  <AnnahmefristHinweis terminDate={terminDate} validUntil={validUntil} />
                   {/* Startzeit/Endzeit — customer-facing, rendered on the PDF next to the
                       Ausführungsdatum. Bound to offerDetails.service*Time (single source of
                       truth). Kept visible here rather than in the collapsed advanced panel. */}

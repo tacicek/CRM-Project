@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from "@react-pdf/renderer";
 import { COLORS, FONT_SIZES, SPACING } from "../styles/constants";
 import { OfferData } from "../types/offer.types";
 import { formatDate } from "../utils/formatters";
+import { resolveOfferTermin } from "../../../../supabase/functions/_shared/offerTermin.ts";
 import { lightenHex } from "../utils/colors";
 import { getServiceLayout } from "../utils/serviceLayout";
 import { documentI18nFor } from "@/i18n/documentLocale";
@@ -51,6 +52,7 @@ interface TitleSectionProps {
 export const TitleSection = ({ data }: TitleSectionProps) => {
   const { t, locale } = documentI18nFor(data.locale);
   const layout = getServiceLayout(data.service.type, locale);
+  const terminDate = resolveOfferTermin(data.items ?? [], data.executionDate);
   const serviceLabel = getServiceLabel(data.service.type, locale);
   const route =
     layout.useRouteInTitle && data.service.fromCity && data.service.toCity
@@ -73,11 +75,13 @@ export const TitleSection = ({ data }: TitleSectionProps) => {
         <Text style={styles.titleSubtext}>{data.offerTitle}</Text>
       ) : null}
       <View style={[styles.detailsBox, { backgroundColor: primaryLight }]}>
-        {data.executionDate ? (
+        {/* Der Termin der Offerte — dieselbe Regel wie Baender und Adressblock.
+            Das rohe `executionDate` wuerde die Gruppendaten uebergehen. */}
+        {terminDate ? (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>{`${layout.executionDateLabel}:`}</Text>
             <Text style={styles.detailValue}>
-              {formatDate(data.executionDate, locale)}{timeLabel ? `  |  ${timeLabel}` : ""}
+              {formatDate(terminDate, locale)}{timeLabel ? `  |  ${timeLabel}` : ""}
             </Text>
           </View>
         ) : null}

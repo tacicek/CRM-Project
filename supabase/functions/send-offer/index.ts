@@ -11,6 +11,7 @@ import {
   summariseReadiness,
 } from "../_shared/offerSendReadiness.ts";
 import { evaluateAcceptanceWindow, heuteIso } from "../_shared/offerAcceptanceWindow.ts";
+import { resolveOfferTermin, terminItemsFromRows } from "../_shared/offerTermin.ts";
 import { resolveLocalizedRowField } from "../_shared/localizedRow.ts";
 import { escapeHtml } from "../_shared/escapeHtml.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
@@ -345,6 +346,18 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Get offer items
+    const { data: items } = await supabase
+      .from("offer_items")
+      .select("*")
+      .eq("offer_id", offerId)
+      .order("position", { ascending: true });
+
+    // Der Termin dieser Offerte: Gruppendatum vor globalem Feld — dieselbe Regel,
+    // die auch das PDF und die Kundenseite drucken. Steht hier und nicht weiter
+    // oben, weil sie die Positionen braucht.
+    const terminDate = resolveOfferTermin(terminItemsFromRows(items ?? []), offer.service_date);
+
     // ── Annahmefenster ─────────────────────────────────────────────────────────
     //
     // Eine Offerte, die der Kunde am Tag des Empfangs schon nicht mehr annehmen
@@ -358,12 +371,12 @@ const handler = async (req: Request): Promise<Response> => {
     //
     // Hier steht die MASSGEBLICHE Prüfung. Der Browser prüft dasselbe vorher,
     // damit der Bediener es früher erfährt — vorbei kommt er hier nicht.
-    const annahme = evaluateAcceptanceWindow(offer.valid_until, offer.service_date, heuteIso());
+    const annahme = evaluateAcceptanceWindow(offer.valid_until, terminDate, heuteIso());
     if (!annahme.offen) {
       logStep("Send blocked: acceptance window closed", {
         offerId,
         deadline: annahme.frist,
-        serviceDate: offer.service_date,
+        termin: terminDate,
         validUntil: offer.valid_until,
       });
       return new Response(
@@ -372,12 +385,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get offer items
-    const { data: items } = await supabase
-      .from("offer_items")
-      .select("*")
-      .eq("offer_id", offerId)
-      .order("position", { ascending: true });
 
     // Get Leistungsübersicht
     const { data: leistungsuebersicht } = await supabase
@@ -867,7 +874,7 @@ const handler = async (req: Request): Promise<Response> => {
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; border-collapse: collapse;">
               <tr>
                 <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 50%;">${tCustomer("email.offer.serviceDate")}:</td>
-                <td style="padding: 6px 0; color: #1f2937; font-weight: 700; text-align: right;">${formatDate(offer.service_date)}</td>
+                <td style="padding: 6px 0; color: #1f2937; font-weight: 700; text-align: right;">${formatDate(terminDate)}</td>
               </tr>
               <tr>
                 <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 50%;">${tCustomer("email.offer.validUntil")}:</td>

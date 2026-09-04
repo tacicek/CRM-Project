@@ -4,6 +4,7 @@ import { OfferData, AddressDetails } from "../types/offer.types";
 import { getServiceLayout } from "../utils/serviceLayout";
 import { formatFloorLabel } from "@/lib/floorUtils";
 import { formatDate } from "../utils/formatters";
+import { resolveOfferTermin } from "../../../../supabase/functions/_shared/offerTermin.ts";
 import { documentI18nFor } from "@/i18n/documentLocale";
 import { getYesNo } from "@/i18n/domain";
 import type { Locale } from "@/i18n/locale";
@@ -143,11 +144,13 @@ export const AddressComparison = ({ data }: AddressComparisonProps) => {
   // Meta cells — only numeric/defined values (rooms: use == null, NOT !== null to catch undefined too)
   const metaCells: { label: string; value: string; unit?: string }[] = [];
 
-  // Per-service dates: when any item group carries its own date, the per-group band in
-  // the ServiceTable shows the dates — the global TERMIN cell would repeat the first one
-  // under a generic label, so it is suppressed.
-  const hasGroupDates = (data.items ?? []).some((it) => it.scheduledDate);
-  if (data.executionDate && !hasGroupDates) {
+  // Der Termin dieser Offerte — eine Regel fuer alle Vorlagen. Frueher stand hier
+  // «globales Feld, aber nur wenn keine Gruppendaten da sind»: bei EINER Gruppe mit
+  // eigenem Datum verschwand die Zelle, statt das richtige Datum zu zeigen. Sind die
+  // Gruppen an verschiedenen Tagen, gibt es weiterhin keine einzelne Zahl — dann
+  // schweigt die Zelle und die Baender nennen es je Gruppe.
+  const terminDate = resolveOfferTermin(data.items ?? [], data.executionDate);
+  if (terminDate) {
     // Time below the date (old template parity: "01.07.2026 08:00 Uhr").
     // DB time columns may carry seconds ("08:00:00") — display as HH:MM.
     const hhmm = (v?: string | null) => (v ? v.slice(0, 5) : null);
@@ -161,7 +164,7 @@ export const AddressComparison = ({ data }: AddressComparisonProps) => {
           : undefined;
     metaCells.push({
       label: t("doc.address.appointment"),
-      value: formatDate(data.executionDate, locale),
+      value: formatDate(terminDate, locale),
       unit: time,
     });
   }
