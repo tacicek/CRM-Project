@@ -109,9 +109,14 @@ describe("Das Formular zeigt die Frist, statt sie erst beim Senden zu nennen", (
     expect(hinweis).toContain("evaluateAcceptanceWindow(");
   });
 
-  it("beide Formulare zeigen ihn", () => {
+  it("beide Formulare zeigen ihn — und zwar zum aufgelösten Termin", () => {
+    // `serviceDate` roh hiesse: der Hinweis nennt eine Frist, die für das
+    // gedruckte Dokument gar nicht gilt, sobald die Positionen ein eigenes
+    // Datum tragen.
     for (const seite of seiten) {
-      expect(seite).toContain("<AnnahmefristHinweis serviceDate={serviceDate} validUntil={validUntil} />");
+      expect(seite).toContain("<AnnahmefristHinweis terminDate={terminDate} validUntil={validUntil} />");
+      expect(seite).toContain("const terminDate = resolveOfferTermin(");
+      expect(seite).toContain('_shared/offerTermin.ts"');
     }
   });
 

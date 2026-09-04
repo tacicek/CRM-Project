@@ -31,16 +31,22 @@ import {
 const KNAPP_AB_TAGEN = 7;
 
 interface AnnahmefristHinweisProps {
-  /** ISO `YYYY-MM-DD` oder "" */
-  serviceDate: string;
+  /**
+   * DER Termin dieser Offerte, nicht das rohe Feld: tragen die Positionen ein
+   * eigenes Datum, gilt dieses. Die Seite löst es mit `resolveOfferTermin` auf —
+   * dieselbe Regel, die PDF, Kundenseite und E-Mail drucken. Rechnete der
+   * Hinweis mit dem globalen Feld, nennte er eine Frist, die für das gedruckte
+   * Dokument gar nicht gilt.
+   */
+  terminDate: string | null;
   /** ISO `YYYY-MM-DD` oder "" */
   validUntil: string;
 }
 
-export const AnnahmefristHinweis = ({ serviceDate, validUntil }: AnnahmefristHinweisProps) => {
+export const AnnahmefristHinweis = ({ terminDate, validUntil }: AnnahmefristHinweisProps) => {
   const t = useT();
   const heute = heuteIso();
-  const { frist, offen } = evaluateAcceptanceWindow(validUntil || null, serviceDate || null, heute);
+  const { frist, offen } = evaluateAcceptanceWindow(validUntil || null, terminDate || null, heute);
 
   // Ohne beide Daten ist die Annahme unbefristet — dann gibt es nichts zu sagen.
   if (frist === null) return null;
