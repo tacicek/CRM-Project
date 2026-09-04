@@ -3,8 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateInputCH } from "@/components/ui/date-input-ch";
-import { TimeInputCH } from "@/components/ui/time-input-ch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -56,7 +54,7 @@ import { fetchCompanyById } from "@/lib/fetchCompanyById";
 import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } from "@/lib/offerLanguageRebase";
 import { sammleOfferteRebaseFelder } from "@/lib/offerRebaseFelder";
 import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
-import { AnnahmefristHinweis } from "@/components/offerte/AnnahmefristHinweis";
+import { OfferteDatumsfelder } from "@/components/offerte/OfferteDatumsfelder";
 import { earliestTermin } from "../../../supabase/functions/_shared/offerTermin.ts";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -171,6 +169,9 @@ const FirmaOfferteBearbeiten = () => {
   const [description, setDescription] = useState("");
   const [serviceDate, setServiceDate] = useState("");
   const [serviceStartTime, setServiceStartTime] = useState("");
+  // `offers.created_at` — im PDF-Kopf das «Datum». Nur zum Anzeigen: es ist
+  // keine Entscheidung, aber wer es sucht, soll es hier finden.
+  const [offertendatum, setOffertendatum] = useState<string | null>(null);
   const [serviceEndTime, setServiceEndTime] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [vatRate, setVatRate] = useState(8.1);
@@ -403,6 +404,7 @@ const FirmaOfferteBearbeiten = () => {
         setDescription(offerData.description || "");
         setServiceDate(offerData.service_date || "");
         setServiceStartTime((offerData.service_start_time || "").slice(0, 5));
+        setOffertendatum(offerData.created_at ? String(offerData.created_at).slice(0, 10) : null);
         setServiceEndTime((offerData.service_end_time || "").slice(0, 5));
         setValidUntil(offerData.valid_until || "");
         setVatRate(offerData.vat_rate || 8.1);
@@ -1152,66 +1154,20 @@ const FirmaOfferteBearbeiten = () => {
                       className="text-sm"
                     />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs sm:text-sm">{t("offer.form.field.serviceDate")}</Label>
-                      <DateInputCH
-                        value={serviceDate}
-                        onChange={setServiceDate}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs sm:text-sm">{t("offer.form.field.validUntil")}</Label>
-                        {validUntil && (
-                          <button
-                            type="button"
-                            onClick={() => setValidUntil("")}
-                            className="text-[10px] text-muted-foreground hover:text-destructive"
-                          >
-                            {t("common.remove")}
-                          </button>
-                        )}
-                      </div>
-                      {validUntil ? (
-                        <DateInputCH
-                          value={validUntil}
-                          onChange={setValidUntil}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const d = new Date();
-                            d.setDate(d.getDate() + 30);
-                            setValidUntil(d.toISOString().split("T")[0]);
-                          }}
-                          className="w-full h-9 sm:h-10 border border-dashed border-input rounded-md text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1"
-                        >
-                          {t("offer.form.validUntil.add")}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <AnnahmefristHinweis arbeitsbeginn={arbeitsbeginn} validUntil={validUntil} />
-                  {/* Startzeit/Endzeit — customer-facing, rendered on the PDF next to the
-                      Ausführungsdatum (offers.service_start_time / service_end_time). */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs sm:text-sm">{t("offer.details.field.startTime")}</Label>
-                      <TimeInputCH
-                        value={serviceStartTime}
-                        onChange={setServiceStartTime}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs sm:text-sm">{t("offer.details.field.endTime")}</Label>
-                      <TimeInputCH
-                        value={serviceEndTime}
-                        onChange={setServiceEndTime}
-                      />
-                    </div>
-                  </div>
+                  <OfferteDatumsfelder
+                    serviceType={items.find((it) => it.serviceType)?.serviceType ?? null}
+                    offertendatum={offertendatum}
+                    wunschtermin={null}
+                    serviceDate={serviceDate}
+                    onServiceDateChange={setServiceDate}
+                    validUntil={validUntil}
+                    onValidUntilChange={setValidUntil}
+                    startTime={serviceStartTime}
+                    onStartTimeChange={setServiceStartTime}
+                    endTime={serviceEndTime}
+                    onEndTimeChange={setServiceEndTime}
+                    arbeitsbeginn={arbeitsbeginn}
+                  />
                 </CardContent>
               </Card>
 

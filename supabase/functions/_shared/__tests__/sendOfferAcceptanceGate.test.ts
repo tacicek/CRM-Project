@@ -96,10 +96,10 @@ describe("Der Browser-Weg benutzt dieselbe Regel", () => {
 });
 
 describe("Das Formular zeigt die Frist, statt sie erst beim Senden zu nennen", () => {
-  const hinweis = readFileSync(
-    join(__dirname, "..", "..", "..", "..", "src", "components", "offerte", "AnnahmefristHinweis.tsx"),
-    "utf8",
-  );
+  const komponente = (name: string) =>
+    readFileSync(join(__dirname, "..", "..", "..", "..", "src", "components", "offerte", name), "utf8");
+  const hinweis = komponente("AnnahmefristHinweis.tsx");
+  const block = komponente("OfferteDatumsfelder.tsx");
   const seiten = ["OfferteErstellen.tsx", "OfferteBearbeiten.tsx"].map((datei) =>
     readFileSync(join(__dirname, "..", "..", "..", "..", "src", "pages", "firma", datei), "utf8"),
   );
@@ -109,12 +109,16 @@ describe("Das Formular zeigt die Frist, statt sie erst beim Senden zu nennen", (
     expect(hinweis).toContain("evaluateAcceptanceWindow(");
   });
 
-  it("beide Formulare zeigen ihn — und zwar zum aufgelösten Termin", () => {
-    // `serviceDate` roh hiesse: der Hinweis nennt eine Frist, die für das
-    // gedruckte Dokument gar nicht gilt, sobald die Positionen ein eigenes
-    // Datum tragen.
+  it("der gemeinsame Datumsblock zeigt ihn", () => {
+    expect(block).toContain("<AnnahmefristHinweis arbeitsbeginn={arbeitsbeginn} validUntil={validUntil} />");
+  });
+
+  it("beide Formulare benutzen denselben Block und geben den Arbeitsbeginn hinein", () => {
+    // Zwei eigene Fassungen des Datumsbereichs waren der Anfang dieses ganzen
+    // Fehlers: die eine zeigte ein Feld, das die andere nicht hatte.
     for (const seite of seiten) {
-      expect(seite).toContain("<AnnahmefristHinweis arbeitsbeginn={arbeitsbeginn} validUntil={validUntil} />");
+      expect(seite).toContain("<OfferteDatumsfelder");
+      expect(seite).toContain("arbeitsbeginn={arbeitsbeginn}");
       expect(seite).toContain("const arbeitsbeginn = earliestTermin(");
       expect(seite).toContain('_shared/offerTermin.ts"');
     }
@@ -127,5 +131,32 @@ describe("Das Formular zeigt die Frist, statt sie erst beim Senden zu nennen", (
       expect(seite).not.toContain("isValidUntilShorterThanSevenDays");
       expect(seite).not.toContain("offer.form.validUntil.shortWarning");
     }
+  });
+});
+
+describe("Der Datumsblock trennt Dokument und Arbeit", () => {
+  const block = readFileSync(
+    join(__dirname, "..", "..", "..", "..", "src", "components", "offerte", "OfferteDatumsfelder.tsx"),
+    "utf8",
+  );
+
+  it("das Offertendatum ist sichtbar, aber kein Eingabefeld", () => {
+    // Es war unsichtbar, weil es automatisch entsteht. Wer es suchte, fand das
+    // Terminfeld und trug den heutigen Tag ein — sechsmal in Produktion.
+    expect(block).toContain("offer.form.field.offertendatum");
+    // Genau zwei Datumseingaben: Termin und «Gültig bis». Das Offertendatum ist
+    // Text, keine Entscheidung — es entsteht beim Speichern.
+    expect(block.match(/<DateInputCH/g) ?? []).toHaveLength(2);
+    expect(block).toContain("isoToDisplay(offertendatum)");
+  });
+
+  it("das Terminfeld trägt das Wort, das auch im PDF steht", () => {
+    expect(block).toContain("getAppointmentLabel(serviceType, locale)");
+    expect(block).toContain("{terminLabel}");
+  });
+
+  it("der Wunschtermin steht daneben und lässt sich zurückholen", () => {
+    expect(block).toContain("offer.form.wunschtermin.abweichend");
+    expect(block).toContain("onServiceDateChange(wunschtermin)");
   });
 });
