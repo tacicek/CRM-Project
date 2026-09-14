@@ -4466,6 +4466,8 @@ export type Database = {
       offers: {
         Row: {
           accepted_at: string | null
+          accepted_by: string | null
+          accepted_via: string | null
           access_token: string
           agb_accepted_at: string | null
           agb_ip_address: string | null
@@ -4571,6 +4573,8 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          accepted_by?: string | null
+          accepted_via?: string | null
           access_token?: string
           agb_accepted_at?: string | null
           agb_ip_address?: string | null
@@ -4676,6 +4680,8 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          accepted_by?: string | null
+          accepted_via?: string | null
           access_token?: string
           agb_accepted_at?: string | null
           agb_ip_address?: string | null
@@ -7030,6 +7036,7 @@ export type Database = {
       }
     }
     Functions: {
+      accept_offer_manually: { Args: { p_offer_id: string }; Returns: string }
       activate_manual_import: {
         Args: { p_admin_id: string; p_company_id: string }
         Returns: Json
@@ -7860,6 +7867,11 @@ export type Database = {
       map_auftrag_to_appointment_status: {
         Args: { p_status: string }
         Returns: Database["public"]["Enums"]["appointment_status"]
+      }
+      offer_arbeitsbeginn: { Args: { p_offer_id: string }; Returns: string }
+      perform_offer_acceptance: {
+        Args: { p_offer_id: string; p_via: string }
+        Returns: string
       }
       replace_offer_items: {
         Args: { p_items: Json; p_offer_id: string }

@@ -90,7 +90,7 @@ const index: WikiSearchIndex = {
   "offerte-detail": {
     title: "Die Offerte im Detail",
     summary: "Positionen, Verlauf, Kundenlink und die Aktionen je nach Status.",
-    keywords: ["offerte detail", "kundenlink", "aktivitäten", "angesehen", "vorschau", "auftrag erstellen", "pdf"],
+    keywords: ["offerte detail", "kundenlink", "aktivitäten", "angesehen", "vorschau", "auftrag erstellen", "pdf", "manuell annehmen", "telefonisch zugesagt", "zusage erfassen", "auftragsbestätigung"],
   },
   "offerte-bearbeiten": {
     title: "Eine Offerte bearbeiten",

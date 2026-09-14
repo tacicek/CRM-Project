@@ -513,6 +513,21 @@
       ],
       "public_data_exposure": "none"
     },
+    "send-offer-acceptance-confirmation": {
+      "model": "capability-token",
+      "tenant_derivation": "Offerte aus der Zeile (offerId); Nachweis entweder offers.access_token (Offertenseite) ODER Benutzer-JWT + Mitgliedschaft in offers.company_id (Firma, manuelle Zusage), beides dreiwertig in _shared/offerAcceptanceConfirmationGuard.ts",
+      "intended_deployment": "not-deployed",
+      "methods": [
+        "POST",
+        "OPTIONS"
+      ],
+      "public_data_exposure": "none",
+      "exceptions": {
+        "capability-token-validates-a-token": "Der Tokenvergleich (`tokensEqual(offer.access_token, accessToken)`) steht im Guard-Modul, nicht im Handler — deshalb sieht das Signal ihn nicht. Getestet in _shared/__tests__/offerAcceptanceConfirmationGuard.test.ts (falsches Token = unbekannte Offerte = fremde Firma, gleiche Antwort).",
+        "service-role-needs-tenant-boundary": "Die Mandantengrenze ist die Offertenzeile: Token der Zeile oder Mitgliedschaft in deren company_id, geprueft im Guard-Modul vor jedem Geheimnis und Versand. Empfaenger, Sprache und Inhalt kommen nur aus der Zeile; je Offerte hoechstens eine gesendete Bestaetigung."
+      },
+      "note": "Neu 2026-09-14 (manuelle Zusage). `not-deployed` spiegelt die Aufnahme 2026-08-28; ausgerollt 2026-09-14 — bei der naechsten Aufnahme auf `deployed` setzen."
+    },
     "send-quittung": {
       "model": "jwt-member",
       "tenant_derivation": "company_id der eingebetteten Firmenzeile; verifyCompanyMembership VOR dem Laden der Geheimnisse",

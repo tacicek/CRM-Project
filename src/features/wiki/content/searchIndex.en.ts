@@ -87,7 +87,7 @@ const index: WikiSearchIndex = {
   "offerte-detail": {
     title: "The quote in detail",
     summary: "Line items, history, customer link and the actions available per status.",
-    keywords: ["quote detail", "customer link", "activities", "viewed", "preview", "create work order", "pdf"],
+    keywords: ["quote detail", "customer link", "activities", "viewed", "preview", "create work order", "pdf", "mark as accepted", "accepted by phone", "order confirmation"],
   },
   "offerte-bearbeiten": {
     title: "Editing a quote",
