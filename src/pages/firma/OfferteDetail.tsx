@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { AuftragModal } from "@/components/firma/AuftragModal";
+import { ManualAcceptOfferDialog } from "@/components/firma/ManualAcceptOfferDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -138,6 +139,8 @@ interface Offer {
   sent_at: string | null;
   viewed_at: string | null;
   accepted_at: string | null;
+  // 'customer_link' | 'manual' — NULL fuer Zusagen vor 2026-09-14.
+  accepted_via: string | null;
   rejected_at: string | null;
   access_token: string;
   customer_response_note: string | null;
@@ -287,6 +290,7 @@ const FirmaOfferteDetail = () => {
   });
   const [showPreview, setShowPreview] = useState(false);
   const [showAuftragModal, setShowAuftragModal] = useState(false);
+  const [showManualAccept, setShowManualAccept] = useState(false);
   const [existingAuftragId, setExistingAuftragId] = useState<string | null>(null);
   const [offer, setOffer] = useState<Offer | null>(null);
   const [items, setItems] = useState<OfferItem[]>([]);
@@ -777,6 +781,36 @@ const FirmaOfferteDetail = () => {
     setShowPreview(true);
   };
 
+  /**
+   * Nach einer manuellen Zusage: Status, Auftrag und Versandliste neu lesen —
+   * Auftrag und Bestaetigungsmail sind in der Datenbank entstanden, nicht hier.
+   */
+  const refreshAfterManualAcceptance = async () => {
+    if (!offer) return;
+    try {
+      const [offerResult, auftragResult, logsResult] = await Promise.all([
+        supabase.from("offers").select("*").eq("id", offer.id).single(),
+        supabase.from("auftraege").select("id").eq("offer_id", offer.id).maybeSingle(),
+        supabase
+          .from("email_logs")
+          .select("*")
+          .eq("metadata->>offer_id", offer.id)
+          .order("created_at", { ascending: false }),
+      ]);
+      if (offerResult.error) throw offerResult.error;
+      setOffer({ ...offerResult.data, time_estimate: parseTimeEstimate(offerResult.data.time_estimate) });
+      setExistingAuftragId(auftragResult.data?.id ?? null);
+      setEmailLogs((logsResult.data || []) as EmailLog[]);
+    } catch (error) {
+      console.error("Error refreshing offer after manual acceptance:", error);
+      toast({
+        title: t("common.error"),
+        description: t("offer.edit.toast.loadFailed"),
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteOffer = async () => {
     if (!offer) return;
 
@@ -1008,6 +1042,18 @@ const FirmaOfferteDetail = () => {
                   <Copy className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">{t("offer.version.createRevision")}</span>
                   <span className="sm:hidden">{t("offer.version.createRevisionShort")}</span>
+                </Button>
+              )}
+              {/* Zusage am Telefon (oder per Mail, persoenlich): die Firma nimmt
+                  an — derselbe Weg wie der Kundenlink, also Auftrag + Termine. */}
+              {(offer.status === "sent" || offer.status === "viewed") && !offer.superseded_at && (
+                <Button
+                  onClick={() => setShowManualAccept(true)}
+                  className="h-9 gap-1.5 rounded-lg bg-folk-ink px-3.5 text-[15px] font-semibold text-folk-bg hover:bg-folk-ink2"
+                >
+                  <CalendarCheck className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t("offer.detail.manualAccept.button")}</span>
+                  <span className="sm:hidden">{t("offer.detail.manualAccept.buttonShort")}</span>
                 </Button>
               )}
               {/* Angenommen: der Umfang ist vereinbart. Aenderungen daran gehen
@@ -1538,7 +1584,11 @@ const FirmaOfferteDetail = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className="text-xs sm:text-sm font-medium">
-                            {log.email_type === "offer_sent" ? t("offer.detail.emailSent") : log.email_type}
+                            {log.email_type === "offer_sent"
+                              ? t("offer.detail.emailSent")
+                              : log.email_type === "offer_acceptance_confirmation"
+                                ? t("offer.detail.emailAcceptanceConfirmation")
+                                : log.email_type}
                           </span>
                           <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                             {log.recipient_email}
@@ -1620,7 +1670,11 @@ const FirmaOfferteDetail = () => {
                           <div className="w-2.5 h-2.5 rounded-full bg-green-600 mt-1" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-xs sm:text-sm font-medium text-green-700">{t("offer.detail.activity.accepted")}</p>
+                          <p className="text-xs sm:text-sm font-medium text-green-700">
+                            {offer.accepted_via === "manual"
+                              ? t("offer.detail.activity.acceptedManual")
+                              : t("offer.detail.activity.accepted")}
+                          </p>
                           <p className="text-[10px] sm:text-xs text-muted-foreground">
                             {formatDateTime(offer.accepted_at)}
                           </p>
@@ -1728,15 +1782,34 @@ const FirmaOfferteDetail = () => {
 
               {/* AGB Acceptance Status */}
               {offer.status === "accepted" && (
-                <Card className={offer.agb_accepted_at ? "border-green-200 bg-green-50/50" : "border-amber-200 bg-amber-50/50"}>
+                <Card className={offer.agb_accepted_at || offer.accepted_via === "manual" ? "border-green-200 bg-green-50/50" : "border-amber-200 bg-amber-50/50"}>
                   <CardHeader className="pb-2 sm:pb-3">
-                    <CardTitle className={`flex items-center gap-2 text-sm ${offer.agb_accepted_at ? "text-green-700" : "text-amber-700"}`}>
+                    <CardTitle className={`flex items-center gap-2 text-sm ${offer.agb_accepted_at || offer.accepted_via === "manual" ? "text-green-700" : "text-amber-700"}`}>
                       <ShieldCheck className="w-4 h-4 shrink-0" />
                       <span className="truncate">{t("offer.detail.agb.title")}</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {offer.agb_accepted_at ? (
+                    {offer.accepted_via === "manual" ? (
+                      <>
+                        {/* Keine elektronische Zustimmung: der Kunde hat nichts
+                            angeklickt. agb_version sagt, welcher Wortlaut galt. */}
+                        <div className="flex items-center gap-2 text-xs sm:text-sm text-green-700">
+                          <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span className="font-medium">{t("offer.detail.agb.manual")}</span>
+                        </div>
+                        {offer.agb_version && (
+                          <div className="flex items-start gap-2 text-xs">
+                            <FileText className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+                            <span className="text-muted-foreground">{t("offer.detail.agb.version")}</span>
+                            <span className="font-mono text-[10px] break-all">{offer.agb_version.substring(0, 50)}...</span>
+                          </div>
+                        )}
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                          {t("offer.detail.agb.manualNote")}
+                        </p>
+                      </>
+                    ) : offer.agb_accepted_at ? (
                       <>
                         <div className="flex items-center gap-2 text-xs sm:text-sm text-green-700">
                           <CheckCircle className="w-3.5 h-3.5 shrink-0" />
@@ -1999,6 +2072,21 @@ const FirmaOfferteDetail = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {offer && (
+          <ManualAcceptOfferDialog
+            open={showManualAccept}
+            onOpenChange={setShowManualAccept}
+            offer={offer}
+            items={items.map((item) => ({
+              service_type: item.service_type ?? null,
+              scheduled_date: item.scheduled_date ?? null,
+              scheduled_start_time: item.scheduled_start_time ?? null,
+              position: item.position,
+            }))}
+            onAccepted={refreshAfterManualAcceptance}
+          />
+        )}
 
         {/* Auftrag Modal */}
         <AuftragModal

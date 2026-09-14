@@ -48,6 +48,7 @@ const body = {
         { status: "Sent by email", meaning: "The quote went to the address shown.", next: "Wait." },
         { status: "Viewed by the customer", meaning: "The customer opened the link.", next: "Follow up after a few days." },
         { status: "Quote accepted", meaning: "Firmly agreed.", next: "Plan the work order and appointment." },
+        { status: "Offer marked as accepted", meaning: "Your team recorded an acceptance, for example after a phone call.", next: "Check the appointments in the calendar." },
         { status: "Quote rejected", meaning: "Declined. The reason is under “Customer note”.", next: "Record the lost reason." },
       ],
     },
@@ -82,6 +83,7 @@ const body = {
         { status: "Preview and send", meaning: "only on “Draft”", next: "Shows the PDF and sends it." },
         { status: "New version", meaning: "sent, not yet accepted", next: "Creates a new revision." },
         { status: "Create amendment", meaning: "only on “Accepted”", next: "Supplements an agreed quote." },
+        { status: "Mark as accepted", meaning: "sent or viewed, current version", next: "Accepts the quote: work order, confirmed appointments, order confirmation if wanted." },
         { status: "View / create work order", meaning: "only on “Accepted”", next: "Leads to the work order." },
         { status: "Delete quote", meaning: "anything but “Accepted”", next: "Removes the quote." },
       ],
@@ -123,6 +125,28 @@ const body = {
       text: "When the customer agrees through the link, the work order is usually created automatically. That is why the button then reads “View work order” rather than “Create work order”.",
     },
     {
+      kind: "heading",
+      id: "manuell-annehmen",
+      text: "Recording an acceptance given by phone",
+    },
+    {
+      kind: "steps",
+      steps: [
+        {
+          text: "Open the quote and click “Mark as accepted”.",
+          note: "The button appears for sent and viewed quotes, as long as it is the current version.",
+        },
+        {
+          text: "Check the appointments that will be added and any warnings.",
+          note: "If the acceptance deadline has passed you may still accept — clarify the date and price with the customer first. If anything changes, create a new version first.",
+        },
+        {
+          text: "Leave “Send order confirmation” ticked and click “Accept offer”.",
+          note: "The same work order and appointments are created as for an acceptance through the link; the appointments appear as confirmed in the calendar.",
+        },
+      ],
+    },
+    {
       kind: "callout",
       tone: "danger",
       title: "Accepted quotes cannot be deleted",
@@ -134,6 +158,7 @@ const body = {
     "After sending, “Sent by email” appears in the activities.",
     "If the customer opens the link, “Viewed by the customer” is added.",
     "On acceptance you get “Quote accepted”, a work order, and the “Terms accepted” record.",
+    "The customer receives an order confirmation by email — automatically when they accept through the link, and with “Mark as accepted” if the box is ticked.",
   ],
 
   commonMistakes: [

@@ -48,6 +48,7 @@ const body = {
         { status: "Envoyé par e-mail", meaning: "Le devis est parti à l'adresse indiquée.", next: "Attendre." },
         { status: "Consulté par le client", meaning: "La clientèle a ouvert le lien.", next: "Relancer après quelques jours." },
         { status: "Devis accepté", meaning: "Validé fermement.", next: "Planifier mandat et rendez-vous." },
+        { status: "Devis accepté manuellement", meaning: "Votre équipe a saisi un accord, par exemple après un appel.", next: "Vérifier les rendez-vous dans le calendrier." },
         { status: "Devis refusé", meaning: "Décliné. Le motif figure sous « Note du client ».", next: "Consigner le motif de perte." },
       ],
     },
@@ -82,6 +83,7 @@ const body = {
         { status: "Aperçu et envoi", meaning: "seulement en « Brouillon »", next: "Montre le PDF et l'envoie." },
         { status: "Nouvelle version", meaning: "envoyé, pas encore accepté", next: "Crée une nouvelle mouture." },
         { status: "Créer un avenant", meaning: "seulement en « Accepté »", next: "Complète un devis validé." },
+        { status: "Accepter manuellement", meaning: "envoyé ou consulté, version actuelle", next: "Accepte le devis : mandat, rendez-vous confirmés, confirmation de commande sur demande." },
         { status: "Afficher / créer le mandat", meaning: "seulement en « Accepté »", next: "Mène au mandat." },
         { status: "Supprimer le devis", meaning: "tout sauf « Accepté »", next: "Retire le devis." },
       ],
@@ -123,6 +125,28 @@ const body = {
       text: "Si la clientèle accepte via le lien, le mandat se crée généralement tout seul. C'est pourquoi le bouton indique alors « Afficher le mandat » plutôt que « Créer un mandat ».",
     },
     {
+      kind: "heading",
+      id: "manuell-annehmen",
+      text: "Enregistrer un accord donné par téléphone",
+    },
+    {
+      kind: "steps",
+      steps: [
+        {
+          text: "Ouvrez le devis et cliquez sur « Accepter manuellement ».",
+          note: "Le bouton apparaît pour les devis envoyés et consultés, tant qu'il s'agit de la version actuelle.",
+        },
+        {
+          text: "Vérifiez les rendez-vous qui seront inscrits et les avertissements.",
+          note: "Si le délai d'acceptation est dépassé, vous pouvez tout de même accepter — clarifiez d'abord la date et le prix avec la clientèle. Si quelque chose change, créez d'abord une nouvelle version.",
+        },
+        {
+          text: "Laissez « Envoyer la confirmation de commande » coché et cliquez sur « Accepter le devis ».",
+          note: "Le même mandat et les mêmes rendez-vous sont créés qu'avec un accord via le lien ; les rendez-vous figurent comme confirmés dans le calendrier.",
+        },
+      ],
+    },
+    {
       kind: "callout",
       tone: "danger",
       title: "Un devis accepté ne peut pas être supprimé",
@@ -134,6 +158,7 @@ const body = {
     "Après l'envoi, « Envoyé par e-mail » apparaît dans les activités.",
     "Si la clientèle ouvre le lien, « Consulté par le client » s'ajoute.",
     "En cas d'acceptation apparaissent « Devis accepté », un mandat et la mention « CGV acceptées ».",
+    "La clientèle reçoit une confirmation de commande par e-mail — automatiquement en cas d'accord via le lien, et avec « Accepter manuellement » si la case est cochée.",
   ],
 
   commonMistakes: [

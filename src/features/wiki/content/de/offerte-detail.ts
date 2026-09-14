@@ -48,6 +48,7 @@ const body = {
         { status: "Per E-Mail gesendet", meaning: "Die Offerte ging an die genannte Adresse.", next: "Abwarten." },
         { status: "Vom Kunden angesehen", meaning: "Die Kundschaft hat den Link geöffnet.", next: "Nach ein paar Tagen nachfassen." },
         { status: "Offerte angenommen", meaning: "Verbindlich zugesagt.", next: "Auftrag und Termin planen." },
+        { status: "Offerte manuell angenommen", meaning: "Ihr Team hat eine Zusage erfasst, etwa nach einem Anruf.", next: "Termine im Kalender prüfen." },
         { status: "Offerte abgelehnt", meaning: "Abgesagt. Der Grund steht unter «Kundennotiz».", next: "Verlustgrund festhalten." },
       ],
     },
@@ -82,6 +83,7 @@ const body = {
         { status: "Vorschau & Senden", meaning: "nur bei «Entwurf»", next: "Zeigt das PDF und sendet es." },
         { status: "Neue Version", meaning: "gesendet, noch nicht angenommen", next: "Legt eine neue Fassung an." },
         { status: "Nachtrag erstellen", meaning: "nur bei «Angenommen»", next: "Ergänzt eine zugesagte Offerte." },
+        { status: "Manuell annehmen", meaning: "gesendet oder angesehen, aktuelle Version", next: "Nimmt die Offerte an: Auftrag, bestätigte Termine, auf Wunsch Auftragsbestätigung." },
         { status: "Auftrag anzeigen / erstellen", meaning: "nur bei «Angenommen»", next: "Führt zum Auftrag." },
         { status: "Offerte löschen", meaning: "alles ausser «Angenommen»", next: "Entfernt die Offerte." },
       ],
@@ -123,6 +125,28 @@ const body = {
       text: "Sagt die Kundschaft über den Link zu, entsteht der Auftrag meist automatisch. Deshalb steht dann «Auftrag anzeigen» statt «Auftrag erstellen».",
     },
     {
+      kind: "heading",
+      id: "manuell-annehmen",
+      text: "Zusage am Telefon erfassen",
+    },
+    {
+      kind: "steps",
+      steps: [
+        {
+          text: "Öffnen Sie die Offerte und klicken Sie auf «Manuell annehmen».",
+          note: "Die Schaltfläche erscheint bei gesendeten und angesehenen Offerten, solange es die aktuelle Version ist.",
+        },
+        {
+          text: "Prüfen Sie die Termine, die eingetragen werden, und die Warnungen.",
+          note: "Ist die Annahmefrist abgelaufen, dürfen Sie trotzdem annehmen — klären Sie Termin und Preis vorher mit der Kundschaft. Ändert sich etwas, erstellen Sie zuerst eine neue Version.",
+        },
+        {
+          text: "Lassen Sie «Auftragsbestätigung senden» angehakt und klicken Sie auf «Offerte annehmen».",
+          note: "Es entstehen derselbe Auftrag und dieselben Termine wie bei einer Zusage über den Link; die Termine stehen als bestätigt im Kalender.",
+        },
+      ],
+    },
+    {
       kind: "callout",
       tone: "danger",
       title: "Angenommene Offerten lassen sich nicht löschen",
@@ -134,6 +158,7 @@ const body = {
     "Nach dem Senden erscheint «Per E-Mail gesendet» in den Aktivitäten.",
     "Öffnet die Kundschaft den Link, kommt «Vom Kunden angesehen» dazu.",
     "Bei einer Zusage entstehen «Offerte angenommen», ein Auftrag und der Eintrag «AGB akzeptiert».",
+    "Die Kundschaft erhält eine Auftragsbestätigung per E-Mail — bei einer Zusage über den Link automatisch, bei «Manuell annehmen», wenn das Häkchen gesetzt ist.",
   ],
 
   commonMistakes: [

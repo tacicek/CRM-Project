@@ -415,6 +415,22 @@ const PublicOfferView = () => {
     }
   };
 
+  // Auftragsbestaetigung an den Kunden — derselbe Endpunkt wie nach einer
+  // manuellen Zusage der Firma. Nachweis ist das Token dieser Seite; der
+  // Endpunkt schickt nur fuer eine angenommene Offerte und nur einmal.
+  const sendAcceptanceConfirmation = async () => {
+    if (!offer || !token) return;
+
+    try {
+      const { error } = await supabase.functions.invoke("send-offer-acceptance-confirmation", {
+        body: { offerId: offer.id, accessToken: token },
+      });
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error sending acceptance confirmation:", error);
+    }
+  };
+
   const handleAccept = async () => {
     if (!offer || !token) return;
     if (isExpired()) {
@@ -443,7 +459,7 @@ const PublicOfferView = () => {
         throw error || new Error("ACCEPTANCE_DEADLINE_PASSED");
       }
 
-      await sendNotification("accepted");
+      await Promise.all([sendNotification("accepted"), sendAcceptanceConfirmation()]);
 
       setOffer({
         ...offer,

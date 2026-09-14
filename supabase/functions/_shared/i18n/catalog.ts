@@ -241,6 +241,23 @@ export const de = {
     "Falls Sie den Termin nicht wahrnehmen können, kontaktieren Sie bitte rechtzeitig {companyName} unter {phone}.",
 
   // ---------------------------------------------------------------------------
+  // email.acceptanceConfirmation.* — send-offer-acceptance-confirmation
+  // ---------------------------------------------------------------------------
+  "email.acceptanceConfirmation.subject": "Auftragsbestätigung – Offerte Nr. {offerNumber}",
+  "email.acceptanceConfirmation.headerTitle": "Auftragsbestätigung",
+  "email.acceptanceConfirmation.introManual":
+    "vielen Dank für Ihre Zusage. Hiermit bestätigen wir Ihren Auftrag gemäss unserer Offerte Nr. {offerNumber}.",
+  "email.acceptanceConfirmation.introOnline":
+    "vielen Dank, dass Sie unsere Offerte Nr. {offerNumber} angenommen haben. Hiermit bestätigen wir Ihren Auftrag.",
+  "email.acceptanceConfirmation.termineHeading": "Vereinbarte Termine",
+  "email.acceptanceConfirmation.startFrom": "ab {time} Uhr",
+  "email.acceptanceConfirmation.agbNote":
+    "Es gelten die Offerte und unsere Allgemeinen Geschäftsbedingungen, die Sie zusammen mit der Offerte erhalten haben.",
+  "email.acceptanceConfirmation.cta": "Offerte ansehen",
+  "email.acceptanceConfirmation.contactNote": "Bei Fragen erreichen Sie {companyName} unter {phone}.",
+  "email.acceptanceConfirmation.contactNoteNoPhone": "Bei Fragen wenden Sie sich bitte an {companyName}.",
+
+  // ---------------------------------------------------------------------------
   // email.besichtigungConfirmed.* — confirm-besichtigung / generateConfirmationEmail
   // ---------------------------------------------------------------------------
   "email.besichtigungConfirmed.subject":
@@ -652,6 +669,21 @@ export const fr: Record<MessageKey, string> = {
   "email.appointmentConfirmation.cancelNoteWithPhone":
     "Si vous ne pouvez pas honorer le rendez-vous, veuillez contacter {companyName} à temps au {phone}.",
 
+  // email.acceptanceConfirmation.*
+  "email.acceptanceConfirmation.subject": "Confirmation de commande – Devis n° {offerNumber}",
+  "email.acceptanceConfirmation.headerTitle": "Confirmation de commande",
+  "email.acceptanceConfirmation.introManual":
+    "nous vous remercions de votre accord. Par la présente, nous confirmons votre commande selon notre devis n° {offerNumber}.",
+  "email.acceptanceConfirmation.introOnline":
+    "nous vous remercions d'avoir accepté notre devis n° {offerNumber}. Par la présente, nous confirmons votre commande.",
+  "email.acceptanceConfirmation.termineHeading": "Dates convenues",
+  "email.acceptanceConfirmation.startFrom": "à partir de {time}",
+  "email.acceptanceConfirmation.agbNote":
+    "Le devis ainsi que nos conditions générales, que vous avez reçues avec le devis, font foi.",
+  "email.acceptanceConfirmation.cta": "Consulter le devis",
+  "email.acceptanceConfirmation.contactNote": "Pour toute question, vous pouvez joindre {companyName} au {phone}.",
+  "email.acceptanceConfirmation.contactNoteNoPhone": "Pour toute question, veuillez vous adresser à {companyName}.",
+
   // email.besichtigungConfirmed
   "email.besichtigungConfirmed.subject":
     "Votre visite du {date} a été confirmée",
@@ -1039,6 +1071,21 @@ export const en: Record<MessageKey, string> = {
     "If you are unable to attend, please contact {companyName} in good time.",
   "email.appointmentConfirmation.cancelNoteWithPhone":
     "If you are unable to attend, please contact {companyName} in good time on {phone}.",
+
+  // email.acceptanceConfirmation.*
+  "email.acceptanceConfirmation.subject": "Order confirmation – Quote no. {offerNumber}",
+  "email.acceptanceConfirmation.headerTitle": "Order confirmation",
+  "email.acceptanceConfirmation.introManual":
+    "thank you for your acceptance. We hereby confirm your order in accordance with our quote no. {offerNumber}.",
+  "email.acceptanceConfirmation.introOnline":
+    "thank you for accepting our quote no. {offerNumber}. We hereby confirm your order.",
+  "email.acceptanceConfirmation.termineHeading": "Agreed dates",
+  "email.acceptanceConfirmation.startFrom": "from {time}",
+  "email.acceptanceConfirmation.agbNote":
+    "The quote and our general terms and conditions, which you received together with the quote, apply.",
+  "email.acceptanceConfirmation.cta": "View quote",
+  "email.acceptanceConfirmation.contactNote": "If you have any questions, you can reach {companyName} on {phone}.",
+  "email.acceptanceConfirmation.contactNoteNoPhone": "If you have any questions, please contact {companyName}.",
 
   // email.besichtigungConfirmed
   "email.besichtigungConfirmed.subject":

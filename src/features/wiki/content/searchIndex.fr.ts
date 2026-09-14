@@ -87,7 +87,7 @@ const index: WikiSearchIndex = {
   "offerte-detail": {
     title: "Le devis en détail",
     summary: "Positions, historique, lien client et les actions selon le statut.",
-    keywords: ["détail du devis", "lien client", "activités", "consulté", "aperçu", "créer un mandat", "pdf"],
+    keywords: ["détail du devis", "lien client", "activités", "consulté", "aperçu", "créer un mandat", "pdf", "accepter manuellement", "accord par téléphone", "confirmation de commande"],
   },
   "offerte-bearbeiten": {
     title: "Modifier un devis",
