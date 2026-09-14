@@ -10,8 +10,6 @@ import {
 import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateInputCH } from "@/components/ui/date-input-ch";
-import { TimeInputCH } from "@/components/ui/time-input-ch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -57,7 +55,7 @@ import { buildOfferTitle } from "@/lib/offerTitle";
 import { buildOfferLanguageRebasePlan, type RebaseAnwendung, type RebasePlan } from "@/lib/offerLanguageRebase";
 import { sammleOfferteRebaseFelder, type KatalogHerkunft } from "@/lib/offerRebaseFelder";
 import { SprachwechselDialog } from "@/components/offerte/SprachwechselDialog";
-import { AnnahmefristHinweis } from "@/components/offerte/AnnahmefristHinweis";
+import { OfferteDatumsfelder } from "@/components/offerte/OfferteDatumsfelder";
 import { earliestTermin } from "../../../supabase/functions/_shared/offerTermin.ts";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { zeileGehoertZumMandanten } from "@/lib/aktiverMandant";
@@ -1971,71 +1969,21 @@ const FirmaOfferteErstellen = () => {
                       className="h-9 sm:h-10 text-sm"
                     />
                   </div>
-                  <div className="grid gap-3 sm:gap-4 grid-cols-2">
-                    <div className="space-y-1.5 sm:space-y-2">
-                      <Label htmlFor="serviceDate" className="text-xs sm:text-sm">{t("offer.form.field.serviceDate")}</Label>
-                      <DateInputCH
-                        id="serviceDate"
-                        value={serviceDate}
-                        onChange={setServiceDate}
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="validUntil" className="text-xs sm:text-sm">{t("offer.form.field.validUntil")}</Label>
-                        {validUntil && (
-                          <button
-                            type="button"
-                            onClick={() => setValidUntil("")}
-                            className="text-[10px] text-muted-foreground hover:text-destructive"
-                          >
-                            {t("common.remove")}
-                          </button>
-                        )}
-                      </div>
-                      {validUntil ? (
-                        <DateInputCH
-                          id="validUntil"
-                          value={validUntil}
-                          onChange={setValidUntil}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const d = new Date();
-                            d.setDate(d.getDate() + 30);
-                            setValidUntil(d.toISOString().split("T")[0]);
-                          }}
-                          className="w-full h-9 sm:h-10 border border-dashed border-input rounded-md text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1"
-                        >
-                          {t("offer.form.validUntil.add")}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <AnnahmefristHinweis arbeitsbeginn={arbeitsbeginn} validUntil={validUntil} />
-                  {/* Startzeit/Endzeit — customer-facing, rendered on the PDF next to the
-                      Ausführungsdatum. Bound to offerDetails.service*Time (single source of
-                      truth). Kept visible here rather than in the collapsed advanced panel. */}
-                  <div className="grid gap-3 sm:gap-4 grid-cols-2">
-                    <div className="space-y-1.5 sm:space-y-2">
-                      <Label htmlFor="serviceStartTime" className="text-xs sm:text-sm">{t("offer.details.field.startTime")}</Label>
-                      <TimeInputCH
-                        id="serviceStartTime"
-                        value={offerDetails.serviceStartTime}
-                        onChange={(v) => setOfferDetails((prev) => ({ ...prev, serviceStartTime: v }))}
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:space-y-2">
-                      <Label htmlFor="serviceEndTime" className="text-xs sm:text-sm">{t("offer.details.field.endTime")}</Label>
-                      <TimeInputCH
-                        id="serviceEndTime"
-                        value={offerDetails.serviceEndTime}
-                        onChange={(v) => setOfferDetails((prev) => ({ ...prev, serviceEndTime: v }))}
-                      />
-                    </div>
-                  </div>
+                  <OfferteDatumsfelder
+                    serviceType={lead?.service_type ?? null}
+                    offertendatum={null}
+                    wunschtermin={lead?.preferred_date ?? null}
+                    serviceDate={serviceDate}
+                    onServiceDateChange={setServiceDate}
+                    validUntil={validUntil}
+                    onValidUntilChange={setValidUntil}
+                    startTime={offerDetails.serviceStartTime}
+                    onStartTimeChange={(v) => setOfferDetails((prev) => ({ ...prev, serviceStartTime: v }))}
+                    endTime={offerDetails.serviceEndTime}
+                    onEndTimeChange={(v) => setOfferDetails((prev) => ({ ...prev, serviceEndTime: v }))}
+                    arbeitsbeginn={arbeitsbeginn}
+                  />
+
                   <div className="space-y-1.5 sm:space-y-2">
                     <Label htmlFor="description" className="text-xs sm:text-sm">{t("offer.form.field.description")}</Label>
                     <Textarea

@@ -155,7 +155,17 @@ export const offer = {
   "offer.form.details.title": "Offerten-Details",
   "offer.form.field.title": "Titel",
   "offer.form.placeholder.title": "z.B. Umzugsofferte",
+  // Das Terminfeld traegt im Formular dasselbe Wort wie im PDF
+  // (`getAppointmentLabel`: «Umzugstermin», «Reinigungstermin» …). Dieser
+  // Schluessel bleibt fuer Listen und Spaltenkoepfe, wo kein Service bekannt ist.
   "offer.form.field.serviceDate": "Ausführungsdatum",
+  "offer.form.section.termin": "Termin",
+  "offer.form.section.dokument": "Angaben zur Offerte",
+  "offer.form.field.offertendatum": "Offertendatum",
+  "offer.form.offertendatum.beimSpeichern": "beim Speichern",
+  "offer.form.wunschtermin.gleich": "Entspricht dem Wunschtermin aus der Anfrage.",
+  "offer.form.wunschtermin.abweichend": "Der Kunde hat den {date} gewünscht.",
+  "offer.form.wunschtermin.uebernehmen": "Übernehmen",
   "offer.form.field.validUntil": "Gültig bis",
   "offer.form.validUntil.add": "+ Gültig bis hinzufügen",
   // Die Annahmefrist — der frühere Tag aus «Gültig bis» und dem Tag vor der
