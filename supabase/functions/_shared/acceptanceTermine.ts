@@ -19,11 +19,10 @@
  *     je Gruppe (Servicetyp getrimmt, klein) das KLEINSTE eigene Datum, sonst
  *     das globale Feld; davon das frueheste.
  *
- * Bewusst NICHT `earliestTermin` aus `offerTermin.ts`: dessen `groupTermin`
- * nimmt das Datum der ERSTEN datierten Position einer Gruppe, die SQL-Funktion
- * das kleinste. Tragen die Positionen einer Gruppe verschiedene Tage, gehen
- * die beiden auseinander — und massgeblich fuer den Kalender ist die
- * Datenbank.
+ * Das Auftragsdatum rechnet `earliestTermin` aus `offerTermin.ts` — seit
+ * 2026-10-08 mit demselben Wortlaut wie die SQL-Funktion (kleinstes Datum je
+ * Gruppe). Davor nahm es die ERSTE datierte Position, und diese Datei trug
+ * deshalb eine eigene Abschrift der SQL-Regel.
  *
  * WAS SIE NICHT UEBERNIMMT
  *
@@ -33,8 +32,10 @@
  * leer. Und ohne jedes Datum in der Offerte erfindet der Trigger einen Tag
  * (Wunschtermin oder heute + 7); dann nennt die Mail GAR KEINEN Termin.
  *
- * KEINE ABHAENGIGKEITEN — Deno und Vitest laden dieselbe Datei.
+ * KEINE ABHAENGIGKEITEN ausser `offerTermin.ts` — Deno und Vitest laden beide.
  */
+
+import { earliestTermin, terminItemsFromRows } from "./offerTermin.ts";
 
 export interface AcceptanceItemRow {
   service_type: string | null;
@@ -69,24 +70,11 @@ const kleinster = (werte: ReadonlyArray<string | null>): string | null => {
   return [...vorhanden].sort()[0];
 };
 
-/** `offer_arbeitsbeginn()` in TypeScript — siehe Kopfkommentar. */
+/** `offer_arbeitsbeginn()`: der erste Arbeitstag ueber alle Gruppen. */
 export const arbeitsbeginn = (
   items: ReadonlyArray<AcceptanceItemRow>,
   serviceDate: string | null,
-): string | null => {
-  const proGruppe = new Map<string | null, AcceptanceItemRow[]>();
-  for (const item of items) {
-    const roh = (item.service_type ?? "").trim().toLowerCase();
-    const schluessel = roh === "" ? null : roh;
-    const bisher = proGruppe.get(schluessel);
-    if (bisher) bisher.push(item);
-    else proGruppe.set(schluessel, [item]);
-  }
-  const kandidaten = [...proGruppe.values()].map(
-    (zeilen) => kleinster(zeilen.map((z) => z.scheduled_date)) ?? serviceDate,
-  );
-  return kleinster(kandidaten) ?? serviceDate;
-};
+): string | null => earliestTermin(terminItemsFromRows(items), serviceDate);
 
 export const buildAcceptanceTermine = (
   items: ReadonlyArray<AcceptanceItemRow>,
