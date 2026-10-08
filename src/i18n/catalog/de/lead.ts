@@ -220,6 +220,9 @@ export const lead = {
   "lead.validation.plzRequired": "PLZ erforderlich",
   "lead.validation.plzRequiredHint":
     "{field} ist für diesen Servicetyp erforderlich. Bitte geben Sie eine gültige Schweizer PLZ (4 Ziffern) ein.",
+  "lead.validation.unknownServiceType": "Unbekannter Servicetyp",
+  "lead.validation.unknownServiceTypeHint":
+    "Der Servicetyp «{type}» ist diesem Import nicht bekannt. Wählen Sie einen Servicetyp aus der Liste.",
   "lead.validation.invalidDate": "Ungültiges Datum",
   "lead.validation.invalidDateHint": "Bitte geben Sie ein gültiges Datum ein.",
   "lead.validation.missingCustomer": "Fehlende Kundendaten",

@@ -49,6 +49,7 @@ import {
 import VoiceRecorder from "@/components/firma/VoiceRecorder";
 import { ExtractedLeadForm } from "@/components/leads/ExtractedLeadForm";
 import { extractedLeadToLeadData } from "@/lib/extractedLeadToLeadData";
+import { PLZ_SOURCE_BY_SERVICE, requiredPlz, type ImportServiceType } from "@/lib/requiredPlz";
 import type { ExtractedData } from "@/types/extractedLead";
 
 // =============================================================================
@@ -150,7 +151,11 @@ const SERVICE_TYPES = [
   "lagerung",
   "klaviertransport",
   "moebellift",
-] as const;
+] as const satisfies readonly ImportServiceType[];
+
+// Jeder waehlbare Typ hat eine Pflicht-PLZ-Quelle — sonst Compile-Fehler, nicht
+// erst «PLZ erforderlich» beim Speichern (so fiel der Firmenumzug durch).
+void (PLZ_SOURCE_BY_SERVICE satisfies Record<(typeof SERVICE_TYPES)[number], string>);
 
 const SERVICE_TYPE_ICONS: Record<string, React.ReactNode> = {
   umzug_privat: <Home className="w-4 h-4" />,
@@ -416,24 +421,21 @@ const FirmaManualImport = () => {
       }
     }
 
-    // Require PLZ based on service type (backend requires from_plz)
-    const serviceType = extractedData.detected_service_type;
-    const requiredPlzField =
-      serviceType === "lagerung"
-        ? extractedData.pickup_plz
-        : serviceType === "umzug_privat" || serviceType === "klaviertransport"
-          ? extractedData.from_plz
-          : extractedData.address_plz; // reinigung, raeumung, entsorgung, moebellift
-    if (!requiredPlzField?.trim() || !/^\d{4}$/.test(requiredPlzField.trim())) {
-      const fieldLabel =
-        serviceType === "lagerung"
-          ? t("lead.plz.pickup")
-          : serviceType === "umzug_privat" || serviceType === "klaviertransport"
-            ? t("lead.plz.from")
-            : t("lead.plz.address");
+    // Die Pflicht-PLZ ist die, die als leads.from_plz (NOT NULL) gespeichert
+    // wird — dieselbe Zuordnung wie extractedLeadToLeadData (src/lib/requiredPlz.ts).
+    const plz = requiredPlz(extractedData);
+    if (plz === null) {
+      toast({
+        title: t("lead.validation.unknownServiceType"),
+        description: t("lead.validation.unknownServiceTypeHint", { type: extractedData.detected_service_type }),
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!plz.valid) {
       toast({
         title: t("lead.validation.plzRequired"),
-        description: t("lead.validation.plzRequiredHint", { field: fieldLabel }),
+        description: t("lead.validation.plzRequiredHint", { field: t(plz.labelKey) }),
         variant: "destructive",
       });
       return;

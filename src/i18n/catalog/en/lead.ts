@@ -211,6 +211,9 @@ export const lead: Record<keyof typeof de, string> = {
   "lead.validation.plzRequired": "Postcode required",
   "lead.validation.plzRequiredHint":
     "{field} is required for this service type. Please enter a valid Swiss postcode (4 digits).",
+  "lead.validation.unknownServiceType": "Unknown service type",
+  "lead.validation.unknownServiceTypeHint":
+    "The service type “{type}” is not known to this import. Choose a service type from the list.",
   "lead.validation.invalidDate": "Invalid date",
   "lead.validation.invalidDateHint": "Please enter a valid date.",
   "lead.validation.missingCustomer": "Missing customer details",
