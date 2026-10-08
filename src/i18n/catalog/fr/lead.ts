@@ -212,6 +212,9 @@ export const lead: Record<keyof typeof de, string> = {
   "lead.validation.plzRequired": "NPA requis",
   "lead.validation.plzRequiredHint":
     "{field} est requis pour ce type de prestation. Veuillez saisir un NPA suisse valable (4 chiffres).",
+  "lead.validation.unknownServiceType": "Type de prestation inconnu",
+  "lead.validation.unknownServiceTypeHint":
+    "Le type de prestation « {type} » est inconnu de cet import. Choisissez un type dans la liste.",
   "lead.validation.invalidDate": "Date non valable",
   "lead.validation.invalidDateHint": "Veuillez saisir une date valable.",
   "lead.validation.missingCustomer": "Données client manquantes",

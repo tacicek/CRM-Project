@@ -29,6 +29,7 @@ import { fetchCompanyById } from "@/lib/fetchCompanyById";
 import { useCompanyContext } from "@/hooks/useCompanyContext";
 import { ExtractedLeadForm } from "@/components/leads/ExtractedLeadForm";
 import { extractedLeadToLeadData } from "@/lib/extractedLeadToLeadData";
+import { requiredPlz } from "@/lib/requiredPlz";
 import type { ExtractedData } from "@/types/extractedLead";
 
 /**
@@ -325,6 +326,28 @@ const FirmaEmailImport = () => {
   /** Approve, with or without edits — the payload is whatever is in the form. */
   const approve = useCallback(async () => {
     if (!selected || !draft || !company || !user || busy) return;
+
+    // Dieselbe Pflicht-PLZ wie im manuellen Import (src/lib/requiredPlz.ts):
+    // ohne sie liefe die Freigabe in den DB-Fehler «from_plz NOT NULL», und der
+    // Bediener saehe «Datenbankfehler» statt des Feldes, das fehlt.
+    const plz = requiredPlz(draft);
+    if (plz === null) {
+      toast({
+        title: t("lead.validation.unknownServiceType"),
+        description: t("lead.validation.unknownServiceTypeHint", { type: draft.detected_service_type }),
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!plz.valid) {
+      toast({
+        title: t("lead.validation.plzRequired"),
+        description: t("lead.validation.plzRequiredHint", { field: t(plz.labelKey) }),
+        variant: "destructive",
+      });
+      return;
+    }
+
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke("import-manual-lead", {
