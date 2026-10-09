@@ -31,6 +31,18 @@ describe("groupTermin", () => {
   });
 });
 
+describe("groupTermin — mehrere Tage in EINER Gruppe", () => {
+  it("nimmt den kleinsten, wie offer_arbeitsbeginn() in der Datenbank — nicht den ersten", () => {
+    const items = [
+      { serviceType: "umzug", scheduledDate: "2026-10-09" },
+      { serviceType: "umzug", scheduledDate: "2026-10-03" },
+    ];
+    expect(groupTermin(items, "2026-12-01")).toBe("2026-10-03");
+    expect(earliestTermin(items, "2026-12-01")).toBe("2026-10-03");
+    expect(resolveOfferTermin(items, "2026-12-01")).toBe("2026-10-03");
+  });
+});
+
 describe("resolveOfferTermin", () => {
   it("ohne Gruppendaten bleibt das globale Feld der Termin (Altverhalten)", () => {
     expect(resolveOfferTermin([pos("umzug"), pos("umzug")], "2026-09-04")).toBe("2026-09-04");

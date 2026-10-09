@@ -61,12 +61,23 @@ export const hasGroupTermine = (items: ReadonlyArray<TerminItem>): boolean =>
 /**
  * Das Datum EINER Gruppe: ihr eigenes, sonst das globale. Die Reihenfolge ist
  * die Zusage aus dem Formular — das Gruppendatum gewinnt.
+ *
+ * Tragen die Positionen einer Gruppe verschiedene Tage (das Formular schreibt
+ * allen dasselbe, Altdaten und Handkorrekturen nicht), gilt der KLEINSTE —
+ * genau wie `offer_arbeitsbeginn()` und `create_appointments_for_auftrag` in
+ * der Datenbank, die den Kalender und die Annahmefrist bestimmen. Bis
+ * 2026-10-08 nahm diese Funktion die ERSTE datierte Position; Dokument und
+ * Kalender konnten dann verschiedene Tage nennen.
  */
 export const groupTermin = (
   groupItems: ReadonlyArray<TerminItem>,
   executionDate: string | null | undefined,
 ): string | null => {
-  const eigenes = groupItems.find((i) => i.scheduledDate)?.scheduledDate;
+  const eigene = groupItems
+    .map((i) => i.scheduledDate)
+    .filter((d): d is string => typeof d === "string" && d !== "");
+  // ISO-Datumsstrings sind lexikographisch sortierbar.
+  const eigenes = eigene.length > 0 ? [...eigene].sort()[0] : undefined;
   return eigenes ?? executionDate ?? null;
 };
 
