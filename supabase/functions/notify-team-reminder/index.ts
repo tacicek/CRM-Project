@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getSenderEmail, getAppName } from "../_shared/envConfig.ts";
 import { isCronRequest, unauthorizedResponse } from "../_shared/cronAuth.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";

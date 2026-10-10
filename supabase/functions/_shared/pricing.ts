@@ -7,7 +7,7 @@
  *   - pricing_settings.min/max         → clamp range
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import type { Lead, PricingSettings } from "./types.ts";
 
 type SupabaseClient = ReturnType<typeof createClient>;

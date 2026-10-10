@@ -1,6 +1,6 @@
 import { getDefaultFrom, getAdminEmail, getDashAppUrl, getSiteUrl, getAppName } from "../_shared/envConfig.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
