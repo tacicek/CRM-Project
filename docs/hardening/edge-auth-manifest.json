@@ -699,6 +699,58 @@
     "validate-besichtigung-token": {
       "rollout_unit": "R-2",
       "reason": "Dokumentsprache der Besichtigungsseite im Repo, nicht ausgerollt."
+    },
+    "analyze-besichtigung": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "auto-archive": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "calendar-feed": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "cleanup-besichtigung": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "company-secrets": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "confirm-lead-by-token": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "extract-anfrage-ai": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "generate-sitemap": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "import-manual-lead": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "inbound-email-lead": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "notify-auftrag-reminder": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "notify-team-reminder": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
+    },
+    "test-resend-email": {
+      "rollout_unit": "R-8",
+      "reason": "supabase-js von `@2` (unpinned; Produktion hatte 2.39.3, 2.49.4 und 2.105.4 gleichzeitig im Cache) auf `@2.39.3` gepinnt. Nur die Importzeile; 2026-10-10 ausgerollt — Eintrag entfaellt mit der naechsten Aufnahme."
     }
   }
 }
