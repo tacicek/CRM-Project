@@ -7,7 +7,7 @@ import {
   EMAIL_CARD_OUTER,
   EMAIL_HEADER_BAND,
   wrapEmailDocument,
-} from "../_shared/emailLayout.ts";
+} from "../_shared/i18n/emailLayout.ts";
 import { logEmail } from "../_shared/logEmail.ts";
 import {
   createTranslator,

@@ -4,7 +4,7 @@
 // LOCALE: every label is resolved from the i18n catalog against the DOCUMENT locale
 // (quittungen.language / rechnungen.language) — nothing is passed in as a German string
 // any more. fmtChf/fmtDate follow the same locale instead of hardcoding de-CH.
-import { wrapEmailDocument, EMAIL_FONT_STACK } from "./emailLayout.ts";
+import { wrapEmailDocument, EMAIL_FONT_STACK } from "./i18n/emailLayout.ts";
 import {
   createTranslator,
   formatCurrency,

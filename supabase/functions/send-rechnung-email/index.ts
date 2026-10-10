@@ -3,10 +3,14 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getSenderEmail } from "../_shared/envConfig.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
-import { EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
+import { EMAIL_FONT_STACK } from "../_shared/i18n/emailLayout.ts";
 import { buildInvoiceEmailHtml, buildInvoiceEmailSubject, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
 import { createTranslator, toLocale, type Locale } from "../_shared/i18n/index.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
+// Seit e4e40a94 aufgerufen, aber nie importiert: die Fassung im Repo waere beim
+// ersten Rechnungsversand mit ReferenceError gestorben. Die Produktion lief die
+// aeltere Fassung ohne diese Pruefung — deshalb fiel es nicht auf.
+import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

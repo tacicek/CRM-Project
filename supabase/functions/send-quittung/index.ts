@@ -3,7 +3,7 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 import { getDefaultFrom, getSenderEmail, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { logEmail } from "../_shared/logEmail.ts";
-import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/emailLayout.ts";
+import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/i18n/emailLayout.ts";
 import { buildInvoiceEmailHtml, buildInvoiceEmailSubject, fmtChf, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
 import { createTranslator, toLocale, type Locale } from "../_shared/i18n/index.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
