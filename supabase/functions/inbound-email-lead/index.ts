@@ -28,7 +28,7 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 import { createLogger } from "../_shared/logger.ts";
 import {
@@ -105,7 +105,10 @@ const ENABLED_KEY_NAME = "inbound_email_enabled";
 
 const env = (key: string): string | undefined => Deno.env.get(key);
 
-type ServiceClient = ReturnType<typeof createClient>;
+// Nicht `ReturnType<typeof createClient>`: ohne Typargumente fallen dessen
+// Generics auf `<unknown, never, GenericSchema>` zurueck, und jedes `.from()`
+// ergibt `never`. Der Klassentyp selbst traegt die `any`-Vorgaben.
+type ServiceClient = SupabaseClient;
 
 const json = (body: Record<string, unknown>, status = 200): Response =>
   new Response(JSON.stringify(body), {

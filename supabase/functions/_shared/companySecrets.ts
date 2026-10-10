@@ -18,9 +18,7 @@
  * Umschreibungen heisst weniger Gelegenheiten, eine zu übersehen.
  */
 
-// deno-lint-ignore-file no-explicit-any -- der Supabase-Client ist hier bewusst
-// nur strukturell typisiert; ein Import des generierten Modells existiert
-// edge-seitig nicht.
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 export interface CompanySecrets {
   resend_api_key: string | null;
@@ -34,16 +32,6 @@ const EMPTY: CompanySecrets = {
   twilio_auth_token: null,
 };
 
-interface SecretsReader {
-  from(table: string): {
-    select(columns: string): {
-      eq(column: string, value: string): {
-        maybeSingle(): Promise<{ data: Partial<CompanySecrets> | null; error: unknown }>;
-      };
-    };
-  };
-}
-
 /**
  * Liest die Zugangsdaten einer Firma. Fehlt die Zeile, kommen lauter `null`
  * zurück — "nicht konfiguriert" ist ein gültiger Zustand, kein Fehler. Die
@@ -51,7 +39,7 @@ interface SecretsReader {
  * vorhandenen Schlüssel, bevor sie versenden.
  */
 export const loadCompanySecrets = async (
-  supabase: SecretsReader,
+  supabase: SupabaseClient,
   companyId: string | null | undefined,
 ): Promise<CompanySecrets> => {
   if (!companyId) return { ...EMPTY };
