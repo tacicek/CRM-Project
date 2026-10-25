@@ -1,0 +1,32 @@
+{
+  "checked_at": "2026-10-25T18:55:26.940288+00:00",
+  "backup_dir": "/data/crm-rollouts/quittung-20261026",
+  "backups": {
+    "database-before.dump": {
+      "bytes": 4108341,
+      "sha256": "e50eea1858cc740ac51f96f60bb34a2220f2147584ba04bed7cf9296ba0fd451",
+      "mode": "0o600"
+    },
+    "functions-before.tar.gz": {
+      "bytes": 359239,
+      "sha256": "b3444bae207c0d890b5697bdaf3c023fa6007f93943150db1a80f8f58abec3ea",
+      "mode": "0o600"
+    }
+  },
+  "edge_dependencies": {
+    "send-rechnung-email/index.ts": "8f57d30db092176a52eeb1032f2e2a95da8ad1e209620c8c5a91618fbca29c7c",
+    "_shared/verifyCompanyMembership.ts": "64957d73d3964323e2045ae1369f383ddc9877394605b23d4f195f979cbfa13e",
+    "_shared/companySecrets.ts": "d1a18f67a476cb2958642ac87a4da991acf2c3fc2adf91a0cde9a6e6ef773cfa",
+    "_shared/i18n/index.ts": "819a4b185b4586838b83edc4d44307454a5931bec51ed97ea2e350dc34f50232",
+    "_shared/i18n/catalog.ts": "65f2aefdedff210cb57fcc535d6917cfe3b62367fb481fbad3526b0a9544448c",
+    "_shared/i18n/locale.ts": "9cc5c4a46ebf7a5c537de6271a0f69180616fe71627d2a8f1547f6aaf516461c",
+    "_shared/invoiceEmailTemplate.ts": "90a52bd5e841b209ebb69fbc2e6c3c29ea215905bdf6b4da83b9299e80971cc4",
+    "_shared/i18n/emailLayout.ts": "403f5a2aa42f7c91feb81034b772259e9f6e2f6dca896cccd199d35afec87f7c",
+    "_shared/htmlEscape.ts": "2a574f317d1c15d2e02d8485970aeac9d2ea02d165ec486a51a4175269e4efbb",
+    "_shared/logEmail.ts": "790af4d6b52ee08928803c91db0b2ee404fc68a20b3aff8eb029172bac6cb53c",
+    "_shared/envConfig.ts": "ff485a95bd59760a5992994fdf466d4207ee1135b4066056ed275b90f0704c0a",
+    "send-quittung/index.ts": "bf9fa5c3a7593ef09db6b814883089962e10976f1b2fc44fd7a3230b99af0a14",
+    "send-quittung/presentation.ts": "08c662079e18a4ab71cbf07924157aa5ce9d31ee16a0d73136091a3d49f71f94",
+    "send-quittung/document.ts": "0b8e44b04f58cd890a1c71f332c9cefbddd6a5f9d2648b9f76fb8b57dfb95c15"
+  }
+}

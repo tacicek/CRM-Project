@@ -1,0 +1,86 @@
+[
+  {
+    "file": "_shared/companySecrets.ts",
+    "release_sha256": "d1a18f67a476cb2958642ac87a4da991acf2c3fc2adf91a0cde9a6e6ef773cfa",
+    "live_sha256": "d1a18f67a476cb2958642ac87a4da991acf2c3fc2adf91a0cde9a6e6ef773cfa",
+    "changed": false
+  },
+  {
+    "file": "_shared/envConfig.ts",
+    "release_sha256": "ff485a95bd59760a5992994fdf466d4207ee1135b4066056ed275b90f0704c0a",
+    "live_sha256": "ff485a95bd59760a5992994fdf466d4207ee1135b4066056ed275b90f0704c0a",
+    "changed": false
+  },
+  {
+    "file": "_shared/htmlEscape.ts",
+    "release_sha256": "2a574f317d1c15d2e02d8485970aeac9d2ea02d165ec486a51a4175269e4efbb",
+    "live_sha256": null,
+    "changed": true
+  },
+  {
+    "file": "_shared/i18n/catalog.ts",
+    "release_sha256": "65f2aefdedff210cb57fcc535d6917cfe3b62367fb481fbad3526b0a9544448c",
+    "live_sha256": "237b05ffcb768510e35a0f34cc38ba3901f5f3cf7da2a08ee20f51664f9dadd9",
+    "changed": true
+  },
+  {
+    "file": "_shared/i18n/emailLayout.ts",
+    "release_sha256": "403f5a2aa42f7c91feb81034b772259e9f6e2f6dca896cccd199d35afec87f7c",
+    "live_sha256": "403f5a2aa42f7c91feb81034b772259e9f6e2f6dca896cccd199d35afec87f7c",
+    "changed": false
+  },
+  {
+    "file": "_shared/i18n/index.ts",
+    "release_sha256": "819a4b185b4586838b83edc4d44307454a5931bec51ed97ea2e350dc34f50232",
+    "live_sha256": "819a4b185b4586838b83edc4d44307454a5931bec51ed97ea2e350dc34f50232",
+    "changed": false
+  },
+  {
+    "file": "_shared/i18n/locale.ts",
+    "release_sha256": "9cc5c4a46ebf7a5c537de6271a0f69180616fe71627d2a8f1547f6aaf516461c",
+    "live_sha256": "9cc5c4a46ebf7a5c537de6271a0f69180616fe71627d2a8f1547f6aaf516461c",
+    "changed": false
+  },
+  {
+    "file": "_shared/invoiceEmailTemplate.ts",
+    "release_sha256": "90a52bd5e841b209ebb69fbc2e6c3c29ea215905bdf6b4da83b9299e80971cc4",
+    "live_sha256": "76d516878dd665b434c75a3fcefebd59c1a1c4eb0893b5da84c642866733ebce",
+    "changed": true
+  },
+  {
+    "file": "_shared/logEmail.ts",
+    "release_sha256": "790af4d6b52ee08928803c91db0b2ee404fc68a20b3aff8eb029172bac6cb53c",
+    "live_sha256": "790af4d6b52ee08928803c91db0b2ee404fc68a20b3aff8eb029172bac6cb53c",
+    "changed": false
+  },
+  {
+    "file": "_shared/verifyCompanyMembership.ts",
+    "release_sha256": "64957d73d3964323e2045ae1369f383ddc9877394605b23d4f195f979cbfa13e",
+    "live_sha256": "64957d73d3964323e2045ae1369f383ddc9877394605b23d4f195f979cbfa13e",
+    "changed": false
+  },
+  {
+    "file": "send-quittung/document.ts",
+    "release_sha256": "0b8e44b04f58cd890a1c71f332c9cefbddd6a5f9d2648b9f76fb8b57dfb95c15",
+    "live_sha256": null,
+    "changed": true
+  },
+  {
+    "file": "send-quittung/index.ts",
+    "release_sha256": "bf9fa5c3a7593ef09db6b814883089962e10976f1b2fc44fd7a3230b99af0a14",
+    "live_sha256": "8cc419f5a54575a09cd993b8edbb9ed56fbca89942734d1c335efab3d8e519c7",
+    "changed": true
+  },
+  {
+    "file": "send-quittung/presentation.ts",
+    "release_sha256": "08c662079e18a4ab71cbf07924157aa5ce9d31ee16a0d73136091a3d49f71f94",
+    "live_sha256": null,
+    "changed": true
+  },
+  {
+    "file": "send-rechnung-email/index.ts",
+    "release_sha256": "8f57d30db092176a52eeb1032f2e2a95da8ad1e209620c8c5a91618fbca29c7c",
+    "live_sha256": "1e2f2291faf56be30c3d406a3cf3b85926d17a77f5216be2325be6e21e8a2655",
+    "changed": true
+  }
+]

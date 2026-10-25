@@ -1,0 +1,41 @@
+{
+  "observed_at": "2026-10-25T18:57:47.607020+00:00",
+  "stages": [
+    {
+      "at": "2026-10-25T18:54:52.661226Z",
+      "entry": 4,
+      "stage": "Routine initial helper cleanup: docker stop found no previous container with the new deployment UUID; build continued normally"
+    },
+    {
+      "at": "2026-10-25T18:55:10.061599Z",
+      "entry": 16,
+      "stage": "npm dependency installation"
+    },
+    {
+      "at": "2026-10-25T18:55:11.620824Z",
+      "entry": 18,
+      "stage": "npm dependency installation"
+    },
+    {
+      "at": "2026-10-25T18:55:25.060117Z",
+      "entry": 50,
+      "stage": "npm dependency installation"
+    },
+    {
+      "at": "2026-10-25T18:55:26.734278Z",
+      "entry": 53,
+      "stage": "npm dependency installation"
+    },
+    {
+      "at": "2026-10-25T18:56:40.892679Z",
+      "entry": 60,
+      "stage": "Vite build"
+    }
+  ],
+  "initial_cleanup_note": {
+    "at": "2026-10-25T18:54:52.661226Z",
+    "command_category": "docker stop",
+    "safe_excerpt": "Error response from daemon: No such container: es4ho9fzfxygjszkvzhcdf0x",
+    "interpretation": "No earlier helper container existed for this new deployment UUID. Subsequent dependency and Vite build stages prove the cleanup miss was non-fatal."
+  }
+}

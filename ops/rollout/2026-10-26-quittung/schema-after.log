@@ -1,0 +1,26 @@
+BEGIN
+quittung_dispatches|t|f|f|t
+quittung_documents|t|f|f|t
+quittung_nr_counter|t|f|f|t
+quittung_payment_links|t|f|f|t
+claim_quittung_dispatch(uuid,text,text)|f|{"search_path=\"\""}|f|f|t
+finalize_quittung(uuid,integer,text,text,timestamp with time zone,timestamp with time zone)|t|{"search_path=\"\""}|f|t|t
+record_quittung_payment(uuid,text,date,text,text)|t|{"search_path=\"\""}|f|t|t
+register_quittung_document(uuid,integer,text,text)|f|{"search_path=\"\""}|f|f|t
+payments|sync_quittung_payment_reference|O|f|f
+payments|sync_quittung_payment_reversal|O|f|f
+quittungen|quittung_invoice_customer|O|t|t
+quittungen|zz_quittung_lifecycle|O|f|f
+rechnungen|invoice_quittung_customer|O|t|t
+rechnungen|sync_quittung_invoice_payment|O|f|f
+0
+0
+0
+0
+26|239b5ea40d4d2fc1c0a2287eae1e13c9
+t|t
+quittungen_id_company_unique|t
+quittungen_payment_status_check|t
+quittungen_rechnung_fk|t
+quittungen_status_check|t
+ROLLBACK

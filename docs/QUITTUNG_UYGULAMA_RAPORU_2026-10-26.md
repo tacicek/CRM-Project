@@ -3,8 +3,9 @@
 26 Ekim 2026
 
 Quittung oluşturma, tahsilat, Rechnung bağlantısı, imza, PDF ve gönderim akışları
-yenilendi. Değişiklikler yerel çalışma alanındadır. Üretim veritabanına veya canlı
-e-posta servisine uygulanmadı; gerçek müşterilere test e-postası gönderilmedi.
+yenilendi ve 26 Ekim 2026 tarihinde canlıya alındı: https://crm-hirschen.ch.
+Veritabanı migration, Edge Functions ve arayüz birlikte yayımlandı. Gerçek
+müşterilere test e-postası gönderilmedi.
 
 ## Kullanıcı açısından davranış
 
@@ -94,7 +95,8 @@ saklanır. Tarayıcı testleri gerçek React formunu, SignaturePad ve ödeme dia
 
 Genel `npm run lint`, bu değişiklikte dokunulmayan `vibecosystem` git alt
 modülünde 88 mevcut hataya takılır. Alt modül dışındaki proje için
-`npm run lint -- --ignore-pattern 'vibecosystem/**'` başarılıdır. Bu ayrım,
+`npm run lint -- --ignore-pattern 'vibecosystem/**'` başarılıdır. İzole yayın
+klonunda normal `npm run lint` de 0 hata ve 1 mevcut uyarıyla geçti. Bu ayrım,
 uygulama lint hatalarını gizlemek için yapılandırmaya eklenmedi.
 
 Yerel DB paketinde API bütçesi testinin beklediği, depoda zaten bulunan migration
@@ -108,9 +110,28 @@ ayrıntılıdır. İncelenebilir sentetik örnekler:
 [Almanca ve özgün isimler](audits/quittung-implementation-2026-10-26/turkish.pdf),
 [Fransızca kısmi fatura ödemesi](audits/quittung-implementation-2026-10-26/partial-invoice.pdf).
 
-## Üretime geçiş
+## Canlı dağıtım
 
-Birlikte yayımlanması gereken parçalar:
+Yayımlanan kod: `3008c18344de51f12d6aaba8673d5cd97ec72115`.
+Coolify dağıtımı `es4ho9fzfxygjszkvzhcdf0x`, 25 Ekim 2026 18:58:33 UTC
+(26 Ekim 01:58:33 Asia/Bangkok) tarihinde başarıyla tamamlandı.
+
+- Veritabanı ve sunucu fonksiyonlarının geçiş öncesi yedekleri alındı.
+- 26 makbuzun finansal, müşteri ve imza içeriği geçişte korundu; ön/son içerik
+  parmak izi aynı. Dört veri tutarlılığı kontrolü temiz.
+- Yeni sunucu fonksiyonları canlı HTTPS üzerinden çalıştı; eksik/geçersiz
+  oturumlar reddedildi. Fonksiyon başlatma hatası görülmedi.
+- Yeni frontend container sağlıklı; Quittung ekran ve PDF JavaScript dosyaları
+  canlı adresten doğru içerik türüyle alındı. İki fontun SHA256 değeri kaynakla aynı.
+- Temiz Chromium oturumunda Quittung yolları giriş ekranına yönlendi;
+  JavaScript/asset hatası görülmedi.
+
+[Dağıtım kaydı ve kanıtlar](../ops/rollout/2026-10-26-quittung/README.md).
+Canlıda deneme finansal kaydı veya müşteri e-postası oluşturulmadı. Kimliği
+doğrulanmış olumlu iş akışları kontrollü yerel verilerle test edildi; canlı
+kontrolleri servis/varlık erişimi, yetki reddi ve mevcut veri bütünlüğünü kapsar.
+
+Birlikte yayımlanan parçalar:
 
 1. `supabase/migrations/20261025180327_quittung_document_lifecycle.sql`.
 2. `send-quittung` klasörü (`index.ts`, `document.ts`, `presentation.ts`);
@@ -119,15 +140,12 @@ Birlikte yayımlanması gereken parçalar:
    dağıtımı da aynı sürümden yapılmalıdır.
 3. Frontend derlemesi ve yeni yerel font dosyaları.
 
-Migration, Edge ve frontend aynı bakım penceresinde uygulanmalıdır. Eski
-istemciler kapatılıp yenilenmelidir; eski gönderim isteği yeni endpoint ile
-uyumlu değildir. `document-pdfs` özel bucket'ı, imzalı yükleme/okuma ve mevcut
-Resend ayarları hazır olmalıdır. Canlıda önce yetkili test adresiyle bir taslak,
-kesinleştirme, PDF arşivi, gönderim ve ödeme eşitleme kontrolü yapılmalıdır.
+Migration, Edge ve frontend aynı dağıtımda uygulandı. Açık tarayıcı sekmeleri
+yenilenmelidir; eski gönderim isteği yeni endpoint ile uyumlu değildir.
+`document-pdfs` özel bucket'ı doğrulandı; mevcut servis ayarları korundu.
 
-Migration öncesinde `supabase-test/quittung-preflight.sql` hedef veritabanında
-salt okunur çalıştırılmalı; dönen kayıtlar incelenmelidir. Yerelde engelleyici
-kayıt bulunmaması canlı verinin temiz olduğunu göstermez. Migration hatalı eski
+Migration öncesinde `supabase-test/quittung-preflight.sql` canlı hedefte
+salt okunur çalıştırıldı; engelleyici kayıt bulunmadı. Migration hatalı eski
 taslakları, tutarsız toplamları veya birden fazla makbuza bağlanmış aynı doğrudan
 ödemeyi sessizce düzeltmez; ilgili kayıtları bildirip işlemi durdurur.
 

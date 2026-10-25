@@ -1,0 +1,10 @@
+{
+  "runtime_error_counts": {
+    "worker boot error": 0,
+    "Uncaught": 0,
+    "Module not found": 0,
+    "failed to create the worker": 0,
+    "SyntaxError": 0,
+    "ReferenceError": 0
+  }
+}
