@@ -1,0 +1,20 @@
+{
+  "scenario": "changed-access-details",
+  "from_address": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+  "to_address": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)",
+  "service_type": "umzug",
+  "vat_rate": 0,
+  "selected_access": {
+    "from_floor": 0,
+    "from_has_lift": false,
+    "to_floor": 1,
+    "to_has_lift": true
+  },
+  "saved_access": {
+    "from_floor": 9,
+    "from_has_lift": true,
+    "to_floor": 1,
+    "to_has_lift": true
+  },
+  "access_snapshot_consistent": false
+}

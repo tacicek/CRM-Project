@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "pairs": [
+    {
+      "scenario": "frozen-offer-lead-number-removed",
+      "beforeCustomerNumber": false,
+      "beforeDestinationNumber": false,
+      "afterCustomerNumber": true,
+      "afterDestinationNumber": true,
+      "passed": true
+    },
+    {
+      "scenario": "frozen-offer-lead-missing",
+      "beforeCustomerNumber": false,
+      "beforeDestinationNumber": false,
+      "afterCustomerNumber": true,
+      "afterDestinationNumber": true,
+      "passed": true
+    }
+  ]
+}

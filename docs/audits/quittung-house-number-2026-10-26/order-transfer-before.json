@@ -1,0 +1,157 @@
+[
+  {
+    "scenario": "frozen-offer-lead-number-removed",
+    "offerFrozen": {
+      "from_number": "12a",
+      "to_number": "8B"
+    },
+    "orderForm": {
+      "from_address": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+      "to_address": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)"
+    },
+    "savedOrder": {
+      "from_address": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+      "to_address": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)",
+      "service_type": "umzug",
+      "vat_rate": 8.1
+    },
+    "receiptCustomerAddress": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+    "receiptDestination": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)",
+    "directOfferPath": {
+      "from_address": "Alte Landstrasse 12a, 8706 Meilen",
+      "to_address": "Rue du Lac 8B, 1007 Lausanne"
+    },
+    "toasts": [
+      {
+        "title": "Erfolgreich",
+        "description": "Auftrag wurde erstellt."
+      }
+    ],
+    "pageErrors": [],
+    "passed": false
+  },
+  {
+    "scenario": "frozen-offer-lead-missing",
+    "offerFrozen": {
+      "from_number": "12a",
+      "to_number": "8B"
+    },
+    "orderForm": {
+      "from_address": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+      "to_address": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)"
+    },
+    "savedOrder": {
+      "from_address": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+      "to_address": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)",
+      "service_type": null,
+      "vat_rate": 8.1
+    },
+    "receiptCustomerAddress": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+    "receiptDestination": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)",
+    "directOfferPath": {
+      "from_address": "Alte Landstrasse 12a, 8706 Meilen",
+      "to_address": "Rue du Lac 8B, 1007 Lausanne"
+    },
+    "toasts": [
+      {
+        "title": "Erfolgreich",
+        "description": "Auftrag wurde erstellt."
+      }
+    ],
+    "pageErrors": [],
+    "passed": false
+  },
+  {
+    "scenario": "frozen-offer-lead-unlinked",
+    "offerFrozen": {
+      "from_number": "12a",
+      "to_number": "8B"
+    },
+    "orderForm": {
+      "from_address": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+      "to_address": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)"
+    },
+    "savedOrder": {
+      "from_address": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+      "to_address": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)",
+      "service_type": null,
+      "vat_rate": 8.1
+    },
+    "receiptCustomerAddress": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+    "receiptDestination": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)",
+    "directOfferPath": {
+      "from_address": "Alte Landstrasse 12a, 8706 Meilen",
+      "to_address": "Rue du Lac 8B, 1007 Lausanne"
+    },
+    "toasts": [
+      {
+        "title": "Erfolgreich",
+        "description": "Auftrag wurde erstellt."
+      }
+    ],
+    "pageErrors": [],
+    "passed": false
+  },
+  {
+    "scenario": "existing-authored-order",
+    "offerFrozen": {
+      "from_number": "12a",
+      "to_number": "8B"
+    },
+    "orderForm": {
+      "from_address": "Operator Street 99\nc/o Customer\n8000 Zürich",
+      "to_address": "Custom destination 88C\n1007 Lausanne"
+    },
+    "savedOrder": {
+      "from_address": "Operator Street 99\nc/o Customer\n8000 Zürich",
+      "to_address": "Custom destination 88C\n1007 Lausanne",
+      "service_type": "umzug",
+      "vat_rate": 8.1
+    },
+    "receiptCustomerAddress": "Operator Street 99\nc/o Customer\n8000 Zürich",
+    "receiptDestination": "Custom destination 88C\n1007 Lausanne",
+    "directOfferPath": {
+      "from_address": "Alte Landstrasse 12a, 8706 Meilen",
+      "to_address": "Rue du Lac 8B, 1007 Lausanne"
+    },
+    "toasts": [
+      {
+        "title": "Erfolgreich",
+        "description": "Auftrag wurde aktualisiert."
+      }
+    ],
+    "pageErrors": [],
+    "passed": false
+  },
+  {
+    "scenario": "existing-numberless-order",
+    "offerFrozen": {
+      "from_number": "12a",
+      "to_number": "8B"
+    },
+    "orderForm": {
+      "from_address": "Alte Landstrasse\n8706 Meilen",
+      "to_address": "Rue du Lac\n1007 Lausanne"
+    },
+    "savedOrder": {
+      "from_address": "Alte Landstrasse\n8706 Meilen",
+      "to_address": "Rue du Lac\n1007 Lausanne",
+      "service_type": "umzug",
+      "vat_rate": 8.1
+    },
+    "receiptCustomerAddress": "Alte Landstrasse\n8706 Meilen",
+    "receiptDestination": "Rue du Lac\n1007 Lausanne",
+    "directOfferPath": {
+      "from_address": "Alte Landstrasse 12a, 8706 Meilen",
+      "to_address": "Rue du Lac 8B, 1007 Lausanne"
+    },
+    "toasts": [
+      {
+        "title": "Erfolgreich",
+        "description": "Auftrag wurde aktualisiert."
+      }
+    ],
+    "pageErrors": [],
+    "passed": false
+  }
+]

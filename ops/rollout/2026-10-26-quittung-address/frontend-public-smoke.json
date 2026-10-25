@@ -1,0 +1,91 @@
+{
+  "observed_at": "2026-10-25T19:52:13.024434+00:00",
+  "deployment_uuid": "bdaria3u7eqm3h10ritvlwmi",
+  "release_commit": "41554245629a0e89aa249b22694082041dba698d",
+  "scope": "Unauthenticated public GET only; no customer data or auth mutations",
+  "checks": [
+    {
+      "path": "/health",
+      "status": 200,
+      "content_type": "text/plain",
+      "cache_control": "",
+      "bytes": 8,
+      "sha256": "63745aef95742025c6d7a1b4fc0e7107e6f3c3eb2e0cb290f33c46f176e6740d"
+    },
+    {
+      "path": "/firma/quittungen",
+      "status": 200,
+      "content_type": "text/html",
+      "cache_control": "no-cache, no-store, must-revalidate",
+      "bytes": 7897,
+      "sha256": "62eaa1be4ac7e359009642f7fb6911800ed9430f0dde2bab984a1936b789c6b4"
+    },
+    {
+      "path": "/firma/quittungen/neu",
+      "status": 200,
+      "content_type": "text/html",
+      "cache_control": "no-cache, no-store, must-revalidate",
+      "bytes": 7897,
+      "sha256": "62eaa1be4ac7e359009642f7fb6911800ed9430f0dde2bab984a1936b789c6b4"
+    },
+    {
+      "path": "/assets/index-DZKRi6ya.js",
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "max-age=31536000",
+      "bytes": 855882,
+      "sha256": "41a259f0c5580e61f15e252a243eb179b43ec6565e169fefaaadd14ee8c91755"
+    },
+    {
+      "path": "/assets/AuftragModal-B6z39-fK.js",
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "max-age=31536000",
+      "bytes": 40119,
+      "sha256": "e9cfd8e79aabaf4e58ac5f16e61b8282749fb5047522ecef462bff3555b23344"
+    },
+    {
+      "path": "/assets/QuittungDetail-C0NUpRcM.js",
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "max-age=31536000",
+      "bytes": 41902,
+      "sha256": "50086b8727ed955f1774fdd596ef740c41d13caa73e69883739cae4e654dee05"
+    },
+    {
+      "path": "/assets/QuittungPDF-Ctz434N3.js",
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "max-age=31536000",
+      "bytes": 12101,
+      "sha256": "4ab898aed1d0fe6de2e555ad4b7f45a616f5adbe34ab8992467ec4621069a337"
+    },
+    {
+      "path": "/assets/Quittungen-Dq8Ebf4l.js",
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "max-age=31536000",
+      "bytes": 11207,
+      "sha256": "f3ce634f60796209fc24847d3605448cb12bf3d6d4bb5fa1939567b291c86ce9"
+    },
+    {
+      "path": "/assets/DejaVuSans-D8qTUNWI.ttf",
+      "status": 200,
+      "content_type": "application/octet-stream",
+      "cache_control": "max-age=31536000",
+      "bytes": 759720,
+      "sha256": "6038a160b491e121c1f12c7bccb4a9c8730296e3adc1086a059404ed84b7451c",
+      "matches_release_source": true
+    },
+    {
+      "path": "/assets/DejaVuSans-Bold-CmRlJs-h.ttf",
+      "status": 200,
+      "content_type": "application/octet-stream",
+      "cache_control": "max-age=31536000",
+      "bytes": 708920,
+      "sha256": "b5d64817b6331723b5e59eaaa6db90057cbed58e9733f65687f110638192359f",
+      "matches_release_source": true
+    }
+  ],
+  "passed": true
+}

@@ -1,0 +1,46 @@
+Adresse Testumzüge GmbH
+Firmenstrasse 5C                                                                 Quittung
+8001 Zürich
+office@example.invalid
+                                                                                        QU-2026-ADDRESS
+                                                                                           Datum: 26.10.2026
+
+                                                                                                  ENTWURF
+
+
+
+
+Kunde                                                      Zieladresse
+
+Işıl Çiçek                                                 Zielstrasse, 1007 Lausanne
+Startstrasse, 8706 Meilen
+
+customer@example.invalid
+
+
+
+  Beschreibung                                         Satz / Bemerkung                        Betrag CHF
+
+
+  Umzug                                                1 × CHF 100.00                              100.00
+
+
+
+Zahlungsstand
+                                                              Zwischensumme:                     CHF 100.00
+Noch offen                                                    MwSt. (8.1%):                        CHF 8.10
+Direkte Zahlung gegen diese Quittung.
+
+Es wurde noch kein Zahlungseingang erfasst.
+                                                              Gesamttotal:                 CHF 108.10
+Noch offen:                                   CHF 108.10
+
+
+
+Vielen Dank für Ihren geschätzten Auftrag.
+
+
+
+
+Quittung QU-2026-ADDRESS                                                                         Seite 1 von 1
+

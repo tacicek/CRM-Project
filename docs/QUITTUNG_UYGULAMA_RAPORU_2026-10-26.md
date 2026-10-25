@@ -224,3 +224,29 @@ hatasını yakalamıyordu; yeni testler gerçek SDK ve helper sınırını kulla
 
 [İndirme düzeltmesi ve canlı kanıtlar](../ops/rollout/2026-10-26-quittung-download/README.md).
 Veritabanına, ödeme durumuna veya eski PDF dosyalarına değişiklik yapılmadı.
+
+## Ek: Müşteri başlangıç adresindeki eski numara kaybı
+
+Kullanıcı kapı numarasının müşteri/başlangıç adresinde hâlâ eksik olduğunu
+bildirdi. Önceki düzeltmenin mevcut kayıtlara etkisi eksik değerlendirilmişti:
+eski makbuz aktarıcısı kapı numarasını sorgulamadan adres metnini kaydetmiş;
+sonradan düzeltilen kaynak kod bu eski metinleri kendiliğinden değiştirmemiştir.
+PDF motoru kayıtlı metni basar; arşiv de önceki dosyayı korur.
+
+Ayrı bir yeni-kayıt hatası da gerçek Auftrag modalında yeniden üretildi:
+teklifte dondurulmuş adres varken yalnız güncel lead kullanılıyordu. Ortak
+adres seçicisiyle Auftrag ve Quittung aynı kaynak önceliğini kullanır. Kat ve
+asansör bilgileri aynı snapshot'tan gelir; sıfır KDV korunur. Kaynak commit'i
+`41554245629a0e89aa249b22694082041dba698d`; 2.250 birim testi, 5 gerçek modal
+kaydetme senaryosu, tip/lint/build ve önce/sonra gerçek PDF kontrolleri geçti.
+Frontend 25 Ekim 2026 19:51:22 UTC tarihinde canlıya alındı; tam kaynak sürümü,
+container sağlığı, public HTTP/dosya ve iki oturumsuz tarayıcı kontrolü başarılı.
+
+Mevcut canlı makbuz verileri, imzalar ve arşivler bu takipte değiştirilmedi.
+Salt okunur incelemede kaynakla güvenle eşleştirilebilen yedi imzasız taslak
+bulundu; bir başka taslak müşteri bağlantısı uyuşmadığı için dışarıda kalır.
+İmzalı/arşivli `QU-2026-0026` ve kaynağı sonradan güncellenmiş `QU-2026-0002`
+otomatik taslak düzeltmesine uygun değildir. Kullanıcının açtığı makbuz numarası
+henüz doğrulanmadı; mevcut PDF sorununun giderildiği iddia edilmiyor.
+
+[Takip düzeltmesi, canlı durum ve kapsam](../ops/rollout/2026-10-26-quittung-address/README.md).

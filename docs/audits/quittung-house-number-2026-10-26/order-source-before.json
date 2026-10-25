@@ -1,0 +1,42 @@
+[
+  {
+    "scenario": "frozen-offer-lead-number-removed",
+    "offerFrozen": {
+      "from_number": "12a",
+      "to_number": "8B"
+    },
+    "orderForm": {
+      "from_address": "Alte Landstrasse\n8706 Meilen\n0. Stock (ohne Lift)",
+      "to_address": "Rue du Lac\n1007 Lausanne\n1. Stock (mit Lift)"
+    },
+    "receiptCustomerAddress": "Alte Landstrasse\n8706 Meilen\n0. Stock (ohne Lift)",
+    "receiptDestination": "Rue du Lac\n1007 Lausanne\n1. Stock (mit Lift)",
+    "directOfferPath": {
+      "from_address": "Alte Landstrasse 12a, 8706 Meilen",
+      "to_address": "Rue du Lac 8B, 1007 Lausanne"
+    },
+    "toasts": [],
+    "pageErrors": [],
+    "passed": false
+  },
+  {
+    "scenario": "frozen-offer-lead-missing",
+    "offerFrozen": {
+      "from_number": "12a",
+      "to_number": "8B"
+    },
+    "orderForm": {
+      "from_address": "",
+      "to_address": ""
+    },
+    "receiptCustomerAddress": null,
+    "receiptDestination": null,
+    "directOfferPath": {
+      "from_address": "Alte Landstrasse 12a, 8706 Meilen",
+      "to_address": "Rue du Lac 8B, 1007 Lausanne"
+    },
+    "toasts": [],
+    "pageErrors": [],
+    "passed": false
+  }
+]
