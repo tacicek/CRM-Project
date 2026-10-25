@@ -3,6 +3,7 @@ import { parseQuittungCompanySnapshot, type Quittung } from '@/types/quittung.ty
 import { resolveQuittungCompany } from '@/lib/quittungDocuments';
 import { getReceiptOfferAddresses, type ReceiptOfferAddressSource } from '@/lib/quittungDraft';
 import { formatReceiptStreet } from '@/lib/receiptAddress';
+import { getOfferAddressSnapshot, type OfferAddressSource } from '@/lib/offerAddressSnapshot';
 
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 
@@ -59,5 +60,43 @@ describe('receipt addresses from an offer', () => {
   it('joins structured issuer fields without dropping Unicode or alphanumeric numbers', () => {
     expect(formatReceiptStreet('Rue de l’Église', '12a')).toBe('Rue de l’Église 12a');
     expect(formatReceiptStreet(null, null)).toBe('');
+  });
+});
+
+describe('shared offer address source for orders and receipts', () => {
+  const offer: OfferAddressSource = {
+    frozen_from_street: 'Alte Landstrasse', frozen_from_house_number: '12a', frozen_from_plz: '8706', frozen_from_city: 'Meilen',
+    frozen_from_floor: 0, frozen_from_has_lift: false,
+    frozen_to_street: 'Rue du Lac', frozen_to_house_number: '8B', frozen_to_plz: '1007', frozen_to_city: 'Lausanne',
+    frozen_to_floor: 2, frozen_to_has_lift: true,
+    leads: { from_street: 'Alte Landstrasse', from_house_number: null, from_floor: 9, from_has_lift: true,
+      to_street: 'Rue du Lac', to_house_number: null, to_floor: 4, to_has_lift: false },
+  };
+  it('uses the complete captured origin when the lead loses its number or changes access details', () => {
+    expect(getOfferAddressSnapshot(offer, 'from')).toEqual({ street: 'Alte Landstrasse', house_number: '12a',
+      plz: '8706', city: 'Meilen', floor: 0, has_lift: false });
+  });
+  it('keeps both captured addresses when the source lead was removed', () => {
+    expect(getOfferAddressSnapshot({ ...offer, leads: null }, 'from').house_number).toBe('12a');
+    expect(getOfferAddressSnapshot({ ...offer, leads: null }, 'to')).toEqual({ street: 'Rue du Lac', house_number: '8B',
+      plz: '1007', city: 'Lausanne', floor: 2, has_lift: true });
+  });
+  it('uses the lead independently for a direction with no captured postal fields', () => {
+    const mixed: OfferAddressSource = { frozen_from_street: 'Captured', frozen_from_house_number: '5/2',
+      leads: { from_street: 'New street', from_house_number: '99', to_street: 'Rue de l’Église',
+        to_house_number: '8B', to_plz: '1007', to_city: 'Lausanne', to_floor: 0, to_has_lift: false } };
+    expect(getOfferAddressSnapshot(mixed, 'from').house_number).toBe('5/2');
+    expect(getOfferAddressSnapshot(mixed, 'to')).toEqual({ street: 'Rue de l’Église', house_number: '8B',
+      plz: '1007', city: 'Lausanne', floor: 0, has_lift: false });
+  });
+  it('does not manufacture missing frozen fields from a newer lead', () => {
+    expect(getOfferAddressSnapshot({ frozen_from_street: 'Old street',
+      leads: { from_street: 'New street', from_house_number: '77', from_floor: 3, from_has_lift: true } }, 'from'))
+      .toEqual({ street: 'Old street', house_number: null, plz: null, city: null, floor: null, has_lift: null });
+  });
+  it('does not mutate the source snapshot while preparing either direction', () => {
+    const before = structuredClone(offer);
+    getOfferAddressSnapshot(offer, 'from'); getOfferAddressSnapshot(offer, 'to');
+    expect(offer).toEqual(before);
   });
 });
