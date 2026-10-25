@@ -1,0 +1,12 @@
+
+> vite_react_shadcn_ts@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.6 /home/tuncay/Documents/Projects/CRM-Project
+
+
+ Test Files  122 passed (122)
+      Tests  2245 passed (2245)
+   Start at  02:26:53
+   Duration  5.53s (transform 7.21s, setup 0ms, import 14.02s, tests 4.13s, environment 13ms)

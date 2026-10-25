@@ -1,0 +1,318 @@
+[
+  {
+    "name": "paid-detail-internal-signed-url",
+    "view": "detail",
+    "state": "paid",
+    "origin": "http://kong:8000",
+    "expectedDownload": false,
+    "actualDownload": false,
+    "downloads": [],
+    "toasts": [
+      {
+        "title": "Quittung konnte nicht verarbeitet werden",
+        "description": "Failed to fetch",
+        "variant": "destructive"
+      }
+    ],
+    "writes": [],
+    "actions": [
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "lookup"
+      }
+    ],
+    "sdk": [
+      {
+        "host": "kong:8000",
+        "path": "/storage/v1/object/sign/document-pdfs/fixture.pdf",
+        "method": "POST"
+      }
+    ],
+    "uploadedPdfBytes": 0,
+    "failures": [
+      {
+        "host": "kong:8000",
+        "path": "/storage/v1/object/sign/document-pdfs/fixture.pdf",
+        "error": "net::ERR_NAME_NOT_RESOLVED"
+      }
+    ],
+    "pageErrors": [],
+    "passed": true
+  },
+  {
+    "name": "paid-list-internal-signed-url",
+    "view": "list",
+    "state": "paid",
+    "origin": "http://kong:8000",
+    "expectedDownload": false,
+    "actualDownload": false,
+    "downloads": [],
+    "toasts": [
+      {
+        "title": "PDF konnte nicht geladen werden.",
+        "description": "Failed to fetch",
+        "variant": "destructive"
+      }
+    ],
+    "writes": [],
+    "actions": [
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "lookup"
+      }
+    ],
+    "sdk": [
+      {
+        "host": "kong:8000",
+        "path": "/storage/v1/object/sign/document-pdfs/fixture.pdf",
+        "method": "POST"
+      }
+    ],
+    "uploadedPdfBytes": 0,
+    "failures": [
+      {
+        "host": "kong:8000",
+        "path": "/storage/v1/object/sign/document-pdfs/fixture.pdf",
+        "error": "net::ERR_NAME_NOT_RESOLVED"
+      }
+    ],
+    "pageErrors": [],
+    "passed": true
+  },
+  {
+    "name": "paid-detail-public-signed-url",
+    "view": "detail",
+    "state": "paid",
+    "origin": "https://fixture-storage.invalid",
+    "expectedDownload": true,
+    "actualDownload": true,
+    "downloads": [
+      "Quittung-QU-FIXTURE.pdf"
+    ],
+    "toasts": [],
+    "writes": [],
+    "actions": [
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "lookup"
+      }
+    ],
+    "sdk": [
+      {
+        "host": "fixture-storage.invalid",
+        "path": "/storage/v1/object/sign/document-pdfs/fixture.pdf",
+        "method": "POST"
+      }
+    ],
+    "uploadedPdfBytes": 0,
+    "failures": [],
+    "pageErrors": [],
+    "passed": true
+  },
+  {
+    "name": "paid-list-public-signed-url",
+    "view": "list",
+    "state": "paid",
+    "origin": "https://fixture-storage.invalid",
+    "expectedDownload": true,
+    "actualDownload": true,
+    "downloads": [
+      "Quittung-QU-FIXTURE.pdf"
+    ],
+    "toasts": [],
+    "writes": [],
+    "actions": [
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "lookup"
+      }
+    ],
+    "sdk": [
+      {
+        "host": "fixture-storage.invalid",
+        "path": "/storage/v1/object/sign/document-pdfs/fixture.pdf",
+        "method": "POST"
+      }
+    ],
+    "uploadedPdfBytes": 0,
+    "failures": [],
+    "pageErrors": [],
+    "passed": true
+  },
+  {
+    "name": "paid-detail-new-archive-internal-signed-url",
+    "view": "detail",
+    "state": "paid",
+    "origin": "http://kong:8000",
+    "newArchive": true,
+    "expectedDownload": false,
+    "actualDownload": false,
+    "downloads": [],
+    "toasts": [
+      {
+        "title": "Quittung konnte nicht verarbeitet werden",
+        "description": "Failed to fetch",
+        "variant": "destructive"
+      }
+    ],
+    "writes": [],
+    "actions": [
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "lookup"
+      },
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "prepare",
+        "sha256": "5f7394667f3dd2776cf59a2e55dd6ca18416b0c76f1c06471d01d00362079797"
+      },
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "archive",
+        "pdfPath": "fixture.pdf",
+        "sha256": "5f7394667f3dd2776cf59a2e55dd6ca18416b0c76f1c06471d01d00362079797"
+      }
+    ],
+    "sdk": [
+      {
+        "host": "fixture-storage.invalid",
+        "path": "/storage/v1/object/upload/sign/document-pdfs/fixture.pdf",
+        "method": "PUT"
+      },
+      {
+        "host": "kong:8000",
+        "path": "/storage/v1/object/sign/document-pdfs/fixture.pdf",
+        "method": "POST"
+      }
+    ],
+    "uploadedPdfBytes": 23780,
+    "failures": [
+      {
+        "host": "kong:8000",
+        "path": "/storage/v1/object/sign/document-pdfs/fixture.pdf",
+        "error": "net::ERR_NAME_NOT_RESOLVED"
+      }
+    ],
+    "pageErrors": [],
+    "passed": true
+  },
+  {
+    "name": "paid-detail-new-archive-public-signed-url",
+    "view": "detail",
+    "state": "paid",
+    "origin": "https://fixture-storage.invalid",
+    "newArchive": true,
+    "expectedDownload": true,
+    "actualDownload": true,
+    "downloads": [
+      "Quittung-QU-FIXTURE.pdf"
+    ],
+    "toasts": [],
+    "writes": [],
+    "actions": [
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "lookup"
+      },
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "prepare",
+        "sha256": "aee0bb73265936f286dda6be86b5b7519fc49d7359eab75dae8728a459447eed"
+      },
+      {
+        "quittungId": "20000000-0000-4000-8000-000000000002",
+        "version": 4,
+        "action": "archive",
+        "pdfPath": "fixture.pdf",
+        "sha256": "aee0bb73265936f286dda6be86b5b7519fc49d7359eab75dae8728a459447eed"
+      }
+    ],
+    "sdk": [
+      {
+        "host": "fixture-storage.invalid",
+        "path": "/storage/v1/object/upload/sign/document-pdfs/fixture.pdf",
+        "method": "PUT"
+      },
+      {
+        "host": "fixture-storage.invalid",
+        "path": "/storage/v1/object/sign/document-pdfs/fixture.pdf",
+        "method": "POST"
+      }
+    ],
+    "uploadedPdfBytes": 23780,
+    "failures": [],
+    "pageErrors": [],
+    "passed": true
+  },
+  {
+    "name": "draft-detail-local-render",
+    "view": "detail",
+    "state": "draft",
+    "origin": "http://kong:8000",
+    "expectedDownload": true,
+    "actualDownload": true,
+    "downloads": [
+      "Quittung-QU-FIXTURE.pdf"
+    ],
+    "toasts": [],
+    "writes": [
+      {
+        "company_id": "10000000-0000-4000-8000-000000000001",
+        "customer_id": null,
+        "offer_id": null,
+        "auftrag_id": null,
+        "rechnung_id": null,
+        "language": "de",
+        "datum": "2026-10-26",
+        "customer_name": "Fixture Customer",
+        "customer_address": null,
+        "customer_destination": null,
+        "customer_email": "customer@example.invalid",
+        "customer_phone": null,
+        "positionen": [
+          {
+            "id": "p1",
+            "beschreibung": "Fixture service",
+            "satz": "",
+            "checked": true,
+            "betrag": 100,
+            "is_custom": false,
+            "menge": null,
+            "einheit": null,
+            "einzelpreis": null,
+            "source_item_id": null,
+            "price_type": null
+          }
+        ],
+        "mwst_satz": 0,
+        "rabatt": 0,
+        "zwischensumme": 100,
+        "mwst_betrag": 0,
+        "total": 100,
+        "gesamttotal": 100,
+        "status": "draft",
+        "betrag_noch_offen": true,
+        "notiz": null,
+        "kunde_unterschrift": null,
+        "teamchef_unterschrift": null,
+        "kunde_signed_at": null,
+        "teamchef_signed_at": null
+      }
+    ],
+    "actions": [],
+    "sdk": [],
+    "uploadedPdfBytes": 0,
+    "failures": [],
+    "pageErrors": [],
+    "passed": true
+  }
+]

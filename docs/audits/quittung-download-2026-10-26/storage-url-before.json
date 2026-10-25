@@ -1,0 +1,157 @@
+{
+  "passed": false,
+  "checks": [
+    {
+      "scenario": "HTTPS public Supabase origin",
+      "action": "lookup",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "http://supabase-kong:8000",
+      "expectedOrigin": "https://api.receipt-audit.invalid",
+      "publicOrigin": false,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "HTTPS public Supabase origin",
+      "action": "archive",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "http://supabase-kong:8000",
+      "expectedOrigin": "https://api.receipt-audit.invalid",
+      "publicOrigin": false,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "HTTP public Supabase with HTTPS dashboard Storage proxy",
+      "action": "lookup",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "http://supabase-kong:8000",
+      "expectedOrigin": "https://crm.receipt-audit.invalid",
+      "publicOrigin": false,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "HTTP public Supabase with HTTPS dashboard Storage proxy",
+      "action": "archive",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "http://supabase-kong:8000",
+      "expectedOrigin": "https://crm.receipt-audit.invalid",
+      "publicOrigin": false,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "error": null
+    }
+  ],
+  "requests": [
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    }
+  ],
+  "errors": [],
+  "note": "Handler and installed Supabase SDK are real; Auth/PostgREST/Storage HTTP responses are mocked locally. No JWT was minted, no live API contacted."
+}

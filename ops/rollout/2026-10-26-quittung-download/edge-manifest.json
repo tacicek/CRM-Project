@@ -1,0 +1,10 @@
+{
+  "send-quittung/index.ts": {
+    "before": "bf9fa5c3a7593ef09db6b814883089962e10976f1b2fc44fd7a3230b99af0a14",
+    "after": "614836a1cb55bfd8ad53821547bf8661fbc62cfb11db3c4aa2b4698979d06881"
+  },
+  "send-quittung/document.ts": {
+    "before": "0b8e44b04f58cd890a1c71f332c9cefbddd6a5f9d2648b9f76fb8b57dfb95c15",
+    "after": "bd449ce0c17554c27b57b9bbfeb39bd81d859434ef5b1eb01a6e189287c0cf6f"
+  }
+}

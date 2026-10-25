@@ -1,0 +1,313 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "scenario": "HTTPS public Supabase origin",
+      "action": "lookup",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "https://api.receipt-audit.invalid",
+      "expectedOrigin": "https://api.receipt-audit.invalid",
+      "publicOrigin": true,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "originalSigningQueryPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "HTTPS public Supabase origin",
+      "action": "archive",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "https://api.receipt-audit.invalid",
+      "expectedOrigin": "https://api.receipt-audit.invalid",
+      "publicOrigin": true,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "originalSigningQueryPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "HTTP public Supabase with HTTPS dashboard Storage proxy",
+      "action": "lookup",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "https://crm.receipt-audit.invalid",
+      "expectedOrigin": "https://crm.receipt-audit.invalid",
+      "publicOrigin": true,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "originalSigningQueryPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "HTTP public Supabase with HTTPS dashboard Storage proxy",
+      "action": "archive",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "https://crm.receipt-audit.invalid",
+      "expectedOrigin": "https://crm.receipt-audit.invalid",
+      "publicOrigin": true,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "originalSigningQueryPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "Production-shaped HTTP public URL with canonical dashboard default",
+      "action": "lookup",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "https://crm-hirschen.ch",
+      "expectedOrigin": "https://crm-hirschen.ch",
+      "publicOrigin": true,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "originalSigningQueryPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "Production-shaped HTTP public URL with canonical dashboard default",
+      "action": "archive",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "https://crm-hirschen.ch",
+      "expectedOrigin": "https://crm-hirschen.ch",
+      "publicOrigin": true,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "originalSigningQueryPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "HTTPS public Supabase with configured path prefix",
+      "action": "lookup",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "https://api.receipt-audit.invalid",
+      "expectedOrigin": "https://api.receipt-audit.invalid",
+      "publicOrigin": true,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "originalSigningQueryPreserved": true,
+      "error": null
+    },
+    {
+      "scenario": "HTTPS public Supabase with configured path prefix",
+      "action": "archive",
+      "status": 200,
+      "documentPreserved": true,
+      "returnedOrigin": "https://api.receipt-audit.invalid",
+      "expectedOrigin": "https://api.receipt-audit.invalid",
+      "publicOrigin": true,
+      "originalPathPreserved": true,
+      "originalTokenPreserved": true,
+      "originalSigningQueryPreserved": true,
+      "error": null
+    }
+  ],
+  "requests": [
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/auth/v1/user",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittungen",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/company_members",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/rest/v1/quittung_documents",
+      "method": "GET"
+    },
+    {
+      "origin": "http://supabase-kong:8000",
+      "path": "/storage/v1/object/sign/document-pdfs/22222222-2222-4222-8222-222222222222/quittung/11111111-1111-4111-8111-111111111111/2/0000000000000000000000000000000000000000000000000000000000000000.pdf",
+      "method": "POST"
+    }
+  ],
+  "errors": [],
+  "note": "Handler and installed Supabase SDK are real; Auth/PostgREST/Storage HTTP responses are mocked locally. No JWT was minted, no live API contacted."
+}

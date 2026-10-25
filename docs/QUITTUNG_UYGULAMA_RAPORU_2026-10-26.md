@@ -204,3 +204,23 @@ sayfalarında tekrarlanır; tüm sayfalarda belge numarası ve sayfa sayacı bul
 snapshot'ta bulunmayan numara bugünkü firma adresinden sessizce eklenmez.
 Yeni düzen taslaklarda ve henüz arşivi oluşmamış yeni PDF sürümlerinde kullanılır;
 arşivi mevcut sürümün önizleme, indirme ve e-posta dosyası değişmez.
+
+
+## Ek: Kesinleşmiş makbuzun PDF indirme hatası
+
+`2921e58638f43362a75b6b1f7981776426b15541` düzeltmesi canlı Edge Function'a
+uygulandı. Kesinleşmiş belge arşivi için SDK'nın ürettiği bağlantı, dahili HTTP
+sunucu adresini içeriyordu; tarayıcı son indirme isteğini yapamıyordu. Canlıdaki
+public Supabase adresi de HTTP olduğundan, uygun HTTPS Storage adresi veya
+CRM'in HTTPS Storage proxy'si seçilerek sorun giderildi. İmza parametresi,
+dosya yolu ve arşiv içeriği korunuyor.
+
+Gerçek handler/SDK ile 8 senaryo; gerçek detay/liste/PDF renderer/arşiv istemcisi
+ile 6 düzeltme senaryosu geçti. Genel paket 122 dosyada 2.245 testle başarılı.
+Canlıdaki mevcut bir arşiv PDF'si HTTPS üzerinden 200 yanıtı ve aynı SHA256 ile
+okundu. Önceki arşiv fixture'ları yalnız erişilebilir HTTPS bağlantısı döndürdüğü
+ve bazı ekran testleri document helper'ını stub'ladığı için bu dağıtım ortamı
+hatasını yakalamıyordu; yeni testler gerçek SDK ve helper sınırını kullanıyor.
+
+[İndirme düzeltmesi ve canlı kanıtlar](../ops/rollout/2026-10-26-quittung-download/README.md).
+Veritabanına, ödeme durumuna veya eski PDF dosyalarına değişiklik yapılmadı.
