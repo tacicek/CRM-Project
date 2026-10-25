@@ -1,0 +1,19 @@
+    supabase_db_crm-test: laeuft, Projekt crm-test, Netz crm-test-loopback, 5432/tcp -> 127.0.0.1:54342
+BEGIN
+                              set_config                               
+-----------------------------------------------------------------------
+ {"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}
+(1 row)
+
+NOTICE:  PASS Quittung direct issue/payment/reversal/history and content guards
+NOTICE:  PASS Quittung invoice partial/full/reversal/credit-note synchronization without double income
+NOTICE:  PASS Quittung validation, customer linkage and non-recycled numbering
+NOTICE:  PASS Quittung archive immutability, dispatch idempotency and company isolation
+DO
+NOTICE:  PASS Quittung signature capture, invoice amount edits, customer merge, shape validation and five-digit numbers
+DO
+NOTICE:  PASS Quittung draft customer merge, payment reference revisions, INSERT delivery guard and deferred customer invariant
+DO
+NOTICE:  PASS Quittung issuer house number capture and historical address preservation
+DO
+ROLLBACK

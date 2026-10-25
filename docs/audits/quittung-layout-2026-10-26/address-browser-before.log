@@ -1,0 +1,3 @@
+Error: Frozen origin address/house number missing
+    at assert (/home/tuncay/Documents/Projects/CRM-Project/docs/audits/quittung-layout-2026-10-26/address-browser.cjs:57:58)
+    at main (/home/tuncay/Documents/Projects/CRM-Project/docs/audits/quittung-layout-2026-10-26/address-browser.cjs:66:3)

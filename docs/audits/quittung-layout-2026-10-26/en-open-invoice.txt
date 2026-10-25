@@ -1,0 +1,65 @@
+                                                                                         Receipt
+                                                                                                  QU-2026-0126
+
+Beispiel Umzug & Logistik GmbH                                                                      Date: 26/10/2026
+                                                                                        Issued: 26/10/2026, 10:30 CET
+Bahnhofstrasse 5
+8001 Zürich
++41 00 000 00 00
+kontakt@example.invalid
+VAT no.: CHE-000.000.000 MWST
+
+
+
+
+Customer                                                          Destination address
+
+Işıl Çiçek                                                        Rue du Lac 8B
+Alte Landstrasse 12a                                              1007 Lausanne
+c/o Beispiel Verwaltung, Haus C, 3. Obergeschoss                  Suisse
+8706 Meilen
+Schweiz
+
++41 00 000 00 01
+isilaudit@example.invalid
+
+
+
+  Description                                                 Rate / remark                           Amount CHF
+
+
+  Move from Meilen to Lausanne                                3 h × CHF 220.00                             660.00
+
+
+  Vehicle and transport insurance                             1 × CHF 150.00                               150.00
+
+
+  Packing materials                                           1 × CHF 75.00                                  75.00
+
+
+  Protective blankets and assembly supplies                   Included                                        0.00
+
+
+
+Payment status
+                                                                         Subtotal:                       CHF 885.00
+Still outstanding                                                        Discount:                       -CHF 35.00
+Payment through the linked invoice — no additional charge.
+                                                                         VAT (8.1%):                      CHF 68.85
+No payment has been recorded yet.
+
+Invoice balance:                                     CHF 918.85
+                                                                         Grand total:            CHF 918.85
+
+Beispielbank · IBAN: CH00 0000 0000 0000 0000 0
+
+
+
+
+Thank you for your business.
+
+
+
+
+Receipt QU-2026-0126                                                                                       Page 1 of 1
+

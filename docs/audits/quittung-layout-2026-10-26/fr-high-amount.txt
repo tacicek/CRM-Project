@@ -1,0 +1,59 @@
+                                                                                                   Reçu
+                                                                                                 QU-2026-0126
+
+Beispiel Umzug & Logistik GmbH                                                                     Date : 26.10.2026
+                                                                                       Émis : 26.10.2026 10:30 UTC+1
+Bahnhofstrasse 5
+8001 Zürich
++41 00 000 00 00
+kontakt@example.invalid
+N° TVA : CHE-000.000.000 MWST
+
+
+
+
+Client                                                        Adresse de destination
+
+Işıl Çiçek                                                    Rue du Lac 8B
+Alte Landstrasse 12a                                          1007 Lausanne
+c/o Beispiel Verwaltung, Haus C, 3. Obergeschoss              Suisse
+8706 Meilen
+Schweiz
+
++41 00 000 00 01
+isilaudit@example.invalid
+
+
+
+  Description                                             Tarif / remarque                           Montant CHF
+
+
+  Internationaler Spezialtransport                        Pauschal                                   1 234 567,89
+
+
+
+Statut du paiement
+                                                                     Sous-total :                  1 234 567.89 CHF
+Payé                                                                 TVA (8,1%) :                   100 000.00 CHF
+Paiement direct contre ce reçu.
+
+Paiement reçu :                          1 334 567.89 CHF            Total général :   1 334 567.89 CHF
+Date du paiement :                             26.10.2026
+Mode de paiement                         Virement bancaire
+Référence du paiement : BANK-2026-0126
+
+Solde à payer :                                    0.00 CHF
+
+
+Beispielbank · IBAN : CH00 0000 0000 0000 0000 0
+
+
+
+
+Merci de votre confiance.
+
+
+
+
+Reçu QU-2026-0126                                                                                         Page 1 sur 1
+

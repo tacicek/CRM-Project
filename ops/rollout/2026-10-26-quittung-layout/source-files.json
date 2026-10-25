@@ -1,0 +1,17 @@
+[
+  "src/components/quittung/QuittungPDF.tsx",
+  "src/i18n/catalog/de/document.ts",
+  "src/i18n/catalog/en/document.ts",
+  "src/i18n/catalog/fr/document.ts",
+  "src/lib/__tests__/quittungDraft.test.ts",
+  "src/lib/quittungDocuments.tsx",
+  "src/lib/quittungDraft.ts",
+  "src/pages/firma/QuittungDetail.tsx",
+  "src/pages/firma/Quittungen.tsx",
+  "src/types/quittung.types.ts",
+  "supabase-test/pending-migrations.txt",
+  "supabase-test/tests/quittungen.sql",
+  "src/lib/receiptAddress.ts",
+  "src/lib/__tests__/quittungAddress.test.ts",
+  "supabase/migrations/20261025190708_quittung_company_house_number.sql"
+]

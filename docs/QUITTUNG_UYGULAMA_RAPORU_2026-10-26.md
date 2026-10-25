@@ -162,3 +162,45 @@ uzlaştırılmalıdır. [Resend idempotency belgesi](https://resend.com/docs/das
 
 Üretimde migration geri alınarak eski yazılabilir belge modeline dönülmemelidir.
 Sorunda yazma/gönderim durdurulup kayıtlar korunarak ileri düzeltme yapılmalıdır.
+
+
+## Ek: PDF düzeni ve kapı numarası
+
+Kullanıcının PDF yerleşimi ve eksik kapı numarası bildirimi üzerine kaynak
+sürümü `c3915408ab7c65394d48fa618237b1900b43a4f2`, 25 Ekim 2026 19:16:20 UTC
+(26 Ekim 02:16:20 Asia/Bangkok) tarihinde canlıya alındı. Canlı sağlık, dosya,
+font ve tarayıcı giriş ekranı kontrolleri başarılı.
+
+Firma kapı numarası ayrı `companies.house_number` alanında bulunuyordu; makbuz
+firma sorgusu, snapshot parser'ı, PDF hazırlama şeması ve veritabanındaki snapshot
+üreticisi bu alanı taşımıyordu. Zincirin tamamı düzeltildi. Yeni kesinleştirilen
+makbuzlar kapı numarasını da kaydeder. Tekliften aktarımda, sonradan değişebilen
+lead yerine teklifin kendi kayıtlı başlangıç/hedef adresi önceliklidir; farklı
+zamanlara ait sokak ve numara alanları birleştirilmez.
+
+PDF'de tek belirgin başlık, ayrı müşteri/hedef adresleri, okunaklı tipografi,
+hizalı fiyatlar ve vurgulu toplam kullanılır. Kesinleşmiş imzasız belgelerde boş
+imza kutuları kaldırıldı. Normal imzalı makbuz ve üç el yazısı satırlı çalışma
+formu tek A4 sayfaya sığar. Uzun belgelerde tablo başlıkları sadece kalem
+sayfalarında tekrarlanır; tüm sayfalarda belge numarası ve sayfa sayacı bulunur.
+
+- 12 gerçek PDF, 24 A4 sayfa üzerinde **246/246 kontrol** başarılı.
+- Almanca, Fransızca, İngilizce; uzun adresler, özgün isimler, kapı numaraları,
+  imzalar ve milyonluk tutarlar kontrol edildi. Metin taşması/çakışması bulunmadı.
+- Genel test paketi: **122 dosya, 2.235 test** başarılı. Her iki TypeScript
+  kontrolü, üretim build'i ve lint geçti; 1 mevcut PaginationBar uyarısı var.
+- Adres doğrulaması: 40 hedefli test, gerçek form üzerinde 2 tarayıcı senaryosu;
+  13/13 SQL dosyası ve 46 makbuz kontrolü başarılı.
+- Canlı veritabanında 26 eski snapshot'ın parmak izi değişmedi; yeni snapshot
+  üreticisi kapı numarasını içeriyor, yetkiler korunuyor.
+
+[İmzalı yeni PDF örneği](audits/quittung-layout-2026-10-26/de-signed.pdf),
+[Fransızca kısmi ödeme örneği](audits/quittung-layout-2026-10-26/fr-partial-invoice.pdf),
+[adres doğrulaması](audits/quittung-layout-2026-10-26/ADDRESS_VALIDATION.md),
+[PDF görsel ve teknik kontrolleri](audits/quittung-layout-2026-10-26/PDF_LAYOUT_VALIDATION.md),
+[canlı dağıtım kaydı](../ops/rollout/2026-10-26-quittung-layout/README.md).
+
+Önceden arşivlenmiş PDF'ler ve kesinleşmiş firma snapshot'ları korunur. Eski
+snapshot'ta bulunmayan numara bugünkü firma adresinden sessizce eklenmez.
+Yeni düzen taslaklarda ve henüz arşivi oluşmamış yeni PDF sürümlerinde kullanılır;
+arşivi mevcut sürümün önizleme, indirme ve e-posta dosyası değişmez.

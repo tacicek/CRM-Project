@@ -1,0 +1,13 @@
+[
+  {
+    "scenario": "offer-frozen-addresses-through-real-form-and-save",
+    "address": "Alte Landstrasse 12a, 8706 Meilen",
+    "destination": "Rue du Lac 8B, 1007 Lausanne",
+    "name": "Işıl Çiçek"
+  },
+  {
+    "scenario": "order-address-house-number-and-c-o-preserved-through-save",
+    "address": "Çiğdem Sokak 5/2\nc/o Işıl Çiçek, Haus C\n8000 Zürich",
+    "destination": "Rue du Lac 8B\n1007 Lausanne"
+  }
+]

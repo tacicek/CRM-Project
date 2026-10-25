@@ -1,0 +1,83 @@
+{
+  "observed_at": "2026-10-25T19:17:04.172043+00:00",
+  "deployment_uuid": "uxa6zmojfzvi53wwgsgu1ldo",
+  "release_commit": "c3915408ab7c65394d48fa618237b1900b43a4f2",
+  "scope": "Unauthenticated public GET only; no customer data or auth mutations",
+  "checks": [
+    {
+      "path": "/health",
+      "status": 200,
+      "content_type": "text/plain",
+      "cache_control": "",
+      "bytes": 8,
+      "sha256": "63745aef95742025c6d7a1b4fc0e7107e6f3c3eb2e0cb290f33c46f176e6740d"
+    },
+    {
+      "path": "/firma/quittungen",
+      "status": 200,
+      "content_type": "text/html",
+      "cache_control": "no-cache, no-store, must-revalidate",
+      "bytes": 7897,
+      "sha256": "3f649829d64ab925f5c43834a6d1f63bf75e233c18a1b5b15653a45f10f6ca84"
+    },
+    {
+      "path": "/firma/quittungen/neu",
+      "status": 200,
+      "content_type": "text/html",
+      "cache_control": "no-cache, no-store, must-revalidate",
+      "bytes": 7897,
+      "sha256": "3f649829d64ab925f5c43834a6d1f63bf75e233c18a1b5b15653a45f10f6ca84"
+    },
+    {
+      "path": "/assets/index-Q8FJf9Vj.js",
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "max-age=31536000",
+      "bytes": 855815,
+      "sha256": "c19e6df9180c7ba8d78d2052df46a390461d12f2e2a454872149029022c2a524"
+    },
+    {
+      "path": "/assets/QuittungDetail-C5NP8Llr.js",
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "max-age=31536000",
+      "bytes": 41859,
+      "sha256": "3a0aca90a3f670f9241e26708d00959b8a734a84d1be458466d8de7ae69ff441"
+    },
+    {
+      "path": "/assets/QuittungPDF-CsFvG8db.js",
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "max-age=31536000",
+      "bytes": 12058,
+      "sha256": "7e2f27e122aeabd2311fa9b1713c82521d61e25059bdabd3f821025e92a3d1be"
+    },
+    {
+      "path": "/assets/Quittungen-CrzGbFTL.js",
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "max-age=31536000",
+      "bytes": 11164,
+      "sha256": "ec826b260090d9165fa30ed42e6df28c276c75b585b99993a19ed66b34147061"
+    },
+    {
+      "path": "/assets/DejaVuSans-D8qTUNWI.ttf",
+      "status": 200,
+      "content_type": "application/octet-stream",
+      "cache_control": "max-age=31536000",
+      "bytes": 759720,
+      "sha256": "6038a160b491e121c1f12c7bccb4a9c8730296e3adc1086a059404ed84b7451c",
+      "matches_release_source": true
+    },
+    {
+      "path": "/assets/DejaVuSans-Bold-CmRlJs-h.ttf",
+      "status": 200,
+      "content_type": "application/octet-stream",
+      "cache_control": "max-age=31536000",
+      "bytes": 708920,
+      "sha256": "b5d64817b6331723b5e59eaaa6db90057cbed58e9733f65687f110638192359f",
+      "matches_release_source": true
+    }
+  ],
+  "passed": true
+}

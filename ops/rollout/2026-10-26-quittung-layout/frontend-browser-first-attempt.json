@@ -1,0 +1,8 @@
+{
+  "observed_at": "2026-10-25T19:17:04.340Z",
+  "release_commit": "c3915408ab7c65394d48fa618237b1900b43a4f2",
+  "scope": "Fresh unauthenticated context; no customer API reads or auth mutations",
+  "scenarios": [],
+  "passed": false,
+  "error": "page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"https://crm-hirschen.ch/firma/quittungen\", waiting until \"networkidle\"\u001b[22m\n"
+}

@@ -1,0 +1,6 @@
+20261025190708_quittung_company_house_number.sql: OK
+BEGIN
+CREATE FUNCTION
+REVOKE
+GRANT
+COMMIT
