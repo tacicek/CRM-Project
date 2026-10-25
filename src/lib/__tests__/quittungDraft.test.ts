@@ -64,6 +64,14 @@ describe('receipt creation from accepted order terms', () => {
     expect(before.customer_email).not.toBe('');
     expect(after).toMatchObject({ customer_name: 'B', customer_email: '', customer_address: '' });
   });
+  it('preserves complete authored order addresses without reparsing house numbers or extra lines', () => {
+    const address = 'Çiğdem Sokak 5/2\nc/o Işıl Çiçek, Haus C\n8000 Zürich';
+    const destination = 'Rue du Lac 8B\n1007 Lausanne';
+    const draft = create({ from_address: address, to_address: destination });
+    expect(draft.customer_address).toBe(address);
+    expect(draft.customer_destination).toBe(destination);
+    expect(buildQuittungDraftPayload(draft, 'company')).toMatchObject({ customer_address: address, customer_destination: destination });
+  });
 });
 
 describe('receipt validation and payload contract', () => {

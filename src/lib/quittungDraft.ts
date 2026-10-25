@@ -3,6 +3,7 @@ import { toLocale, type Locale } from "@/i18n/locale";
 import { documentI18nFor } from "@/i18n/documentLocale";
 import { isFreeItem } from "@/lib/offerPricing";
 import { round2 } from "@/lib/offerSurcharges";
+import { formatReceiptAddress } from "@/lib/receiptAddress";
 import { calculateTotals, validateQuittungPositionen, type Quittung, type QuittungPosition } from "@/types/quittung.types";
 
 export interface QuittungDraft {
@@ -72,6 +73,30 @@ export interface QuittungOrderSource {
   items: QuittungSourceItem[];
   extra_services: QuittungSourceItem[];
 }
+
+type OfferAddressFields = 'frozen_from_street' | 'frozen_from_house_number' | 'frozen_from_plz' | 'frozen_from_city' |
+  'frozen_to_street' | 'frozen_to_house_number' | 'frozen_to_plz' | 'frozen_to_city';
+type LeadAddressFields = 'from_street' | 'from_house_number' | 'from_plz' | 'from_city' |
+  'to_street' | 'to_house_number' | 'to_plz' | 'to_city';
+export type ReceiptOfferAddressSource = Partial<Pick<Database['public']['Tables']['offers']['Row'], OfferAddressFields>> & {
+  leads?: Partial<Pick<Database['public']['Tables']['leads']['Row'], LeadAddressFields>> | null;
+};
+
+/** Each frozen address is one snapshot. Do not mix its street with a newer lead's number. */
+export const getReceiptOfferAddresses = (offer: ReceiptOfferAddressSource): Pick<QuittungOrderSource, 'from_address' | 'to_address'> => {
+  const address = (direction: 'from' | 'to'): string | null => {
+    const frozen = {
+      street: offer[`frozen_${direction}_street`], house_number: offer[`frozen_${direction}_house_number`],
+      plz: offer[`frozen_${direction}_plz`], city: offer[`frozen_${direction}_city`],
+    };
+    const hasSnapshot = Object.values(frozen).some(value => value !== undefined && value !== null);
+    return formatReceiptAddress(hasSnapshot ? frozen : {
+      street: offer.leads?.[`${direction}_street`], house_number: offer.leads?.[`${direction}_house_number`],
+      plz: offer.leads?.[`${direction}_plz`], city: offer.leads?.[`${direction}_city`],
+    }) || null;
+  };
+  return { from_address: address('from'), to_address: address('to') };
+};
 
 /** The order's accepted net amount applies to its original items, never to on-site extras.
  * Optional rows remain visible but unselected. Included rows stay explicitly free.

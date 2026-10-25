@@ -261,6 +261,7 @@ export const document = {
   "doc.receipt.title": "Quittung",
   "doc.receipt.numbered": "Quittung {number}",
   "doc.receipt.customer": "Kunde",
+  "doc.receipt.destination": "Zieladresse",
   "doc.receipt.details": "Details",
   "doc.receipt.date": "Datum: ",
   "doc.receipt.number": "Quittung-Nr.: ",
@@ -283,7 +284,7 @@ export const document = {
   "doc.receipt.payment.twint": "Twint",
   "doc.receipt.signature.customer": "Datum / Unterschrift Kunde",
   "doc.receipt.signature.teamLead": "Datum / Unterschrift Teamchef",
-  "doc.receipt.thanks": "VIELEN DANK FÜR IHREN GESCHÄTZTEN AUFTRAG!",
+  "doc.receipt.thanks": "Vielen Dank für Ihren geschätzten Auftrag.",
   "doc.receipt.review": "Wir freuen uns auf Ihre Bewertung: {url}",
 
   // --- Quittung: seed line items --------------------------------------------------

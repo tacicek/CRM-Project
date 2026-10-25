@@ -19,7 +19,7 @@ import { quittungPaymentAction, type QuittungListItem, type QuittungListFilter }
 import { formatReceiptDate } from "@/lib/quittungPresentation";
 
 interface QuittungCompany extends ReceiptCompanySnapshot { id: string }
-const COMPANY_SELECT = "id,company_name,logo_url,primary_color,email,phone,street,plz,city,mwst_number,iban,bank_name,bewertungs_url";
+const COMPANY_SELECT = "id,company_name,logo_url,primary_color,email,phone,street,house_number,plz,city,mwst_number,iban,bank_name,bewertungs_url";
 const FILTERS: QuittungListFilter[] = ["all", "draft", "issued", "signed", "sent", "open", "partial", "paid"];
 const PAYMENT_CLASS = { paid: "bg-folk-mint-bg text-folk-mint", partial: "bg-folk-lemon-bg text-folk-lemon", open: "bg-folk-bg-warm text-folk-ink3" };
 

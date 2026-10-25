@@ -26,7 +26,7 @@ import { validateAuftragItems, validateExtraServices } from '@/lib/auftragSnapsh
 import { round2 } from '@/lib/offerSurcharges';
 import {
   emptyQuittungDraft, draftFromQuittung, createReceiptDraftFromOrder, validateQuittungDraft,
-  buildQuittungDraftPayload, isQuittungFrozen, receiptToday, type QuittungDraft,
+  buildQuittungDraftPayload, isQuittungFrozen, receiptToday, getReceiptOfferAddresses, type QuittungDraft,
 } from '@/lib/quittungDraft';
 import {
   downloadQuittungDocument, sendQuittungDocument, generateQuittungBlob,
@@ -34,7 +34,7 @@ import {
 import { calculateTotals, mapQuittungRow, type Quittung, type QuittungPosition, type ReceiptCompanySnapshot } from '@/types/quittung.types';
 
 interface CompanyInfo extends ReceiptCompanySnapshot { id: string; default_language?: string | null }
-const QUITTUNG_FIRMA_SELECT = 'id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, default_language';
+const QUITTUNG_FIRMA_SELECT = 'id, company_name, logo_url, primary_color, email, phone, street, house_number, plz, city, mwst_number, iban, bank_name, bewertungs_url, default_language';
 type InvoiceOption = Pick<Database['public']['Tables']['rechnungen']['Row'], 'id' | 'rechnung_nr' | 'customer_id' | 'customer_name' | 'open_amount' | 'status'>;
 type OfferOption = Pick<Database['public']['Tables']['offers']['Row'], 'id' | 'offer_number' | 'customer_first_name' | 'customer_last_name'>;
 type PaymentTarget = { receipt: Quittung; invoice?: InvoiceOption };
@@ -236,19 +236,17 @@ export default function QuittungDetail() {
     await run(async () => {
       if (!companyId) return;
       const [offerResult, itemsResult] = await Promise.all([
-        supabase.from('offers').select('id, customer_id, customer_first_name, customer_last_name, customer_email, customer_phone, language, vat_rate, subtotal, leads(from_street, from_house_number, from_plz, from_city, to_street, to_house_number, to_plz, to_city)').eq('id', offerId).eq('company_id', companyId).single(),
+        supabase.from('offers').select('id, customer_id, customer_first_name, customer_last_name, customer_email, customer_phone, language, vat_rate, subtotal, frozen_from_street, frozen_from_house_number, frozen_from_plz, frozen_from_city, frozen_to_street, frozen_to_house_number, frozen_to_plz, frozen_to_city, leads(from_street, from_house_number, from_plz, from_city, to_street, to_house_number, to_plz, to_city)').eq('id', offerId).eq('company_id', companyId).single(),
         supabase.from('offer_items').select('id, description, quantity, unit, unit_price, total, price_type').eq('offer_id', offerId).order('position'),
       ]);
       if (offerResult.error) throw offerResult.error;
       if (itemsResult.error) throw itemsResult.error;
       const offer = offerResult.data;
-      const lead = offer.leads;
       const mapped = createReceiptDraftFromOrder({
         id: offer.id, offer_id: offer.id, customer_id: offer.customer_id,
         customer_name: [offer.customer_first_name, offer.customer_last_name].filter(Boolean).join(' '),
         customer_email: offer.customer_email, customer_phone: offer.customer_phone,
-        from_address: lead ? [lead.from_street, lead.from_house_number, lead.from_plz, lead.from_city].filter(Boolean).join(' ') : null,
-        to_address: lead ? [lead.to_street, lead.to_house_number, lead.to_plz, lead.to_city].filter(Boolean).join(' ') : null,
+        ...getReceiptOfferAddresses(offer),
         language: offer.language, vat_rate: offer.vat_rate, subtotal: offer.subtotal,
         pricing_type: 'fixed', items: itemsResult.data, extra_services: [],
       }, draft.datum, draft.mwst_satz);

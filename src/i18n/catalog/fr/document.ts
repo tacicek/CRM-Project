@@ -259,6 +259,7 @@ export const document: Record<keyof typeof de, string> = {
   "doc.receipt.title": "Reçu",
   "doc.receipt.numbered": "Reçu {number}",
   "doc.receipt.customer": "Client",
+  "doc.receipt.destination": "Adresse de destination",
   "doc.receipt.details": "Détails",
   "doc.receipt.date": "Date : ",
   "doc.receipt.number": "N° de reçu : ",
@@ -281,7 +282,7 @@ export const document: Record<keyof typeof de, string> = {
   "doc.receipt.payment.twint": "Twint",
   "doc.receipt.signature.customer": "Date / signature du client",
   "doc.receipt.signature.teamLead": "Date / signature du chef d'équipe",
-  "doc.receipt.thanks": "UN GRAND MERCI POUR VOTRE MANDAT !",
+  "doc.receipt.thanks": "Merci de votre confiance.",
   "doc.receipt.review": "Nous nous réjouissons de votre évaluation : {url}",
 
   // --- Reçu : positions préremplies ------------------------------------------------

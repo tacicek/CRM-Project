@@ -67,6 +67,7 @@ export interface ReceiptCompanySnapshot {
   primary_color?: string | null;
   phone?: string | null;
   street?: string | null;
+  house_number?: string | null;
   plz?: string | null;
   city?: string | null;
   mwst_number?: string | null;
@@ -77,7 +78,7 @@ export interface ReceiptCompanySnapshot {
 
 export const parseQuittungCompanySnapshot = (value: unknown): ReceiptCompanySnapshot | null => {
   if (!isPositionRecord(value) || typeof value.company_name !== 'string' || typeof value.email !== 'string') return null;
-  const optional = ['logo_url', 'primary_color', 'phone', 'street', 'plz', 'city', 'mwst_number', 'iban', 'bank_name', 'bewertungs_url'] as const;
+  const optional = ['logo_url', 'primary_color', 'phone', 'street', 'house_number', 'plz', 'city', 'mwst_number', 'iban', 'bank_name', 'bewertungs_url'] as const;
   if (optional.some(key => value[key] !== null && value[key] !== undefined && typeof value[key] !== 'string')) return null;
   return {
     company_name: value.company_name, email: value.email,
@@ -149,6 +150,7 @@ export interface QuittungWithCompany extends Quittung {
     email: string;
     phone?: string | null;
     street?: string | null;
+    house_number?: string | null;
     plz?: string | null;
     city?: string | null;
     mwst_number?: string | null;

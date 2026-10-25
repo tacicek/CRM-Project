@@ -251,4 +251,32 @@ BEGIN
  SET CONSTRAINTS ALL IMMEDIATE;
  RAISE NOTICE 'PASS Quittung draft customer merge, payment reference revisions, INSERT delivery guard and deferred customer invariant';
 END $$;
+DO $$
+DECLARE c uuid:='a0000000-0000-4000-8000-0000000000c1'; q public.quittungen; previous_snapshot jsonb;
+ items jsonb:='[{"id":"one","beschreibung":"Service","satz":"","betrag":100,"checked":true,"is_custom":false}]';
+BEGIN
+ UPDATE public.companies SET street='Alte Landstrasse',house_number='12a' WHERE id=c;
+ PERFORM set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+ SET LOCAL ROLE authenticated;
+ INSERT INTO public.quittungen(company_id,customer_name,positionen) VALUES(c,'Address capture',items) RETURNING * INTO q;
+ q:=public.finalize_quittung(q.id,q.version);
+ IF q.company_snapshot->>'street'<>'Alte Landstrasse' OR q.company_snapshot->>'house_number' IS DISTINCT FROM '12a' THEN
+   RAISE EXCEPTION 'FAIL Q44: issuer house number is missing from finalized snapshot'; END IF;
+ previous_snapshot:=q.company_snapshot;
+ RESET ROLE;
+ UPDATE public.companies SET house_number='99' WHERE id=c;
+ UPDATE public.quittungen SET notiz=notiz WHERE id=q.id RETURNING * INTO q;
+ IF q.company_snapshot IS DISTINCT FROM previous_snapshot THEN RAISE EXCEPTION 'FAIL Q45: issuer address changed on an issued receipt'; END IF;
+ UPDATE public.companies SET house_number=NULL WHERE id=c;
+ SET LOCAL ROLE authenticated;
+ INSERT INTO public.quittungen(company_id,customer_name,positionen) VALUES(c,'Unrecorded house number',items) RETURNING * INTO q;
+ q:=public.finalize_quittung(q.id,q.version);
+ previous_snapshot:=q.company_snapshot;
+ RESET ROLE;
+ UPDATE public.companies SET house_number='77B' WHERE id=c;
+ UPDATE public.quittungen SET notiz=notiz WHERE id=q.id RETURNING * INTO q;
+ IF q.company_snapshot IS DISTINCT FROM previous_snapshot OR q.company_snapshot->>'house_number' IS NOT NULL THEN
+   RAISE EXCEPTION 'FAIL Q46: current issuer number leaked into an older snapshot'; END IF;
+ RAISE NOTICE 'PASS Quittung issuer house number capture and historical address preservation';
+END $$;
 ROLLBACK;

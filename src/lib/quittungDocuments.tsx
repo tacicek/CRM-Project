@@ -11,6 +11,7 @@ const companySchema = z.object({
   primary_color: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
   street: z.string().nullable().optional(),
+  house_number: z.string().nullable().optional(),
   plz: z.string().nullable().optional(),
   city: z.string().nullable().optional(),
   mwst_number: z.string().nullable().optional(),

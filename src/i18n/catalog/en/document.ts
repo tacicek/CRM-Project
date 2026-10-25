@@ -257,6 +257,7 @@ export const document: Record<keyof typeof de, string> = {
   "doc.receipt.title": "Receipt",
   "doc.receipt.numbered": "Receipt {number}",
   "doc.receipt.customer": "Customer",
+  "doc.receipt.destination": "Destination address",
   "doc.receipt.details": "Details",
   "doc.receipt.date": "Date: ",
   "doc.receipt.number": "Receipt no.: ",
@@ -279,7 +280,7 @@ export const document: Record<keyof typeof de, string> = {
   "doc.receipt.payment.twint": "Twint",
   "doc.receipt.signature.customer": "Date / signature of customer",
   "doc.receipt.signature.teamLead": "Date / signature of team leader",
-  "doc.receipt.thanks": "THANK YOU VERY MUCH FOR YOUR ORDER!",
+  "doc.receipt.thanks": "Thank you for your business.",
   "doc.receipt.review": "We look forward to your review: {url}",
 
   // --- Receipt: seed line items ----------------------------------------------------
