@@ -1,125 +1,80 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { Database } from "@/integrations/supabase/types";
-import { mapQuittungRow, type Quittung } from "@/types/quittung.types";
+import { useT } from "@/i18n/useI18n";
+import { quittungListSchema, quittungSearchFilter, type QuittungListFilter, type QuittungListItem } from "@/lib/quittungList";
 
-export type QuittungUpdate = Database["public"]["Tables"]["quittungen"]["Update"];
+const PAGE_SIZE = 25;
+const SELECT = "id,company_id,quittung_nr,customer_name,datum,status,gesamttotal,payment_status,paid_amount,issued_at,sent_at,rechnung_id,version";
+const EMPTY_STATS = { total: 0, issued: 0, paid: 0, open: 0 };
 
-/**
- * Quittungen data layer — supabase.from + useState/useEffect (useRechnungen pattern,
- * no React Query). Reloads automatically when companyId changes.
- *
- * Return type is the hand-maintained Quittung (status union + QuittungPosition[]); the page
- * depends on this narrower type (FOLK_STATUS[q.status]). Payload is the generated Update type.
- */
-export const useQuittungen = (companyId: string | undefined) => {
+export const useQuittungen = (companyId: string | undefined, search = "", filter: QuittungListFilter = "all", page = 1) => {
   const { toast } = useToast();
-  const [quittungen, setQuittungen] = useState<Quittung[]>([]);
+  const t = useT();
+  const [quittungen, setQuittungen] = useState<QuittungListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [count, setCount] = useState(0);
+  const [stats, setStats] = useState(EMPTY_STATS);
+  const generation = useRef(0);
 
   const fetchQuittungen = useCallback(async () => {
-    if (!companyId) {
-      setLoading(false);
-      return;
-    }
+    const request = ++generation.current;
+    if (!companyId) { setQuittungen([]); setStats(EMPTY_STATS); setCount(0); setError(null); setLoading(false); return; }
     setLoading(true);
-    const { data, error } = await supabase
-      .from("quittungen")
-      .select("*")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false });
-    if (error) {
-      setError(error.message);
-      toast({ title: "Fehler beim Laden", description: error.message, variant: "destructive" });
-    } else {
-      // Fail closed: map each DB row through the validated view-model. `status` is
-      // CHECK-constrained and `positionen` is NOT NULL, so an unmappable row signals data
-      // corruption / schema drift — surface it rather than render a wrong list. No silent
-      // filtering (rule) and no empty-list coercion.
-      const mapped: Quittung[] = [];
-      for (const row of data ?? []) {
-        const result = mapQuittungRow(row);
-        if (!result.ok) {
-          setError("Quittungsdaten konnten nicht validiert werden.");
-          toast({
-            title: "Fehler beim Laden",
-            description: "Ein Quittungs-Datensatz ist ungültig und wurde nicht geladen.",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-        mapped.push(result.value);
-      }
+    try {
+      let query = supabase.from("quittungen").select(SELECT, { count: "exact" }).eq("company_id", companyId);
+      if (search.trim()) query = query.or(quittungSearchFilter(search.trim()));
+      if (filter === "paid" || filter === "open" || filter === "partial") query = query.eq("payment_status", filter);
+      else if (filter !== "all") query = query.eq("status", filter);
+      const [rows, total, issued, paid, open] = await Promise.all([
+        query.order("created_at", { ascending: false }).order("id", { ascending: false }).range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
+        supabase.from("quittungen").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        supabase.from("quittungen").select("id", { count: "exact", head: true }).eq("company_id", companyId).not("issued_at", "is", null),
+        supabase.from("quittungen").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("payment_status", "paid"),
+        supabase.from("quittungen").select("id", { count: "exact", head: true }).eq("company_id", companyId).not("issued_at", "is", null).neq("payment_status", "paid"),
+      ]);
+      for (const result of [rows, total, issued, paid, open]) if (result.error) throw result.error;
+      const parsed = quittungListSchema.array().safeParse(rows.data);
+      if (!parsed.success) throw new Error(t("receipt.list.invalid"));
+      if (request !== generation.current) return;
+      setQuittungen(parsed.data); setCount(rows.count ?? 0);
+      setStats({ total: total.count ?? 0, issued: issued.count ?? 0, paid: paid.count ?? 0, open: open.count ?? 0 });
       setError(null);
-      setQuittungen(mapped);
+    } catch (cause) {
+      if (request !== generation.current) return;
+      setError(cause && typeof cause === "object" && "message" in cause ? String(cause.message) : t("receipt.list.loadError"));
+    } finally {
+      if (request === generation.current) setLoading(false);
     }
-    setLoading(false);
-  }, [companyId, toast]);
+  }, [companyId, search, filter, page, t]);
 
+  useEffect(() => { void fetchQuittungen(); return () => { generation.current += 1; }; }, [fetchQuittungen]);
   useEffect(() => {
-    fetchQuittungen();
-  }, [fetchQuittungen]);
+    if (!companyId) return;
+    const refresh = () => { void fetchQuittungen(); };
+    const channel = supabase.channel(`quittungen-list-${companyId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quittungen", filter: `company_id=eq.${companyId}` }, refresh).subscribe();
+    window.addEventListener("focus", refresh);
+    return () => { void supabase.removeChannel(channel); window.removeEventListener("focus", refresh); };
+  }, [companyId, fetchQuittungen]);
 
-  const updateQuittung = useCallback(
-    async (id: string, payload: QuittungUpdate): Promise<Quittung | null> => {
-      const { data, error } = await supabase
-        .from("quittungen")
-        .update(payload)
-        .eq("id", id)
-        .select("*")
-        .single();
-      if (error || !data) {
-        toast({ title: "Fehler", description: error?.message, variant: "destructive" });
-        return null;
-      }
-      const result = mapQuittungRow(data);
-      if (!result.ok) {
-        toast({ title: "Fehler", description: "Die gespeicherte Quittung ist ungültig.", variant: "destructive" });
-        return null;
-      }
-      setQuittungen((prev) => prev.map((q) => (q.id === id ? result.value : q)));
-      return result.value;
-    },
-    [toast],
-  );
-
-  /**
-   * Nur Entwürfe sind löschbar; durchgesetzt wird das von einem Trigger in der
-   * Datenbank. Die Prüfung hier dient allein der verständlichen Meldung.
-   */
-  const deleteQuittung = useCallback(
-    async (id: string): Promise<boolean> => {
-      const target = quittungen.find((q) => q.id === id);
-      if (target && target.status !== "draft") {
-        toast({
-          title: "Nicht möglich",
-          description:
-            `Quittung ${target.quittung_nr} ist bereits ${target.status} und kann nicht gelöscht werden.`,
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      const { error } = await supabase.from("quittungen").delete().eq("id", id);
-      if (error) {
-        const blocked = error.code === "42501";
-        toast({
-          title: blocked ? "Nicht möglich" : "Fehler",
-          description: blocked
-            ? "Unterschriebene und versendete Quittungen können nicht gelöscht werden."
-            : error.message,
-          variant: "destructive",
-        });
-        return false;
-      }
-      setQuittungen((prev) => prev.filter((q) => q.id !== id));
+  const deleteQuittung = useCallback(async (row: QuittungListItem): Promise<boolean> => {
+    if (row.status !== "draft" || row.issued_at) {
+      toast({ title: t("receipt.list.error"), description: t("receipt.list.deleteBlocked"), variant: "destructive" });
+      return false;
+    }
+    try {
+      const { data, error: deleteError } = await supabase.from("quittungen").delete()
+        .eq("company_id", companyId ?? "").eq("id", row.id).eq("version", row.version).select("id").single();
+      if (deleteError || !data) throw deleteError ?? new Error(t("receipt.list.invalid"));
+      await fetchQuittungen();
       return true;
-    },
-    [quittungen, toast],
-  );
+    } catch (cause) {
+      toast({ title: t("receipt.list.error"), description: cause && typeof cause === "object" && "message" in cause ? String(cause.message) : t("receipt.list.deleteBlocked"), variant: "destructive" });
+      return false;
+    }
+  }, [companyId, fetchQuittungen, toast, t]);
 
-  return { quittungen, loading, error, fetchQuittungen, updateQuittung, deleteQuittung };
+  return { quittungen, loading, error, count, stats, pageSize: PAGE_SIZE, fetchQuittungen, deleteQuittung };
 };

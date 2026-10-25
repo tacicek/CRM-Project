@@ -1,0 +1,70 @@
+Reçu QU-2026-0042
+
+
+
+
+                                                                                                                            Reçu
+                                                                                                                  Beispiel Umzug GmbH
+                                                                                                                            Musterstrasse 1
+                                                                                                                                8000 Zürich
+                                                                                                                           +41 00 000 00 00
+                                                                                                                       test@example.invalid
+
+
+
+ Client                                                                      Détails
+ Herr Max Muster                                                             Date : 25.10.2026
+ Testweg 12                                                                  N° de reçu : QU-2026-0042
+ 8000 Zürich                                                                 Émis : 25.10.2026 10:30 UTC+1
+ → Zielweg 4                                                                 N° TVA : CHE-000.000.000 MWST
+ 3000 Bern                                                                   IBAN : CH00 0000 0000 0000 0000 0
+ +41 00 000 00 01                                                            Musterbank
+ customer@example.invalid
+
+
+
+ Description                                                           Tarif / remarque                                     Montant CHF
+
+
+ Umzug / Déménagement                                                  4 Std. × CHF 250                                          1 000,00
+
+ Verpackungsmaterial                                                   1 × CHF 50                                                   50,00
+
+ Kostenlose Beratung                                                   1 × CHF 0                                                     0,00
+
+
+
+                                                                                  Sous-total :                               1 050.00 CHF
+                                                                                  Rabais :                                      -50.00 CHF
+                                                                                  TVA (8,1%) :                                  81.00 CHF
+
+
+                                                                                    Total général :                    1 081.00 CHF
+
+
+
+  Statut du paiement
+
+  Partiellement payé
+  Paiement via la facture liée — aucun montant supplémentaire dû.
+  Paiements enregistrés sur la facture :                                                                                     300.00 CHF
+  Date du paiement :                                                                                                         25.10.2026
+  Mode de paiement                                                                                                    Virement bancaire
+  Référence du paiement : PAY-0042
+  Solde de la facture :                                                                                                      781.00 CHF
+
+
+
+ Date / signature du client                                                  Date / signature du chef d'équipe
+
+
+
+
+                                                    UN GRAND MERCI POUR VOTRE MANDAT !
+                                     Nous nous réjouissons de votre évaluation : https://example.invalid/review
+
+
+
+
+QU-2026-0042                                                                                                                    Page 1 sur 1
+

@@ -1,0 +1,25 @@
+const {createRequire}=require('node:module');
+const fs=require('node:fs');
+const path=require('node:path');
+const req=createRequire(path.join(process.cwd(),'package.json'));
+const {build}=req('esbuild');
+const {chromium}=req('playwright-core');
+(async()=>{
+ const root=process.cwd();
+ await build({stdin:{contents:`import React,{useRef,useState} from 'react';import{createRoot}from'react-dom/client';import{SignaturePad}from'@/components/quittung/SignaturePad';function App(){const[sig,setSig]=useState(null);const ref=useRef(null);window.signatureRef=ref;return <SignaturePad ref={ref} label='Customer' locale='de' existingSignature={sig} onConfirm={setSig} onClear={()=>setSig(null)} />;}createRoot(document.getElementById('root')).render(<App/>);`,loader:'tsx',resolveDir:root},bundle:true,jsx:'automatic',format:'iife',outfile:'/tmp/quittung-signature-fixed.js',alias:{'@':path.join(root,'src')}});
+ const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:900,height:600}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.setContent(`<style>#root{width:70vw}.relative{height:160px;position:relative}canvas{width:100%;height:100%}img{max-width:100%;height:160px;object-fit:contain}.pointer-events-none{pointer-events:none}p.absolute{position:absolute;top:0}</style><div id='root'></div>`);
+ await page.addScriptTag({path:'/tmp/quittung-signature-fixed.js'});await page.locator('canvas').waitFor();
+ const b=await page.locator('canvas').boundingBox();await page.mouse.move(b.x+30,b.y+30);await page.mouse.down();await page.mouse.move(b.x+140,b.y+90,{steps:15});await page.mouse.move(b.x+230,b.y+25,{steps:15});await page.mouse.up();
+ const activeBefore=await page.evaluate(()=>({empty:window.signatureRef.current.isEmpty(),data:window.signatureRef.current.toDataURL()}));
+ await page.setViewportSize({width:700,height:600});await page.waitForTimeout(150);
+ const activeAfter=await page.evaluate(()=>({empty:window.signatureRef.current.isEmpty(),data:window.signatureRef.current.toDataURL()}));
+ await page.getByRole('button',{name:'Übernehmen',exact:true}).click();await page.locator('img').waitFor();
+ const savedBefore=await page.locator('img').getAttribute('src');
+ await page.setViewportSize({width:1100,height:600});await page.waitForTimeout(100);
+ const savedAfter=await page.locator('img').getAttribute('src');
+ const result={activeBeforeEmpty:activeBefore.empty,activeAfterResizeEmpty:activeAfter.empty,savedRasterPreserved:savedBefore===savedAfter,refMatchesSaved:await page.evaluate(()=>window.signatureRef.current.toDataURL()===document.querySelector('img').src),errors};
+ if(result.activeBeforeEmpty||result.activeAfterResizeEmpty||!result.savedRasterPreserved||!result.refMatchesSaved||errors.length)throw new Error(JSON.stringify(result));
+ fs.writeFileSync('/tmp/quittung-signature-fixed-results.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));await browser.close();
+})().catch(e=>{console.error(e);process.exitCode=1});

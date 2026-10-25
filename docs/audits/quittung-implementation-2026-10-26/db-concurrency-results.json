@@ -1,0 +1,10 @@
+{
+  "target": "crm-test / 127.0.0.1:54342",
+  "passed": 3,
+  "cases": [
+    "C1: uncommitted receipt link followed by invoice edit retains current balance",
+    "C2: invoice edit followed by new receipt link reads committed balance",
+    "C3: concurrent same-company receipt inserts both commit with distinct numbers"
+  ],
+  "synthetic_rows_cleaned": true
+}

@@ -1,0 +1,12 @@
+{
+  "before": {
+    "empty": false,
+    "vectorCount": 0,
+    "darkPixels": 1043
+  },
+  "after": {
+    "empty": true,
+    "vectorCount": 0,
+    "darkPixels": 0
+  }
+}

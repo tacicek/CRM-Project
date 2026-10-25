@@ -30,8 +30,11 @@ import { inbox } from "@/i18n/catalog/de/inbox";
 import { wiki } from "@/i18n/catalog/de/wiki";
 import { uebersicht } from "@/i18n/catalog/de/uebersicht";
 
+import { receipt } from "@/i18n/catalog/de/receipt";
+
 export const de = {
   ...common,
+  ...receipt,
   ...domain,
   ...document,
   ...publicPages,

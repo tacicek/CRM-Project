@@ -1,79 +1,143 @@
-import { BlobProvider, PDFDownloadLink } from "@react-pdf/renderer";
-import { QuittungPDF } from "./QuittungPDF";
-import { Quittung } from "@/types/quittung.types";
+import { useEffect, useMemo, useState } from "react";
+import { BlobProvider } from "@react-pdf/renderer";
+import { QuittungPDF, type QuittungPDFProps, type QuittungPdfCompany } from "@/components/quittung/QuittungPDF";
+import { getArchivedQuittungDocument, prepareQuittungPdfCompany } from "@/lib/quittungDocuments";
 import type { Locale } from "@/i18n/locale";
+import { createTranslator } from "@/i18n/translator";
 import { Button } from "@/components/ui/button";
-import { Download, ExternalLink, Loader2 } from "lucide-react";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import { AlertCircle, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 
-interface CompanyInfo {
-  company_name: string;
-  logo_url?: string | null;
-  primary_color?: string | null;
-  email: string;
-  phone?: string | null;
-  street?: string | null;
-  plz?: string | null;
-  city?: string | null;
-  mwst_number?: string | null;
-  iban?: string | null;
-  bank_name?: string | null;
-  bewertungs_url?: string | null;
-}
-
-interface Props {
-  quittung: Quittung;
-  company: CompanyInfo;
-  /** Document locale — the CUSTOMER's language, resolved from the receipt row. */
-  locale: Locale;
+interface Props extends QuittungPDFProps {
+  /** Only the controls use the dashboard language; the document keeps `locale`. */
+  uiLocale?: Locale;
   onClose?: () => void;
 }
 
-export function QuittungPDFPreview({ quittung, company, locale }: Props) {
-  const filename = `Quittung-${quittung.quittung_nr || "entwurf"}.pdf`;
-  const doc = <QuittungPDF quittung={quittung} company={company} locale={locale} />;
+interface PreviewState {
+  url: string | null;
+  loading: boolean;
+  error: Error | null;
+}
 
+interface PanelProps extends PreviewState {
+  locale: Locale;
+  filename: string;
+  onRetry: () => void;
+}
+
+const PreviewFailure = ({ locale, onRetry }: Pick<PanelProps, "locale" | "onRetry">) => {
+  const t = createTranslator(locale);
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-        <span className="text-sm font-semibold text-slate-700">PDF-Vorschau</span>
-        <div className="flex items-center gap-2">
-          {/* Open in new tab */}
-          <BlobProvider document={doc}>
-            {({ url, loading }) => (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={loading || !url}
-                className="h-8 text-xs gap-1.5"
-                onClick={() => url && window.open(url, "_blank", "noopener,noreferrer")}
-              >
-                {loading
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <ExternalLink className="w-3.5 h-3.5" />}
-                {loading ? "Erstellen..." : "Öffnen"}
-              </Button>
-            )}
-          </BlobProvider>
-
-          {/* Download */}
-          <PDFDownloadLink document={doc} fileName={filename}>
-            {({ loading }) => (
-              <Button size="sm" variant="outline" disabled={loading} className="h-8 text-xs gap-1.5">
-                {loading
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <Download className="w-3.5 h-3.5" />}
-                {loading ? "Erstellen..." : "Herunterladen"}
-              </Button>
-            )}
-          </PDFDownloadLink>
-        </div>
-      </div>
-
-      <div className="px-4 py-8 text-center text-sm text-slate-500">
-        <p className="mb-3">Klicken Sie auf <strong>Öffnen</strong>, um das PDF in einem neuen Tab anzuzeigen.</p>
-        <p className="text-xs text-slate-400">Oder laden Sie die Datei direkt herunter.</p>
-      </div>
+    <div role="alert" className="space-y-3 p-6 text-sm text-red-700">
+      <p className="flex items-center gap-2"><AlertCircle className="size-4" />{t("receipt.previewError")}</p>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        <RefreshCw className="mr-2 size-4" />{t("receipt.previewRetry")}
+      </Button>
     </div>
   );
-}
+};
+
+const PreviewPanel = ({ url, loading, error, locale, filename, onRetry }: PanelProps) => {
+  const t = createTranslator(locale);
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-label={t("receipt.preview")}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
+        <h2 className="text-sm font-semibold text-slate-700">{t("receipt.preview")}</h2>
+        {url && !loading && !error && (
+          <div className="flex gap-2">
+            <Button asChild size="sm" variant="outline" className="gap-1.5">
+              <a href={url} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-4" />{t("receipt.previewOpen")}</a>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="gap-1.5">
+              <a href={url} download={filename}><Download className="size-4" />{t("receipt.download")}</a>
+            </Button>
+          </div>
+        )}
+      </div>
+      {error ? <PreviewFailure locale={locale} onRetry={onRetry} /> : loading || !url ? (
+        <div role="status" className="flex items-center justify-center gap-2 p-8 text-sm text-slate-500">
+          <Loader2 className="size-4 animate-spin" />{t("receipt.previewLoading")}
+        </div>
+      ) : (
+        <iframe title={t("receipt.preview")} src={url} className="h-[70vh] min-h-96 w-full border-0" />
+      )}
+    </section>
+  );
+};
+
+const DraftPreview = ({ quittung, company, locale, mode, uiLocale = locale }: Props) => {
+  const [attempt, setAttempt] = useState(0);
+  const [prepared, setPrepared] = useState<{
+    sourceReceipt: Props["quittung"] | null;
+    sourceCompany: QuittungPdfCompany | null;
+    company: QuittungPdfCompany | null;
+    loading: boolean;
+    error: Error | null;
+  }>({ sourceReceipt: null, sourceCompany: null, company: null, loading: true, error: null });
+  const filename = `Quittung-${quittung.quittung_nr || "draft"}${mode === "worksheet" ? "-worksheet" : ""}.pdf`;
+  useEffect(() => {
+    let active = true;
+    const source = { sourceReceipt: quittung, sourceCompany: company };
+    setPrepared({ ...source, company: null, loading: true, error: null });
+    void prepareQuittungPdfCompany(quittung, company).then(
+      value => { if (active) setPrepared({ ...source, company: value, loading: false, error: null }); },
+      error => { if (active) setPrepared({ ...source, company: null, loading: false, error: error instanceof Error ? error : new Error(String(error)) }); },
+    );
+    return () => { active = false; };
+  }, [quittung, company, attempt]);
+  const preparedForCurrentInput = prepared.sourceReceipt === quittung && prepared.sourceCompany === company;
+  const document = useMemo(
+    () => preparedForCurrentInput && prepared.company ? <QuittungPDF quittung={quittung} company={prepared.company} locale={locale} mode={mode} /> : null,
+    [quittung, prepared.company, preparedForCurrentInput, locale, mode],
+  );
+  const retry = () => setAttempt(value => value + 1);
+  if (!document) return <PreviewPanel url={null} loading={!preparedForCurrentInput || prepared.loading} error={preparedForCurrentInput ? prepared.error : null} locale={uiLocale} filename={filename} onRetry={retry} />;
+
+  return (
+    <ErrorBoundary key={`${quittung.id}:${quittung.version ?? quittung.updated_at}:${attempt}`} fallback={<PreviewFailure locale={uiLocale} onRetry={retry} />}>
+      <BlobProvider key={attempt} document={document}>
+        {({ url, loading, error }) => <PreviewPanel url={url} loading={loading} error={error} locale={uiLocale} filename={filename} onRetry={retry} />}
+      </BlobProvider>
+    </ErrorBoundary>
+  );
+};
+
+const ArchivedPreview = ({ quittung, company, locale, uiLocale = locale }: Props) => {
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<PreviewState>({ url: null, loading: true, error: null });
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    const controller = new AbortController();
+    setState({ url: null, loading: true, error: null });
+    const load = async () => {
+      try {
+        const archived = await getArchivedQuittungDocument(quittung, company);
+        if (!archived.document || !archived.url) throw new Error("PDF archive is incomplete.");
+        const response = await fetch(archived.url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`PDF download failed (${response.status}).`);
+        const blob = await response.blob();
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setState({ url: objectUrl, loading: false, error: null });
+      } catch (error) {
+        if (active) setState({ url: null, loading: false, error: error instanceof Error ? error : new Error(String(error)) });
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [quittung, company, attempt]);
+
+  return <PreviewPanel {...state} locale={uiLocale} filename={`Quittung-${quittung.quittung_nr}.pdf`} onRetry={() => setAttempt(value => value + 1)} />;
+};
+
+/** Finalized previews use exactly the archived PDF bytes that download and email use. */
+export const QuittungPDFPreview = (props: Props) => props.quittung.issued_at && props.mode !== "worksheet"
+  ? <ArchivedPreview key={`${props.quittung.id}:${props.quittung.version}`} {...props} />
+  : <DraftPreview {...props} />;

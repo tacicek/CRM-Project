@@ -1,0 +1,116 @@
+    supabase_db_crm-test: laeuft, Projekt crm-test, Netz crm-test-loopback, 5432/tcp -> 127.0.0.1:54342
+BEGIN
+NOTICE:  schema "quittung_private" already exists, skipping
+CREATE SCHEMA
+REVOKE
+GRANT
+NOTICE:  column "rechnung_id" of relation "quittungen" already exists, skipping
+NOTICE:  column "payment_status" of relation "quittungen" already exists, skipping
+NOTICE:  column "paid_amount" of relation "quittungen" already exists, skipping
+NOTICE:  column "payment_open_amount" of relation "quittungen" already exists, skipping
+NOTICE:  column "payment_date" of relation "quittungen" already exists, skipping
+NOTICE:  column "payment_method" of relation "quittungen" already exists, skipping
+NOTICE:  column "payment_reference" of relation "quittungen" already exists, skipping
+NOTICE:  column "issued_at" of relation "quittungen" already exists, skipping
+NOTICE:  column "sent_at" of relation "quittungen" already exists, skipping
+NOTICE:  column "company_snapshot" of relation "quittungen" already exists, skipping
+NOTICE:  column "version" of relation "quittungen" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+DO
+ALTER TABLE
+ALTER TABLE
+NOTICE:  relation "idx_quittungen_rechnung" already exists, skipping
+CREATE INDEX
+COMMENT
+NOTICE:  relation "quittung_nr_counter" already exists, skipping
+COMMENT
+CREATE TABLE
+ALTER TABLE
+REVOKE
+INSERT 0 1
+CREATE FUNCTION
+REVOKE
+NOTICE:  relation "quittung_payment_links" already exists, skipping
+CREATE TABLE
+ALTER TABLE
+DROP POLICY
+CREATE POLICY
+REVOKE
+GRANT
+INSERT 0 0
+NOTICE:  function public.quittung_payment_state(public.quittungen) does not exist, skipping
+DROP FUNCTION
+DROP FUNCTION
+CREATE FUNCTION
+REVOKE
+GRANT
+NOTICE:  function public.quittung_company_snapshot(uuid) does not exist, skipping
+DROP FUNCTION
+CREATE FUNCTION
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+GRANT
+NOTICE:  trigger "trigger_quittungen_bezahlt_buchung" for relation "public.quittungen" does not exist, skipping
+DROP TRIGGER
+CREATE FUNCTION
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+DROP TRIGGER
+CREATE TRIGGER
+CREATE FUNCTION
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+DO
+NOTICE:  relation "quittung_documents" already exists, skipping
+CREATE TABLE
+ALTER TABLE
+DROP POLICY
+CREATE POLICY
+REVOKE
+GRANT
+GRANT
+NOTICE:  relation "quittung_dispatches" already exists, skipping
+CREATE TABLE
+ALTER TABLE
+DROP POLICY
+CREATE POLICY
+REVOKE
+GRANT
+GRANT
+CREATE FUNCTION
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+GRANT
+DO
+NOTIFY
+COMMIT

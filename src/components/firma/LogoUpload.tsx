@@ -82,20 +82,15 @@ export const LogoUpload = ({
         ext = originalFile.name.split(".").pop()?.toLowerCase() || "png";
       }
 
-      const fileName = `${userId}/logo-${Date.now()}.${ext}`;
-
-      if (currentLogoUrl) {
-        const oldPath = currentLogoUrl.split("/company-logos/")[1];
-        if (oldPath) {
-          await supabase.storage.from("company-logos").remove([oldPath]);
-        }
-      }
+      // Issued documents retain this URL in their company snapshot. Keep old
+      // logo objects when replacing/removing the current company logo.
+      const fileName = `${userId}/logo-${crypto.randomUUID()}.${ext}`;
 
       const { data, error: uploadError } = await supabase.storage
         .from("company-logos")
         .upload(fileName, fileToUpload, {
           cacheControl: "3600",
-          upsert: true,
+          upsert: false,
           contentType: fileToUpload.type,
         });
 
@@ -143,13 +138,7 @@ export const LogoUpload = ({
     setIsUploading(true);
 
     try {
-      // Extract path from URL
-      const path = currentLogoUrl.split("/company-logos/")[1];
-      if (path) {
-        await supabase.storage.from("company-logos").remove([path]);
-      }
-
-      // Update company record
+      // Detach the current logo; historical document snapshots still reference it.
       const { error } = await supabase
         .from("companies")
         .update({ logo_url: null })

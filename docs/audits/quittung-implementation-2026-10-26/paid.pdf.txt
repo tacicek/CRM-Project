@@ -1,0 +1,70 @@
+Quittung QU-2026-0042
+
+
+
+
+                                                                                                               Quittung
+                                                                                                           Beispiel Umzug GmbH
+                                                                                                                      Musterstrasse 1
+                                                                                                                          8000 Zürich
+                                                                                                                     +41 00 000 00 00
+                                                                                                                 test@example.invalid
+
+
+
+ Kunde                                                                    Details
+ Herr Max Muster                                                          Datum: 25.10.2026
+ Testweg 12                                                               Quittung-Nr.: QU-2026-0042
+ 8000 Zürich                                                              Ausgestellt: 25.10.2026, 10:30 MEZ
+ → Zielweg 4                                                              MwSt-Nr.: CHE-000.000.000 MWST
+ 3000 Bern                                                                IBAN: CH00 0000 0000 0000 0000 0
+ +41 00 000 00 01                                                         Musterbank
+ customer@example.invalid
+
+
+
+ Beschreibung                                                      Satz / Bemerkung                                     Betrag CHF
+
+
+ Umzug / Déménagement                                              4 Std. × CHF 250                                       1'000.00
+
+ Verpackungsmaterial                                               1 × CHF 50                                                50.00
+
+ Kostenlose Beratung                                               1 × CHF 0                                                   0.00
+
+
+
+                                                                              Zwischensumme:                           CHF 1'050.00
+                                                                              Rabatt:                                     -CHF 50.00
+                                                                              MwSt. (8.1%):                               CHF 81.00
+
+
+                                                                                Gesamttotal:                     CHF 1'081.00
+
+
+
+  Zahlungsstand
+
+  Bezahlt
+  Direkte Zahlung gegen diese Quittung.
+  Zahlung erhalten:                                                                                                  CHF 1'081.00
+  Zahlungsdatum:                                                                                                       25.10.2026
+  Zahlungsart                                                                                                        Bar (Bargeld)
+  Zahlungsreferenz: PAY-0042
+  Noch offen:                                                                                                            CHF 0.00
+
+
+
+ Datum / Unterschrift Kunde                                               Datum / Unterschrift Teamchef
+
+
+
+
+                                              VIELEN DANK FÜR IHREN GESCHÄTZTEN AUFTRAG!
+                                      Wir freuen uns auf Ihre Bewertung: https://example.invalid/review
+
+
+
+
+QU-2026-0042                                                                                                             Seite 1 von 1
+

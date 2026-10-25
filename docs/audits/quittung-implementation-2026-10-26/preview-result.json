@@ -1,0 +1,23 @@
+{
+  "initial": {
+    "sourceIsWebp": true,
+    "preparedIsPng": true,
+    "pdfHasImage": true,
+    "iframeCount": 1,
+    "sameBlob": true,
+    "bytes": 28164,
+    "controls": true
+  },
+  "errorState": "Impossible de créer le PDF.\n\nRecréer le PDF",
+  "recovered": true,
+  "brokenLogoVisible": true,
+  "archive": {
+    "calls": 1,
+    "sha256": "5b106bf82327b01a0d7989349363f91e086cae09e7231b4b94cff6be1baec619",
+    "sameBlob": true,
+    "matchesStoredBytes": true
+  },
+  "archiveError": "Impossible de créer le PDF.\n\nRecréer le PDF",
+  "archiveRecovered": true,
+  "pageErrors": []
+}

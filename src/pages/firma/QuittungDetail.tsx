@@ -1,1045 +1,361 @@
-import { Helmet } from "react-helmet-async";
-import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/ui/date-picker";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Helmet } from 'react-helmet-async';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Save, Send, Loader2, Download, Plus, Trash2, CheckCircle, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { KundeLink } from '@/components/firma/KundeLink';
+import { ZahlungErfassenDialog } from '@/components/firma/ZahlungErfassenDialog';
+import { SignaturePad, type SignaturePadRef } from '@/components/quittung/SignaturePad';
+import { QuittungPDFPreview } from '@/components/quittung/QuittungPDFPreview';
+import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
+import { useCompanyRecord } from '@/hooks/useCompanyRecord';
+import { useToast } from '@/hooks/use-toast';
+import { useI18n } from '@/i18n/useI18n';
+import { documentI18nFor } from '@/i18n/documentLocale';
+import { formatCurrency } from '@/i18n/format';
+import { getQuittungStatusLabel } from '@/i18n/domain';
+import { LOCALES, LOCALE_NAMES, toLocale } from '@/i18n/locale';
+import { validateAuftragItems, validateExtraServices } from '@/lib/auftragSnapshot';
+import { round2 } from '@/lib/offerSurcharges';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+  emptyQuittungDraft, draftFromQuittung, createReceiptDraftFromOrder, validateQuittungDraft,
+  buildQuittungDraftPayload, isQuittungFrozen, receiptToday, type QuittungDraft,
+} from '@/lib/quittungDraft';
 import {
-  ArrowLeft, Save, Send, Loader2, Download,
-  Plus, Trash2, CheckCircle, FileText, Link2, X,
-} from "lucide-react";
-import { PDFDownloadLink, pdf } from "@react-pdf/renderer";
-import { QuittungPDF } from "@/components/quittung/QuittungPDF";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { KundeLink } from "@/components/firma/KundeLink";
-import { useCompanyRecord } from "@/hooks/useCompanyRecord";
-import { zeileGehoertZumMandanten } from "@/lib/aktiverMandant";
-import { logoToBase64 } from "@/lib/logoToBase64";
-import { useToast } from "@/hooks/use-toast";
-import { v4 as uuidv4 } from "uuid";
-import { SignaturePad, SignaturePadRef } from "@/components/quittung/SignaturePad";
-import { QuittungPDFPreview } from "@/components/quittung/QuittungPDFPreview";
-import {
-  Quittung, QuittungPosition, QuittungStatus,
-  getPredefinedPositionen, CUSTOM_ROW_COUNT,
-  calculateTotals, STATUS_CONFIG,
-} from "@/types/quittung.types";
-import { useI18n } from "@/i18n/useI18n";
-import { formatCurrency } from "@/i18n/format";
-import { resolveDocumentLocale, documentI18nFor } from "@/i18n/documentLocale";
-import { getQuittungStatusLabel } from "@/i18n/domain";
-import { LOCALE_NAMES, LOCALES, toLocale, type Locale } from "@/i18n/locale";
+  downloadQuittungDocument, sendQuittungDocument, generateQuittungBlob,
+} from '@/lib/quittungDocuments';
+import { calculateTotals, mapQuittungRow, type Quittung, type QuittungPosition, type ReceiptCompanySnapshot } from '@/types/quittung.types';
 
-interface OfferOption {
-  id: string;
-  offer_number: string;
-  customer_first_name: string | null;
-  customer_last_name: string | null;
-  customer_email: string | null;
-  customer_phone: string | null;
-  lead: {
-    from_street: string | null;
-    from_plz: string | null;
-    from_city: string | null;
-    to_street: string | null;
-    to_plz: string | null;
-    to_city: string | null;
-  } | null;
-}
-
-interface CompanyInfo {
-  id: string;
-  company_name: string;
-  /** Fallback document language when the receipt row carries none. */
-  default_language?: string | null;
-  logo_url?: string | null;
-  primary_color?: string | null;
-  email: string;
-  phone?: string | null;
-  street?: string | null;
-  plz?: string | null;
-  city?: string | null;
-  mwst_number?: string | null;
-  iban?: string | null;
-  bank_name?: string | null;
-  bewertungs_url?: string | null;
-}
-
-/**
- * Seed rows for a new receipt, written in the DOCUMENT locale: their text is stored on the
- * row and printed verbatim for the customer, so a French receipt starts with French items.
- */
-function buildDefaultPositionen(locale: Locale): QuittungPosition[] {
-  return [
-    ...getPredefinedPositionen(locale).map(p => ({ ...p, id: uuidv4() })),
-    ...Array.from({ length: CUSTOM_ROW_COUNT }, () => ({
-      id: uuidv4(), beschreibung: "", satz: "", betrag: 0,
-      checked: false, is_custom: true,
-    })),
-  ];
-}
-
-interface AuftragPrefillItem {
-  description?: string;
-  beschreibung?: string;
-  quantity?: number;
-  unit?: string | null;
-  unit_price?: number;
-  total?: number | null;
-}
-
-interface FromAuftragPrefill {
-  auftragId?: string | null;
-  offerId: string | null;
-  customerName?: string;
-  customerAddress?: string;
-  customerDestination?: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  items?: AuftragPrefillItem[];
-  extraServices?: AuftragPrefillItem[];
-}
-
-/** Blob → base64 (without the data: prefix), for the email attachment. */
-const blobToBase64 = (blob: Blob): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve((reader.result as string).split(",")[1] ?? "");
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-
-// Absenderangaben der Quittung. Konstante im Modulkörper — `useCompanyRecord`
-// hängt an diesem String.
-const QUITTUNG_FIRMA_SELECT =
-  "id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, default_language";
+interface CompanyInfo extends ReceiptCompanySnapshot { id: string; default_language?: string | null }
+const QUITTUNG_FIRMA_SELECT = 'id, company_name, logo_url, primary_color, email, phone, street, plz, city, mwst_number, iban, bank_name, bewertungs_url, default_language';
+type InvoiceOption = Pick<Database['public']['Tables']['rechnungen']['Row'], 'id' | 'rechnung_nr' | 'customer_id' | 'customer_name' | 'open_amount' | 'status'>;
+type OfferOption = Pick<Database['public']['Tables']['offers']['Row'], 'id' | 'offer_number' | 'customer_first_name' | 'customer_last_name'>;
+type PaymentTarget = { receipt: Quittung; invoice?: InvoiceOption };
+const errorMessage = (error: unknown, fallback: string): string =>
+  typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string'
+    ? error.message : fallback;
 
 export default function QuittungDetail() {
-  const { id } = useParams<{ id: string }>();
-  const isNew = !id || id === "neu";
-  const navigate = useNavigate();
+  const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
-  // Dashboard locale — only for the amounts/status shown in this form. The receipt itself
-  // is rendered in `language` (the customer's language), which is a separate axis.
-  const { locale: uiLocale } = useI18n();
-  const prefillAppliedRef = useRef(false);
-
-  // Absender dieser Quittung = der AKTIVE Mandant. Vorher riet
-  // `fetchSingleCompanyForUser` die Firma; bei zwei Mitgliedschaften konnte auf
-  // der Quittung ein anderer Absender stehen als der, unter dem sie geführt wird.
+  const { t, locale: uiLocale } = useI18n();
   const { company, companyId } = useCompanyRecord<CompanyInfo>(QUITTUNG_FIRMA_SELECT);
-  const [logoBase64, setLogoBase64] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [showPdfPreview, setShowPdfPreview] = useState(false);
-  const [quittungId, setQuittungId] = useState<string | null>(isNew ? null : (id ?? null));
+  const isNew = !id || id === 'neu';
+  const sourceOrderId = new URLSearchParams(location.search).get('auftrag');
+  const [draft, setDraft] = useState<QuittungDraft>(() => emptyQuittungDraft(receiptToday(), 'de', 8.1));
+  const [saved, setSaved] = useState<Quittung | null>(null);
+  const [offers, setOffers] = useState<OfferOption[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const [preview, setPreview] = useState<Quittung | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
+  const actionRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const savedRef = useRef<Quittung | null>(null);
+  const customerPad = useRef<SignaturePadRef>(null);
+  const teamPad = useRef<SignaturePadRef>(null);
+  const frozen = isQuittungFrozen(saved);
+  const totals = frozen && saved ? {
+    zwischensumme: saved.zwischensumme, total: saved.total,
+    mwst_betrag: saved.mwst_betrag, gesamttotal: saved.gesamttotal,
+  } : calculateTotals(draft.positionen, draft.mwst_satz, draft.rabatt);
+  const { t: docT } = documentI18nFor(draft.language);
 
-  // Form state
-  const [datum, setDatum] = useState(new Date().toISOString().split("T")[0]);
-  const [customerName, setCustomerName] = useState("");
-  // Siehe RechnungDetail: nur der Verweis, der Beleg behaelt seinen Snapshot.
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [customerAddress, setCustomerAddress] = useState("");
-  const [customerDestination, setCustomerDestination] = useState("");
-  const [customerEmail, setCustomerEmail] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  // Document language — the language the CUSTOMER's receipt is written in (quittungen.language).
-  const [language, setLanguage] = useState<Locale>("de");
-  // Übersetzer der QUITTUNG (Sprache des Kunden), nicht des Dashboards: der Kunde
-  // liest und unterschreibt diese Felder vor Ort.
-  const { t: docT } = documentI18nFor(language);
-  const [positionen, setPositionen] = useState<QuittungPosition[]>(() =>
-    buildDefaultPositionen("de")
-  );
-  const [mwstSatz, setMwstSatz] = useState(8.1);
-  const [rabatt, setRabatt] = useState(0);
-  const [betragNochOffen, setBetragNochOffen] = useState(false);
-  const [notiz, setNotiz] = useState("");
-  const [status, setStatus] = useState<QuittungStatus>("draft");
-  const [quittungNr, setQuittungNr] = useState<string>("");
-  const [kundeSignatur, setKundeSignatur] = useState<string | null>(null);
-  const [teamchefSignatur, setTeamchefSignatur] = useState<string | null>(null);
-  const [kundeSignedAt, setKundeSignedAt] = useState<string | null>(null);
-  const [teamchefSignedAt, setTeamchefSignedAt] = useState<string | null>(null);
-
-  const [linkedOfferId, setLinkedOfferId] = useState<string | null>(null);
-  const [linkedAuftragId, setLinkedAuftragId] = useState<string | null>(null);
-  const [offerOptions, setOfferOptions] = useState<OfferOption[]>([]);
-  const [offersLoading, setOffersLoading] = useState(false);
-
-  const kundeSignRef = useRef<SignaturePadRef>(null);
-  const teamSignRef = useRef<SignaturePadRef>(null);
-
-  const totals = calculateTotals(positionen, mwstSatz, rabatt);
-
-  // Single source: PDF download, preview and email attachment all use the same data (prevents drift).
-  const buildQuittungData = (): Quittung => ({
-    id: quittungId || "",
-    company_id: company?.id ?? "",
-    offer_id: linkedOfferId,
-    auftrag_id: linkedAuftragId,
-    language,
-    quittung_nr: quittungNr,
-    datum,
-    customer_name: customerName,
-    customer_address: customerAddress,
-    customer_destination: customerDestination,
-    customer_email: customerEmail,
-    customer_phone: customerPhone,
-    positionen,
-    mwst_satz: mwstSatz,
-    rabatt,
-    betrag_noch_offen: betragNochOffen,
-    notiz,
-    status,
-    ...totals,
-    kunde_unterschrift: kundeSignatur,
-    teamchef_unterschrift: teamchefSignatur,
-    kunde_signed_at: kundeSignedAt,
-    teamchef_signed_at: teamchefSignedAt,
-    pdf_url: null,
-    created_at: "",
-    updated_at: "",
-  });
-
-  /**
-   * Switch the receipt's language and re-seed the predefined rows in that language.
-   *
-   * The eight predefined descriptions are read-only seed text (the form renders them as
-   * labels, they are never typed), so relabelling them is lossless — amounts, notes and the
-   * operator's custom rows stay untouched. A signed receipt is frozen: the select is disabled.
-   */
-  const applyLanguage = useCallback((next: Locale) => {
-    setLanguage(next);
-    setPositionen(prev => {
-      const seeds = getPredefinedPositionen(next);
-      let seedIndex = 0;
-      return prev.map(pos => {
-        if (pos.is_custom) return pos;
-        const seed = seeds[seedIndex];
-        seedIndex += 1;
-        return seed ? { ...pos, beschreibung: seed.beschreibung } : pos;
-      });
-    });
+  const hydrate = useCallback((q: Quittung) => {
+    // An earlier read can finish after a save/finalize response. Never replace that
+    // newer canonical version with the stale request's snapshot.
+    const current = savedRef.current;
+    if (current?.id === q.id && current.version !== undefined && q.version !== undefined && current.version > q.version) return;
+    savedRef.current = q;
+    dirtyRef.current = false;
+    setSaved(q); setDraft(draftFromQuittung(q)); setDirty(false); setConflict(false); setLoadError(null);
+    setPreview(previous => previous ? q : null);
   }, []);
 
-  // Sprache einer NEUEN Quittung aus der Firmenvorgabe. Der Firmensatz selbst
-  // kommt aus `useCompanyRecord` (aktiver Mandant).
-  useEffect(() => {
-    if (!company || !isNew) return;
-    // A new receipt starts in the company default language; the operator can switch it
-    // per receipt below. An existing receipt keeps the language it was written in.
-    applyLanguage(toLocale(company.default_language));
-  }, [company, isNew, applyLanguage]);
-
-  // Logo als base64 vorladen, damit @react-pdf/renderer es einbetten kann (umgeht CORS).
-  const companyLogoUrl = company?.logo_url;
-  useEffect(() => {
-    // Beim Mandantenwechsel ZUERST löschen: die alte Fassung setzte nur bei
-    // Erfolg, also blieb bei einem Wechsel zu einer Firma ohne Logo das fremde
-    // Logo auf der Quittung stehen.
-    setLogoBase64(null);
-    let abgemeldet = false;
-    logoToBase64(companyLogoUrl).then(b64 => { if (!abgemeldet && b64) setLogoBase64(b64); });
-    return () => { abgemeldet = true; };
-  }, [companyLogoUrl]);
-
-  // Load offers for linking
-  const loadOffers = useCallback(async (companyId: string) => {
-    setOffersLoading(true);
-    const { data } = await supabase
-      .from("offers")
-      .select(`
-        id, offer_number,
-        customer_first_name, customer_last_name, customer_email, customer_phone,
-        leads(from_street, from_plz, from_city, to_street, to_plz, to_city)
-      `)
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false })
-      .limit(100);
-    if (data) {
-      setOfferOptions(data.map(o => ({
-        id: o.id,
-        // offers.offer_number is `number | null`; this select-option label is a display
-        // string, so convert at the view boundary (same fallback branching as before).
-        offer_number: o.offer_number ? String(o.offer_number) : o.id.substring(0, 8),
-        customer_first_name: o.customer_first_name,
-        customer_last_name: o.customer_last_name,
-        customer_email: o.customer_email,
-        customer_phone: o.customer_phone,
-        lead: Array.isArray(o.leads)
-          ? (o.leads[0] ?? null)
-          : (o.leads ?? null),
-      })));
-    }
-    setOffersLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (company?.id) loadOffers(company.id);
-  }, [company?.id, loadOffers]);
-
-  const applyOfferData = useCallback((offerId: string) => {
-    const offer = offerOptions.find(o => o.id === offerId);
-    if (!offer) return;
-    const name = [offer.customer_first_name, offer.customer_last_name].filter(Boolean).join(" ");
-    if (name) setCustomerName(name);
-    if (offer.customer_email) setCustomerEmail(offer.customer_email);
-    if (offer.customer_phone) setCustomerPhone(offer.customer_phone);
-    if (offer.lead) {
-      const from = [offer.lead.from_street, [offer.lead.from_plz, offer.lead.from_city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-      const to = [offer.lead.to_street, [offer.lead.to_plz, offer.lead.to_city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-      if (from) setCustomerAddress(from);
-      if (to) setCustomerDestination(to);
-    }
-    setLinkedOfferId(offerId);
-  }, [offerOptions]);
-
-  // Load existing quittung
-  const loadQuittung = useCallback(async () => {
-    if (isNew || !id) { setIsLoading(false); return; }
-    // Solange der aktive Mandant nicht feststeht, wird nicht geladen — die
-    // Prüfung unten könnte sonst nur raten. Der Bildschirm bleibt im Ladezustand.
+  const readReceipt = useCallback(async (receiptId: string, replaceDirty = false) => {
     if (!companyId) return;
-    const { data, error } = await supabase
-      .from("quittungen").select("*").eq("id", id).maybeSingle();
-    if (error || !data) {
-      toast({ title: "Nicht gefunden", variant: "destructive" });
-      navigate("/firma/quittungen");
+    const { data, error } = await supabase.from('quittungen').select('*').eq('id', receiptId).eq('company_id', companyId).single();
+    if (error) throw error;
+    const mapped = mapQuittungRow(data);
+    if (!mapped.ok) throw new Error(t('receipt.loadFailed'));
+    if (dirtyRef.current && !replaceDirty) {
+      if (mapped.value.version !== savedRef.current?.version) setConflict(true);
       return;
     }
-    // Fail closed: eine Quittung aus der anderen Firma erscheint hier nicht,
-    // auch wenn RLS sie dem Mitglied zeigen würde. Gleiche Meldung wie bei
-    // "gibt es nicht" — alles andere wäre eine Auskunft über fremde Daten.
-    if (!zeileGehoertZumMandanten(data, companyId)) {
-      toast({ title: "Nicht gefunden", variant: "destructive" });
-      navigate("/firma/quittungen");
-      return;
-    }
-    const q = data as unknown as Quittung;
-    if (q.offer_id) setLinkedOfferId(q.offer_id);
-    if (q.auftrag_id) setLinkedAuftragId(q.auftrag_id);
-    // The stored language wins — the receipt keeps the language it was written in.
-    setLanguage(resolveDocumentLocale(q));
-    setDatum(q.datum);
-    setCustomerName(q.customer_name || "");
-    setCustomerId(q.customer_id ?? null);
-    setCustomerAddress(q.customer_address || "");
-    setCustomerDestination(q.customer_destination || "");
-    setCustomerEmail(q.customer_email || "");
-    setCustomerPhone(q.customer_phone || "");
-    setPositionen(Array.isArray(q.positionen) && q.positionen.length > 0
-      ? q.positionen
-      : buildDefaultPositionen(resolveDocumentLocale(q)));
-    setRabatt(q.rabatt || 0);
-    // Restore the stored VAT rate; only new receipts default to 8.1 (pre-2024 receipts
-    // may carry 7.7 or 0 — recomputing at 8.1 would silently rewrite a signed receipt).
-    setMwstSatz(q.mwst_satz ?? 8.1);
-    setBetragNochOffen(q.betrag_noch_offen || false);
-    setNotiz(q.notiz || "");
-    setStatus(q.status);
-    setQuittungNr(q.quittung_nr || "");
-    setKundeSignatur(q.kunde_unterschrift || null);
-    setTeamchefSignatur(q.teamchef_unterschrift || null);
-    setKundeSignedAt(q.kunde_signed_at || null);
-    setTeamchefSignedAt(q.teamchef_signed_at || null);
-    setIsLoading(false);
-  }, [id, isNew, companyId, navigate, toast]);
+    hydrate(mapped.value);
+  }, [companyId, hydrate, t]);
 
-  useEffect(() => { loadQuittung(); }, [loadQuittung]);
-
-  // Prefill aus einem Auftrag (Auftrag → Quittung Brücke). Nur einmal, nur bei Neuanlage.
   useEffect(() => {
-    if (!isNew || prefillAppliedRef.current) return;
-    const fa = (location.state as { fromAuftrag?: FromAuftragPrefill } | null)?.fromAuftrag;
-    if (!fa) return;
-    prefillAppliedRef.current = true;
-
-    if (fa.customerName) setCustomerName(fa.customerName);
-    if (fa.customerAddress) setCustomerAddress(fa.customerAddress);
-    if (fa.customerDestination) setCustomerDestination(fa.customerDestination);
-    if (fa.customerEmail) setCustomerEmail(fa.customerEmail);
-    if (fa.customerPhone) setCustomerPhone(fa.customerPhone);
-    if (fa.offerId) setLinkedOfferId(fa.offerId);
-    if (fa.auftragId) setLinkedAuftragId(fa.auftragId);
-
-    const toRow = (it: AuftragPrefillItem): QuittungPosition => {
-      const qty = it.quantity ?? 1;
-      const unitPrice = it.unit_price ?? 0;
-      const betrag = it.total ?? qty * unitPrice;
-      return {
-        id: uuidv4(),
-        beschreibung: it.description ?? it.beschreibung ?? "",
-        satz: it.unit ? `${qty} ${it.unit}` : "",
-        betrag: Math.round((betrag || 0) * 100) / 100,
-        checked: true,
-        is_custom: true,
-      };
+    if (!companyId || !company) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true); setLoadError(null);
+      try {
+        const [offerResult, invoiceResult, settingsResult] = await Promise.all([
+          supabase.from('offers').select('id, offer_number, customer_first_name, customer_last_name').eq('company_id', companyId).order('created_at', { ascending: false }),
+          supabase.from('rechnungen').select('id, rechnung_nr, customer_id, customer_name, open_amount, status').eq('company_id', companyId).order('created_at', { ascending: false }),
+          supabase.from('company_offer_settings').select('default_vat_rate').eq('company_id', companyId).maybeSingle(),
+        ]);
+        if (offerResult.error) throw offerResult.error;
+        if (invoiceResult.error) throw invoiceResult.error;
+        if (settingsResult.error) throw settingsResult.error;
+        if (cancelled) return;
+        setOffers(offerResult.data); setInvoices(invoiceResult.data);
+        if (!isNew && id) {
+          await readReceipt(id, true);
+        } else {
+          const vat = settingsResult.data?.default_vat_rate ?? 8.1;
+          let initial = emptyQuittungDraft(receiptToday(), toLocale(company.default_language), vat);
+          if (sourceOrderId) {
+            const { data, error } = await supabase.from('auftraege').select('*').eq('id', sourceOrderId).eq('company_id', companyId).single();
+            if (error) throw error;
+            const items = validateAuftragItems(data.items);
+            const extras = validateExtraServices(data.extra_services);
+            if (!items.ok || !extras.ok) throw new Error(t('receipt.invalid.items'));
+            initial = createReceiptDraftFromOrder({ ...data, items: items.value, extra_services: extras.value }, receiptToday(), vat);
+          }
+          if (cancelled) return;
+          setSaved(null); savedRef.current = null;
+          setDraft(initial); setDirty(!!sourceOrderId); dirtyRef.current = !!sourceOrderId;
+          setConflict(false); setPreview(null);
+        }
+      } catch (error) {
+        if (!cancelled) setLoadError(errorMessage(error, t('receipt.loadFailed')));
+      } finally { if (!cancelled) setLoading(false); }
     };
+    void load();
+    return () => { cancelled = true; };
+  }, [companyId, company, id, isNew, sourceOrderId, readReceipt, t]);
 
-    const mapped = [...(fa.items ?? []), ...(fa.extraServices ?? [])]
-      .filter((it) => (it.description ?? it.beschreibung ?? "").trim().length > 0)
-      .map(toRow);
+  useEffect(() => {
+    if (!saved?.id) return;
+    const receiptId = saved.id;
+    const refresh = () => { void readReceipt(receiptId).catch(error => setLoadError(errorMessage(error, t('receipt.loadFailed')))); };
+    const channel = supabase.channel(`receipt-${receiptId}`).on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'quittungen', filter: `id=eq.${receiptId}`,
+    }, refresh).subscribe();
+    window.addEventListener('focus', refresh);
+    const interval = window.setInterval(refresh, 30000);
+    return () => { void supabase.removeChannel(channel); window.removeEventListener('focus', refresh); window.clearInterval(interval); };
+  }, [saved?.id, readReceipt, t]);
 
-    if (mapped.length > 0) {
-      // Vordefinierte (ungekreuzte) Zeilen behalten, gemappte Auftrag-Positionen anhängen
-      setPositionen((prev) => [...prev.filter((p) => !p.is_custom), ...mapped]);
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => { if (dirtyRef.current) { event.preventDefault(); event.returnValue = ''; } };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, []);
+
+  const changeDraft = (patch: Partial<QuittungDraft>) => {
+    if (frozen || busy) return;
+    customerPad.current?.clear(); teamPad.current?.clear();
+    setDraft(previous => ({ ...previous, ...patch, kunde_unterschrift: null, teamchef_unterschrift: null, kunde_signed_at: null, teamchef_signed_at: null }));
+    setDirty(true); dirtyRef.current = true; setPreview(null);
+  };
+
+  const changePosition = (position: QuittungPosition, patch: Partial<QuittungPosition>) => {
+    const next = { ...position, ...patch };
+    if (('menge' in patch || 'einzelpreis' in patch) && typeof next.menge === 'number' && typeof next.einzelpreis === 'number') {
+      next.betrag = next.price_type === 'inkl' ? 0 : round2(next.menge * next.einzelpreis);
     }
-
-    // State leeren, damit ein Reload die Prefill nicht erneut anwendet
-    navigate(location.pathname, { replace: true, state: null });
-  }, [isNew, location.state, location.pathname, navigate]);
-
-  // Position helpers
-  // A: once a Quittung is signed/sent/paid it is a delivery record — its financial
-  // content must not change (signature integrity). isSigned locks all money mutations.
-  const isSigned = status === "signed" || status === "sent" || status === "paid";
-
-  const updatePosition = (pos: Partial<QuittungPosition> & { id: string }) => {
-    if (isSigned) return;
-    setPositionen(prev => prev.map(p => p.id === pos.id ? { ...p, ...pos } : p));
+    changeDraft({ positionen: draft.positionen.map(p => p.id === next.id ? next : p) });
   };
 
-  const addCustomRow = () => {
-    if (isSigned) return;
-    setPositionen(prev => [...prev, {
-      id: uuidv4(), beschreibung: "", satz: "", betrag: 0,
-      checked: false, is_custom: true,
-    }]);
+  const run = async (action: () => Promise<void>) => {
+    if (actionRef.current) return;
+    actionRef.current = true; setBusy(true);
+    try { await action(); }
+    catch (error) { toast({ title: t('receipt.error'), description: errorMessage(error, t('receipt.error')), variant: 'destructive' }); }
+    finally { actionRef.current = false; setBusy(false); }
   };
 
-  const removeCustomRow = (posId: string) => {
-    if (isSigned) return;
-    setPositionen(prev => prev.filter(p => p.id !== posId || !p.is_custom));
+  const persist = async (value: QuittungDraft = draft): Promise<Quittung> => {
+    if (!companyId) throw new Error(t('receipt.loadFailed'));
+    const current = savedRef.current;
+    if (current && isQuittungFrozen(current)) return current;
+    const validation = validateQuittungDraft(value, 'draft');
+    if (validation) throw new Error(t(validation));
+    const payload = buildQuittungDraftPayload(value, companyId);
+    const existing = current;
+    if (existing && existing.version === undefined) throw new Error(t('receipt.conflict'));
+    const result = existing
+      ? await supabase.from('quittungen').update(payload).eq('id', existing.id).eq('company_id', companyId).eq('version', existing.version!).select('*').maybeSingle()
+      : await supabase.from('quittungen').insert(payload).select('*').single();
+    if (result.error) throw result.error;
+    if (!result.data) { setConflict(true); throw new Error(t('receipt.conflict')); }
+    const mapped = mapQuittungRow(result.data);
+    if (!mapped.ok) throw new Error(t('receipt.loadFailed'));
+    hydrate(mapped.value);
+    if (!existing) navigate(`/firma/quittungen/${mapped.value.id}`, { replace: true });
+    return mapped.value;
   };
 
-  const setRabattGuarded = (v: number) => {
-    if (isSigned) return;
-    setRabatt(v);
+  const captureSignatures = (): QuittungDraft => {
+    const customer = customerPad.current?.toDataURL() ?? draft.kunde_unterschrift;
+    const team = teamPad.current?.toDataURL() ?? draft.teamchef_unterschrift;
+    const now = new Date().toISOString();
+    return { ...draft, kunde_unterschrift: customer, teamchef_unterschrift: team,
+      kunde_signed_at: customer ? (customer === draft.kunde_unterschrift ? draft.kunde_signed_at ?? now : now) : null,
+      teamchef_signed_at: team ? (team === draft.teamchef_unterschrift ? draft.teamchef_signed_at ?? now : now) : null };
   };
 
-  // Save
-  const save = async (newStatus?: QuittungStatus): Promise<string | null> => {
-    if (!company?.id) return null;
-    setIsSaving(true);
-    const payload = {
-      company_id: company.id,
-      offer_id: linkedOfferId ?? undefined,
-      auftrag_id: linkedAuftragId ?? undefined,
-      datum,
-      customer_name: customerName,
-      customer_address: customerAddress || null,
-      customer_destination: customerDestination || null,
-      customer_email: customerEmail || null,
-      customer_phone: customerPhone || null,
-      positionen: positionen as unknown as never,
-      zwischensumme: totals.zwischensumme,
-      mwst_satz: mwstSatz,
-      mwst_betrag: totals.mwst_betrag,
-      total: totals.total,
-      rabatt,
-      gesamttotal: totals.gesamttotal,
-      betrag_noch_offen: betragNochOffen,
-      notiz: notiz || null,
-      status: newStatus ?? status,
-      language,
-      kunde_unterschrift: kundeSignatur,
-      teamchef_unterschrift: teamchefSignatur,
-      kunde_signed_at: kundeSignedAt,
-      teamchef_signed_at: teamchefSignedAt,
-    };
-
-    let savedId = quittungId;
-    if (quittungId) {
-      const { error } = await supabase
-        .from("quittungen").update(payload).eq("id", quittungId);
-      if (error) {
-        toast({ title: "Fehler", description: error.message, variant: "destructive" });
-        setIsSaving(false);
-        return null;
-      }
-    } else {
-      const { data, error } = await supabase
-        .from("quittungen").insert(payload).select("id, quittung_nr").single();
-      if (error || !data) {
-        toast({ title: "Fehler", description: error?.message, variant: "destructive" });
-        setIsSaving(false);
-        return null;
-      }
-      savedId = data.id;
-      setQuittungId(data.id);
-      setQuittungNr((data as { id: string; quittung_nr: string }).quittung_nr);
-    }
-    if (newStatus) setStatus(newStatus);
-    setIsSaving(false);
-    return savedId;
+  const finalize = async (mode: 'issue' | 'send' = 'issue'): Promise<Quittung> => {
+    const value = frozen && saved ? draftFromQuittung(saved) : captureSignatures();
+    const validation = validateQuittungDraft(value, mode);
+    if (validation) throw new Error(t(validation));
+    const persisted = await persist(value);
+    if (persisted.version === undefined) throw new Error(t('receipt.conflict'));
+    const { data, error } = await supabase.rpc('finalize_quittung', {
+      p_quittung_id: persisted.id, p_expected_version: persisted.version,
+      p_kunde_unterschrift: value.kunde_unterschrift ?? undefined,
+      p_teamchef_unterschrift: value.teamchef_unterschrift ?? undefined,
+      p_kunde_signed_at: value.kunde_signed_at ?? undefined,
+      p_teamchef_signed_at: value.teamchef_signed_at ?? undefined,
+    });
+    if (error) throw error;
+    const mapped = mapQuittungRow(data);
+    if (!mapped.ok) throw new Error(t('receipt.loadFailed'));
+    hydrate(mapped.value);
+    return mapped.value;
   };
 
-  const handleSaveDraft = async () => {
-    const savedId = await save("draft");
-    if (savedId) toast({ title: "Entwurf gespeichert" });
+  const selectOffer = async (offerId: string) => {
+    if (offerId === 'none') { changeDraft({ offer_id: null, auftrag_id: null, rechnung_id: null }); return; }
+    await run(async () => {
+      if (!companyId) return;
+      const [offerResult, itemsResult] = await Promise.all([
+        supabase.from('offers').select('id, customer_id, customer_first_name, customer_last_name, customer_email, customer_phone, language, vat_rate, subtotal, leads(from_street, from_house_number, from_plz, from_city, to_street, to_house_number, to_plz, to_city)').eq('id', offerId).eq('company_id', companyId).single(),
+        supabase.from('offer_items').select('id, description, quantity, unit, unit_price, total, price_type').eq('offer_id', offerId).order('position'),
+      ]);
+      if (offerResult.error) throw offerResult.error;
+      if (itemsResult.error) throw itemsResult.error;
+      const offer = offerResult.data;
+      const lead = offer.leads;
+      const mapped = createReceiptDraftFromOrder({
+        id: offer.id, offer_id: offer.id, customer_id: offer.customer_id,
+        customer_name: [offer.customer_first_name, offer.customer_last_name].filter(Boolean).join(' '),
+        customer_email: offer.customer_email, customer_phone: offer.customer_phone,
+        from_address: lead ? [lead.from_street, lead.from_house_number, lead.from_plz, lead.from_city].filter(Boolean).join(' ') : null,
+        to_address: lead ? [lead.to_street, lead.to_house_number, lead.to_plz, lead.to_city].filter(Boolean).join(' ') : null,
+        language: offer.language, vat_rate: offer.vat_rate, subtotal: offer.subtotal,
+        pricing_type: 'fixed', items: itemsResult.data, extra_services: [],
+      }, draft.datum, draft.mwst_satz);
+      customerPad.current?.clear(); teamPad.current?.clear();
+      setDraft({ ...mapped, auftrag_id: null }); setDirty(true); dirtyRef.current = true; setPreview(null);
+    });
   };
 
-  const handleConfirmSignatures = async () => {
-    // Capture from pads if not yet confirmed
-    if (!kundeSignatur && kundeSignRef.current && !kundeSignRef.current.isEmpty()) {
-      const sig = kundeSignRef.current.toDataURL();
-      setKundeSignatur(sig);
-      setKundeSignedAt(new Date().toISOString());
-    }
-    if (!teamchefSignatur && teamSignRef.current && !teamSignRef.current.isEmpty()) {
-      const sig = teamSignRef.current.toDataURL();
-      setTeamchefSignatur(sig);
-      setTeamchefSignedAt(new Date().toISOString());
-    }
-    const newStatus: QuittungStatus = "signed";
-    const savedId = await save(newStatus);
-    if (savedId) {
-      // C: report what was actually captured — "signed" can be reached with a single
-      // signature, so don't claim "beide Unterschriften".
-      const bothNow =
-        (kundeSignatur || (kundeSignRef.current && !kundeSignRef.current.isEmpty())) &&
-        (teamchefSignatur || (teamSignRef.current && !teamSignRef.current.isEmpty()));
-      toast({
-        title: "Quittung unterzeichnet!",
-        description: bothNow ? "Beide Unterschriften gespeichert." : "Unterschrift gespeichert.",
-      });
-    }
-  };
-
-  const handleSendEmail = async () => {
-    const savedId = await save();
-    if (!savedId || !company) return;
-    setIsSendingEmail(true);
-    try {
-      // Generate the PDF client-side (react-pdf) → base64 → send it as an attachment to send-quittung.
-      const blob = await pdf(
-        <QuittungPDF
-          quittung={buildQuittungData()}
-          company={{ ...company, logo_url: logoBase64 ?? company.logo_url }}
-          locale={language}
-        />
-      ).toBlob();
-      const quittungPdfBase64 = await blobToBase64(blob);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Nicht angemeldet");
-      const { error } = await supabase.functions.invoke("send-quittung", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { quittungId: savedId, quittungPdfBase64 },
-      });
+  const startPayment = async () => {
+    const receipt = await finalize();
+    if (receipt.rechnung_id) {
+      const { data, error } = await supabase.from('rechnungen').select('id, rechnung_nr, customer_id, customer_name, open_amount, status').eq('id', receipt.rechnung_id).eq('company_id', receipt.company_id).single();
       if (error) throw error;
-      // send-quittung sets the status to 'sent' on the server — here only the local UI is updated.
-      setStatus("sent");
-      toast({ title: "Quittung versendet!", description: `E-Mail an ${customerEmail} gesendet.` });
-    } catch (e) {
-      toast({ title: "Fehler beim Versenden", description: (e as Error).message, variant: "destructive" });
-    } finally {
-      setIsSendingEmail(false);
-    }
+      if (data.open_amount <= 0) { await readReceipt(receipt.id, true); return; }
+      setPaymentTarget({ receipt, invoice: data });
+    } else setPaymentTarget({ receipt });
   };
 
-  if (isLoading) {
-    return (
-        <div className="flex items-center justify-center min-h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-        </div>
-    );
-  }
+  if (loading || !company) return <div className="flex justify-center py-16"><Loader2 className="size-7 animate-spin" /></div>;
+  if (loadError && !saved) return <div role="alert" className="space-y-3 p-6"><p>{t('receipt.loadFailed')}: {loadError}</p><Button onClick={() => window.location.reload()}>{t('receipt.retry')}</Button></div>;
 
-  const cfg = STATUS_CONFIG[status];
-  const predefined = positionen.filter(p => !p.is_custom);
-  const custom = positionen.filter(p => p.is_custom);
-
-  return (
-    <>
-      <Helmet><title>{isNew ? "Neue Quittung" : `Quittung ${quittungNr}`} | Firma</title></Helmet>
-        <div className="mx-auto max-w-3xl space-y-5">
-          {/* Folk-style header */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/firma/quittungen")}
-              className="h-9 gap-1.5 rounded-md text-folk-ink3 hover:bg-folk-bg-warm hover:text-folk-ink2"
-            >
-              <ArrowLeft className="h-4 w-4" /> Zurück
-            </Button>
-            <div className="flex items-center gap-2.5">
-              <span className="text-2xl leading-none">🧾</span>
-              <div>
-                <h1 className="text-[17px] font-bold tracking-tight text-folk-ink">
-                  {isNew ? "Neue Quittung" : `Quittung ${quittungNr || ""}`}
-                </h1>
-              </div>
-            </div>
-            <div className="flex-1" />
-            {quittungNr && !isNew && (
-              <span className="font-mono text-[11px] text-folk-ink4">{quittungNr}</span>
-            )}
-            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${cfg.bg} ${cfg.color}`}>
-              {getQuittungStatusLabel(status, uiLocale)}
-            </span>
-            {showPdfPreview ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPdfPreview(false)}
-                className="h-9 rounded-lg border-folk-line bg-folk-card px-3 text-[12.5px] text-folk-ink2 hover:bg-folk-bg-warm"
-              >
-                Formular
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => { await save(); setShowPdfPreview(true); }}
-                className="h-9 gap-1.5 rounded-lg border-folk-line bg-folk-card px-3 text-[12.5px] text-folk-ink2 hover:bg-folk-bg-warm"
-              >
-                <FileText className="h-4 w-4" /> PDF-Vorschau
-              </Button>
-            )}
-          </div>
-
-          {/* PDF Preview */}
-          {showPdfPreview && company && (
-            <QuittungPDFPreview
-              quittung={buildQuittungData()}
-              company={{ ...company, logo_url: logoBase64 ?? company.logo_url }}
-              locale={language}
-            />
-          )}
-
-          {/* Form */}
-          <div className="rounded-xl border border-folk-line bg-folk-card">
-            <div className="space-y-6 p-4 md:p-6">
-
-              {/* ── Header Section ── */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Kundendaten</h3>
-                    <KundeLink customerId={customerId} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Name *</Label>
-                    <Input value={customerName} onChange={e => setCustomerName(e.target.value)}
-                      placeholder="Vor- und Nachname" className="mt-1 h-9 text-sm" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Adresse (Von)</Label>
-                    <Input value={customerAddress} onChange={e => setCustomerAddress(e.target.value)}
-                      placeholder="Strasse Nr, PLZ Ort" className="mt-1 h-9 text-sm" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Adresse (Nach)</Label>
-                    <Input value={customerDestination} onChange={e => setCustomerDestination(e.target.value)}
-                      placeholder="Strasse Nr, PLZ Ort" className="mt-1 h-9 text-sm" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs">E-Mail</Label>
-                      <Input value={customerEmail} onChange={e => setCustomerEmail(e.target.value)}
-                        type="email" placeholder="kunde@email.ch" className="mt-1 h-9 text-sm" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Telefon</Label>
-                      <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
-                        placeholder="+41 79 000 00 00" className="mt-1 h-9 text-sm" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Quittung-Details</h3>
-
-                  {/* Von Offerte laden */}
-                  <div>
-                    <Label className="text-xs flex items-center gap-1.5">
-                      <Link2 className="w-3 h-3" /> Von Offerte laden
-                    </Label>
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <Select
-                        value={linkedOfferId ?? ""}
-                        onValueChange={v => v ? applyOfferData(v) : setLinkedOfferId(null)}
-                        disabled={offersLoading}
-                      >
-                        <SelectTrigger className="h-9 text-sm flex-1">
-                          <SelectValue placeholder={offersLoading ? "Lädt…" : "Offerte auswählen…"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {offerOptions.map(o => (
-                            <SelectItem key={o.id} value={o.id}>
-                              <span className="font-mono text-xs mr-2 text-slate-500">{o.offer_number}</span>
-                              {[o.customer_first_name, o.customer_last_name].filter(Boolean).join(" ") || "–"}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {linkedOfferId && (
-                        <button
-                          onClick={() => setLinkedOfferId(null)}
-                          className="text-slate-400 hover:text-red-500 transition-colors shrink-0"
-                          title="Verknüpfung aufheben"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                    {linkedOfferId && (
-                      <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> Kundendaten aus Offerte geladen
-                      </p>
-                    )}
-                    {linkedAuftragId && (
-                      <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                        <Link2 className="w-3 h-3" /> Verknüpft mit Auftrag
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label className="text-xs">Datum *</Label>
-                    <DatePicker value={datum} onChange={(value) => setDatum(value)}
-                      className="mt-1 h-9 text-sm" />
-                  </div>
-                  <div>
-                    {/* Document language: the language the CUSTOMER's receipt is written in. */}
-                    <Label className="text-xs">Sprache der Quittung</Label>
-                    <Select
-                      value={language}
-                      onValueChange={v => applyLanguage(toLocale(v))}
-                      disabled={isSigned}
-                    >
-                      <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {LOCALES.map(l => (
-                          <SelectItem key={l} value={l}>{LOCALE_NAMES[l]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {quittungNr && (
-                    <div>
-                      <Label className="text-xs">Quittung-Nr.</Label>
-                      <Input value={quittungNr} readOnly className="mt-1 h-9 text-sm bg-slate-50 font-mono" />
-                    </div>
-                  )}
-                  <div>
-                    <Label className="text-xs">Notiz (intern)</Label>
-                    <Textarea value={notiz} onChange={e => setNotiz(e.target.value)}
-                      placeholder="Interne Notiz..." rows={3} className="mt-1 text-sm resize-none" />
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Line Items ── */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Leistungen</h3>
-                  {isSigned && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700">
-                      🔒 Unterzeichnet — Beträge gesperrt
-                    </span>
-                  )}
-                </div>
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
-
-                  {/* Desktop header — hidden on mobile */}
-                  <div className="hidden sm:grid sm:grid-cols-[2rem_1fr_1fr_7rem_2rem] gap-3 bg-slate-800 text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-2">
-                    <div className="flex items-center justify-center">✓</div>
-                    <div>Beschreibung</div>
-                    <div>Satz / Bemerkung</div>
-                    <div className="text-right">Betrag CHF</div>
-                    <div />
-                  </div>
-
-                  {/* Predefined rows */}
-                  {predefined.map(pos => (
-                    <div key={pos.id}
-                      className={`border-b border-slate-100 last:border-0 transition-opacity ${!pos.checked ? "opacity-50" : ""}`}>
-
-                      {/* Mobile layout */}
-                      <div className="sm:hidden px-3 py-3 space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <Checkbox checked={pos.checked} disabled={isSigned}
-                              onCheckedChange={v => updatePosition({ id: pos.id, checked: !!v })}
-                              className="size-4 shrink-0" />
-                            <span className="text-sm font-medium text-slate-800 truncate">{pos.beschreibung}</span>
-                          </div>
-                          <Input
-                            type="number" min="0" step="0.01"
-                            value={pos.betrag || ""}
-                            disabled={isSigned}
-                            onChange={e => updatePosition({ id: pos.id, betrag: parseFloat(e.target.value) || 0 })}
-                            className="h-8 w-24 text-sm text-right shrink-0"
-                            placeholder="0.00" />
-                        </div>
-                        <Input value={pos.satz} disabled={isSigned}
-                          onChange={e => updatePosition({ id: pos.id, satz: e.target.value })}
-                          placeholder="Satz / Bemerkung (z.B. 3 Std. × CHF 50)"
-                          className="h-8 text-xs w-full" />
-                      </div>
-
-                      {/* Desktop layout */}
-                      <div className="hidden sm:grid sm:grid-cols-[2rem_1fr_1fr_7rem_2rem] gap-3 items-center px-3 py-2">
-                        <div className="flex justify-center">
-                          <Checkbox
-                            checked={pos.checked} disabled={isSigned}
-                            onCheckedChange={v => updatePosition({ id: pos.id, checked: !!v })}
-                            className="size-4 shrink-0" />
-                        </div>
-                        <span className="text-sm font-medium text-slate-800">{pos.beschreibung}</span>
-                        <Input value={pos.satz} disabled={isSigned}
-                          onChange={e => updatePosition({ id: pos.id, satz: e.target.value })}
-                          placeholder="z.B. 3 Std. × CHF 50"
-                          className="h-7 text-xs border-0 bg-slate-50 px-2" />
-                        <Input
-                          type="number" min="0" step="0.01"
-                          value={pos.betrag || ""}
-                          disabled={isSigned}
-                          onChange={e => updatePosition({ id: pos.id, betrag: parseFloat(e.target.value) || 0 })}
-                          className="h-7 text-xs text-right border-0 bg-slate-50 px-2" />
-                        <div />
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Custom rows separator */}
-                  <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 border-t border-t-slate-200">
-                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Zusatzleistungen</span>
-                  </div>
-
-                  {/* Custom rows */}
-                  {custom.map(pos => (
-                    <div key={pos.id} className="border-b border-slate-100 last:border-0">
-
-                      {/* Mobile layout */}
-                      <div className="sm:hidden px-3 py-3 space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <Checkbox checked={pos.checked} disabled={isSigned}
-                              onCheckedChange={v => updatePosition({ id: pos.id, checked: !!v })}
-                              className="size-4 shrink-0" />
-                            <Input value={pos.beschreibung}
-                              onChange={e => updatePosition({ id: pos.id, beschreibung: e.target.value })}
-                              placeholder="Beschreibung..."
-                              className="h-8 text-sm flex-1 min-w-0" />
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Input
-                              type="number" min="0" step="0.01"
-                              value={pos.betrag || ""}
-                            disabled={isSigned}
-                              onChange={e => updatePosition({ id: pos.id, betrag: parseFloat(e.target.value) || 0 })}
-                              className="h-8 w-24 text-sm text-right"
-                              placeholder="0.00" />
-                            <button onClick={() => removeCustomRow(pos.id)}
-                              className="text-slate-400 hover:text-red-500 transition-colors p-1">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        <Input value={pos.satz} disabled={isSigned}
-                          onChange={e => updatePosition({ id: pos.id, satz: e.target.value })}
-                          placeholder="Satz / Bemerkung"
-                          className="h-8 text-xs w-full" />
-                      </div>
-
-                      {/* Desktop layout */}
-                      <div className="hidden sm:grid sm:grid-cols-[2rem_1fr_1fr_7rem_2rem] gap-3 items-center px-3 py-2">
-                        <div className="flex justify-center">
-                          <Checkbox
-                            checked={pos.checked} disabled={isSigned}
-                            onCheckedChange={v => updatePosition({ id: pos.id, checked: !!v })}
-                            className="size-4 shrink-0" />
-                        </div>
-                        <Input value={pos.beschreibung}
-                          onChange={e => updatePosition({ id: pos.id, beschreibung: e.target.value })}
-                          placeholder="Beschreibung..."
-                          className="h-7 text-xs border-0 bg-transparent px-1" />
-                        <Input value={pos.satz} disabled={isSigned}
-                          onChange={e => updatePosition({ id: pos.id, satz: e.target.value })}
-                          placeholder="Satz / Bemerkung"
-                          className="h-7 text-xs border-0 bg-transparent px-1" />
-                        <Input
-                          type="number" min="0" step="0.01"
-                          value={pos.betrag || ""}
-                            disabled={isSigned}
-                          onChange={e => updatePosition({ id: pos.id, betrag: parseFloat(e.target.value) || 0 })}
-                          className="h-7 text-xs text-right border-0 bg-transparent px-1" />
-                        <div className="flex justify-center">
-                          <button onClick={() => removeCustomRow(pos.id)}
-                            className="text-slate-400 hover:text-red-500 transition-colors">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Add row */}
-                  <div className="px-3 py-2.5 bg-slate-50">
-                    {!isSigned && (
-                    <button onClick={addCustomRow}
-                      className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-600 transition-colors">
-                      <Plus className="w-3.5 h-3.5" /> Zeile hinzufügen
-                    </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Totals — only shown when not draft (draft = on-site, worker fills by hand) ── */}
-              {status !== "draft" && (
-                <div className="flex justify-end">
-                  <div className="w-full max-w-xs space-y-1.5 rounded-xl border border-slate-200 p-4 bg-slate-50">
-                    <div className="flex justify-between text-sm text-slate-600">
-                      <span>Zwischensumme:</span>
-                      <span>{formatCurrency(totals.zwischensumme, uiLocale)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-slate-600">
-                      <div className="flex items-center gap-2">
-                        <span>Rabatt:</span>
-                        <Input type="number" min="0" step="0.01" value={rabatt || ""}
-                          disabled={isSigned}
-                          onChange={e => setRabattGuarded(parseFloat(e.target.value) || 0)}
-                          className="h-6 w-20 text-xs text-right py-0 px-1.5" />
-                      </div>
-                      <span>-{formatCurrency(rabatt, uiLocale)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-slate-600">
-                      <span>MwSt. ({mwstSatz}%):</span>
-                      <span>{formatCurrency(totals.mwst_betrag, uiLocale)}</span>
-                    </div>
-                    <div className="border-t border-slate-300 pt-1.5 flex justify-between font-bold text-base text-slate-900">
-                      <span>Gesamttotal:</span>
-                      <span className="text-emerald-700">{formatCurrency(totals.gesamttotal, uiLocale)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 pt-1">
-                      <Checkbox id="betrag-offen" checked={betragNochOffen}
-                        onCheckedChange={v => setBetragNochOffen(!!v)} />
-                      <label htmlFor="betrag-offen" className="text-xs text-slate-600 cursor-pointer">
-                        Betrag noch offen
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Signatures ── */}
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Unterschriften</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <SignaturePad
-                    ref={kundeSignRef}
-                    locale={language}
-                    label={docT("doc.receipt.signature.customer")}
-                    existingSignature={kundeSignatur}
-                    signedAt={kundeSignedAt}
-                    disabled={isSigned}
-                    onConfirm={sig => {
-                      setKundeSignatur(sig);
-                      setKundeSignedAt(new Date().toISOString());
-                    }}
-                    onClear={() => { setKundeSignatur(null); setKundeSignedAt(null); }}
-                  />
-                  <SignaturePad
-                    ref={teamSignRef}
-                    locale={language}
-                    label={docT("doc.receipt.signature.teamLead")}
-                    existingSignature={teamchefSignatur}
-                    signedAt={teamchefSignedAt}
-                    disabled={isSigned}
-                    onConfirm={sig => {
-                      setTeamchefSignatur(sig);
-                      setTeamchefSignedAt(new Date().toISOString());
-                    }}
-                    onClear={() => { setTeamchefSignatur(null); setTeamchefSignedAt(null); }}
-                  />
-                </div>
-              </div>
-
-              {/* ── Footer Info ── */}
-              {company && (
-                <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-1">
-                  <p className="text-center text-sm font-semibold text-slate-600">
-                    VIELEN DANK FÜR IHREN GESCHÄTZTEN AUFTRAG!
-                  </p>
-                  {company.bewertungs_url && (
-                    <p className="text-center text-xs text-slate-500">
-                      Bewertung: <a href={company.bewertungs_url} className="underline text-emerald-600" target="_blank" rel="noreferrer">{company.bewertungs_url}</a>
-                    </p>
-                  )}
-                  <div className="flex items-center justify-center gap-4 text-xs text-slate-500 pt-1 flex-wrap">
-                    {company.iban && <span>IBAN: {company.iban}</span>}
-                    {company.bank_name && <span>{company.bank_name}</span>}
-                    {company.mwst_number && <span>MwSt-Nr: {company.mwst_number}</span>}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-wrap gap-2 pb-6">
-            <Button variant="outline" onClick={handleSaveDraft} disabled={isSaving}>
-              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-              Entwurf speichern
-            </Button>
-
-            {/* PDF Download */}
-            {company && (
-              <PDFDownloadLink
-                document={
-                  <QuittungPDF
-                    quittung={buildQuittungData()}
-                    company={{ ...company, logo_url: logoBase64 ?? company.logo_url }}
-                    locale={language}
-                  />
-                }
-                fileName={`Quittung-${quittungNr || "entwurf"}.pdf`}
-              >
-                {({ loading }) => (
-                  <Button variant="outline" disabled={loading}>
-                    {loading
-                      ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      : <Download className="w-4 h-4 mr-2" />}
-                    {loading ? "Erstelle PDF…" : "PDF herunterladen"}
-                  </Button>
-                )}
-              </PDFDownloadLink>
-            )}
-
-            {!isSigned && (
-              <Button
-                onClick={handleConfirmSignatures}
-                disabled={isSaving || (!kundeSignatur && !teamchefSignatur)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Unterschriften bestätigen
-              </Button>
-            )}
-
-            {(status === "signed" || status === "draft") && customerEmail && (
-              <Button onClick={handleSendEmail} disabled={isSendingEmail || isSaving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                {isSendingEmail ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-                Per E-Mail versenden
-              </Button>
-            )}
-          </div>
-        </div>
-    </>
+  const invoiceOptions = invoices.filter(invoice => invoice.id === draft.rechnung_id || (draft.customer_id !== null && invoice.customer_id === draft.customer_id));
+  const linkedInvoice = invoices.find(invoice => invoice.id === draft.rechnung_id);
+  const paymentStatus = saved?.rechnung_id === draft.rechnung_id ? saved.payment_status ?? 'open' : 'open';
+  const title = saved ? t('receipt.title', { number: saved.quittung_nr ?? '' }) : t('receipt.new');
+  const field = (key: 'customer_name' | 'customer_address' | 'customer_destination' | 'customer_email' | 'customer_phone', label: string, type = 'text') => (
+    <div><Label htmlFor={key}>{label}</Label><Input id={key} type={type} value={draft[key]} disabled={frozen || busy} onChange={event => changeDraft({ [key]: event.target.value })} className="mt-1" /></div>
   );
+
+  return <>
+    <Helmet><title>{title} | CRM</title></Helmet>
+    <div className="mx-auto max-w-5xl space-y-5 pb-8">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="ghost" size="icon" aria-label={t('receipt.back')} onClick={() => navigate('/firma/quittungen')}><ArrowLeft className="size-5" /></Button>
+        <h1 className="flex-1 text-2xl font-semibold">{title}</h1>
+        <span className="rounded-md bg-slate-100 px-2 py-1 text-sm">{getQuittungStatusLabel(saved?.status ?? 'draft', uiLocale)}</span>
+        {dirty && <span className="text-sm text-amber-700">{t('receipt.unsaved')}</span>}
+      </div>
+      {loadError && <p role="alert" className="text-red-700">{loadError}</p>}
+      {conflict && <div role="alert" className="space-y-2 rounded-lg border border-amber-400 p-4"><p>{t('receipt.conflict')}</p><Button onClick={() => void run(async () => { if (saved) await readReceipt(saved.id, true); })}>{t('receipt.reload')}</Button></div>}
+      {frozen && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">{t('receipt.frozen')}</p>}
+      <div className="rounded-xl border bg-white p-5 md:p-7">
+        <div className="grid gap-6 md:grid-cols-2">
+          <section className="space-y-3"><h2 className="font-semibold">{t('receipt.customer')} {draft.customer_id && <KundeLink customerId={draft.customer_id} />}</h2>
+            {field('customer_name', `${t('receipt.name')} *`)}
+            {field('customer_address', t('receipt.address'))}
+            {field('customer_destination', t('receipt.destination'))}
+            {field('customer_email', t('receipt.email'), 'email')}
+            {field('customer_phone', t('receipt.phone'), 'tel')}
+          </section>
+          <section className="space-y-3"><h2 className="font-semibold">{t('receipt.details')}</h2>
+            <div><Label>{t('receipt.offer')}</Label><Select value={draft.offer_id ?? 'none'} onValueChange={value => void selectOffer(value)} disabled={frozen || busy}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{t('receipt.noOffer')}</SelectItem>{offers.map(offer => <SelectItem key={offer.id} value={offer.id}>{offer.offer_number} · {[offer.customer_first_name, offer.customer_last_name].filter(Boolean).join(' ')}</SelectItem>)}</SelectContent></Select></div>
+            {draft.auftrag_id && <p className="text-sm text-slate-500">{t('receipt.orderLinked')}</p>}
+            <div><Label>{t('receipt.date')} *</Label><DatePicker value={draft.datum} onChange={value => changeDraft({ datum: value })} disabled={frozen || busy} className="mt-1" /></div>
+            <div><Label>{t('receipt.language')}</Label><Select value={draft.language} onValueChange={value => changeDraft({ language: toLocale(value) })} disabled={frozen || busy}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent>{LOCALES.map(locale => <SelectItem key={locale} value={locale}>{LOCALE_NAMES[locale]}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label htmlFor="receipt-note">{t('receipt.note')}</Label><Textarea id="receipt-note" value={draft.notiz} onChange={event => changeDraft({ notiz: event.target.value })} disabled={frozen || busy} className="mt-1" /></div>
+          </section>
+        </div>
+        <section className="mt-7 space-y-3"><h2 className="font-semibold">{t('receipt.items')}</h2>
+          {draft.auftrag_id && <p className="text-sm text-slate-500">{t('receipt.sourceReconciled')}</p>}
+          {draft.positionen.map(position => <div key={position.id} className="space-y-3 rounded-lg border p-3">
+            <div className="flex items-start gap-3"><Checkbox aria-label={t('receipt.include')} checked={position.checked} disabled={frozen || busy} onCheckedChange={checked => changePosition(position, { checked: checked === true })} className="mt-3" /><div className="flex-1"><Label htmlFor={`description-${position.id}`}>{t('receipt.description')}</Label><Input id={`description-${position.id}`} value={position.beschreibung} disabled={frozen || busy} onChange={event => changePosition(position, { beschreibung: event.target.value })} /></div><Button variant="ghost" size="icon" aria-label={t('receipt.removeRow')} disabled={frozen || busy} onClick={() => changeDraft({ positionen: draft.positionen.filter(p => p.id !== position.id) })}><Trash2 className="size-4" /></Button></div>
+            {position.price_type === 'optional' && <p className="text-xs text-amber-700">{t('receipt.optional')}</p>}
+            {position.price_type === 'inkl' && <p className="text-xs text-emerald-700">{t('receipt.included')}</p>}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div><Label htmlFor={`quantity-${position.id}`}>{t('receipt.quantity')}</Label><Input id={`quantity-${position.id}`} type="number" min="0" step="0.01" value={position.menge ?? ''} disabled={frozen || busy} onChange={event => changePosition(position, { menge: event.target.value === '' ? null : Number(event.target.value) })} /></div>
+              <div><Label htmlFor={`unit-${position.id}`}>{t('receipt.unit')}</Label><Input id={`unit-${position.id}`} value={position.einheit ?? ''} disabled={frozen || busy} onChange={event => changePosition(position, { einheit: event.target.value })} /></div>
+              <div><Label htmlFor={`unit-price-${position.id}`}>{t('receipt.unitPrice')}</Label><Input id={`unit-price-${position.id}`} type="number" min="0" step="0.01" value={position.einzelpreis ?? ''} disabled={frozen || busy || position.price_type === 'inkl'} onChange={event => changePosition(position, { einzelpreis: event.target.value === '' ? null : Number(event.target.value) })} /></div>
+              <div><Label htmlFor={`amount-${position.id}`}>{t('receipt.amount')}</Label><Input id={`amount-${position.id}`} type="number" min="0" step="0.01" value={position.betrag} disabled={frozen || busy || position.price_type === 'inkl'} onChange={event => changePosition(position, { betrag: Number(event.target.value), menge: null, einzelpreis: null })} /></div>
+            </div>
+            <div><Label htmlFor={`rate-${position.id}`}>{t('receipt.rate')}</Label><Input id={`rate-${position.id}`} value={position.satz} disabled={frozen || busy} onChange={event => changePosition(position, { satz: event.target.value })} /></div>
+          </div>)}
+          {!frozen && <Button variant="outline" disabled={busy} onClick={() => changeDraft({ positionen: [...draft.positionen, { id: crypto.randomUUID(), beschreibung: '', satz: '', betrag: 0, checked: true, is_custom: true }] })}><Plus className="mr-2 size-4" />{t('receipt.addRow')}</Button>}
+        </section>
+        <section className="ml-auto mt-6 max-w-sm space-y-3 rounded-xl bg-slate-50 p-4">
+          <div className="flex justify-between"><span>{t('receipt.subtotal')}</span><span>{formatCurrency(totals.zwischensumme, uiLocale)}</span></div>
+          <div className="flex items-center justify-between gap-3"><Label htmlFor="receipt-discount">{t('receipt.discount')}</Label><Input id="receipt-discount" type="number" min="0" max={totals.zwischensumme} step="0.01" value={draft.rabatt} disabled={frozen || busy} onChange={event => changeDraft({ rabatt: Number(event.target.value) })} className="w-28 text-right" /></div>
+          <div className="flex items-center justify-between gap-3"><Label htmlFor="receipt-vat">{t('receipt.vat')}</Label><Input id="receipt-vat" type="number" min="0" max="100" step="0.1" value={draft.mwst_satz} disabled={frozen || busy} onChange={event => changeDraft({ mwst_satz: Number(event.target.value) })} className="w-28 text-right" /></div>
+          <div className="flex justify-between"><span>{t('receipt.vatAmount')}</span><span>{formatCurrency(totals.mwst_betrag, uiLocale)}</span></div>
+          <div className="flex justify-between border-t pt-3 text-lg font-bold"><span>{t('receipt.total')}</span><span>{formatCurrency(totals.gesamttotal, uiLocale)}</span></div>
+        </section>
+        <section className="mt-6 space-y-3 rounded-lg border p-4"><Label>{t('receipt.invoice')}</Label><Select value={draft.rechnung_id ?? 'none'} onValueChange={value => changeDraft({ rechnung_id: value === 'none' ? null : value })} disabled={frozen || busy}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{t('receipt.noInvoice')}</SelectItem>{invoiceOptions.map(invoice => <SelectItem key={invoice.id} value={invoice.id}>{invoice.rechnung_nr} · {invoice.customer_name}</SelectItem>)}</SelectContent></Select>
+          <p className="text-sm text-slate-500">{t('receipt.invoiceHint')}</p>
+          {!draft.customer_id && <p className="text-sm text-slate-500">{t('receipt.invoiceNeedsCustomer')}</p>}
+          <div className="flex flex-wrap items-center gap-3"><span className="font-semibold">{draft.rechnung_id ? paymentStatus === 'paid' ? t('receipt.invoicePaid', { number: linkedInvoice?.rechnung_nr ?? '' }) : t('receipt.invoiceOpen') : t(paymentStatus === 'paid' ? 'receipt.paid' : paymentStatus === 'partial' ? 'receipt.partial' : 'receipt.open')}</span>{saved && <span className="text-sm">{t('receipt.paidAmount', { amount: formatCurrency(saved.paid_amount ?? 0, uiLocale) })}</span>}</div>
+          {saved?.rechnung_id && <Button variant="link" onClick={() => navigate(`/firma/rechnungen/${saved.rechnung_id}`)}>{t('receipt.openInvoice')}</Button>}
+        </section>
+        <section className="mt-6 space-y-3"><h2 className="font-semibold">{t('receipt.signatures')}</h2><p className="text-sm text-slate-500">{t('receipt.signatureHint')}</p><div className="grid gap-4 sm:grid-cols-2">
+          <SignaturePad ref={customerPad} onDraw={() => { setDirty(true); dirtyRef.current = true; }} label={docT('doc.receipt.signature.customer')} locale={draft.language} existingSignature={draft.kunde_unterschrift} signedAt={draft.kunde_signed_at} disabled={frozen || busy} onConfirm={signature => { setDraft(previous => ({ ...previous, kunde_unterschrift: signature, kunde_signed_at: new Date().toISOString() })); setDirty(true); dirtyRef.current = true; }} onClear={() => { setDraft(previous => ({ ...previous, kunde_unterschrift: null, kunde_signed_at: null })); setDirty(true); dirtyRef.current = true; }} />
+          <SignaturePad ref={teamPad} onDraw={() => { setDirty(true); dirtyRef.current = true; }} label={docT('doc.receipt.signature.teamLead')} locale={draft.language} existingSignature={draft.teamchef_unterschrift} signedAt={draft.teamchef_signed_at} disabled={frozen || busy} onConfirm={signature => { setDraft(previous => ({ ...previous, teamchef_unterschrift: signature, teamchef_signed_at: new Date().toISOString() })); setDirty(true); dirtyRef.current = true; }} onClear={() => { setDraft(previous => ({ ...previous, teamchef_unterschrift: null, teamchef_signed_at: null })); setDirty(true); dirtyRef.current = true; }} />
+        </div></section>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {!frozen && <Button variant="outline" disabled={busy || conflict} onClick={() => void run(async () => { await persist(captureSignatures()); toast({ title: t('receipt.saved') }); })}><Save className="mr-2 size-4" />{t('receipt.saveDraft')}</Button>}
+        <Button variant="outline" disabled={busy || conflict} onClick={() => void run(async () => { const q = await persist(captureSignatures()); setPreview(q); })}><FileText className="mr-2 size-4" />{t('receipt.preview')}</Button>
+        <Button variant="outline" disabled={busy || conflict} onClick={() => void run(async () => { const q = await persist(captureSignatures()); await downloadQuittungDocument(q, company); })}><Download className="mr-2 size-4" />{t('receipt.download')}</Button>
+        {!frozen && <Button variant="outline" disabled={busy || conflict} onClick={() => void run(async () => { const q = await persist(captureSignatures()); const blob = await generateQuittungBlob(q, company, 'worksheet'); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Quittung-${q.quittung_nr}-worksheet.pdf`; a.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); })}>{t('receipt.worksheet')}</Button>}
+        {!frozen && <Button disabled={busy || conflict} onClick={() => void run(async () => { await finalize(); toast({ title: t('receipt.issued') }); })}><CheckCircle className="mr-2 size-4" />{t('receipt.issue')}</Button>}
+        {paymentStatus !== 'paid' && <Button disabled={busy || conflict} className="bg-emerald-700 hover:bg-emerald-800" onClick={() => void run(startPayment)}><CheckCircle className="mr-2 size-4" />{draft.rechnung_id ? t('receipt.openInvoice') : t('receipt.markPaid')}</Button>}
+        <Button disabled={busy || conflict || !draft.customer_email} onClick={() => void run(async () => { const q = await finalize('send'); await sendQuittungDocument(q, company); await readReceipt(q.id, true); toast({ title: t('receipt.sent') }); })}><Send className="mr-2 size-4" />{t('receipt.send')}</Button>
+        {busy && <Loader2 className="m-2 size-5 animate-spin" />}
+      </div>
+      {preview && <QuittungPDFPreview quittung={preview} company={company} locale={toLocale(preview.language)} uiLocale={uiLocale} />}
+    </div>
+    {paymentTarget && <ZahlungErfassenDialog open companyId={company.id} onOpenChange={open => { if (!open) setPaymentTarget(null); }}
+      quittung={paymentTarget.invoice ? undefined : { id: paymentTarget.receipt.id, nr: paymentTarget.receipt.quittung_nr ?? '', betrag: paymentTarget.receipt.gesamttotal }}
+      rechnung={paymentTarget.invoice ? { id: paymentTarget.invoice.id, nr: paymentTarget.invoice.rechnung_nr ?? '', offen: paymentTarget.invoice.open_amount, customerId: paymentTarget.invoice.customer_id } : undefined}
+      onDone={() => { const receiptId = paymentTarget.receipt.id; setPaymentTarget(null); void run(async () => { await readReceipt(receiptId, true); }); }} />}
+  </>;
 }

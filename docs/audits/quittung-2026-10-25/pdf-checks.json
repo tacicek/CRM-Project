@@ -1,0 +1,47 @@
+[
+  {
+    "case": "draft",
+    "pages": 1,
+    "has_total_1081": false,
+    "has_discount_50": false
+  },
+  {
+    "case": "signed",
+    "pages": 1,
+    "has_total_1081": false,
+    "has_discount_50": false
+  },
+  {
+    "case": "sent",
+    "pages": 1,
+    "has_total_1081": false,
+    "has_discount_50": false
+  },
+  {
+    "case": "paid",
+    "pages": 1,
+    "has_total_1081": true,
+    "has_discount_50": true
+  },
+  {
+    "case": "turkish",
+    "source_name_preserved": false,
+    "observed": "I_1l Çiçek ^ahin Güne_ 01"
+  },
+  {
+    "case": "pagination",
+    "page1_has_rate_for_position13": true,
+    "page1_has_description13": false,
+    "page2_has_description13": true,
+    "page2_has_table_header": false,
+    "page2_has_receipt_number": false
+  },
+  {
+    "case": "timezone",
+    "stored_date": "2026-10-25",
+    "LA_output_is_previous_day": true,
+    "zurich_sign_time": "10:30",
+    "bangkok_sign_time": "16:30",
+    "LA_sign_time": "02:30"
+  }
+]

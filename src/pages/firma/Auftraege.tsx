@@ -518,22 +518,9 @@ const FirmaAuftraege = () => {
   const handleCreateQuittung = (entry: AuftragListEntry) => {
     // Fail-closed: the receipt is seeded from the JSON snapshot line items.
     if (entry.kind !== "valid") return;
-    const auftrag = entry.row;
-    navigate("/firma/quittungen/neu", {
-      state: {
-        fromAuftrag: {
-          auftragId: auftrag.id,
-          offerId: auftrag.offer_id ?? null,
-          customerName: auftrag.customer_name,
-          customerAddress: auftrag.from_address ?? "",
-          customerDestination: auftrag.to_address ?? "",
-          customerEmail: auftrag.customer_email ?? "",
-          customerPhone: auftrag.customer_phone ?? "",
-          items: entry.items,
-          extraServices: entry.extraServices,
-        },
-      },
-    });
+    // The receipt loads the complete current snapshot, including financial terms and
+    // document language, through the same pure conversion used by its tests.
+    navigate(`/firma/quittungen/neu?auftrag=${encodeURIComponent(entry.row.id)}`);
   };
 
   // Auftrag → Rechnung: erstelleRechnungAusAuftrag (saf map) → /firma/rechnungen/neu (state.fromRechnung).

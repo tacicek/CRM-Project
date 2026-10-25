@@ -180,6 +180,7 @@ OUT9="$(PSQL < supabase-test/tests/portal.sql 2>&1)"; RC9=$?
 OUT10="$(PSQL < supabase-test/tests/serviceorte-faelle.sql 2>&1)"; RC10=$?
 OUT11="$(PSQL < supabase-test/tests/kommunikation.sql 2>&1)"; RC11=$?
 OUT12="$(PSQL < supabase-test/tests/api-budget.sql 2>&1)"; RC12=$?
+OUT13="$(PSQL < supabase-test/tests/quittungen.sql 2>&1)"; RC13=$?
 printf '%s\n' "$OUT"  | grep -E 'PASS|FAIL|ERROR|ALL DB ASSERTIONS'
 printf '%s\n' "$OUT2" | grep -E 'PASS|FAIL|ERROR|ALL AUFTRAG'
 printf '%s\n' "$OUT3" | grep -E 'PASS|FAIL|ERROR'
@@ -192,8 +193,9 @@ printf '%s\n' "$OUT9" | grep -E 'PASS|FAIL|ERROR'
 printf '%s\n' "$OUT10" | grep -E 'PASS|FAIL|ERROR'
 printf '%s\n' "$OUT11" | grep -E 'PASS|FAIL|ERROR'
 printf '%s\n' "$OUT12" | grep -E 'PASS|FAIL|ERROR'
+printf '%s\n' "$OUT13" | grep -E 'PASS|FAIL|ERROR'
 set -e
-if [ "$RC" -ne 0 ] || [ "$RC2" -ne 0 ] || [ "$RC3" -ne 0 ] || [ "$RC4" -ne 0 ] || [ "$RC5" -ne 0 ] || [ "$RC6" -ne 0 ]  || [ "$RC7" -ne 0 ]  || [ "$RC8" -ne 0 ]  || [ "$RC9" -ne 0 ]  || [ "$RC10" -ne 0 ] || [ "$RC11" -ne 0 ] || [ "$RC12" -ne 0 ]; then
-  echo "DB integration suite FAILED (assertions rc=$RC, auftrag-contract rc=$RC2, customer-360 rc=$RC3, rollen rc=$RC4, offerte-version rc=$RC5, nachtrag rc=$RC6, pipeline rc=$RC7, finanzen rc=$RC8, portal rc=$RC9, serviceorte-faelle rc=$RC10, kommunikation rc=$RC11, api-budget rc=$RC12)"; exit 1
+if [ "$RC" -ne 0 ] || [ "$RC2" -ne 0 ] || [ "$RC3" -ne 0 ] || [ "$RC4" -ne 0 ] || [ "$RC5" -ne 0 ] || [ "$RC6" -ne 0 ]  || [ "$RC7" -ne 0 ]  || [ "$RC8" -ne 0 ]  || [ "$RC9" -ne 0 ]  || [ "$RC10" -ne 0 ] || [ "$RC11" -ne 0 ] || [ "$RC12" -ne 0 ] || [ "$RC13" -ne 0 ]; then
+  echo "DB integration suite FAILED (assertions rc=$RC, auftrag-contract rc=$RC2, customer-360 rc=$RC3, rollen rc=$RC4, offerte-version rc=$RC5, nachtrag rc=$RC6, pipeline rc=$RC7, finanzen rc=$RC8, portal rc=$RC9, serviceorte-faelle rc=$RC10, kommunikation rc=$RC11, api-budget rc=$RC12, quittungen rc=$RC13)"; exit 1
 fi
 echo "DB integration suite passed."

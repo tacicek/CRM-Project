@@ -1,0 +1,9 @@
+{
+  "target": "crm-test / 127.0.0.1:54342",
+  "command": "supabase@1 gen types --db-url postgresql://postgres@127.0.0.1:54342/postgres?sslmode=disable --schema public --lang typescript",
+  "credentials": "PGPASSWORD supplied from the local container environment; never printed or stored in artifacts",
+  "postgres_meta_image": "supabase/postgres-meta:v0.84.2",
+  "generated_snapshot_sha256": "64f0e1ccc4bb220669ea82c45ed5840ecb194d53bd36b884409d4f88ec0d1a69",
+  "integration": "Only quittungen additions, four new table blocks and three new RPC blocks copied into src/integrations/supabase/types.ts; unrelated baseline drift excluded",
+  "trigger_return_functions": "Excluded from the generated RPC API; new constraint/reference trigger functions do not change the public client contract"
+}

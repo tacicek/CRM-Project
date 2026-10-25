@@ -1,12 +1,13 @@
-import {
-  Document, Page, View, Text, Image, StyleSheet,
-} from "@react-pdf/renderer";
-import { Quittung } from "@/types/quittung.types";
+import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
+import type { Quittung } from "@/types/quittung.types";
 import { documentI18nFor } from "@/i18n/documentLocale";
 import type { Locale } from "@/i18n/locale";
-import { formatAmount, formatCurrency, formatDate, formatDateTime } from "@/i18n/format";
+import type { MessageKey } from "@/i18n/translator";
+import { formatAmount, formatCurrency, formatPercent } from "@/i18n/format";
+import { buildReceiptPdfRows, formatReceiptDate, formatReceiptTimestamp } from "@/lib/quittungPresentation";
+import { RECEIPT_PDF_FONT } from "@/components/quittung/quittungPdfFont";
 
-interface CompanyInfo {
+export interface QuittungPdfCompany {
   company_name: string;
   logo_url?: string | null;
   primary_color?: string | null;
@@ -21,354 +22,250 @@ interface CompanyInfo {
   bewertungs_url?: string | null;
 }
 
-interface QuittungPDFProps {
+export type QuittungPdfMode = "receipt" | "worksheet";
+
+export interface QuittungPDFProps {
   quittung: Quittung;
-  company: CompanyInfo;
-  /**
-   * The CUSTOMER's language — resolve it from the receipt row with
-   * `resolveDocumentLocale(quittung, company)`. Never from the dashboard context:
-   * a German operator must still be able to hand a French customer a French receipt.
-   */
+  /** The frozen issuer snapshot for a finalized receipt; live company for a draft. */
+  company: QuittungPdfCompany;
+  /** Customer document language, independent of the dashboard language. */
   locale: Locale;
+  /** Blank handwriting fields are an explicit output choice, never a lifecycle status. */
+  mode?: QuittungPdfMode;
 }
 
-const BRAND = "#10B981"; // fallback emerald
-const GRAY = { 50: "#F9FAFB", 100: "#F3F4F6", 200: "#E5E7EB", 500: "#6B7280", 900: "#111827" };
-
-// Number of blank handwriting rows shown on draft/signed PDFs
-const HANDWRITE_ROWS = 3;
+const BRAND = "#10B981";
+const GRAY = { light: "#F8FAFC", border: "#E2E8F0", muted: "#64748B", ink: "#0F172A" };
+const PAYMENT_METHOD_KEYS: Record<string, MessageKey> = {
+  bank: "doc.receipt.payment.bank", qr: "doc.receipt.payment.qr",
+  cash: "doc.receipt.payment.cash", card: "doc.receipt.payment.card",
+  twint: "doc.receipt.payment.twint", other: "doc.receipt.payment.other",
+};
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 22, paddingHorizontal: 24, paddingBottom: 28,
-    fontSize: 9, fontFamily: "Helvetica", color: GRAY[900],
+    paddingTop: 82, paddingHorizontal: 28, paddingBottom: 44,
+    fontSize: 8, fontFamily: RECEIPT_PDF_FONT, color: GRAY.ink,
   },
-  header: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
-    marginBottom: 18,
-  },
-  headerLeft: { flexDirection: "column", alignItems: "flex-start" },
-  logo: { width: 130, height: 65, objectFit: "contain" },
-  headerRight: { alignItems: "flex-end" },
-  title: { fontSize: 26, fontFamily: "Helvetica-Bold", marginBottom: 4 },
-  companyName: { fontSize: 10, fontFamily: "Helvetica-Bold", textAlign: "right", marginBottom: 2 },
-  firma: { fontSize: 8, color: GRAY[500], textAlign: "right", lineHeight: 1.5, marginBottom: 4 },
-  quittungNr: { fontSize: 10, fontFamily: "Helvetica-Bold", textAlign: "right" },
-  accentLine: { height: 2, borderRadius: 1, marginBottom: 14 },
-  twoCol: { flexDirection: "row", gap: 12, marginBottom: 14 },
-  infoBox: { flex: 1, padding: 8, borderRadius: 6, backgroundColor: GRAY[50], borderWidth: 1, borderColor: GRAY[200] },
-  infoLabel: { fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", color: GRAY[500], marginBottom: 3 },
-  infoText: { fontSize: 8.5, lineHeight: 1.5 },
-  tableHeader: { flexDirection: "row", paddingVertical: 5, paddingHorizontal: 6, borderRadius: 4, marginBottom: 1 },
-  tableHeaderText: { fontSize: 7.5, fontFamily: "Helvetica-Bold", textTransform: "uppercase", color: "#fff" },
-  tableRow: {
-    flexDirection: "row", paddingVertical: 5, paddingHorizontal: 6,
-    borderBottomWidth: 1, borderBottomColor: GRAY[100],
-  },
-  tableRowAlt: { backgroundColor: GRAY[50] },
-  tableRowDisabled: { opacity: 0.45 },
-  tableRowBlank: {
-    flexDirection: "row", paddingVertical: 7, paddingHorizontal: 6,
-    borderBottomWidth: 1, borderBottomColor: GRAY[200],
-  },
-  colBeschreibung: { flex: 3 },
-  colSatz: { flex: 3 },
-  colBetrag: { flex: 1.2, textAlign: "right" },
-  customSeparator: {
-    marginTop: 4, marginBottom: 2, paddingHorizontal: 6, paddingVertical: 3,
-    backgroundColor: GRAY[100],
-  },
-  customLabel: { fontSize: 7, color: GRAY[500], fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
-  handwriteSeparator: {
-    marginTop: 6, marginBottom: 2, paddingHorizontal: 6, paddingVertical: 3,
-    backgroundColor: "#FFF7ED", borderTopWidth: 1, borderTopColor: "#FED7AA",
-  },
-  handwriteLabel: { fontSize: 7, color: "#92400E", fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
-  totalsBlock: { alignSelf: "flex-end", width: 210, marginTop: 10 },
-  totalsRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2.5 },
-  totalsLabel: { fontSize: 8.5, color: GRAY[500] },
-  totalsValue: { fontSize: 8.5 },
-  totalFinalRow: {
+  runningHeader: {
+    position: "absolute", top: 22, left: 28, right: 28,
     flexDirection: "row", justifyContent: "space-between",
-    paddingVertical: 5, paddingHorizontal: 6,
-    borderRadius: 4, marginTop: 3,
+    borderBottomWidth: 1, borderBottomColor: GRAY.border, paddingBottom: 7,
   },
-  totalFinalLabel: { fontSize: 10, fontFamily: "Helvetica-Bold" },
-  totalFinalValue: { fontSize: 10, fontFamily: "Helvetica-Bold" },
-  totalDraftRow: {
+  runningTitle: { fontSize: 9, fontWeight: 700 },
+  runningMode: { fontSize: 7, color: GRAY.muted, maxWidth: 300, textAlign: "right" },
+  continuationHeader: { position: "absolute", top: 52, left: 28, right: 28 },
+  pageFooter: {
+    position: "absolute", bottom: 20, left: 28, right: 28,
     flexDirection: "row", justifyContent: "space-between",
-    paddingVertical: 5, paddingHorizontal: 6,
-    borderRadius: 4, marginTop: 3,
-    borderWidth: 0.5, borderColor: GRAY[200], borderStyle: "dashed",
+    borderTopWidth: 1, borderTopColor: GRAY.border, paddingTop: 6,
+    fontSize: 7, color: GRAY.muted,
   },
-  totalDraftLabel: { fontSize: 9, color: GRAY[500] },
-  paymentBlock: {
-    marginTop: 10, padding: 8,
-    borderWidth: 0.5, borderColor: GRAY[200], borderRadius: 6,
-    backgroundColor: GRAY[50],
-  },
-  paymentLabel: { fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", color: GRAY[500], marginBottom: 5 },
-  paymentRow: { flexDirection: "row", gap: 14 },
-  paymentOption: { flexDirection: "row", alignItems: "center", gap: 4 },
-  paymentCheckbox: { width: 10, height: 10, borderWidth: 0.75, borderColor: GRAY[500], borderRadius: 2 },
-  paymentText: { fontSize: 8.5, color: GRAY[900] },
-  signaturesBlock: { flexDirection: "row", gap: 10, marginTop: 12 },
-  sigBlock: { flex: 1, borderWidth: 1, borderColor: GRAY[200], borderRadius: 6, padding: 7 },
-  sigLabel: { fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", color: GRAY[500], marginBottom: 3 },
-  sigImage: { width: "100%", height: 44, objectFit: "contain" },
-  sigPlaceholder: { height: 44, backgroundColor: GRAY[50], borderRadius: 4 },
-  sigDate: { fontSize: 7, color: GRAY[500], marginTop: 3 },
-  footer: {
-    marginTop: 10, paddingTop: 6, borderTopWidth: 1, borderTopColor: GRAY[200], alignItems: "center",
-  },
-  footerText: { fontSize: 8, color: GRAY[500], textAlign: "center", lineHeight: 1.6 },
-  betragOffenBadge: {
-    marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4,
-    backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FDE68A",
-    alignSelf: "flex-start",
-  },
-  betragOffenText: { fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#92400E" },
+  header: { flexDirection: "row", gap: 16, marginBottom: 12 },
+  logoBox: { width: 130, justifyContent: "flex-start" },
+  logo: { width: 130, height: 58, objectFit: "contain" },
+  headerRight: { flex: 1, alignItems: "flex-end" },
+  title: { fontSize: 22, fontWeight: 700, marginBottom: 4 },
+  companyName: { fontSize: 9, fontWeight: 700, textAlign: "right", marginBottom: 3 },
+  companyText: { fontSize: 7.5, color: GRAY.muted, textAlign: "right", lineHeight: 1.4 },
+  twoCol: { flexDirection: "row", gap: 10, marginBottom: 12 },
+  infoBox: { flex: 1, padding: 8, borderRadius: 5, backgroundColor: GRAY.light, borderWidth: 0.5, borderColor: GRAY.border },
+  label: { fontSize: 7, fontWeight: 700, color: GRAY.muted, marginBottom: 4 },
+  infoText: { fontSize: 8, lineHeight: 1.45 },
+  tableHeader: { flexDirection: "row", paddingVertical: 6, paddingHorizontal: 6, borderRadius: 3 },
+  tableHeaderText: { fontSize: 7, fontWeight: 700, color: "#FFFFFF" },
+  row: { flexDirection: "row", paddingVertical: 6, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: GRAY.border },
+  rowAlt: { backgroundColor: GRAY.light },
+  rowDisabled: { color: GRAY.muted },
+  description: { width: "48%", paddingRight: 8, fontSize: 8, lineHeight: 1.4 },
+  rate: { width: "34%", paddingRight: 8, fontSize: 8, lineHeight: 1.4, color: GRAY.muted },
+  amount: { width: "18%", textAlign: "right", fontSize: 8, lineHeight: 1.4 },
+  continuationLabel: { fontSize: 7, color: GRAY.muted, marginBottom: 3 },
+  worksheetHeading: { marginTop: 10, padding: 6, backgroundColor: "#FFF7ED", fontSize: 7, fontWeight: 700 },
+  blankRow: { height: 26, borderBottomWidth: 0.5, borderBottomColor: GRAY.border },
+  totals: { alignSelf: "flex-end", width: 240, marginTop: 12, marginBottom: 8 },
+  totalsRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, gap: 8 },
+  totalsLabel: { color: GRAY.muted, flex: 1 },
+  totalsValue: { textAlign: "right" },
+  finalTotal: { backgroundColor: GRAY.light, borderTopWidth: 1, borderTopColor: GRAY.border, padding: 7, marginTop: 3 },
+  finalText: { fontSize: 10, fontWeight: 700 },
+  blankValue: { width: 100, borderBottomWidth: 0.5, borderBottomColor: GRAY.border },
+  payment: { marginTop: 7, padding: 9, borderWidth: 0.5, borderColor: GRAY.border, borderRadius: 5 },
+  paymentStatus: { fontWeight: 700, fontSize: 9, marginBottom: 4 },
+  paymentRow: { flexDirection: "row", justifyContent: "space-between", gap: 10, marginTop: 3 },
+  paymentInfo: { fontSize: 7.5, color: GRAY.muted, lineHeight: 1.5, marginTop: 4 },
+  worksheetPayment: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 5 },
+  paymentOption: { flexDirection: "row", gap: 4, alignItems: "center" },
+  checkbox: { width: 9, height: 9, borderWidth: 0.5, borderColor: GRAY.muted },
+  signatures: { flexDirection: "row", gap: 10, marginTop: 12 },
+  signature: { flex: 1, padding: 7, borderWidth: 0.5, borderColor: GRAY.border, borderRadius: 5 },
+  signatureImage: { width: "100%", height: 40, objectFit: "contain" },
+  signatureBlank: { height: 40, backgroundColor: GRAY.light },
+  signatureDate: { fontSize: 6.5, color: GRAY.muted, marginTop: 4 },
+  closing: { marginTop: 10, paddingTop: 6, fontSize: 7, color: GRAY.muted, textAlign: "center", lineHeight: 1.5 },
 });
 
-export function QuittungPDF({ quittung, company, locale }: QuittungPDFProps) {
+export const QuittungPDF = ({ quittung, company, locale, mode = "receipt" }: QuittungPDFProps) => {
   const { t } = documentI18nFor(locale);
   const brand = company.primary_color || BRAND;
-  const predefined = quittung.positionen.filter(p => !p.is_custom);
-  const custom = quittung.positionen.filter(p => p.is_custom && (p.beschreibung || p.betrag));
-  const isDraft = quittung.status === "draft";
-  const isPaid = quittung.status === "paid";
-  // Show blank handwriting rows on draft and signed (on-site use)
-  const showHandwriteRows = isDraft || quittung.status === "signed";
+  const worksheet = mode === "worksheet";
+  const rows = buildReceiptPdfRows(quittung.positionen, worksheet, locale);
+  const number = quittung.quittung_nr || t("doc.receipt.draft");
+  const paidAmount = quittung.paid_amount ?? 0;
+  // Invoice balances include credits and may belong to a different invoice total.
+  // Only the server's payment snapshot can supply that balance.
+  const outstanding = quittung.payment_open_amount ?? (quittung.rechnung_id ? null
+    : Math.max(0, Math.round((quittung.gesamttotal - paidAmount) * 100) / 100));
+  const paymentStatus = quittung.payment_status;
+  const paymentMethod = quittung.payment_method ? PAYMENT_METHOD_KEYS[quittung.payment_method] : undefined;
+  const statusKey: MessageKey = paymentStatus === "paid"
+    ? "doc.receipt.payment.paid"
+    : paymentStatus === "partial" ? "doc.receipt.payment.partial" : "doc.receipt.payment.open";
+
+  const tableHeader = (
+    <View style={[styles.tableHeader, { backgroundColor: brand }]} wrap={false}>
+      <Text style={[styles.description, styles.tableHeaderText]}>{t("doc.receipt.col.description")}</Text>
+      <Text style={[styles.rate, styles.tableHeaderText]}>{t("doc.receipt.col.rate")}</Text>
+      <Text style={[styles.amount, styles.tableHeaderText]}>{t("doc.receipt.col.amount")}</Text>
+    </View>
+  );
 
   return (
-    <Document title={t("doc.receipt.numbered", { number: quittung.quittung_nr })}>
+    <Document title={t("doc.receipt.numbered", { number })} language={locale}>
       <Page size="A4" style={styles.page}>
+        <View fixed style={styles.runningHeader}>
+          <Text style={[styles.runningTitle, { color: brand }]}>{t("doc.receipt.numbered", { number })}</Text>
+          <Text style={styles.runningMode}>
+            {worksheet ? t("doc.receipt.worksheet") : quittung.status === "draft" ? t("doc.receipt.draft") : ""}
+          </Text>
+        </View>
+        <View fixed style={styles.continuationHeader} render={({ pageNumber }) => pageNumber > 1 ? tableHeader : null} />
+        <View fixed style={styles.pageFooter}>
+          <Text>{number}</Text>
+          <Text render={({ pageNumber, totalPages }) => t("doc.receipt.page", { page: pageNumber, pages: totalPages })} />
+        </View>
 
-        {/* Header */}
-        <View style={styles.header}>
-          {/* Left: logo only */}
-          <View style={styles.headerLeft}>
-            {company.logo_url && (
-              <Image src={company.logo_url} style={styles.logo} cache={false} />
-            )}
+        <View style={styles.header} wrap={false}>
+          <View style={styles.logoBox}>
+            {company.logo_url && <Image src={company.logo_url} style={styles.logo} />}
           </View>
-          {/* Right: title → company name → address → QU number */}
           <View style={styles.headerRight}>
             <Text style={[styles.title, { color: brand }]}>{t("doc.receipt.title")}</Text>
-            <Text style={[styles.companyName, { color: brand }]}>
-              {company.company_name}
+            <Text style={styles.companyName}>{company.company_name}</Text>
+            <Text style={styles.companyText}>
+              {[company.street, `${company.plz ?? ""} ${company.city ?? ""}`.trim(), company.phone, company.email].filter(Boolean).join("\n")}
             </Text>
-            <Text style={styles.firma}>
-              {[company.street, `${company.plz ?? ""} ${company.city ?? ""}`.trim()].filter(Boolean).join("\n")}
-              {company.phone ? "\n" + company.phone : ""}
-              {"\n"}{company.email}
-            </Text>
-            {quittung.quittung_nr ? (
-              <Text style={[styles.quittungNr, { color: brand }]}>
-                {quittung.quittung_nr}
-              </Text>
-            ) : null}
           </View>
         </View>
 
-        {/* Accent line */}
-        <View style={[styles.accentLine, { backgroundColor: brand }]} />
-
-        {/* Customer + Details two-column */}
         <View style={styles.twoCol}>
           <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>{t("doc.receipt.customer")}</Text>
+            <Text style={styles.label}>{t("doc.receipt.customer")}</Text>
             <Text style={styles.infoText}>
-              {quittung.customer_name}
-              {quittung.customer_address ? "\n" + quittung.customer_address : ""}
-              {quittung.customer_destination ? "\n→ " + quittung.customer_destination : ""}
-              {quittung.customer_phone ? "\n" + quittung.customer_phone : ""}
-              {quittung.customer_email ? "\n" + quittung.customer_email : ""}
+              {[quittung.customer_name, quittung.customer_address,
+                quittung.customer_destination ? `→ ${quittung.customer_destination}` : null,
+                quittung.customer_phone, quittung.customer_email].filter(Boolean).join("\n")}
             </Text>
           </View>
           <View style={styles.infoBox}>
-            <Text style={styles.infoLabel}>{t("doc.receipt.details")}</Text>
+            <Text style={styles.label}>{t("doc.receipt.details")}</Text>
             <Text style={styles.infoText}>
-              {t("doc.receipt.date") + formatDate(quittung.datum, locale)}
-              {"\n" + t("doc.receipt.number") + quittung.quittung_nr}
-              {company.mwst_number ? "\n" + t("doc.receipt.vatNumber") + company.mwst_number : ""}
-              {company.iban ? "\n" + t("doc.receipt.iban") + company.iban : ""}
-              {company.bank_name ? "\n" + company.bank_name : ""}
-            </Text>
-          </View>
-        </View>
-
-        {/* Table */}
-        <View>
-          {/* Table header */}
-          <View style={[styles.tableHeader, { backgroundColor: brand }]}>
-            <Text style={[styles.tableHeaderText, styles.colBeschreibung]}>{t("doc.receipt.col.description")}</Text>
-            <Text style={[styles.tableHeaderText, styles.colSatz]}>{t("doc.receipt.col.rate")}</Text>
-            <Text style={[styles.tableHeaderText, styles.colBetrag]}>{t("doc.receipt.col.amount")}</Text>
-          </View>
-
-          {/* Predefined */}
-          {predefined.map((pos, i) => (
-            <View key={pos.id} style={[
-              styles.tableRow,
-              i % 2 === 1 ? styles.tableRowAlt : {},
-              !pos.checked ? styles.tableRowDisabled : {},
-            ]}>
-              <Text style={[{ fontSize: 8.5 }, styles.colBeschreibung]}>{pos.beschreibung}</Text>
-              <Text style={[{ fontSize: 8.5, color: GRAY[500] }, styles.colSatz]}>{pos.satz || ""}</Text>
-              <Text style={[{ fontSize: 8.5 }, styles.colBetrag]}>
-                {pos.checked && pos.betrag ? formatAmount(pos.betrag, locale) : "–"}
-              </Text>
-            </View>
-          ))}
-
-          {/* Custom rows */}
-          {custom.length > 0 && (
-            <>
-              <View style={styles.customSeparator}>
-                <Text style={styles.customLabel}>{t("doc.receipt.extras")}</Text>
-              </View>
-              {custom.map((pos, i) => (
-                <View key={pos.id} style={[
-                  styles.tableRow,
-                  i % 2 === 1 ? styles.tableRowAlt : {},
-                  !pos.checked ? styles.tableRowDisabled : {},
-                ]}>
-                  <Text style={[{ fontSize: 8.5 }, styles.colBeschreibung]}>{pos.beschreibung}</Text>
-                  <Text style={[{ fontSize: 8.5, color: GRAY[500] }, styles.colSatz]}>{pos.satz || ""}</Text>
-                  <Text style={[{ fontSize: 8.5 }, styles.colBetrag]}>
-                    {pos.checked && pos.betrag ? formatAmount(pos.betrag, locale) : "–"}
-                  </Text>
-                </View>
-              ))}
-            </>
-          )}
-
-          {/* Blank handwriting rows — for on-site manual additions */}
-          {showHandwriteRows && (
-            <>
-              <View style={styles.handwriteSeparator}>
-                <Text style={styles.handwriteLabel}>{t("doc.receipt.onSiteExtras")}</Text>
-              </View>
-              {Array.from({ length: HANDWRITE_ROWS }).map((_, i) => (
-                <View key={`blank-${i}`} style={styles.tableRowBlank}>
-                  <Text style={[{ fontSize: 8.5 }, styles.colBeschreibung]}> </Text>
-                  <Text style={[{ fontSize: 8.5 }, styles.colSatz]}> </Text>
-                  <Text style={[{ fontSize: 8.5 }, styles.colBetrag]}> </Text>
-                </View>
-              ))}
-            </>
-          )}
-        </View>
-
-        {/* Totals block */}
-        <View style={styles.totalsBlock} wrap={false}>
-          {isPaid ? (
-            // Paid: show all computed values
-            <>
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>{t("doc.receipt.subtotal")}</Text>
-                <Text style={styles.totalsValue}>{formatCurrency(quittung.zwischensumme, locale)}</Text>
-              </View>
-              {quittung.rabatt > 0 && (
-                <View style={styles.totalsRow}>
-                  <Text style={styles.totalsLabel}>{t("doc.receipt.discount")}</Text>
-                  <Text style={styles.totalsValue}>-{formatCurrency(quittung.rabatt, locale)}</Text>
-                </View>
-              )}
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>{t("doc.receipt.vat", { rate: quittung.mwst_satz })}</Text>
-                <Text style={styles.totalsValue}>{formatCurrency(quittung.mwst_betrag, locale)}</Text>
-              </View>
-              <View style={[styles.totalFinalRow, { backgroundColor: brand + "22" }]}>
-                <Text style={[styles.totalFinalLabel, { color: brand }]}>{t("doc.receipt.total")}</Text>
-                <Text style={[styles.totalFinalValue, { color: brand }]}>{formatCurrency(quittung.gesamttotal, locale)}</Text>
-              </View>
-            </>
-          ) : (
-            // Draft / Signed / Sent: all fields blank so worker can fill by hand
-            <>
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>{t("doc.receipt.subtotal")}</Text>
-                <Text style={[styles.totalsLabel, { flex: 1, borderBottomWidth: 0.5, borderBottomColor: GRAY[300], marginLeft: 8 }]}> </Text>
-              </View>
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>{t("doc.receipt.vat", { rate: quittung.mwst_satz })}</Text>
-                <Text style={[styles.totalsLabel, { flex: 1, borderBottomWidth: 0.5, borderBottomColor: GRAY[300], marginLeft: 8 }]}> </Text>
-              </View>
-              <View style={styles.totalDraftRow}>
-                <Text style={styles.totalDraftLabel}>{t("doc.receipt.total")}</Text>
-                <Text style={[styles.totalDraftLabel, { flex: 1, borderBottomWidth: 0.5, borderBottomColor: GRAY[300], marginLeft: 8 }]}> </Text>
-              </View>
-            </>
-          )}
-
-          {quittung.betrag_noch_offen && (
-            <View style={styles.betragOffenBadge}>
-              <Text style={styles.betragOffenText}>{t("doc.receipt.outstanding")}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Payment method checkboxes */}
-        <View style={styles.paymentBlock} wrap={false}>
-          <Text style={styles.paymentLabel}>{t("doc.receipt.paymentMethod")}</Text>
-          <View style={styles.paymentRow}>
-            {([
-              "doc.receipt.payment.open",
-              "doc.receipt.payment.cash",
-              "doc.receipt.payment.card",
-              "doc.receipt.payment.twint",
-            ] as const).map((key) => (
-              <View key={key} style={styles.paymentOption}>
-                <View style={styles.paymentCheckbox} />
-                <Text style={styles.paymentText}>{t(key)}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Signatures + Footer — wrapped together so they never split across pages */}
-        <View wrap={false}>
-          <View style={styles.signaturesBlock}>
-            {([
-              { label: t("doc.receipt.signature.customer"), sig: quittung.kunde_unterschrift, at: quittung.kunde_signed_at },
-              { label: t("doc.receipt.signature.teamLead"), sig: quittung.teamchef_unterschrift, at: quittung.teamchef_signed_at },
-            ] as const).map((s, i) => (
-              <View key={i} style={styles.sigBlock}>
-                <Text style={styles.sigLabel}>{s.label}</Text>
-                {s.sig ? (
-                  <Image src={s.sig} style={styles.sigImage} cache={false} />
-                ) : (
-                  <View style={styles.sigPlaceholder} />
-                )}
-                {s.at && (
-                  <Text style={styles.sigDate}>{formatDateTime(s.at, locale)}</Text>
-                )}
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.footer}>
-            <Text style={[styles.footerText, { fontFamily: "Helvetica-Bold", color: GRAY[900] }]}>
-              {t("doc.receipt.thanks")}
-            </Text>
-            {company.bewertungs_url && (
-              <Text style={styles.footerText}>
-                {t("doc.receipt.review", { url: company.bewertungs_url })}
-              </Text>
-            )}
-            <Text style={[styles.footerText, { marginTop: 3 }]}>
               {[
-                company.iban ? t("doc.receipt.iban") + company.iban : "",
-                company.bank_name || "",
-                company.mwst_number ? t("doc.receipt.vatNumber") + company.mwst_number : "",
-              ].filter(Boolean).join("   |   ")}
+                t("doc.receipt.date") + formatReceiptDate(quittung.datum, locale),
+                t("doc.receipt.number") + number,
+                quittung.issued_at ? t("doc.receipt.issuedAt") + formatReceiptTimestamp(quittung.issued_at, locale) : null,
+                company.mwst_number ? t("doc.receipt.vatNumber") + company.mwst_number : null,
+                company.iban ? t("doc.receipt.iban") + company.iban : null,
+                company.bank_name,
+              ].filter(Boolean).join("\n")}
             </Text>
           </View>
         </View>
 
+        {tableHeader}
+        {rows.map((row, index) => (
+          <View key={row.key} style={[styles.row, index % 2 === 1 ? styles.rowAlt : {}, !row.checked ? styles.rowDisabled : {}]} wrap={false}>
+            <View style={styles.description}>
+              {row.continuation && <Text style={styles.continuationLabel}>{t("doc.receipt.continuation", { number: row.number })}</Text>}
+              <Text>{row.description}</Text>
+            </View>
+            <Text style={styles.rate}>{row.rate}</Text>
+            <Text style={styles.amount}>{row.amount === null ? "–" : formatAmount(row.amount, locale)}</Text>
+          </View>
+        ))}
+
+        {worksheet && (
+          <View wrap={false}>
+            <Text style={styles.worksheetHeading}>{t("doc.receipt.onSiteExtras")}</Text>
+            {[0, 1, 2].map(index => <View key={index} style={styles.blankRow} />)}
+          </View>
+        )}
+
+        <View style={styles.totals} wrap={false}>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>{t("doc.receipt.subtotal")}</Text>
+            {worksheet ? <View style={styles.blankValue} /> : <Text style={styles.totalsValue}>{formatCurrency(quittung.zwischensumme, locale)}</Text>}
+          </View>
+          {(quittung.rabatt > 0 || worksheet) && (
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>{t("doc.receipt.discount")}</Text>
+              {worksheet ? <View style={styles.blankValue} /> : <Text style={styles.totalsValue}>-{formatCurrency(quittung.rabatt, locale)}</Text>}
+            </View>
+          )}
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>{t("doc.receipt.vat", { rate: formatPercent(quittung.mwst_satz, locale) })}</Text>
+            {worksheet ? <View style={styles.blankValue} /> : <Text style={styles.totalsValue}>{formatCurrency(quittung.mwst_betrag, locale)}</Text>}
+          </View>
+          <View style={[styles.totalsRow, styles.finalTotal]}>
+            <Text style={[styles.finalText, { color: brand }]}>{t("doc.receipt.total")}</Text>
+            {worksheet ? <View style={styles.blankValue} /> : <Text style={[styles.finalText, { color: brand }]}>{formatCurrency(quittung.gesamttotal, locale)}</Text>}
+          </View>
+        </View>
+
+        <View style={styles.payment} wrap={false}>
+          <Text style={styles.label}>{t(worksheet ? "doc.receipt.paymentMethod" : "doc.receipt.paymentStatus")}</Text>
+          {worksheet ? (
+            <View style={styles.worksheetPayment}>
+              {(["doc.receipt.payment.cash", "doc.receipt.payment.card", "doc.receipt.payment.twint", "doc.receipt.payment.bank"] as const).map(key => (
+                <View key={key} style={styles.paymentOption}><View style={styles.checkbox} /><Text>{t(key)}</Text></View>
+              ))}
+            </View>
+          ) : (
+            <>
+              <Text style={styles.paymentStatus}>{t(statusKey)}</Text>
+              <Text style={styles.paymentInfo}>{t(quittung.rechnung_id ? "doc.receipt.invoicePayment" : "doc.receipt.directPayment")}</Text>
+              {paidAmount > 0 ? (
+                <>
+                  <View style={styles.paymentRow}><Text>{t(quittung.rechnung_id ? "doc.receipt.invoicePaidAmount" : "doc.receipt.paidAmount")}</Text><Text>{formatCurrency(paidAmount, locale)}</Text></View>
+                  {quittung.payment_date && <View style={styles.paymentRow}><Text>{t("doc.receipt.paymentDate")}</Text><Text>{formatReceiptDate(quittung.payment_date, locale)}</Text></View>}
+                  {paymentMethod && <View style={styles.paymentRow}><Text>{t("doc.receipt.paymentMethod")}</Text><Text>{t(paymentMethod)}</Text></View>}
+                  {quittung.payment_reference && <Text style={styles.paymentInfo}>{t("doc.receipt.paymentReference")} {quittung.payment_reference}</Text>}
+                </>
+              ) : <Text style={styles.paymentInfo}>{t("doc.receipt.noPayment")}</Text>}
+              {outstanding !== null && <View style={styles.paymentRow}><Text>{t(quittung.rechnung_id ? "doc.receipt.invoiceBalance" : "doc.receipt.balance")}</Text><Text>{formatCurrency(outstanding, locale)}</Text></View>}
+            </>
+          )}
+        </View>
+
+        <View wrap={false}>
+          <View style={styles.signatures}>
+            {[
+              { label: t("doc.receipt.signature.customer"), image: quittung.kunde_unterschrift, at: quittung.kunde_signed_at },
+              { label: t("doc.receipt.signature.teamLead"), image: quittung.teamchef_unterschrift, at: quittung.teamchef_signed_at },
+            ].map((signature, index) => (
+              <View key={index} style={styles.signature}>
+                <Text style={styles.label}>{signature.label}</Text>
+                {!worksheet && signature.image ? <Image src={signature.image} style={styles.signatureImage} /> : <View style={styles.signatureBlank} />}
+                {!worksheet && signature.at && <Text style={styles.signatureDate}>{formatReceiptTimestamp(signature.at, locale)}</Text>}
+              </View>
+            ))}
+          </View>
+          <View style={styles.closing}>
+            <Text>{t("doc.receipt.thanks")}</Text>
+            {company.bewertungs_url && <Text>{t("doc.receipt.review", { url: company.bewertungs_url })}</Text>}
+          </View>
+        </View>
       </Page>
     </Document>
   );
-}
+};

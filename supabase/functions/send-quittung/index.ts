@@ -1,360 +1,178 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "https://esm.sh/resend@2.0.0";
-import { getDefaultFrom, getSenderEmail, getAppName, getSiteUrl, getDashAppUrl, getAdminEmail } from "../_shared/envConfig.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { getSenderEmail } from "../_shared/envConfig.ts";
 import { logEmail } from "../_shared/logEmail.ts";
-import { wrapEmailDocument, EMAIL_FONT_STACK } from "../_shared/i18n/emailLayout.ts";
-import { buildInvoiceEmailHtml, buildInvoiceEmailSubject, fmtChf, fmtDate } from "../_shared/invoiceEmailTemplate.ts";
-import { createTranslator, toLocale, type Locale } from "../_shared/i18n/index.ts";
+import { buildInvoiceEmailHtml, buildInvoiceEmailSubject } from "../_shared/invoiceEmailTemplate.ts";
+import { toLocale } from "../_shared/i18n/index.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
+import { emailBrandColor } from "../_shared/htmlEscape.ts";
+import { dispatchReceipt, parseDocumentRequest, receiptPdfPath, verifyReceiptPdf, type ReceiptRecipient, type ReceiptDispatchStore } from "./document.ts";
+import { receiptEmailLines, receiptEmailPaymentHtml, type ReceiptEmailPayment, type ReceiptEmailPosition } from "./presentation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
+const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+});
+
+interface SenderSnapshot {
+  company_name: string; email: string; primary_color?: string | null;
+  iban?: string | null; bank_name?: string | null; mwst_number?: string | null; phone?: string | null;
+}
+interface ReceiptRow extends ReceiptEmailPayment {
+  id: string; company_id: string; version: number; issued_at: string | null; sent_at: string | null;
+  quittung_nr: string; datum: string; customer_name: string; customer_email: string | null;
+  language: string; status: string; payment_status: string; company_snapshot: SenderSnapshot | null;
+  gesamttotal: number; mwst_satz: number; mwst_betrag: number; rabatt: number; zwischensumme: number;
+  positionen: ReceiptEmailPosition[];
+}
+interface ArchivedDocument { id: string; company_id: string; quittung_id: string; version: number; pdf_path: string; sha256: string }
+interface CompanyConfig { id: string; email: string; notification_email: string | null; default_language: string | null; resend_enabled: boolean | null; resend_from_email: string | null; resend_from_name: string | null }
+interface ClaimedDispatch { id: string; status: "processing" | "sent" | "failed"; created_at: string }
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+  return btoa(binary);
 };
 
-interface SendQuittungRequest {
-  quittungId: string;
-  /** Pre-generated PDF as base64 (from frontend @react-pdf/renderer) */
-  quittungPdfBase64?: string;
-}
-
-interface QuittungRow {
-  id: string;
-  quittung_nr: string;
-  datum: string;
-  customer_name: string;
-  customer_email: string | null;
-  customer_phone: string | null;
-  customer_address: string | null;
-  customer_destination: string | null;
-  gesamttotal: number;
-  mwst_satz: number;
-  mwst_betrag: number;
-  rabatt: number;
-  zwischensumme: number;
-  status: string;
-  betrag_noch_offen: boolean;
-  /** Document language — frozen from the offer chain (quittungen.language). */
-  language: string | null;
-  positionen: Array<{
-    beschreibung: string;
-    satz: string;
-    betrag: number;
-    checked: boolean;
-    is_custom: boolean;
-  }>;
-  companies: {
-    company_name: string;
-    email: string;
-    notification_email: string | null;
-    logo_url: string | null;
-    primary_color: string | null;
-    phone: string | null;
-    street: string | null;
-    plz: string | null;
-    city: string | null;
-    mwst_number: string | null;
-    iban: string | null;
-    bank_name: string | null;
-    /** Dashboard language of the firm — drives the firma copy only. */
-    default_language: string | null;
-    resend_enabled: boolean | null;
-    resend_api_key: string | null;
-    resend_from_email: string | null;
-    resend_from_name: string | null;
-  };
-}
-
-/** Customer copy — rendered in the DOCUMENT language (quittungen.language). */
-function buildCustomerEmail(q: QuittungRow, brand: string, locale: Locale): string {
-  const t = createTranslator(locale);
-  const lines = q.positionen
-    .filter((p) => p.checked && p.betrag > 0)
-    .map((p) => ({ beschreibung: p.beschreibung, detail: p.satz || "", betrag: p.betrag }));
-
-  const extraSection = q.betrag_noch_offen
-    ? `
-      <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
-        <p style="margin:0;font-size:13px;font-weight:600;color:#92400E;font-family:${EMAIL_FONT_STACK}">
-          ⚠️ ${t("email.quittung.outstandingNotice")}
-        </p>
-      </div>`
-    : undefined;
-
-  return buildInvoiceEmailHtml({
-    companyName: q.companies.company_name,
-    brand,
-    locale,
-    kind: "quittung",
-    documentNumber: q.quittung_nr,
-    datum: q.datum,
-    customerName: q.customer_name,
-    lines,
-    zwischensumme: q.zwischensumme,
-    rabatt: q.rabatt,
-    mwstSatz: q.mwst_satz,
-    mwstBetrag: q.mwst_betrag,
-    total: q.gesamttotal,
-    extraSection,
-    footerParts: [
-      q.companies.iban ? `${t("email.invoice.ibanLabel")}: ${q.companies.iban}` : "",
-      q.companies.bank_name || "",
-      q.companies.mwst_number
-        ? `${t("email.invoice.vatNumberLabel")}: ${q.companies.mwst_number}`
-        : "",
-      q.companies.phone || "",
-    ],
-  });
-}
-
-/**
- * Internal copy for the firm — rendered in the COMPANY language (companies.default_language),
- * never in the customer's. The headline sentence is firm-internal CRM prose and stays German
- * by catalog policy; the labels come from the catalog so a fr/en firm sees its own language.
- */
-function buildFirmaEmail(q: QuittungRow, brand: string, locale: Locale): string {
-  const t = createTranslator(locale);
-  const inner = `
-    <div style="background:${brand};padding:20px;">
-      <h2 style="margin:0;color:#fff;font-family:${EMAIL_FONT_STACK}">Quittung unterschrieben</h2>
-    </div>
-    <div style="padding:20px;background:#fafafa;">
-      <p style="margin:0 0 12px;font-size:14px;font-family:${EMAIL_FONT_STACK}">
-        Die Quittung <strong>${q.quittung_nr}</strong> wurde unterzeichnet.
-      </p>
-      <table cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background:#fff;border:1px solid #e4e4e7;border-radius:6px;overflow:hidden;width:100%;">
-        <tr><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK};width:140px;">${t("common.customer")}:</td><td style="padding:8px 12px;font-size:13px;font-family:${EMAIL_FONT_STACK}">${q.customer_name}</td></tr>
-        <tr style="background:#f9f9f9;"><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">${t("common.date")}:</td><td style="padding:8px 12px;font-size:13px;font-family:${EMAIL_FONT_STACK}">${fmtDate(q.datum, locale)}</td></tr>
-        <tr><td style="padding:8px 12px;font-size:13px;color:#71717a;font-family:${EMAIL_FONT_STACK}">${t("email.quittung.totalLabel")}:</td><td style="padding:8px 12px;font-size:14px;font-weight:700;color:${brand};font-family:${EMAIL_FONT_STACK}">${fmtChf(q.gesamttotal, locale)}</td></tr>
-      </table>
-      <p style="margin:16px 0 0;font-size:12px;color:#71717a;font-family:${EMAIL_FONT_STACK}">PDF im Anhang.</p>
-    </div>
-  `;
-  return wrapEmailDocument(inner, locale);
-}
-
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
+serve(async req => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return reply({ error: "Methode nicht erlaubt." }, 405);
   try {
-    // JWT auth — require logged-in user
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Nicht autorisiert" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const auth = req.headers.get("Authorization");
+    if (!auth?.startsWith("Bearer ")) return reply({ error: "Nicht autorisiert." }, 401);
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(auth.slice(7));
+    if (authError || !user) return reply({ error: "Ungültige Sitzung." }, 401);
+    let body;
+    try { body = parseDocumentRequest(await req.json()); }
+    catch (error) { return reply({ error: error instanceof Error ? error.message : "Ungültige Anfrage." }, 400); }
+
+    const { data: receipt, error: receiptError } = await supabase.from("quittungen").select("*")
+      .eq("id", body.quittungId).returns<ReceiptRow[]>().single();
+    if (receiptError || !receipt) return reply({ error: "Quittung nicht gefunden." }, 404);
+    if (!await verifyCompanyMembership(supabase, user.id, receipt.company_id)) return reply({ error: "Keine Berechtigung." }, 403);
+    if (!receipt.issued_at || !receipt.company_snapshot) return reply({ error: "Die Quittung muss zuerst ausgestellt werden." }, 409);
+    if (receipt.version !== body.version) return reply({ error: "Die Quittung wurde geändert. Bitte neu laden." }, 409);
+
+    const { data: existing, error: documentError } = await supabase.from("quittung_documents").select("*")
+      .eq("quittung_id", receipt.id).eq("version", body.version).returns<ArchivedDocument[]>().maybeSingle();
+    if (documentError) throw documentError;
+    const documentResponse = async (document: ArchivedDocument | null) => {
+      if (!document) return reply({ document: null });
+      const { data, error } = await supabase.storage.from("document-pdfs").createSignedUrl(document.pdf_path, 300);
+      if (error || !data) throw error ?? new Error("PDF-Link konnte nicht erstellt werden.");
+      return reply({ document: { id: document.id, version: document.version, sha256: document.sha256 }, url: data.signedUrl });
+    };
+    if (body.action === "lookup") return documentResponse(existing);
+    if (body.action === "prepare") {
+      const path = receiptPdfPath(receipt.company_id, receipt.id, body.version, body.sha256!);
+      // No upsert: an archive path can never be overwritten by a signed upload token.
+      const { data, error } = await supabase.storage.from("document-pdfs").createSignedUploadUrl(path);
+      if (error || !data) throw error ?? new Error("PDF-Upload konnte nicht vorbereitet werden.");
+      return reply({ path: data.path, token: data.token });
     }
-    const token = authHeader.replace("Bearer ", "");
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Ungültige Sitzung" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (body.action === "archive") {
+      if (existing) return documentResponse(existing);
+      const expectedPath = receiptPdfPath(receipt.company_id, receipt.id, body.version, body.sha256!);
+      if (body.pdfPath !== expectedPath) return reply({ error: "Ungültiger PDF-Pfad." }, 400);
+      const { data: blob, error } = await supabase.storage.from("document-pdfs").download(expectedPath);
+      if (error || !blob) throw error ?? new Error("PDF fehlt.");
+      await verifyReceiptPdf(new Uint8Array(await blob.arrayBuffer()), body.sha256!);
+      const { data: registered, error: registerError } = await supabase.rpc("register_quittung_document", {
+        p_quittung_id: receipt.id, p_expected_version: body.version, p_pdf_path: expectedPath, p_sha256: body.sha256,
       });
-    }
-
-    const body: SendQuittungRequest = await req.json();
-    const { quittungId, quittungPdfBase64 } = body;
-
-    if (!quittungId) {
-      return new Response(JSON.stringify({ error: "quittungId fehlt" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Fetch quittung with company
-    const { data: quittung, error: qErr } = await supabase
-      .from("quittungen")
-      .select(`
-        id, quittung_nr, datum, customer_name, customer_email,
-        customer_phone, customer_address, customer_destination,
-        gesamttotal, mwst_satz, mwst_betrag, rabatt, zwischensumme,
-        status, betrag_noch_offen, positionen, language,
-        companies (
-          id, company_name, email, notification_email, logo_url, primary_color,
-          phone, street, plz, city, mwst_number, iban, bank_name, default_language,
-          resend_enabled, resend_from_email, resend_from_name
-        )
-      `)
-      .eq("id", quittungId)
-      .single();
-
-    if (qErr || !quittung) {
-      return new Response(JSON.stringify({ error: "Quittung nicht gefunden" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (registerError || !registered) throw registerError ?? new Error("PDF konnte nicht archiviert werden.");
+      return documentResponse(registered as ArchivedDocument);
     }
 
-    // ZUERST autorisieren, DANN Geheimnisse laden.
-    //
-    // Bis 2026-08-28 stand es umgekehrt, und die Pruefung selbst stand in
-    // `if (quittungCompany) { … }` — der Abfragefehler wurde verworfen. Fiel die
-    // zweite Abfrage aus, wurde die Berechtigung schlicht NICHT geprueft und die
-    // Quittung ging hinaus. Ein fehlender Wert ist keine Erlaubnis.
-    //
-    // Ausserdem lud `loadCompanySecrets` den Resend-Schluessel der Firma, BEVOR
-    // feststand, ob der Aufrufer ueberhaupt zu ihr gehoert.
-    const firmaDerQuittung = (quittung.companies as { id?: string } | null)?.id;
-    if (!firmaDerQuittung) {
-      return new Response(JSON.stringify({ error: "Der Quittung ist keine Firma zugeordnet" }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!existing || existing.id !== body.documentId) return reply({ error: "Archiviertes PDF dieser Version fehlt." }, 409);
+    const { data: company, error: companyError } = await supabase.from("companies")
+      .select("id,email,notification_email,default_language,resend_enabled,resend_from_email,resend_from_name")
+      .eq("id", receipt.company_id).returns<CompanyConfig[]>().single();
+    if (companyError || !company) throw companyError ?? new Error("Firma nicht gefunden.");
+    const secrets = await loadCompanySecrets(supabase, receipt.company_id);
+    const apiKey = company.resend_enabled && secrets.resend_api_key ? secrets.resend_api_key : Deno.env.get("RESEND_API_KEY");
+    if (!apiKey) throw new Error("E-Mail-Versand ist nicht konfiguriert.");
+    const fromEmail = company.resend_enabled && company.resend_from_email ? company.resend_from_email : getSenderEmail();
+    const sender = receipt.company_snapshot;
+    const fromName = company.resend_from_name || sender.company_name;
+    const brand = emailBrandColor(sender.primary_color);
+    const { data: pdfBlob, error: pdfError } = await supabase.storage.from("document-pdfs").download(existing.pdf_path);
+    if (pdfError || !pdfBlob) throw pdfError ?? new Error("Archiviertes PDF fehlt.");
+    const pdfBytes = new Uint8Array(await pdfBlob.arrayBuffer());
+    await verifyReceiptPdf(pdfBytes, existing.sha256);
+    const attachment = { filename: `Quittung-${receipt.quittung_nr}.pdf`, content: bytesToBase64(pdfBytes) };
 
-    const istMitglied = await verifyCompanyMembership(supabase, user.id, firmaDerQuittung);
-    if (!istMitglied) {
-      return new Response(JSON.stringify({ error: "Keine Berechtigung" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Erst jetzt: Zugangsdaten stehen nicht mehr in `companies` (Browser-Leck),
-    // sondern in `company_secrets`. Ueberlagern statt umschreiben — die
-    // Verwendungsstellen unten lesen weiterhin quittung.companies.resend_api_key.
-    Object.assign(quittung.companies as object, await loadCompanySecrets(supabase, firmaDerQuittung));
-
-    const q = quittung as unknown as QuittungRow;
-    const company = q.companies;
-    if (!company) throw new Error("Firma nicht gefunden");
-
-    const brand = company.primary_color || "#10B981";
-
-    // Two recipients, two languages: the customer gets the document language, the firm gets
-    // its own dashboard language. Never one translator for both.
-    const customerLocale = toLocale(q.language);
-    const companyLocale = toLocale(company.default_language);
-    const tCompany = createTranslator(companyLocale);
-
-    // Determine Resend API key (company-level or global)
-    const resendApiKey = company.resend_enabled && company.resend_api_key
-      ? company.resend_api_key
-      : Deno.env.get("RESEND_API_KEY")!;
-    const fromEmail = company.resend_enabled && company.resend_from_email
-      ? company.resend_from_email
-      : getSenderEmail();
-    const fromName = company.resend_from_name || company.company_name;
-
-    const resend = new Resend(resendApiKey);
-
-    const attachments: Array<{ filename: string; content: string }> = [];
-    if (quittungPdfBase64) {
-      attachments.push({
-        filename: `Quittung-${q.quittung_nr}.pdf`,
-        content: quittungPdfBase64,
-      });
-    }
-
-    const results: string[] = [];
-
-    // 1. Customer email — DOCUMENT language
-    if (q.customer_email) {
-      const customerSubject = buildInvoiceEmailSubject({
-        kind: "quittung",
-        locale: customerLocale,
-        documentNumber: q.quittung_nr,
-        companyName: company.company_name,
-      });
-
-      const { data: emailData, error: emailErr } = await resend.emails.send({
-        from: `${fromName} <${fromEmail}>`,
-        to: [q.customer_email],
-        subject: customerSubject,
-        html: buildCustomerEmail(q, brand, customerLocale),
-        attachments: attachments.length > 0 ? attachments : undefined,
-      });
-
-      await logEmail({
-        emailType: "quittung_customer",
-        recipientEmail: q.customer_email,
-        subject: customerSubject,
-        status: emailErr ? "failed" : "sent",
-        errorMessage: emailErr?.message,
-        companyId: company.id,
-        language: customerLocale,
-        metadata: { quittung_id: quittungId, resend_id: emailData?.id },
-      });
-
-      if (!emailErr) results.push("customer");
-    }
-
-    // 2. Firma internal copy — COMPANY language
-    const firmaEmail = company.notification_email || company.email;
-    if (firmaEmail) {
-      const firmaSubject = `${tCompany("email.quittung.documentLabel")} ${q.quittung_nr} – unterschrieben`;
-
-      const { data: firmaData, error: firmaErr } = await resend.emails.send({
-        from: `${fromName} <${fromEmail}>`,
-        to: [firmaEmail],
-        subject: firmaSubject,
-        html: buildFirmaEmail(q, brand, companyLocale),
-        attachments: attachments.length > 0 ? attachments : undefined,
-      });
-
-      await logEmail({
-        emailType: "quittung_firma",
-        recipientEmail: firmaEmail,
-        subject: firmaSubject,
-        status: firmaErr ? "failed" : "sent",
-        errorMessage: firmaErr?.message,
-        companyId: company.id,
-        language: companyLocale,
-        metadata: { quittung_id: quittungId, resend_id: firmaData?.id },
-      });
-
-      if (!firmaErr) results.push("firma");
-    }
-
-    // The customer is the primary recipient: a receipt only counts as "sent" if it
-    // actually reached them (or there was no customer address at all). A firma-only
-    // success is a partial failure — don't flip status or report success.
-    const customerDelivered = !q.customer_email || results.includes("customer");
-
-    if (customerDelivered && results.length > 0) {
-      await supabase
-        .from("quittungen")
-        .update({ status: "sent" })
-        .eq("id", quittungId);
-    }
-
-    if (results.length === 0) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Alle E-Mails fehlgeschlagen", sent_to: [] }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    if (!customerDelivered) {
-      // Non-2xx so functions.invoke surfaces an error — the UI must not claim the
-      // customer received the receipt when only the firma copy went out.
-      return new Response(
-        JSON.stringify({
-          success: false,
-          partial: true,
-          error: "Quittung konnte nicht an den Kunden gesendet werden",
-          sent_to: results,
+    const makeRecipient = (kind: "customer" | "firma", email: string, localeValue: string | null): ReceiptRecipient => {
+      const locale = toLocale(localeValue);
+      return { kind, email: email.trim().toLowerCase(), locale,
+        subject: buildInvoiceEmailSubject({ kind: "quittung", locale, documentNumber: receipt.quittung_nr, companyName: sender.company_name }),
+        html: buildInvoiceEmailHtml({
+          kind: "quittung", locale, brand, companyName: sender.company_name, documentNumber: receipt.quittung_nr,
+          datum: receipt.datum, customerName: receipt.customer_name,
+          lines: receiptEmailLines(receipt.positionen, locale),
+          zwischensumme: receipt.zwischensumme, rabatt: receipt.rabatt, mwstSatz: receipt.mwst_satz,
+          mwstBetrag: receipt.mwst_betrag, total: receipt.gesamttotal,
+          extraSection: receiptEmailPaymentHtml(receipt, locale),
+          footerParts: [sender.iban || "", sender.bank_name || "", sender.mwst_number || "", sender.phone || ""],
         }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ success: true, sent_to: results }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  } catch (err) {
-    console.error("send-quittung error:", err);
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+      };
+    };
+    const recipients: ReceiptRecipient[] = [];
+    if (receipt.customer_email) recipients.push(makeRecipient("customer", receipt.customer_email, receipt.language));
+    const internalEmail = company.notification_email || company.email;
+    if (internalEmail) recipients.push(makeRecipient("firma", internalEmail, company.default_language));
+    const store: ReceiptDispatchStore = {
+      claim: async recipient => {
+        const { data, error } = await supabase.rpc("claim_quittung_dispatch", {
+          p_document_id: existing.id, p_kind: recipient.kind, p_email: recipient.email,
+        });
+        if (error) throw error;
+        if (data) {
+          const claim = data as ClaimedDispatch;
+          return { state: "claimed", id: claim.id, createdAt: claim.created_at };
+        }
+        const { data: prior, error: readError } = await supabase.from("quittung_dispatches").select("status")
+          .eq("document_id", existing.id).eq("recipient_kind", recipient.kind).eq("recipient_email", recipient.email).single();
+        if (readError) throw readError;
+        return { state: prior?.status === "sent" ? "sent" : "busy" };
+      },
+      complete: async (id, providerId) => {
+        const { error } = await supabase.from("quittung_dispatches").update({ status: "sent", provider_id: providerId, sent_at: new Date().toISOString(), error: null }).eq("id", id);
+        if (error) throw error;
+      },
+      fail: async (id, reason) => {
+        const { error } = await supabase.from("quittung_dispatches").update({ status: "failed", error: reason }).eq("id", id);
+        if (error) throw error;
+      },
+      markSent: async () => {
+        const { error } = await supabase.from("quittungen").update({ sent_at: new Date().toISOString() })
+          .eq("id", receipt.id).eq("version", receipt.version).select("id").single();
+        if (error) throw error;
+      },
+    };
+    const result = await dispatchReceipt(recipients, store, async (recipient, idempotencyKey) => {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ from: `${fromName} <${fromEmail}>`, to: [recipient.email], subject: recipient.subject, html: recipient.html, attachments: [attachment] }),
+      });
+      const result: unknown = await response.json();
+      if (!response.ok || !result || typeof result !== "object" || !("id" in result) || typeof result.id !== "string") {
+        const message = result && typeof result === "object" && "message" in result && typeof result.message === "string" ? result.message : `E-Mail-Versand fehlgeschlagen (${response.status}).`;
+        throw new Error(message);
+      }
+      await logEmail({ emailType: `quittung_${recipient.kind}`, recipientEmail: recipient.email, subject: recipient.subject,
+        status: "sent", companyId: receipt.company_id, language: recipient.locale,
+        metadata: { quittung_id: receipt.id, document_id: existing.id, resend_id: result.id } });
+      return result.id;
+    });
+    if (result.failures.length) return reply({ success: false, partial: result.sentTo.length > 0, sent_to: result.sentTo, error: result.failures.join(" ") }, 502);
+    return reply({ success: true, sent_to: result.sentTo });
+  } catch (error) {
+    const message = error && typeof error === "object" && "message" in error && typeof error.message === "string"
+      ? error.message : "Dokumentvorgang fehlgeschlagen.";
+    console.error("send-quittung:", message);
+    return reply({ error: message }, 500);
   }
 });

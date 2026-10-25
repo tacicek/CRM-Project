@@ -1,0 +1,184 @@
+    supabase_db_crm-test: laeuft, Projekt crm-test, Netz crm-test-loopback, 5432/tcp -> 127.0.0.1:54342
+Guard OK (run): container=supabase_db_crm-test bound=127.0.0.1:54342 project=crm-test marker=crm-test
+==> verifying baseline generation
+    Generation 4614ec7577271400: 4 Artefakt(e) unveraendert.
+==> wiping public schema (disposable) + applying sanitized baseline
+NOTICE:  drop cascades to 359 other objects
+DETAIL:  drop cascades to type app_role
+drop cascades to type appointment_status
+drop cascades to type appointment_type
+drop cascades to type auftrag_status
+drop cascades to type box_rental_status
+drop cascades to type clearance_scope
+drop cascades to type condition_level
+drop cascades to type lead_sharing_preference
+drop cascades to type raeumungs_art
+drop cascades to type requester_role
+drop cascades to type support_ticket_category
+drop cascades to type support_ticket_priority
+drop cascades to type support_ticket_status
+drop cascades to type umzugsbox_type
+drop cascades to type urgency_level
+drop cascades to function activate_manual_import(uuid,uuid)
+drop cascades to function activate_self_trial(integer)
+drop cascades to function agb_content_hash(text)
+drop cascades to function appointments_set_customer()
+drop cascades to function archive_and_purge_company_data(uuid,integer)
+drop cascades to function archive_returned_boxes()
+drop cascades to function atomic_adjust_token_balance(uuid,numeric,text,text,text,text,text,text)
+drop cascades to function atomic_confirm_lead(uuid,uuid)
+drop cascades to function auftraege_set_customer()
+drop cascades to function auftraege_set_locations()
+drop cascades to function beleg_set_customer()
+drop cascades to function calculate_appointment_duration()
+drop cascades to function calculate_distance_km(numeric,numeric,numeric,numeric)
+drop cascades to function calculate_lead_spam_score()
+drop cascades to function calculate_min_token_price(text,integer)
+drop cascades to function can_modify_role(uuid,uuid)
+drop cascades to function cancel_appointment_by_action_token(uuid,uuid,text)
+drop cascades to function check_besichtigung_storage_access(text)
+drop cascades to function cleanup_archived_boxes()
+drop cascades to function cleanup_expired_besichtigung_data()
+drop cascades to function cleanup_inbound_emails(integer,integer,integer)
+drop cascades to function communication_retention()
+drop cascades to function communication_thread_fortschreiben()
+drop cascades to function companies_ensure_owner_membership()
+drop cascades to function consume_rate_limit(text,integer,integer)
+drop cascades to function create_appointment_from_lead(uuid,uuid,character varying,date,time without time zone,time without time zone,character varying)
+drop cascades to function create_appointments_for_auftrag()
+drop cascades to function create_archive_log(text,text,integer,text,text,text,text,uuid,timestamp with time zone,timestamp with time zone)
+drop cascades to function create_besichtigung_session(uuid,text,text,text,uuid,uuid,text,text,text,integer,uuid)
+drop cascades to function create_company_after_signup(uuid,text,text,text,text,text,text,text,text,text,text[],text,integer)
+drop cascades to function create_lead_from_inbound_email(uuid,uuid,jsonb,jsonb)
+drop cascades to function create_offer_amendment(uuid,text,text)
+drop cascades to function create_offer_revision(uuid,text)
+drop cascades to function credit_notes_von_rechnung_erben()
+drop cascades to function customer_backfill_quellen(uuid)
+drop cascades to function customer_cases_aufgabe_anlegen()
+drop cascades to function customer_cases_verlauf_schreiben()
+drop cascades to function customer_merge_preview(uuid,uuid,uuid)
+drop cascades to function customer_summary(uuid)
+drop cascades to function customer_timeline(uuid,integer,integer,timestamp with time zone)
+drop cascades to function customers_set_display_name()
+drop cascades to function deactivate_expired_subscriptions()
+drop cascades to function deactivate_manual_import(uuid,text)
+drop cascades to function debug_storage_objects()
+drop cascades to function decide_change_request(uuid,boolean,text)
+drop cascades to function delete_besichtigung_photo(uuid,uuid)
+drop cascades to function duplicate_candidates(uuid,uuid,integer,integer)
+drop cascades to function email_log_in_faden()
+drop cascades to function execute_sql(text,boolean)
+drop cascades to function expire_unconfirmed_risky_leads()
+drop cascades to function expire_unverified_leads(integer,integer)
+drop cascades to function extend_subscription(uuid,integer,uuid)
+drop cascades to function finance_overview(uuid)
+drop cascades to function find_companies_fallback(character varying,character varying,numeric,integer)
+drop cascades to function find_companies_in_radius(character varying,character varying,integer)
+drop cascades to function find_customer_by_identity(uuid,text,text)
+drop cascades to function generate_auftrag_nummer()
+drop cascades to function generate_fall_nr()
+drop cascades to function generate_gutschrift_nr()
+drop cascades to function generate_klavier_nummer()
+drop cascades to function generate_moebellift_nummer()
+drop cascades to function generate_offer_number()
+drop cascades to function generate_quittung_nr()
+drop cascades to function generate_raeumung_nummer()
+drop cascades to function generate_rechnung_nr()
+drop cascades to function generate_recurring_appointments(uuid,date)
+drop cascades to function generate_umzug_nummer()
+drop cascades to function generate_unique_slug(text)
+drop cascades to function get_admin_activity_log(integer,integer)
+drop cascades to function get_agb_sections_by_offer_token(text,text)
+drop cascades to function get_amendment_by_token(text)
+drop cascades to function get_appointment_by_action_token(uuid,uuid)
+drop cascades to function get_archivable_leads(integer)
+drop cascades to function get_archivable_offers(integer)
+drop cascades to function get_archive_statistics()
+drop cascades to function get_auftraege_needing_customer_reminders()
+drop cascades to function get_auftraege_needing_reminders()
+drop cascades to function get_auth_audit_log(integer,integer)
+drop cascades to function get_besichtigung_analysis(uuid)
+drop cascades to function get_besichtigung_photos(uuid)
+drop cascades to function get_besichtigung_session_by_token(text)
+drop cascades to function get_besichtigung_videos(uuid)
+drop cascades to function get_box_rental_stats(uuid)
+drop cascades to function get_checklist_by_offer_token(text,text)
+drop cascades to function get_companies_needing_reminders()
+and 259 other objects (see server log for list)
+NOTICE:  column "is_sso_user" of relation "users" already exists, skipping
+NOTICE:  column "is_anonymous" of relation "users" already exists, skipping
+NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to table besichtigung.sessions
+drop cascades to table besichtigung.photos
+NOTICE:  schema "crm_test_guard" already exists, skipping
+NOTICE:  relation "identity" already exists, skipping
+==> applying pending migration 20260805010000_kalender_feed_tokens.sql
+==> applying pending migration 20260807100000_kundenadresse_und_vollstaendige_zusammenfuehrung.sql
+NOTICE:  constraint "customer_addresses_customer_fk" of relation "customer_addresses" does not exist, skipping
+NOTICE:  trigger "customer_addresses_updated_at" for relation "public.customer_addresses" does not exist, skipping
+NOTICE:  trigger "trigger_customer_addresses_eine_hauptadresse" for relation "public.customer_addresses" does not exist, skipping
+NOTICE:  trigger "trigger_customer_addresses_nachruecken" for relation "public.customer_addresses" does not exist, skipping
+NOTICE:  policy "customer_addresses_select_member" for relation "public.customer_addresses" does not exist, skipping
+NOTICE:  policy "customer_addresses_insert_member" for relation "public.customer_addresses" does not exist, skipping
+NOTICE:  policy "customer_addresses_update_member" for relation "public.customer_addresses" does not exist, skipping
+NOTICE:  policy "customer_addresses_delete_owner_admin" for relation "public.customer_addresses" does not exist, skipping
+==> applying pending migration 20260828130000_api_budget_dauerhaft.sql
+==> applying pending migration 20261025180327_quittung_document_lifecycle.sql
+NOTICE:  schema "quittung_private" already exists, skipping
+NOTICE:  constraint "quittungen_payment_status_check" of relation "quittungen" does not exist, skipping
+NOTICE:  constraint "quittungen_rechnung_fk" of relation "quittungen" does not exist, skipping
+NOTICE:  policy "quittung_payment_links_read" for relation "public.quittung_payment_links" does not exist, skipping
+NOTICE:  function public.quittung_payment_state(public.quittungen) does not exist, skipping
+NOTICE:  function quittung_private.payment_state(public.quittungen) does not exist, skipping
+NOTICE:  function public.quittung_company_snapshot(uuid) does not exist, skipping
+NOTICE:  trigger "zz_quittung_lifecycle" for relation "public.quittungen" does not exist, skipping
+NOTICE:  trigger "quittung_invoice_customer" for relation "public.quittungen" does not exist, skipping
+NOTICE:  trigger "invoice_quittung_customer" for relation "public.rechnungen" does not exist, skipping
+NOTICE:  trigger "sync_quittung_invoice_payment" for relation "public.rechnungen" does not exist, skipping
+NOTICE:  trigger "sync_quittung_payment_reversal" for relation "public.payments" does not exist, skipping
+NOTICE:  trigger "sync_quittung_payment_reference" for relation "public.payments" does not exist, skipping
+NOTICE:  policy "quittung_documents_read" for relation "public.quittung_documents" does not exist, skipping
+NOTICE:  policy "quittung_dispatches_read" for relation "public.quittung_dispatches" does not exist, skipping
+==> seeding synthetic two-tenant fixtures
+==> running assertions
+NOTICE:  PASS 1: anonymous denied on CRM tables
+NOTICE:  PASS 1b: anon ohne Schreibrechte auf leads und raeumung_anfragen
+NOTICE:  PASS 2: tenant A sees own lead
+NOTICE:  PASS 3: tenant A cannot see tenant B lead
+NOTICE:  PASS 4: tenant A cannot create offer for company B
+NOTICE:  PASS 5: tenant B cannot see tenant A invoice/receipt
+NOTICE:  PASS 6: valid token returns only its own offer
+NOTICE:  PASS 7: invalid token returns nothing
+NOTICE:  PASS 8: token RPC output allowlist excludes access_token
+NOTICE:  PASS 9-11: Lead→Offer→Auftrag→Rechnung/Quittung relations consistent
+NOTICE:  PASS 12: replace_offer_items is atomic (no partial write)
+ALL DB ASSERTIONS PASSED
+NOTICE:  PASS A1-A5: insert trigger nummer + enum + nullable ids + JSON/financial round-trip
+NOTICE:  PASS A6-A7: update keeps nummer, reschedule reset persists
+NOTICE:  PASS A8: normal edit preserves reminder state
+NOTICE:  PASS A9: DB rejects an out-of-range status
+ALL AUFTRAG CONTRACT ASSERTIONS PASSED
+ PASS customer-360
+ PASS rollen
+ PASS offerte-version
+ PASS nachtrag
+ PASS pipeline
+ PASS finanzen
+ PASS portal
+ PASS serviceorte-faelle
+ PASS kommunikation
+NOTICE:  PASS A: ohne geprueften Aufrufer kein Verbrauch
+NOTICE:  PASS B: fremde und erfundene Firma fallen durch, ohne Verbrauch
+NOTICE:  PASS C: 30 erlaubt, ab der 31. verweigert
+NOTICE:  PASS D: retry_after=30 liegt im Fenster
+NOTICE:  PASS E: unbekannter Topf abgewiesen
+NOTICE:  PASS F: nur service_role kommt heran, RLS aktiv
+NOTICE:  PASS G: begrenzte Aufbewahrung greift
+ ALL API-BUDGET ASSERTIONS PASSED
+NOTICE:  PASS Quittung direct issue/payment/reversal/history and content guards
+NOTICE:  PASS Quittung invoice partial/full/reversal/credit-note synchronization without double income
+NOTICE:  PASS Quittung validation, customer linkage and non-recycled numbering
+NOTICE:  PASS Quittung archive immutability, dispatch idempotency and company isolation
+NOTICE:  PASS Quittung signature capture, invoice amount edits, customer merge, shape validation and five-digit numbers
+NOTICE:  PASS Quittung draft customer merge, payment reference revisions, INSERT delivery guard and deferred customer invariant
+DB integration suite passed.

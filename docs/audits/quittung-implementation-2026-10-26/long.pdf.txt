@@ -1,0 +1,307 @@
+Quittung QU-2026-0042
+
+
+
+
+                                                                                                     Quittung
+                                                                                                 Beispiel Umzug GmbH
+                                                                                                            Musterstrasse 1
+                                                                                                                8000 Zürich
+                                                                                                           +41 00 000 00 00
+                                                                                                       test@example.invalid
+
+
+
+ Kunde                                                          Details
+ Herr Max Muster                                                Datum: 25.10.2026
+ Testweg 12                                                     Quittung-Nr.: QU-2026-0042
+ 8000 Zürich                                                    Ausgestellt: 25.10.2026, 10:30 MEZ
+ → Zielweg 4                                                    MwSt-Nr.: CHE-000.000.000 MWST
+ 3000 Bern                                                      IBAN: CH00 0000 0000 0000 0000 0
+ +41 00 000 00 01                                               Musterbank
+ customer@example.invalid
+
+
+
+ Beschreibung                                              Satz / Bemerkung                                   Betrag CHF
+
+
+ Position 1: Transport empfindlicher Gegenstände und       1 Std. × CHF 100                                       100.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 2: Transport empfindlicher Gegenstände und       2 Std. × CHF 100                                       200.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 3: Transport empfindlicher Gegenstände und       3 Std. × CHF 100                                       300.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 4: Transport empfindlicher Gegenstände und       4 Std. × CHF 100                                       400.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 5: Transport empfindlicher Gegenstände und       5 Std. × CHF 100                                       500.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 6: Transport empfindlicher Gegenstände und       6 Std. × CHF 100                                       600.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 7: Transport empfindlicher Gegenstände und       7 Std. × CHF 100                                       700.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 8: Transport empfindlicher Gegenstände und       8 Std. × CHF 100                                       800.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 9: Transport empfindlicher Gegenstände und       9 Std. × CHF 100                                       900.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 10: Transport empfindlicher Gegenstände und      10 Std. × CHF 100                                    1'000.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+
+
+
+QU-2026-0042                                                                                                   Seite 1 von 5
+Quittung QU-2026-0042
+
+
+ Beschreibung                                              Satz / Bemerkung    Betrag CHF
+
+
+
+ Position 11: Transport empfindlicher Gegenstände und      11 Std. × CHF 100     1'100.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 12: Transport empfindlicher Gegenstände und      12 Std. × CHF 100     1'200.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 13: Transport empfindlicher Gegenstände und      13 Std. × CHF 100     1'300.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 14: Transport empfindlicher Gegenstände und      14 Std. × CHF 100     1'400.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 15: Transport empfindlicher Gegenstände und      15 Std. × CHF 100     1'500.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 16: Transport empfindlicher Gegenstände und      16 Std. × CHF 100     1'600.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 17: Transport empfindlicher Gegenstände und      17 Std. × CHF 100     1'700.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 18: Transport empfindlicher Gegenstände und      18 Std. × CHF 100     1'800.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 19: Transport empfindlicher Gegenstände und      19 Std. × CHF 100     1'900.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 20: Transport empfindlicher Gegenstände und      20 Std. × CHF 100     2'000.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 21: Transport empfindlicher Gegenstände und      21 Std. × CHF 100     2'100.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 22: Transport empfindlicher Gegenstände und      22 Std. × CHF 100     2'200.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 23: Transport empfindlicher Gegenstände und      23 Std. × CHF 100     2'300.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 24: Transport empfindlicher Gegenstände und      24 Std. × CHF 100     2'400.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 25: Transport empfindlicher Gegenstände und      25 Std. × CHF 100     2'500.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+
+
+
+QU-2026-0042                                                                    Seite 2 von 5
+Quittung QU-2026-0042
+
+
+ Beschreibung                                              Satz / Bemerkung    Betrag CHF
+
+
+
+ Position 26: Transport empfindlicher Gegenstände und      26 Std. × CHF 100     2'600.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 27: Transport empfindlicher Gegenstände und      27 Std. × CHF 100     2'700.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 28: Transport empfindlicher Gegenstände und      28 Std. × CHF 100     2'800.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 29: Transport empfindlicher Gegenstände und      29 Std. × CHF 100     2'900.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 30: Transport empfindlicher Gegenstände und      30 Std. × CHF 100     3'000.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 31: Transport empfindlicher Gegenstände und      31 Std. × CHF 100     3'100.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 32: Transport empfindlicher Gegenstände und      32 Std. × CHF 100     3'200.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 33: Transport empfindlicher Gegenstände und      33 Std. × CHF 100     3'300.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 34: Transport empfindlicher Gegenstände und      34 Std. × CHF 100     3'400.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 35: Transport empfindlicher Gegenstände und      35 Std. × CHF 100     3'500.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 36: Transport empfindlicher Gegenstände und      36 Std. × CHF 100     3'600.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 37: Transport empfindlicher Gegenstände und      37 Std. × CHF 100     3'700.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 38: Transport empfindlicher Gegenstände und      38 Std. × CHF 100     3'800.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 39: Transport empfindlicher Gegenstände und      39 Std. × CHF 100     3'900.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 40: Transport empfindlicher Gegenstände und      40 Std. × CHF 100     4'000.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+
+
+
+QU-2026-0042                                                                    Seite 3 von 5
+Quittung QU-2026-0042
+
+
+ Beschreibung                                              Satz / Bemerkung                 Betrag CHF
+
+
+
+ Position 41: Transport empfindlicher Gegenstände und      41 Std. × CHF 100                   4'100.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 42: Transport empfindlicher Gegenstände und      42 Std. × CHF 100                   4'200.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 43: Transport empfindlicher Gegenstände und      43 Std. × CHF 100                   4'300.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 44: Transport empfindlicher Gegenstände und      44 Std. × CHF 100                   4'400.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 45: Transport empfindlicher Gegenstände und      45 Std. × CHF 100                   4'500.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 46: Transport empfindlicher Gegenstände und      46 Std. × CHF 100                   4'600.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 47: Transport empfindlicher Gegenstände und      47 Std. × CHF 100                   4'700.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 48: Transport empfindlicher Gegenstände und      48 Std. × CHF 100                   4'800.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 49: Transport empfindlicher Gegenstände und      49 Std. × CHF 100                   4'900.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+ Position 50: Transport empfindlicher Gegenstände und      50 Std. × CHF 100                   5'000.00
+ fachgerechte Demontage sowie Montage mit Verpackung und
+ Schutzmaterial.
+
+
+
+                                                                    Zwischensumme:        CHF 127'500.00
+                                                                    Rabatt:                   -CHF 50.00
+                                                                    MwSt. (8.1%):          CHF 10'323.45
+
+
+                                                                     Gesamttotal:    CHF 137'773.45
+
+
+
+  Zahlungsstand
+
+  Bezahlt
+  Direkte Zahlung gegen diese Quittung.
+  Zahlung erhalten:                                                                     CHF 137'773.45
+  Zahlungsdatum:                                                                            25.10.2026
+  Zahlungsart                                                                             Bar (Bargeld)
+  Zahlungsreferenz: PAY-0042
+  Noch offen:                                                                                 CHF 0.00
+
+
+
+
+QU-2026-0042                                                                                  Seite 4 von 5
+Quittung QU-2026-0042
+
+
+ Beschreibung                                              Satz / Bemerkung                       Betrag CHF
+
+
+
+
+ Datum / Unterschrift Kunde                                       Datum / Unterschrift Teamchef
+
+
+
+
+                                      VIELEN DANK FÜR IHREN GESCHÄTZTEN AUFTRAG!
+                              Wir freuen uns auf Ihre Bewertung: https://example.invalid/review
+
+
+
+
+QU-2026-0042                                                                                       Seite 5 von 5
+
