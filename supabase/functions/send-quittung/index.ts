@@ -1,13 +1,13 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { getSenderEmail } from "../_shared/envConfig.ts";
+import { getSenderEmail, getDashAppUrl } from "../_shared/envConfig.ts";
 import { logEmail } from "../_shared/logEmail.ts";
 import { buildInvoiceEmailHtml, buildInvoiceEmailSubject } from "../_shared/invoiceEmailTemplate.ts";
 import { toLocale } from "../_shared/i18n/index.ts";
 import { loadCompanySecrets } from "../_shared/companySecrets.ts";
 import { verifyCompanyMembership } from "../_shared/verifyCompanyMembership.ts";
 import { emailBrandColor } from "../_shared/htmlEscape.ts";
-import { dispatchReceipt, parseDocumentRequest, receiptPdfPath, verifyReceiptPdf, type ReceiptRecipient, type ReceiptDispatchStore } from "./document.ts";
+import { dispatchReceipt, parseDocumentRequest, receiptPdfPath, publicReceiptPdfUrl, verifyReceiptPdf, type ReceiptRecipient, type ReceiptDispatchStore } from "./document.ts";
 import { receiptEmailLines, receiptEmailPaymentHtml, type ReceiptEmailPayment, type ReceiptEmailPosition } from "./presentation.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
@@ -62,7 +62,8 @@ serve(async req => {
       if (!document) return reply({ document: null });
       const { data, error } = await supabase.storage.from("document-pdfs").createSignedUrl(document.pdf_path, 300);
       if (error || !data) throw error ?? new Error("PDF-Link konnte nicht erstellt werden.");
-      return reply({ document: { id: document.id, version: document.version, sha256: document.sha256 }, url: data.signedUrl });
+      const url = publicReceiptPdfUrl(data.signedUrl, Deno.env.get("SUPABASE_PUBLIC_URL"), getDashAppUrl());
+      return reply({ document: { id: document.id, version: document.version, sha256: document.sha256 }, url });
     };
     if (body.action === "lookup") return documentResponse(existing);
     if (body.action === "prepare") {

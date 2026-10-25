@@ -39,6 +39,32 @@ export const parseDocumentRequest = (value: unknown): DocumentRequest => {
 export const receiptPdfPath = (companyId: string, receiptId: string, version: number, hash: string): string =>
   `${companyId}/quittung/${receiptId}/${version}/${hash}.pdf`;
 
+/**
+ * The service SDK prefixes signed links with its private Docker URL. Browsers
+ * need the configured HTTPS Storage gateway, or this CRM's HTTPS Storage proxy
+ * when Kong's public endpoint is HTTP-only. Never trust request Origin/Host.
+ */
+export const publicReceiptPdfUrl = (
+  signedUrl: string,
+  publicSupabaseUrl: string | undefined,
+  appUrl: string,
+): string => {
+  const signed = new URL(signedUrl);
+  if (!signed.pathname.startsWith("/storage/v1/object/sign/document-pdfs/")) {
+    throw new Error("Ungültiger PDF-Downloadpfad.");
+  }
+  const publicApi = publicSupabaseUrl ? new URL(publicSupabaseUrl) : null;
+  const base = publicApi?.protocol === "https:" ? publicApi : new URL(appUrl);
+  const localDevelopment = base.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname);
+  if ((base.protocol !== "https:" && !localDevelopment) || base.username || base.password) {
+    throw new Error("Die öffentliche PDF-Adresse ist nicht korrekt konfiguriert.");
+  }
+  base.pathname = base.pathname.replace(/\/$/, "") + signed.pathname;
+  base.search = signed.search;
+  base.hash = "";
+  return base.href;
+};
+
 export const verifyReceiptPdf = async (bytes: Uint8Array, expectedHash: string): Promise<void> => {
   if (bytes.length < 8 || bytes.length > 15 * 1024 * 1024 ||
       new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") {

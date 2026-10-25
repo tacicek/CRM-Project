@@ -1,5 +1,31 @@
 import { describe, it, expect, vi } from "vitest";
-import { dispatchReceipt, parseDocumentRequest, receiptPdfPath, verifyReceiptPdf, type ReceiptDispatchStore, type ReceiptRecipient } from "../document";
+import { dispatchReceipt, parseDocumentRequest, receiptPdfPath, publicReceiptPdfUrl, verifyReceiptPdf, type ReceiptDispatchStore, type ReceiptRecipient } from "../document";
+
+describe("public receipt PDF links", () => {
+  const path = "/storage/v1/object/sign/document-pdfs/company/quittung/%C3%87i%C3%A7ek.pdf";
+  const query = "?token=signed%2Bvalue%2Fwith%3Dpadding&download=Quittung.pdf";
+  const internal = `http://supabase-kong:8000${path}${query}`;
+  it("uses a secure public Storage base and preserves the signed path/query byte-for-byte", () => {
+    expect(publicReceiptPdfUrl(internal, "https://api.example.invalid/", "https://crm.example.invalid"))
+      .toBe(`https://api.example.invalid${path}${query}`);
+  });
+  it.each([undefined, "http://public-kong.example.invalid"])("uses the configured CRM HTTPS proxy when public Storage is %s", publicApi => {
+    expect(publicReceiptPdfUrl(internal, publicApi, "https://crm.example.invalid/"))
+      .toBe(`https://crm.example.invalid${path}${query}`);
+  });
+  it("keeps a configured reverse-proxy path prefix", () => {
+    expect(publicReceiptPdfUrl(internal, "https://api.example.invalid/supabase/", "https://crm.example.invalid"))
+      .toBe(`https://api.example.invalid/supabase${path}${query}`);
+  });
+  it("supports a local development proxy", () => {
+    expect(publicReceiptPdfUrl(internal, undefined, "http://localhost:8080"))
+      .toBe(`http://localhost:8080${path}${query}`);
+  });
+  it("rejects an insecure remote fallback and paths outside the receipt bucket", () => {
+    expect(() => publicReceiptPdfUrl(internal, undefined, "http://crm.example.invalid")).toThrow();
+    expect(() => publicReceiptPdfUrl("http://kong:8000/auth/v1/user?token=secret", undefined, "https://crm.example.invalid")).toThrow();
+  });
+});
 
 const id = "11111111-1111-4111-8111-111111111111";
 const customer: ReceiptRecipient = { kind: "customer", email: "customer@example.invalid", subject: "Receipt", html: "<p>Receipt</p>", locale: "de" };

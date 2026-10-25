@@ -68,7 +68,7 @@ async function fixture(options: { member?: boolean; failReceiptWrite?: boolean; 
     from: (table: string) => new Query(table),
     storage: { from: () => ({
       download: async () => ({ data: new Blob([bytes]), error: null }),
-      createSignedUrl: async () => ({ data: { signedUrl: "https://storage.example.invalid/archived" }, error: null }),
+      createSignedUrl: async () => ({ data: { signedUrl: `http://supabase-kong:8000/storage/v1/object/sign/document-pdfs/${document.pdf_path}?token=synthetic%2Bsignature` }, error: null }),
       createSignedUploadUrl: async (path: string) => ({ data: { path, token: "synthetic-upload-token" }, error: null }),
     }) },
     rpc: async (name: string, args: Row) => {
@@ -85,10 +85,10 @@ async function fixture(options: { member?: boolean; failReceiptWrite?: boolean; 
     Request, Response, Blob, Uint8Array, TextDecoder, crypto, btoa,
     console: { error: () => undefined },
     serve: (fn: typeof handler) => { handler = fn; }, createClient: () => db,
-    Deno: { env: { get: () => "synthetic" } },
+    Deno: { env: { get: (name: string) => name === "SUPABASE_PUBLIC_URL" ? "http://public-kong.example.invalid" : "synthetic" } },
     verifyCompanyMembership: async () => options.member !== false,
     loadCompanySecrets: async () => { secretsReads += 1; return {}; },
-    getSenderEmail: () => "sender@example.invalid", logEmail: async () => undefined,
+    getSenderEmail: () => "sender@example.invalid", getDashAppUrl: () => "https://crm.example.invalid", logEmail: async () => undefined,
     buildInvoiceEmailHtml, buildInvoiceEmailSubject, createTranslator, toLocale, escapeHtml, emailBrandColor, receiptEmailLines, receiptEmailPaymentHtml,
     ...documentRules,
     fetch: async (_url: string, init: RequestInit) => {
@@ -106,6 +106,18 @@ async function fixture(options: { member?: boolean; failReceiptWrite?: boolean; 
 }
 
 describe("send-quittung handler", () => {
+  it.each(["paid", "issued", "signed", "sent"])("returns a browser-reachable archive URL for %s receipts without changing them", async status => {
+    const f = await fixture();
+    f.receipt.status = status;
+    const response = await f.request({ action: "lookup" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      document: { id: documentId, version: 2, sha256: f.hash },
+      url: `https://crm.example.invalid/storage/v1/object/sign/document-pdfs/${f.document.pdf_path}?token=synthetic%2Bsignature`,
+    });
+    expect(f.receiptUpdates).toHaveLength(0);
+    expect(f.providerRequests).toHaveLength(0);
+  });
   it("checks membership before reading sender secrets or delivering", async () => {
     const f = await fixture({ member: false });
     expect((await f.request()).status).toBe(403);
