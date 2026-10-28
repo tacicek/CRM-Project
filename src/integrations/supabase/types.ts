@@ -5082,8 +5082,169 @@ export type Database = {
         }
         Relationships: []
       }
+      quittung_documents: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          pdf_path: string
+          quittung_id: string
+          sha256: string
+          version: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          pdf_path: string
+          quittung_id: string
+          sha256: string
+          version: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          pdf_path?: string
+          quittung_id?: string
+          sha256?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quittung_documents_quittung_id_company_id_fkey"
+            columns: ["quittung_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "quittungen"
+            referencedColumns: ["id", "company_id"]
+          },
+        ]
+      }
+      quittung_dispatches: {
+        Row: {
+          claimed_at: string
+          company_id: string
+          created_at: string
+          document_id: string
+          error: string | null
+          id: string
+          provider_id: string | null
+          recipient_email: string
+          recipient_kind: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          claimed_at?: string
+          company_id: string
+          created_at?: string
+          document_id: string
+          error?: string | null
+          id?: string
+          provider_id?: string | null
+          recipient_email: string
+          recipient_kind: string
+          sent_at?: string | null
+          status: string
+        }
+        Update: {
+          claimed_at?: string
+          company_id?: string
+          created_at?: string
+          document_id?: string
+          error?: string | null
+          id?: string
+          provider_id?: string | null
+          recipient_email?: string
+          recipient_kind?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quittung_dispatches_document_id_company_id_fkey"
+            columns: ["document_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "quittung_documents"
+            referencedColumns: ["id", "company_id"]
+          },
+        ]
+      }
+      quittung_nr_counter: {
+        Row: {
+          company_id: string
+          jahr: number
+          letzte_nr: number
+        }
+        Insert: {
+          company_id: string
+          jahr: number
+          letzte_nr: number
+        }
+        Update: {
+          company_id?: string
+          jahr?: number
+          letzte_nr?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quittung_nr_counter_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quittung_payment_links: {
+        Row: {
+          company_id: string
+          created_at: string
+          payment_id: string
+          quittung_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          payment_id: string
+          quittung_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          payment_id?: string
+          quittung_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quittung_payment_links_payment_id_company_id_fkey"
+            columns: ["payment_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id", "company_id"]
+          },
+          {
+            foreignKeyName: "quittung_payment_links_quittung_id_company_id_fkey"
+            columns: ["quittung_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "quittungen"
+            referencedColumns: ["id", "company_id"]
+          },
+        ]
+      }
       quittungen: {
         Row: {
+          rechnung_id: string | null
+          payment_status: string
+          paid_amount: number
+          payment_date: string | null
+          payment_method: string | null
+          payment_reference: string | null
+          issued_at: string | null
+          sent_at: string | null
+          company_snapshot: Json | null
+          version: number
+          payment_open_amount: number
           payment_id: string | null
           betrag_noch_offen: boolean
           company_id: string
@@ -5117,6 +5278,17 @@ export type Database = {
           zwischensumme: number
         }
         Insert: {
+          rechnung_id?: string | null
+          payment_status?: string
+          paid_amount?: number
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          issued_at?: string | null
+          sent_at?: string | null
+          company_snapshot?: Json | null
+          version?: number
+          payment_open_amount?: number
           payment_id?: string | null
           betrag_noch_offen?: boolean
           company_id: string
@@ -5150,6 +5322,17 @@ export type Database = {
           zwischensumme?: number
         }
         Update: {
+          rechnung_id?: string | null
+          payment_status?: string
+          paid_amount?: number
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          issued_at?: string | null
+          sent_at?: string | null
+          company_snapshot?: Json | null
+          version?: number
+          payment_open_amount?: number
           payment_id?: string | null
           betrag_noch_offen?: boolean
           company_id?: string
@@ -5183,6 +5366,13 @@ export type Database = {
           zwischensumme?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "quittungen_rechnung_fk"
+            columns: ["rechnung_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "rechnungen"
+            referencedColumns: ["id", "company_id"]
+          },
           {
             foreignKeyName: "quittungen_company_id_fkey"
             columns: ["company_id"]
@@ -7300,6 +7490,97 @@ export type Database = {
           p_reference?: string
         }
         Returns: Json
+      }
+      finalize_quittung: {
+        Args: {
+          p_quittung_id: string
+          p_expected_version: number
+          p_kunde_unterschrift?: string
+          p_teamchef_unterschrift?: string
+          p_kunde_signed_at?: string
+          p_teamchef_signed_at?: string
+        }
+        Returns: {
+          auftrag_id: string | null
+          betrag_noch_offen: boolean
+          company_id: string
+          company_snapshot: Json | null
+          created_at: string
+          customer_address: string | null
+          customer_destination: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string | null
+          datum: string
+          gesamttotal: number
+          id: string
+          issued_at: string | null
+          kunde_signed_at: string | null
+          kunde_unterschrift: string | null
+          language: string
+          mwst_betrag: number
+          mwst_satz: number
+          notiz: string | null
+          offer_id: string | null
+          paid_amount: number
+          payment_date: string | null
+          payment_id: string | null
+          payment_method: string | null
+          payment_open_amount: number
+          payment_reference: string | null
+          payment_status: string
+          pdf_url: string | null
+          positionen: Json
+          quittung_nr: string | null
+          rabatt: number
+          rechnung_id: string | null
+          sent_at: string | null
+          status: string
+          teamchef_signed_at: string | null
+          teamchef_unterschrift: string | null
+          total: number
+          updated_at: string
+          version: number
+          zwischensumme: number
+        }
+      }
+      register_quittung_document: {
+        Args: {
+          p_quittung_id: string
+          p_expected_version: number
+          p_pdf_path: string
+          p_sha256: string
+        }
+        Returns: {
+          company_id: string
+          created_at: string
+          id: string
+          pdf_path: string
+          quittung_id: string
+          sha256: string
+          version: number
+        }
+      }
+      claim_quittung_dispatch: {
+        Args: {
+          p_document_id: string
+          p_kind: string
+          p_email: string
+        }
+        Returns: {
+          claimed_at: string
+          company_id: string
+          created_at: string
+          document_id: string
+          error: string | null
+          id: string
+          provider_id: string | null
+          recipient_email: string
+          recipient_kind: string
+          sent_at: string | null
+          status: string
+        }
       }
       record_quittung_payment: {
         Args: {

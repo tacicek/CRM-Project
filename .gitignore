@@ -57,3 +57,6 @@ __pycache__/
 
 # Deep-model handoff artifacts (Prompt + Report) — lokal, nie committen
 gptpro/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

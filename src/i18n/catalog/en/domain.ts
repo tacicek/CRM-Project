@@ -72,6 +72,7 @@ export const domain: Record<keyof typeof de, string> = {
 
   // --- Quittung status -------------------------------------------------------------
   "domain.quittungStatus.draft": "Draft",
+  "domain.quittungStatus.issued": "Issued",
   "domain.quittungStatus.signed": "Signed",
   "domain.quittungStatus.sent": "Sent",
   "domain.quittungStatus.paid": "Paid",

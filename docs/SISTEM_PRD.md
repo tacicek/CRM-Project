@@ -124,14 +124,18 @@ customers ──< leads, offers, auftraege, appointments, rechnungen, quittungen
 leads ──< offers          (offers.lead_id → leads.id)
 offers ──< offer_items     (offer_items.offer_id → offers.id)
 offers ──< auftraege       (auftraege.offer_id → offers.id;  ayrıca lead_id, team_leader_id)
-offers ──< quittungen      (quittungen.offer_id → offers.id)   ⚠️ quittungen AUFTRAG'a değil OFFER'a bağlı
+offers ──< quittungen      (quittungen.offer_id → offers.id)
+auftraege ──< quittungen   (quittungen.auftrag_id → auftraege.id)
+rechnungen ──< quittungen  (quittungen.rechnung_id; 20261025180327 migration)
 offers ──< appointments    (appointments.offer_id → offers.id; ayrıca lead_id)
 companies ──< [her şey].company_id
 ```
 
-> ⚠️ **Sık yapılan hata:** `quittungen` tablosunda `auftrag_id` **yoktur**; makbuz doğrudan
-> `offer_id` ile teklife bağlanır (`company_id` + `offer_id` FK'leri). UI'da "auftrag'dan
-> makbuz" akışı olsa bile DB ilişkisi offer üzerindendir.
+> `auftrag_id` mevcut şemada vardır; makbuz Auftrag ve Offerte kaynağını birlikte
+> saklayabilir. `20261025180327_quittung_document_lifecycle.sql` ayrıca açık bir
+> `rechnung_id` bağlantısı ekler. Bağlı makbuzun ödeme durumu Rechnung'dan türetilir;
+> ikinci bir tahsilat oluşturulmaz. Bu migration yerel test veritabanında
+> doğrulanmıştır; üretime uygulanması ayrıca gerekir.
 
 ### 3.3 Status alanları (canlı DB'den doğrulandı)
 
@@ -140,7 +144,8 @@ companies ──< [her şey].company_id
 | `leads.status` | varchar, default `pending_verification` | serbest metin (pending_verification, …) |
 | `offers.status` | varchar, default `draft` | `draft → sent → viewed → accepted / rejected` (enum değil, serbest metin) |
 | `auftraege.status` | **enum `auftrag_status`** | `geplant, bestaetigt, in_bearbeitung, abgeschlossen, storniert` |
-| `quittungen.status` | text, default `draft` | draft → signed → sent → paid |
+| `quittungen.status` | text, default `draft` | `draft, issued, signed, sent, paid`; yeni migration ile türetilen uyumluluk durumu |
+| `quittungen.payment_status` | text, default `open` | `open, partial, paid`; tahsilat defteri veya bağlı Rechnung'dan türetilir |
 | `appointments.status` | **enum `appointment_status`** | `pending, confirmed, completed, cancelled, rescheduled, no_show` |
 | `appointments.type` | **enum `appointment_type`** | `besichtigung, service, follow_up, meeting, blocked` |
 
@@ -150,6 +155,13 @@ status dropdown'u bunu uygular.
 
 Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 `condition_level`, `urgency_level`, `requester_role`, `umzugsbox_type`, `app_role`.
+
+Quittung için `issued_at` içerik kilidini, `sent_at` gönderimi, `payment_status`
+tahsilatı temsil eder. İmza isteğe bağlıdır; imzasız kesinleştirilen belge `issued`
+olur. Kesinleşen müşteri/firma/fiyat/imza verisi değiştirilemez. Ödeme ve iptal
+hareketleri PDF sürümünü artırır; yalnız gönderim `version` değerini artırmaz.
+Arşiv kayıtları `quittung_documents`, alıcı başına gönderim kayıtları
+`quittung_dispatches`, doğrudan ödeme geçmişi `quittung_payment_links` içindedir.
 
 ### 3.4 Akış adımları (hangi UI aksiyonu → hangi DB/edge etkisi)
 
@@ -162,8 +174,10 @@ Diğer iş enum'ları: `box_rental_status`, `raeumungs_art`, `clearance_scope`,
 | Müşteri yanıtı | Public link [OfferView.tsx](../src/pages/public/OfferView.tsx) (token) | `update_offer_by_token` RPC → viewed/accepted/rejected; `notify-offer-response`/`handle-proposal-response` firmaya bildirir |
 | Offer → Auftrag | "Auftrag erstellen" + `AuftragModal` (offer kabul edildiyse) | `auftraege` INSERT (`offer_id`, `lead_id`, status=`geplant`) |
 | Auftrag yürüt | Status dropdown ([Auftraege.tsx](../src/pages/firma/Auftraege.tsx)) | `auftraege.status` geçişi (state machine) |
-| Auftrag → Quittung | [QuittungDetail.tsx](../src/pages/firma/QuittungDetail.tsx) | `quittungen` INSERT (`offer_id` ile) |
-| Quittung gönder | "Senden" | `send-quittung` edge fn → Resend (PDF) → status=sent |
+| Auftrag → Quittung | [QuittungDetail.tsx](../src/pages/firma/QuittungDetail.tsx) | `?auftrag=id` ile kaynak yüklenir; taslak `auftrag_id` ve `offer_id` saklar |
+| Quittung kesinleştir | "Ausstellen" | `finalize_quittung` RPC; içerik ve firma snapshot'ı kilitlenir |
+| Quittung tahsil et | "Bezahlt" | Doğrudan: `record_quittung_payment`; Rechnung bağlıysa faturanın ödeme akışı |
+| Quittung gönder | "Senden" | Sürümün PDF'i özel Storage arşivine alınır; `send-quittung` aynı PDF'i Resend ile gönderir; `sent_at` kaydedilir, ödeme durumu korunur |
 
 ---
 

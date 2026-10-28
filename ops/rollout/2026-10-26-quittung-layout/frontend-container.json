@@ -1,0 +1,14 @@
+{
+  "observed_at": "2026-10-25T19:17:10.696470+00:00",
+  "application_id": 36,
+  "application_uuid": "bymhk0pd41d3vgms4iz87lqb",
+  "containers": [
+    {
+      "container": "bymhk0pd41d3vgms4iz87lqb-20261025T191307",
+      "image": "bymhk0pd41d3vgms4iz87lqb:c3915408ab7c65394d48fa618237b1900b43a4f2",
+      "status": "Up About a minute (healthy)"
+    }
+  ],
+  "exact_release_commit_running": true,
+  "healthy": true
+}

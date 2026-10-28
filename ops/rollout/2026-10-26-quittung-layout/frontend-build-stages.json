@@ -1,0 +1,65 @@
+{
+  "observed_at": "2026-10-25T19:16:12.142579+00:00",
+  "stages": [
+    {
+      "at": "2026-10-25T19:13:11.035996Z",
+      "entry": 4,
+      "stage": "Routine initial helper cleanup: no earlier container with the new deployment UUID"
+    },
+    {
+      "at": "2026-10-25T19:13:25.148783Z",
+      "entry": 15,
+      "stage": "npm dependency installation"
+    },
+    {
+      "at": "2026-10-25T19:13:26.927768Z",
+      "entry": 17,
+      "stage": "npm dependency installation"
+    },
+    {
+      "at": "2026-10-25T19:13:33.641736Z",
+      "entry": 32,
+      "stage": "npm dependency installation"
+    },
+    {
+      "at": "2026-10-25T19:13:35.325002Z",
+      "entry": 34,
+      "stage": "Vite build"
+    },
+    {
+      "at": "2026-10-25T19:15:25.513717Z",
+      "entry": 45,
+      "stage": "Prerender"
+    },
+    {
+      "at": "2026-10-25T19:15:26.260718Z",
+      "entry": 46,
+      "stage": "Prerender"
+    },
+    {
+      "at": "2026-10-25T19:15:26.440737Z",
+      "entry": 47,
+      "stage": "Prerender"
+    },
+    {
+      "at": "2026-10-25T19:15:26.623848Z",
+      "entry": 48,
+      "stage": "Prerender"
+    },
+    {
+      "at": "2026-10-25T19:15:26.792812Z",
+      "entry": 49,
+      "stage": "Prerender"
+    },
+    {
+      "at": "2026-10-25T19:15:27.003998Z",
+      "entry": 50,
+      "stage": "Prerender"
+    },
+    {
+      "at": "2026-10-25T19:15:30.779560Z",
+      "entry": 55,
+      "stage": "Exporting image"
+    }
+  ]
+}

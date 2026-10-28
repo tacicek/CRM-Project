@@ -1,0 +1,202 @@
+{
+  "date": "2026-10-26",
+  "scope": "Production read-only diagnosis before the signed-URL correction",
+  "receipt_summary": {
+    "total": 26,
+    "issued": 6,
+    "paid": 3,
+    "issued_missing_snapshot": 0,
+    "invalid_issuer_name": 0,
+    "invalid_issuer_email_type": 0,
+    "issued_with_logo": 6
+  },
+  "receipt_archive_groups": [
+    {
+      "status": "draft",
+      "payment_status": "open",
+      "receipts": 20,
+      "current_version_archived": 0
+    },
+    {
+      "status": "paid",
+      "payment_status": "paid",
+      "receipts": 3,
+      "current_version_archived": 0
+    },
+    {
+      "status": "sent",
+      "payment_status": "open",
+      "receipts": 2,
+      "current_version_archived": 1
+    },
+    {
+      "status": "signed",
+      "payment_status": "open",
+      "receipts": 1,
+      "current_version_archived": 0
+    }
+  ],
+  "archive_summary": {
+    "archives": 1,
+    "current_version": 1,
+    "object_present": 1,
+    "object_missing": 0,
+    "canonical_path_matches": 1,
+    "receipt_storage_objects": 1,
+    "unregistered_objects": 0,
+    "zero_size_objects": 0
+  },
+  "pdf_bucket": {
+    "exists": true,
+    "private": true,
+    "allows_pdf": true,
+    "max_bytes": 15728640
+  },
+  "register_rpc": {
+    "exists": true,
+    "security_definer": false,
+    "fixed_search_path": true,
+    "anon_execute": false,
+    "authenticated_execute": false,
+    "service_execute": true,
+    "all_seven_constraints_validated": true,
+    "service_receipt_select": true,
+    "service_receipt_update_for_lock": true,
+    "service_archive_select": true,
+    "service_archive_insert": true
+  },
+  "edge_log": {
+    "window_minutes": 45,
+    "caught_send_quittung_errors": 0
+  },
+  "url_configuration": [
+    {
+      "variable": "SUPABASE_URL",
+      "present": true,
+      "scheme": "http",
+      "container_or_private_host": true
+    },
+    {
+      "variable": "SUPABASE_PUBLIC_URL",
+      "present": true,
+      "scheme": "http",
+      "container_or_private_host": false
+    },
+    {
+      "variable": "SITE_URL",
+      "present": false,
+      "scheme": null,
+      "container_or_private_host": false
+    },
+    {
+      "variable": "DASH_APP_URL",
+      "present": false,
+      "scheme": null,
+      "container_or_private_host": false
+    },
+    {
+      "variable": "FIRMA_APP_URL",
+      "present": false,
+      "scheme": null,
+      "container_or_private_host": false
+    },
+    {
+      "variable": "APP_URL",
+      "present": false,
+      "scheme": null,
+      "container_or_private_host": false
+    }
+  ],
+  "existing_archive_https_probe": {
+    "sign_http_status": 200,
+    "download_http_status": 200,
+    "content_type": "application/pdf",
+    "bytes": 114755,
+    "pdf_magic": true,
+    "sha256_matches_archive": true,
+    "user_impersonation": false,
+    "persistent_writes": false
+  },
+  "logo_probe": {
+    "issued_snapshots_checked": 6,
+    "matching_storage_objects": 6,
+    "unique_objects": 1,
+    "public_https_status": 200,
+    "mime": "image/webp",
+    "bytes": 12114,
+    "format": "WEBP",
+    "width": 800,
+    "height": 165,
+    "decode_valid": true
+  },
+  "gateway_requests_last45m": [
+    {
+      "endpoint_class": "receipt_handler",
+      "method": "OPTIONS",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "endpoint_class": "receipt_handler",
+      "method": "POST",
+      "status": 401,
+      "count": 2
+    },
+    {
+      "endpoint_class": "receipt_handler",
+      "method": "POST",
+      "status": 200,
+      "count": 4
+    },
+    {
+      "endpoint_class": "pdf_signed_upload",
+      "method": "POST",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "endpoint_class": "pdf_signed_upload",
+      "method": "PUT",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "endpoint_class": "pdf_sign_or_signed_download",
+      "method": "POST",
+      "status": 200,
+      "count": 3
+    },
+    {
+      "endpoint_class": "pdf_sign_or_signed_download",
+      "method": "GET",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "endpoint_class": "pdf_object",
+      "method": "GET",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "endpoint_class": "company_logo",
+      "method": "GET",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "endpoint_class": "company_logo",
+      "method": "GET",
+      "status": 304,
+      "count": 2
+    }
+  ],
+  "storage_log": "All listed storage request statuses matched the gateway aggregates.",
+  "measurement_limits": [
+    "The request aggregate includes one signing POST and one signed-file GET from the diagnostic probe.",
+    "The two 401 responses may include deployment authentication smoke checks; no user request was identified.",
+    "The three paid receipts have no current archive, so the user-reported receipt was not positively identified.",
+    "The positive probe reads an existing archive using the service role. It does not impersonate a user or exercise the authenticated frontend flow.",
+    "No database, ledger, archive, dispatch, or storage object was created, updated, or deleted. A short-lived read signature was generated."
+  ]
+}

@@ -1,0 +1,377 @@
+                                                                            Quittung
+                                                                                        QU-2026-0126
+
+Beispiel Umzug & Logistik GmbH                                                           Datum: 26.10.2026
+                                                                          Ausgestellt: 26.10.2026, 10:30 MEZ
+Bahnhofstrasse 5
+8001 Zürich
++41 00 000 00 00
+kontakt@example.invalid
+MwSt-Nr.: CHE-000.000.000 MWST
+
+
+
+
+Kunde                                                     Zieladresse
+
+Işıl Çiçek                                                Rue du Lac 8B
+Alte Landstrasse 12a                                      1007 Lausanne
+c/o Beispiel Verwaltung, Haus C, 3. Obergeschoss          Suisse
+8706 Meilen
+Schweiz
+
++41 00 000 00 01
+isilaudit@example.invalid
+
+
+
+ Beschreibung                                         Satz / Bemerkung                        Betrag CHF
+
+
+ Leistung 01: Fachgerechter Transport empfindlicher   RATE-01                                       25.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 02: Fachgerechter Transport empfindlicher   RATE-02                                       50.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 03: Fachgerechter Transport empfindlicher   RATE-03                                       75.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 04: Fachgerechter Transport empfindlicher   RATE-04                                     100.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 05: Fachgerechter Transport empfindlicher   RATE-05                                     125.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 06: Fachgerechter Transport empfindlicher   RATE-06                                     150.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+
+Quittung QU-2026-0126                                                                            Seite 1 von 6
+Quittung QU-2026-0126                                                      26.10.2026
+
+
+
+
+ Beschreibung                                         Satz / Bemerkung   Betrag CHF
+
+
+ Leistung 07: Fachgerechter Transport empfindlicher   RATE-07               175.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 08: Fachgerechter Transport empfindlicher   RATE-08               200.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 09: Fachgerechter Transport empfindlicher   RATE-09               225.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 10: Fachgerechter Transport empfindlicher   RATE-10               250.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 11: Fachgerechter Transport empfindlicher   RATE-11               275.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 12: Fachgerechter Transport empfindlicher   RATE-12               300.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 13: Fachgerechter Transport empfindlicher   RATE-13               325.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 14: Fachgerechter Transport empfindlicher   RATE-14               350.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 15: Fachgerechter Transport empfindlicher   RATE-15               375.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 16: Fachgerechter Transport empfindlicher   RATE-16               400.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+
+
+Quittung QU-2026-0126                                                      Seite 2 von 6
+Quittung QU-2026-0126                                                      26.10.2026
+
+
+
+
+ Beschreibung                                         Satz / Bemerkung   Betrag CHF
+
+
+ Leistung 17: Fachgerechter Transport empfindlicher   RATE-17               425.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 18: Fachgerechter Transport empfindlicher   RATE-18               450.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 19: Fachgerechter Transport empfindlicher   RATE-19               475.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 20: Fachgerechter Transport empfindlicher   RATE-20               500.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 21: Fachgerechter Transport empfindlicher   RATE-21               525.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 22: Fachgerechter Transport empfindlicher   RATE-22               550.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 23: Fachgerechter Transport empfindlicher   RATE-23               575.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 24: Fachgerechter Transport empfindlicher   RATE-24               600.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 25: Fachgerechter Transport empfindlicher   RATE-25               625.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 26: Fachgerechter Transport empfindlicher   RATE-26               650.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+
+
+Quittung QU-2026-0126                                                      Seite 3 von 6
+Quittung QU-2026-0126                                                      26.10.2026
+
+
+
+
+ Beschreibung                                         Satz / Bemerkung   Betrag CHF
+
+
+ Leistung 27: Fachgerechter Transport empfindlicher   RATE-27               675.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 28: Fachgerechter Transport empfindlicher   RATE-28               700.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 29: Fachgerechter Transport empfindlicher   RATE-29               725.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 30: Fachgerechter Transport empfindlicher   RATE-30               750.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 31: Fachgerechter Transport empfindlicher   RATE-31               775.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 32: Fachgerechter Transport empfindlicher   RATE-32               800.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 33: Fachgerechter Transport empfindlicher   RATE-33               825.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 34: Fachgerechter Transport empfindlicher   RATE-34               850.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 35: Fachgerechter Transport empfindlicher   RATE-35               875.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 36: Fachgerechter Transport empfindlicher   RATE-36               900.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+
+
+Quittung QU-2026-0126                                                      Seite 4 von 6
+Quittung QU-2026-0126                                                      26.10.2026
+
+
+
+
+ Beschreibung                                         Satz / Bemerkung   Betrag CHF
+
+
+ Leistung 37: Fachgerechter Transport empfindlicher   RATE-37               925.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 38: Fachgerechter Transport empfindlicher   RATE-38               950.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 39: Fachgerechter Transport empfindlicher   RATE-39               975.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 40: Fachgerechter Transport empfindlicher   RATE-40             1'000.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 41: Fachgerechter Transport empfindlicher   RATE-41             1'025.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 42: Fachgerechter Transport empfindlicher   RATE-42             1'050.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 43: Fachgerechter Transport empfindlicher   RATE-43             1'075.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 44: Fachgerechter Transport empfindlicher   RATE-44             1'100.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+ Leistung 45: Fachgerechter Transport empfindlicher   RATE-45             1'125.00
+ Gegenstände, Demontage und Montage mit Ver-
+ packung, Schutzmaterial und dokumentierter Über-
+ gabe am Zielort.
+
+
+
+
+Quittung QU-2026-0126                                                      Seite 5 von 6
+Quittung QU-2026-0126                                                                   26.10.2026
+
+
+
+
+Zahlungsstand
+                                                               Zwischensumme:        CHF 25'875.00
+Bezahlt                                                        Rabatt:                  -CHF 35.00
+Direkte Zahlung gegen diese Quittung.
+                                                               MwSt. (8.1%):          CHF 2'093.04
+Zahlung erhalten:                              CHF 27'933.04
+Zahlungsdatum:                                    26.10.2026
+                                                               Gesamttotal:     CHF 27'933.04
+Zahlungsart                                  Banküberweisung
+Zahlungsreferenz: BANK-2026-0126
+
+Noch offen:                                         CHF 0.00
+
+
+Beispielbank · IBAN: CH00 0000 0000 0000 0000 0
+
+
+
+
+Vielen Dank für Ihren geschätzten Auftrag.
+
+
+
+
+Quittung QU-2026-0126                                                                   Seite 6 von 6
+

@@ -1,0 +1,70 @@
+                                                                                                            Reçu
+                                                                                                          QU-2026-0126
+
+Beispiel Umzug & Logistik GmbH                                                                              Date : 26.10.2026
+                                                                                                Émis : 26.10.2026 10:30 UTC+1
+Bahnhofstrasse 5
+8001 Zürich
++41 00 000 00 00
+kontakt@example.invalid
+N° TVA : CHE-000.000.000 MWST
+
+
+
+
+Client                                                                 Adresse de destination
+
+Işıl Çiçek                                                             Rue du Lac 8B
+Alte Landstrasse 12a                                                   1007 Lausanne
+c/o Beispiel Verwaltung, Haus C, 3. Obergeschoss                       Suisse
+8706 Meilen
+Schweiz
+
++41 00 000 00 01
+isilaudit@example.invalid
+
+
+
+  Description                                                     Tarif / remarque                            Montant CHF
+
+
+  Déménagement de Meilen à Lausanne                               3 h × 220.00 CHF                                  660,00
+
+
+  Véhicule et assurance transport                                 1 × 150.00 CHF                                    150,00
+
+
+  Matériel d’emballage                                            1 × 75.00 CHF                                      75,00
+
+
+  Couvertures de protection et accessoires de mon-                Inclus                                               0,00
+  tage
+
+
+
+Statut du paiement
+                                                                           Sous-total :                          885.00 CHF
+Partiellement payé                                                         Rabais :                               -35.00 CHF
+Paiement via la facture liée — aucun montant supplémentaire dû.
+                                                                           TVA (8,1%) :                            68.85 CHF
+Paiements enregistrés sur la facture :              300.00 CHF
+Date du paiement :                                   26.10.2026
+                                                                           Total général :                918.85 CHF
+Mode de paiement                              Virement bancaire
+Référence du paiement : BANK-2026-0126
+
+Solde de la facture :                               618.85 CHF
+
+
+Beispielbank · IBAN : CH00 0000 0000 0000 0000 0
+
+
+
+
+Merci de votre confiance.
+
+
+
+
+Reçu QU-2026-0126                                                                                                  Page 1 sur 1
+

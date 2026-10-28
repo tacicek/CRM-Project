@@ -9,3 +9,6 @@
 
 20260805010000_kalender_feed_tokens.sql
 20260807100000_kundenadresse_und_vollstaendige_zusammenfuehrung.sql
+20260828130000_api_budget_dauerhaft.sql
+20261025180327_quittung_document_lifecycle.sql
+20261025190708_quittung_company_house_number.sql

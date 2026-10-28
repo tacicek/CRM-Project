@@ -1,0 +1,15 @@
+(node:3) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./docs/audits/quittung-address-followup-2026-10-26/ts-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"scenario":"manual-complete","issuer":true,"customerOrStart":true,"destination":true,"expectedBehavior":true}
+{"scenario":"offer-complete","issuer":true,"customerOrStart":true,"destination":true,"expectedBehavior":true}
+{"scenario":"offer-lead-fallback","issuer":true,"customerOrStart":true,"destination":true,"expectedBehavior":true}
+{"scenario":"order-complete","issuer":true,"customerOrStart":true,"destination":true,"expectedBehavior":true}
+{"scenario":"order-missing-number","issuer":true,"customerOrStart":false,"destination":false,"expectedBehavior":true}
+{"scenario":"offer-partial-frozen","issuer":true,"customerOrStart":false,"destination":false,"expectedBehavior":true}
+{"scenario":"issued-historical-company","issuer":false,"customerOrStart":true,"destination":true,"expectedBehavior":true}
+{"scenario":"issued-historical-customer","issuer":true,"customerOrStart":false,"destination":false,"expectedBehavior":true}
+{"scenario":"actual-modal-before-frozen-offer-lead-number-removed","issuer":true,"customerOrStart":false,"destination":false,"expectedBehavior":true}
+{"scenario":"actual-modal-before-frozen-offer-lead-missing","issuer":true,"customerOrStart":false,"destination":false,"expectedBehavior":true}
+{"scenario":"actual-modal-after-frozen-offer-lead-number-removed","issuer":true,"customerOrStart":true,"destination":true,"expectedBehavior":true}
+{"scenario":"actual-modal-after-frozen-offer-lead-missing","issuer":true,"customerOrStart":true,"destination":true,"expectedBehavior":true}

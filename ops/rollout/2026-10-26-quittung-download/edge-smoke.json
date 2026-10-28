@@ -1,0 +1,26 @@
+[
+  {
+    "method": "OPTIONS",
+    "auth": "none",
+    "status": 200,
+    "body": "ok"
+  },
+  {
+    "method": "GET",
+    "auth": "none",
+    "status": 405,
+    "body": "{\"error\":\"Methode nicht erlaubt.\"}"
+  },
+  {
+    "method": "POST",
+    "auth": "none",
+    "status": 401,
+    "body": "{\"error\":\"Nicht autorisiert.\"}"
+  },
+  {
+    "method": "POST",
+    "auth": "invalid",
+    "status": 401,
+    "body": "{\"error\":\"Ungültige Sitzung.\"}"
+  }
+]

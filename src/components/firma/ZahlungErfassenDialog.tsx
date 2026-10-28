@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useI18n, useT } from "@/i18n/useI18n";
 import { formatCurrency } from "@/i18n/format";
 import type { MessageKey } from "@/i18n/translator";
+import { receiptToday } from "@/lib/quittungDraft";
 
 const WEGE: { wert: string; labelKey: MessageKey }[] = [
   { wert: "bank", labelKey: "finanz.method.bank" },
@@ -52,20 +53,21 @@ export const ZahlungErfassenDialog = ({
   const { toast } = useToast();
 
   const vorgabe = rechnung?.offen ?? quittung?.betrag ?? 0;
+  const quittungId = quittung?.id;
   const [betrag, setBetrag] = useState(String(vorgabe));
-  const [datum, setDatum] = useState(new Date().toISOString().slice(0, 10));
+  const [datum, setDatum] = useState(receiptToday);
   const [weg, setWeg] = useState(quittung ? "cash" : "bank");
   const [referenz, setReferenz] = useState("");
   const [sendet, setSendet] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setBetrag(String(rechnung?.offen ?? quittung?.betrag ?? 0));
-      setDatum(new Date().toISOString().slice(0, 10));
-      setWeg(quittung ? "cash" : "bank");
+      setBetrag(String(vorgabe));
+      setDatum(receiptToday());
+      setWeg(quittungId ? "cash" : "bank");
       setReferenz("");
     }
-  }, [open, rechnung?.offen, quittung?.betrag, quittung]);
+  }, [open, vorgabe, quittungId, rechnung?.id]);
 
   const zahl = Number(betrag.replace(",", "."));
   const ueberzahlung = rechnung !== undefined && zahl > rechnung.offen;

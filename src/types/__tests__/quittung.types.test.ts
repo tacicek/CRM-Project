@@ -14,6 +14,17 @@ const makeRow = (overrides: Partial<QuittungRow> = {}): QuittungRow => ({
   company_id: "c1",
   auftrag_id: null,
   offer_id: null,
+  rechnung_id: null,
+  payment_status: 'open',
+  paid_amount: 0,
+  payment_open_amount: 108.1,
+  payment_date: null,
+  payment_method: null,
+  payment_reference: null,
+  issued_at: null,
+  sent_at: null,
+  company_snapshot: null,
+  version: 1,
   language: "de",
   quittung_nr: "Q-2026-0001",
   datum: "2026-02-01",
@@ -88,8 +99,8 @@ describe("validateQuittungPositionen", () => {
 });
 
 describe("isQuittungStatus", () => {
-  it("accepts exactly the four DB-CHECK values", () => {
-    for (const s of ["draft", "signed", "sent", "paid"]) expect(isQuittungStatus(s)).toBe(true);
+  it("accepts the five DB-CHECK values including unsigned issued receipts", () => {
+    for (const s of ["draft", "issued", "signed", "sent", "paid"]) expect(isQuittungStatus(s)).toBe(true);
   });
   it("rejects unknown/empty/non-string (no draft fallback)", () => {
     expect(isQuittungStatus("cancelled")).toBe(false);

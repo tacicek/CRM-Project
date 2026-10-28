@@ -21,8 +21,11 @@ import { inbox } from "@/i18n/catalog/en/inbox";
 import { wiki } from "@/i18n/catalog/en/wiki";
 import { uebersicht } from "@/i18n/catalog/en/uebersicht";
 
+import { receipt } from "@/i18n/catalog/en/receipt";
+
 export const en: Record<keyof typeof de, string> = {
   ...common,
+  ...receipt,
   ...domain,
   ...document,
   ...publicPages,

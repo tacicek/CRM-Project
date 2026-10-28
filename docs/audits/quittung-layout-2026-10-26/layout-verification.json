@@ -1,0 +1,1744 @@
+{
+  "passed": 246,
+  "total": 246,
+  "checks": [
+    {
+      "fixture": "de-high-amount",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "de-high-amount",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 2: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 2: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 2: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 3: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 3: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 3: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 4: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 4: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 4: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 5: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 5: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 5: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 6: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 6: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 6: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 7: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 7: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 7: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 8: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 8: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "page 8: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "all 130 long-description repetitions preserved",
+      "passed": true,
+      "detail": 130
+    },
+    {
+      "fixture": "de-long-metadata",
+      "check": "full multiline address preserved",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 2: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 2: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 2: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 2: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 3: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 3: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 3: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 3: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 4: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 4: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 4: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 4: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 5: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 5: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 5: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 5: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 6: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 6: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 6: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 01: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 02: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 03: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 04: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 05: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 06: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 07: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 08: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 09: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 10: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 11: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 12: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 13: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 14: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 15: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 16: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 17: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 18: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 19: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 20: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 21: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 22: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 23: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 24: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 25: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 26: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 27: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 28: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 29: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 30: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 31: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 32: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 33: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 34: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 35: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 36: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 37: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 38: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 39: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 40: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 41: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 42: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 43: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 44: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "row 45: description and rate remain together exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 1: item page has table headings exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 2: item page has table headings exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 3: item page has table headings exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 4: item page has table headings exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 5: item page has table headings exactly once",
+      "passed": true
+    },
+    {
+      "fixture": "de-multipage",
+      "check": "page 6: summary-only page has no phantom table headings",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "de-offer-address-pipeline",
+      "check": "frozen source address pipeline beats later lead",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-signed",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-signed",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-signed",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "two signatures with Zurich times",
+      "passed": true
+    },
+    {
+      "fixture": "de-signed",
+      "check": "ordinary signed receipt fits one A4 page",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-standard",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-standard",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-standard",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "de-standard",
+      "check": "ordinary unsigned receipt fits one A4 page",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "de-without-logo",
+      "check": "ordinary unsigned receipt fits one A4 page",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "worksheet signature fields and handwriting totals",
+      "passed": true
+    },
+    {
+      "fixture": "de-worksheet",
+      "check": "ordinary worksheet with three handwriting rows fits one A4 page",
+      "passed": true
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28
+      ]
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "en-high-amount",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "ordinary unsigned receipt fits one A4 page",
+      "passed": true
+    },
+    {
+      "fixture": "en-open-invoice",
+      "check": "English unpaid invoice payment and balance",
+      "passed": true
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28
+      ]
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "fr-high-amount",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "page 1: A4 size",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "page 1: footer receipt number inside print area",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "page 1: correct page x/y",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "page 1: row monetary amounts align right at 545.28pt",
+      "passed": true,
+      "detail": [
+        545.28,
+        545.28,
+        545.28,
+        545.28
+      ]
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "no overlapping word boxes",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "all text inside 20pt vertical / 40pt horizontal print margins",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "issuer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "customer street and separate house number",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "destination street and house number",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "Unicode customer name preserved",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "internal note omitted",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "unsigned final has no empty signature fields",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "ordinary unsigned receipt fits one A4 page",
+      "passed": true
+    },
+    {
+      "fixture": "fr-partial-invoice",
+      "check": "French partial invoice payment and balance",
+      "passed": true
+    }
+  ],
+  "fixtures": {
+    "de-high-amount": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 118
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "de-long-metadata": {
+      "pages": 8,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 163
+        },
+        {
+          "page": 2,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 200
+        },
+        {
+          "page": 3,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 200
+        },
+        {
+          "page": 4,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 200
+        },
+        {
+          "page": 5,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 200
+        },
+        {
+          "page": 6,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 200
+        },
+        {
+          "page": 7,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 200
+        },
+        {
+          "page": 8,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 82
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 2,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 3,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 4,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 5,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 6,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 7,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 8,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "de-multipage": {
+      "pages": 6,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 194
+        },
+        {
+          "page": 2,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 225
+        },
+        {
+          "page": 3,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 225
+        },
+        {
+          "page": 4,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 225
+        },
+        {
+          "page": 5,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 204
+        },
+        {
+          "page": 6,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 58
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 2,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 3,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 4,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 5,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        },
+        {
+          "page": 6,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "de-offer-address-pipeline": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 138
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "de-signed": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 161
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "de-standard": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 147
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "de-without-logo": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 147
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "de-worksheet": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 127
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "en-high-amount": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 124
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "en-open-invoice": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 155
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "fr-high-amount": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 150
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    },
+    "fr-partial-invoice": {
+      "pages": 1,
+      "geometry": [
+        {
+          "page": 1,
+          "width": 595.280029,
+          "height": 841.890015,
+          "words": 188
+        }
+      ],
+      "collisions": [],
+      "out_of_bounds": [],
+      "footers": [
+        {
+          "page": 1,
+          "yMin": 809.741577,
+          "yMax": 817.890015
+        }
+      ]
+    }
+  }
+}

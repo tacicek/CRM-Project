@@ -4,6 +4,7 @@
 import { documentI18nFor } from "@/i18n/documentLocale";
 import type { Locale } from "@/i18n/locale";
 import type { Database } from "@/integrations/supabase/types";
+import { round2 } from "@/lib/offerSurcharges";
 
 export interface QuittungPosition {
   id: string;
@@ -15,6 +16,9 @@ export interface QuittungPosition {
   checked: boolean;
   menge?: number | null;
   einheit?: string | null;
+  einzelpreis?: number | null;
+  source_item_id?: string | null;
+  price_type?: string | null;
   /** false = predefined from offer, true = custom row added on-site */
   is_custom: boolean;
 }
@@ -38,7 +42,8 @@ const isQuittungPosition = (p: unknown): p is QuittungPosition =>
   typeof p.checked === "boolean" &&
   typeof p.is_custom === "boolean" &&
   (p.menge === null || p.menge === undefined || isFinitePositionNumber(p.menge)) &&
-  (p.einheit === null || p.einheit === undefined || typeof p.einheit === "string");
+  (p.einheit === null || p.einheit === undefined || typeof p.einheit === "string") &&
+  (p.einzelpreis === null || p.einzelpreis === undefined || isFinitePositionNumber(p.einzelpreis));
 
 /**
  * Fail-closed validation of the `quittungen.positionen` JSON column.
@@ -52,13 +57,51 @@ export const validateQuittungPositionen = (raw: unknown): QuittungPositionenResu
   return valid.length === raw.length ? { ok: true, value: valid } : { ok: false };
 };
 
-export type QuittungStatus = 'draft' | 'signed' | 'sent' | 'paid';
+export type QuittungStatus = 'draft' | 'issued' | 'signed' | 'sent' | 'paid';
+export type QuittungPaymentStatus = 'open' | 'partial' | 'paid';
+
+export interface ReceiptCompanySnapshot {
+  company_name: string;
+  email: string;
+  logo_url?: string | null;
+  primary_color?: string | null;
+  phone?: string | null;
+  street?: string | null;
+  house_number?: string | null;
+  plz?: string | null;
+  city?: string | null;
+  mwst_number?: string | null;
+  iban?: string | null;
+  bank_name?: string | null;
+  bewertungs_url?: string | null;
+}
+
+export const parseQuittungCompanySnapshot = (value: unknown): ReceiptCompanySnapshot | null => {
+  if (!isPositionRecord(value) || typeof value.company_name !== 'string' || typeof value.email !== 'string') return null;
+  const optional = ['logo_url', 'primary_color', 'phone', 'street', 'house_number', 'plz', 'city', 'mwst_number', 'iban', 'bank_name', 'bewertungs_url'] as const;
+  if (optional.some(key => value[key] !== null && value[key] !== undefined && typeof value[key] !== 'string')) return null;
+  return {
+    company_name: value.company_name, email: value.email,
+    ...Object.fromEntries(optional.map(key => [key, value[key]])),
+  };
+};
 
 export interface Quittung {
   id: string;
   company_id: string;
   offer_id?: string | null;
   auftrag_id?: string | null;
+  rechnung_id?: string | null;
+  payment_status?: QuittungPaymentStatus;
+  paid_amount?: number;
+  payment_open_amount?: number;
+  payment_date?: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  issued_at?: string | null;
+  sent_at?: string | null;
+  company_snapshot?: ReceiptCompanySnapshot | null;
+  version?: number;
   /** Customer language, frozen from the lead/offer. Drives the PDF + e-mail locale. */
   language: string;
   quittung_nr: string;
@@ -107,6 +150,7 @@ export interface QuittungWithCompany extends Quittung {
     email: string;
     phone?: string | null;
     street?: string | null;
+    house_number?: string | null;
     plz?: string | null;
     city?: string | null;
     mwst_number?: string | null;
@@ -164,13 +208,13 @@ export function calculateTotals(
   total: number;
   gesamttotal: number;
 } {
-  const zwischensumme = positionen
+  const zwischensumme = round2(positionen
     .filter(p => p.checked)
-    .reduce((sum, p) => sum + (p.betrag || 0), 0);
+    .reduce((sum, p) => sum + round2(p.betrag || 0), 0));
 
-  const total = Math.max(0, zwischensumme - (rabatt || 0));
-  const mwst_betrag = Math.round(total * (mwstSatz / 100) * 100) / 100;
-  const gesamttotal = total + mwst_betrag;
+  const total = round2(Math.max(0, zwischensumme - round2(rabatt || 0)));
+  const mwst_betrag = round2(total * (mwstSatz / 100));
+  const gesamttotal = round2(total + mwst_betrag);
 
   return { zwischensumme, mwst_betrag, total, gesamttotal };
 }
@@ -186,6 +230,7 @@ export const STATUS_CONFIG: Record<QuittungStatus, {
   border: string;
 }> = {
   draft:  { color: 'text-slate-600',   bg: 'bg-slate-100',   border: 'border-slate-200' },
+  issued: { color: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200' },
   signed: { color: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200' },
   sent:   { color: 'text-indigo-700',  bg: 'bg-indigo-50',   border: 'border-indigo-200' },
   paid:   { color: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200' },
@@ -195,7 +240,7 @@ type QuittungRow = Database["public"]["Tables"]["quittungen"]["Row"];
 
 export type QuittungMapResult =
   | { ok: true; value: Quittung }
-  | { ok: false; reason: "invalid_status" | "invalid_positionen" };
+  | { ok: false; reason: "invalid_status" | "invalid_positionen" | "invalid_payment_status" | "invalid_company_snapshot" };
 
 /**
  * Type guard for the receipt status. The DB enforces exactly these four values
@@ -203,7 +248,7 @@ export type QuittungMapResult =
  * never coerced to 'draft'.
  */
 export const isQuittungStatus = (value: unknown): value is QuittungStatus =>
-  value === "draft" || value === "signed" || value === "sent" || value === "paid";
+  value === "draft" || value === "issued" || value === "signed" || value === "sent" || value === "paid";
 
 /**
  * Narrow a raw `quittungen` DB row into the validated Quittung view-model. Fails closed
@@ -217,5 +262,11 @@ export const mapQuittungRow = (row: QuittungRow): QuittungMapResult => {
   const positionen = validateQuittungPositionen(row.positionen);
   if (!positionen.ok) return { ok: false, reason: "invalid_positionen" };
   const status: QuittungStatus = row.status;
-  return { ok: true, value: { ...row, status, positionen: positionen.value } };
+  const rawPaymentStatus = 'payment_status' in row ? row.payment_status : undefined;
+  if (rawPaymentStatus !== undefined && rawPaymentStatus !== 'open' && rawPaymentStatus !== 'partial' && rawPaymentStatus !== 'paid') return { ok: false, reason: 'invalid_payment_status' };
+  const paymentStatus: QuittungPaymentStatus | undefined = rawPaymentStatus === 'open' || rawPaymentStatus === 'partial' || rawPaymentStatus === 'paid' ? rawPaymentStatus : undefined;
+  const rawSnapshot = 'company_snapshot' in row ? row.company_snapshot : null;
+  const snapshot = parseQuittungCompanySnapshot(rawSnapshot);
+  if (rawSnapshot !== null && rawSnapshot !== undefined && !snapshot) return { ok: false, reason: 'invalid_company_snapshot' };
+  return { ok: true, value: { ...row, status, payment_status: paymentStatus, company_snapshot: snapshot, positionen: positionen.value } };
 };

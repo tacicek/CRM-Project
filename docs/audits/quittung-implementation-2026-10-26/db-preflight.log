@@ -1,0 +1,11 @@
+    supabase_db_crm-test: laeuft, Projekt crm-test, Netz crm-test-loopback, 5432/tcp -> 127.0.0.1:54342
+BEGIN
+ id | quittung_nr | issues 
+----+-------------+--------
+(0 rows)
+
+ payment_id | receipt_ids 
+------------+-------------
+(0 rows)
+
+ROLLBACK

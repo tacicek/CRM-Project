@@ -1,0 +1,27 @@
+import React from 'react';
+import fs from 'node:fs';
+import {fileURLToPath} from 'node:url';
+const auditDir=fileURLToPath(new URL('.',import.meta.url));
+import {renderToFile} from '@react-pdf/renderer';
+import {QuittungPDF} from '../../../src/components/quittung/QuittungPDF.tsx';
+import {calculateTotals} from '../../../src/types/quittung.types.ts';
+const company={company_name:'Beispiel Umzug GmbH', email:'test@example.invalid', phone:'+41 00 000 00 00',street:'Musterstrasse 1',plz:'8000',city:'Zürich',mwst_number:'CHE-000.000.000 MWST',iban:'CH00 0000 0000 0000 0000 0',bank_name:'Musterbank',primary_color:'#10B981',bewertungs_url:'https://example.invalid/review'};
+const positions=[{id:'1',beschreibung:'Umzug / Déménagement',satz:'4 Std. × CHF 250',betrag:1000,checked:true,is_custom:false},{id:'2',beschreibung:'Verpackungsmaterial',satz:'1 × CHF 50',betrag:50,checked:true,is_custom:false},{id:'3',beschreibung:'Kostenlose Beratung',satz:'1 × CHF 0',betrag:0,checked:true,is_custom:false},{id:'4',beschreibung:'Nicht gewählte Reinigung',satz:'Pauschal CHF 500',betrag:500,checked:false,is_custom:false}];
+const base={id:'audit-receipt',company_id:'audit-company',language:'de',quittung_nr:'QU-2026-0042',datum:'2026-10-25',customer_name:'Herr Max Muster',customer_address:'Testweg 12\n8000 Zürich',customer_destination:'Zielweg 4\n3000 Bern',customer_email:'customer@example.invalid',customer_phone:'+41 00 000 00 01',positionen:positions,...calculateTotals(positions,8.1,50),mwst_satz:8.1,rabatt:50,status:'paid',payment_status:'paid',paid_amount:1081,payment_date:'2026-10-25',payment_method:'cash',payment_reference:'PAY-0042',issued_at:'2026-10-25T09:30:00Z',betrag_noch_offen:false,notiz:'Audit note expected on customer PDF?',created_at:'2026-10-25T10:00:00Z',updated_at:'2026-10-25T10:00:00Z'};
+const cases=[];
+cases.push({name:'invoice-credit-closure',quittung:{...base,status:'issued',rechnung_id:'invoice1',payment_status:'paid',paid_amount:40,payment_open_amount:0,payment_method:'bank'},company,locale:'en'});
+cases.push({name:'included',quittung:{...base,positionen:[{...positions[0],beschreibung:'Included packing',price_type:'inkl',menge:10,einzelpreis:100,betrag:0,satz:''}],...calculateTotals([],8.1,0),paid_amount:0,paidAmount:0,rabatt:0},company,locale:'en'});
+cases.push({name:'worksheet',quittung:base,company,locale:'de',mode:'worksheet'});
+cases.push({name:'partial-invoice',quittung:{...base,status:'issued',rechnung_id:'invoice1',payment_status:'partial',paid_amount:300,payment_open_amount:781,payment_method:'bank'},company,locale:'fr'});
+cases.push({name:'open-invoice',quittung:{...base,status:'issued',rechnung_id:'invoice1',payment_status:'open',paid_amount:0,payment_open_amount:1081,payment_date:null,payment_method:null,payment_reference:null},company,locale:'en'});
+for(const status of ['draft','signed','sent','paid']) cases.push({name:status,quittung:{...base,status,payment_status:status==='paid'?'paid':'open',paid_amount:status==='paid'?1081:0},company,locale:'de'});
+for(const locale of ['fr','en']) cases.push({name:locale,quittung:{...base,language:locale},company,locale});
+cases.push({name:'turkish',quittung:{...base,customer_name:'Işıl Çiçek Şahin Güneş Ğğ İı',customer_address:'Çiğdem Sokağı 5\n8000 Zürich'},company,locale:'de'});
+const longpos=Array.from({length:50},(_,i)=>({id:String(i),beschreibung:`Position ${i+1}: Transport empfindlicher Gegenstände und fachgerechte Demontage sowie Montage mit Verpackung und Schutzmaterial.`,satz:`${i+1} Std. × CHF 100`,betrag:(i+1)*100,checked:true,is_custom:i>40}));
+cases.push({name:'long',quittung:{...base,positionen:longpos,...calculateTotals(longpos,8.1,50),paid_amount:calculateTotals(longpos,8.1,50).gesamttotal},company,locale:'de'});
+cases.push({name:'long-fields',quittung:{...base,...calculateTotals([positions[0]],8.1,50),paid_amount:calculateTotals([positions[0]],8.1,50).gesamttotal,customer_name:'Herr und Frau Muster mit einer sehr langen gemeinsamen Firmenbezeichnung '.repeat(3),customer_address:'Sehr lange mehrzeilige Geschäftsadresse und Zusatz für Stockwerk und Eingang\n'.repeat(8),positionen:[{...positions[0],beschreibung:'Sehr lange Leistungsbeschreibung inklusive Verpackung, Demontage und Sonderbehandlung '.repeat(100)}]},company:{...company,company_name:'Sehr lange Firmenbezeichnung für komplexe Logistik und internationale Umzüge '.repeat(3)},locale:'de'});
+cases.push({name:'zero-vat',quittung:{...base,mwst_satz:0,...calculateTotals(positions,0,0),paid_amount:calculateTotals(positions,0,0).gesamttotal,rabatt:0},company:{...company,mwst_number:null},locale:'de'});
+const sig='data:image/png;base64,'+fs.readFileSync(new URL('./signature.png',import.meta.url)).toString('base64');
+cases.push({name:'signed-image',quittung:{...base,status:'signed',kunde_unterschrift:sig,teamchef_unterschrift:sig,kunde_signed_at:'2026-10-25T09:30:00Z',teamchef_signed_at:'2026-10-25T09:31:00Z'},company,locale:'de'});
+cases.push({name:'paid-image',quittung:{...base,status:'paid',kunde_unterschrift:sig,teamchef_unterschrift:sig,kunde_signed_at:'2026-10-25T09:30:00Z',teamchef_signed_at:'2026-10-25T09:31:00Z'},company,locale:'de'});
+for(const c of cases.filter(c=>!process.env.AUDIT_CASE || c.name===process.env.AUDIT_CASE)){await renderToFile(<QuittungPDF {...c}/>,`${auditDir}/${c.name}${process.env.AUDIT_SUFFIX || ""}.pdf`); console.log(`rendered ${c.name}`);}

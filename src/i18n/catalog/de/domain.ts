@@ -72,6 +72,7 @@ export const domain = {
 
   // --- Quittung status -------------------------------------------------------------
   "domain.quittungStatus.draft": "Entwurf",
+  "domain.quittungStatus.issued": "Ausgestellt",
   "domain.quittungStatus.signed": "Unterschrieben",
   "domain.quittungStatus.sent": "Gesendet",
   "domain.quittungStatus.paid": "Bezahlt",

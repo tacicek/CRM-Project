@@ -1,0 +1,123 @@
+
+> vite_react_shadcn_ts@0.0.0 test
+> vitest run --run src/lib/__tests__/quittungAddress.test.ts
+
+
+ RUN  v4.1.6 /home/tuncay/Documents/Projects/CRM-Project
+
+ ❯ src/lib/__tests__/quittungAddress.test.ts (5 tests | 4 failed) 12ms
+     × keeps the separate house number when parsing a saved company snapshot 7ms
+     × passes the full live issuer address to a draft PDF 2ms
+     × uses the frozen house number after the current company address changes 2ms
+     × rejects a malformed number instead of silently discarding it 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/quittungAddress.test.ts > receipt issuer address preservation > keeps the separate house number when parsing a saved company snapshot
+AssertionError: expected { company_name: 'Çiçek Umzüge', …(11) } to match object { street: 'Alte Landstrasse', …(1) }
+(11 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "house_number": "12a",
+    "street": "Alte Landstrasse",
+  }
+
+ ❯ src/lib/__tests__/quittungAddress.test.ts:15:51
+     13| describe('receipt issuer address preservation', () => {
+     14|   it('keeps the separate house number when parsing a saved company sna…
+     15|     expect(parseQuittungCompanySnapshot(company)).toMatchObject({ stre…
+       |                                                   ^
+     16|   });
+     17|   it('passes the full live issuer address to a draft PDF', () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/lib/__tests__/quittungAddress.test.ts > receipt issuer address preservation > passes the full live issuer address to a draft PDF
+AssertionError: expected { company_name: 'Çiçek Umzüge', …(4) } to match object { street: 'Alte Landstrasse', …(1) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "house_number": "12a",
+    "street": "Alte Landstrasse",
+  }
+
+ ❯ src/lib/__tests__/quittungAddress.test.ts:18:56
+     16|   });
+     17|   it('passes the full live issuer address to a draft PDF', () => {
+     18|     expect(resolveQuittungCompany(receipt(), company)).toMatchObject({…
+       |                                                        ^
+     19|   });
+     20|   it('uses the frozen house number after the current company address c…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/lib/__tests__/quittungAddress.test.ts > receipt issuer address preservation > uses the frozen house number after the current company address changes
+AssertionError: expected { company_name: 'Çiçek Umzüge', …(4) } to match object { house_number: '12a' }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "house_number": "12a",
++   "city": "Meilen",
++   "company_name": "Çiçek Umzüge",
++   "email": "receipt@example.invalid",
++   "plz": "8706",
++   "street": "Alte Landstrasse",
+  }
+
+ ❯ src/lib/__tests__/quittungAddress.test.ts:22:44
+     20|   it('uses the frozen house number after the current company address c…
+     21|     expect(resolveQuittungCompany(receipt({ issued_at: '2026-10-26T12:…
+     22|       { ...company, house_number: '99' })).toMatchObject({ house_numbe…
+       |                                            ^
+     23|   });
+     24|   it('does not invent a house number in a historical snapshot that nev…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/lib/__tests__/quittungAddress.test.ts > receipt issuer address preservation > rejects a malformed number instead of silently discarding it
+AssertionError: expected { company_name: 'Çiçek Umzüge', …(11) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "bank_name": undefined,
+  "bewertungs_url": undefined,
+  "city": "Meilen",
+  "company_name": "Çiçek Umzüge",
+  "email": "receipt@example.invalid",
+  "iban": undefined,
+  "logo_url": undefined,
+  "mwst_number": undefined,
+  "phone": undefined,
+  "plz": "8706",
+  "primary_color": undefined,
+  "street": "Alte Landstrasse",
+}
+
+ ❯ src/lib/__tests__/quittungAddress.test.ts:29:76
+     27|   });
+     28|   it('rejects a malformed number instead of silently discarding it', (…
+     29|     expect(parseQuittungCompanySnapshot({ ...company, house_number: 12…
+       |                                                                            ^
+     30|   });
+     31| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  02:07:07
+   Duration  820ms (transform 409ms, setup 0ms, import 577ms, tests 12ms, environment 0ms)
+

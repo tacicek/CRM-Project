@@ -1,0 +1,44 @@
+[
+  {
+    "handler": "send-quittung",
+    "method": "OPTIONS",
+    "auth": "none",
+    "status": 200,
+    "body": "ok"
+  },
+  {
+    "handler": "send-quittung",
+    "method": "POST",
+    "auth": "none",
+    "status": 401,
+    "body": "{\"error\":\"Nicht autorisiert.\"}"
+  },
+  {
+    "handler": "send-quittung",
+    "method": "POST",
+    "auth": "invalid",
+    "status": 401,
+    "body": "{\"error\":\"Ungültige Sitzung.\"}"
+  },
+  {
+    "handler": "send-rechnung-email",
+    "method": "OPTIONS",
+    "auth": "none",
+    "status": 200,
+    "body": "ok"
+  },
+  {
+    "handler": "send-rechnung-email",
+    "method": "POST",
+    "auth": "none",
+    "status": 401,
+    "body": "{\"error\":\"Nicht autorisiert\"}"
+  },
+  {
+    "handler": "send-rechnung-email",
+    "method": "POST",
+    "auth": "invalid",
+    "status": 401,
+    "body": "{\"error\":\"Ungültige Sitzung\"}"
+  }
+]

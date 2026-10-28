@@ -1,0 +1,8 @@
+    supabase_db_crm-test: laeuft, Projekt crm-test, Netz crm-test-loopback, 5432/tcp -> 127.0.0.1:54342
+BEGIN
+ count |               md5                
+-------+----------------------------------
+     1 | e17f332ad4d58c3449bece4b2cc8db01
+(1 row)
+
+ROLLBACK

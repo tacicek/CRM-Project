@@ -196,7 +196,7 @@ Deno.serve(async (req: Request) => {
 
     const parsed = JSON.parse(textBlock.text) as { items: TranslatedItem[] };
 
-    logger.info("translated", {
+    logger.logStep("translated", {
       items: parsed.items.length,
       locales,
       usage: data.usage,

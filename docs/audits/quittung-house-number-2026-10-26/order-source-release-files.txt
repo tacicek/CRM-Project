@@ -1,0 +1,4 @@
+src/lib/offerAddressSnapshot.ts
+src/lib/quittungDraft.ts
+src/components/firma/AuftragModal.tsx
+src/lib/__tests__/quittungAddress.test.ts

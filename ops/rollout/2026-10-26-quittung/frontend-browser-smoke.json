@@ -1,0 +1,28 @@
+{
+  "observed_at": "2026-10-25T18:59:08.408Z",
+  "release_commit": "3008c18344de51f12d6aaba8673d5cd97ec72115",
+  "scope": "Fresh unauthenticated context; no customer API reads or auth mutations",
+  "scenarios": [
+    {
+      "requestedRoute": "/firma/quittungen",
+      "finalPath": "/auth",
+      "loginVisible": true,
+      "pageErrors": [],
+      "failedAssets": [],
+      "blockedApi": [],
+      "screenshot": "frontend-unauth-list.png",
+      "passed": true
+    },
+    {
+      "requestedRoute": "/firma/quittungen/neu",
+      "finalPath": "/auth",
+      "loginVisible": true,
+      "pageErrors": [],
+      "failedAssets": [],
+      "blockedApi": [],
+      "screenshot": "frontend-unauth-new.png",
+      "passed": true
+    }
+  ],
+  "passed": true
+}

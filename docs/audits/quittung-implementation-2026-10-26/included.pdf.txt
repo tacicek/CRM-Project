@@ -1,0 +1,63 @@
+Receipt QU-2026-0042
+
+
+
+
+                                                                                                                Receipt
+                                                                                                             Beispiel Umzug GmbH
+                                                                                                                       Musterstrasse 1
+                                                                                                                           8000 Zürich
+                                                                                                                      +41 00 000 00 00
+                                                                                                                  test@example.invalid
+
+
+
+ Customer                                                                  Details
+ Herr Max Muster                                                           Date: 25/10/2026
+ Testweg 12                                                                Receipt no.: QU-2026-0042
+ 8000 Zürich                                                               Issued: 25/10/2026, 10:30 CET
+ → Zielweg 4                                                               VAT no.: CHE-000.000.000 MWST
+ 3000 Bern                                                                 IBAN: CH00 0000 0000 0000 0000 0
+ +41 00 000 00 01                                                          Musterbank
+ customer@example.invalid
+
+
+
+ Description                                                         Rate / remark                                      Amount CHF
+
+
+ Included packing                                                    Included                                                   0.00
+
+
+
+                                                                                Subtotal:                                    CHF 0.00
+                                                                                VAT (8.1%):                                  CHF 0.00
+
+
+                                                                                  Grand total:                         CHF 0.00
+
+
+
+  Payment status
+
+  Paid
+  Direct payment against this receipt.
+
+  No payment has been recorded yet.
+  Outstanding:                                                                                                            CHF 0.00
+
+
+
+ Date / signature of customer                                              Date / signature of team leader
+
+
+
+
+                                                  THANK YOU VERY MUCH FOR YOUR ORDER!
+                                         We look forward to your review: https://example.invalid/review
+
+
+
+
+QU-2026-0042                                                                                                                Page 1 of 1
+

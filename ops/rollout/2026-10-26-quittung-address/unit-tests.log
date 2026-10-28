@@ -1,0 +1,11 @@
+> vite_react_shadcn_ts@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.6 /tmp/crm-quittung-publish-20261026
+
+
+ Test Files  122 passed (122)
+      Tests  2250 passed (2250)
+   Start at  02:47:11
+   Duration  9.79s (transform 9.76s, setup 0ms, import 24.80s, tests 7.36s, environment 35ms)

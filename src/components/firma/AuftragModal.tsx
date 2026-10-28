@@ -58,6 +58,7 @@ import { formatCurrency } from "@/i18n/format";
 import { useI18n, useT } from "@/i18n/useI18n";
 import { allowedAuftragTargets } from "@/lib/auftragStatus";
 import { buildServiceDetails, type AuftragLead } from "@/lib/auftragLead";
+import { getOfferAddressSnapshot } from "@/lib/offerAddressSnapshot";
 import { splitPersonName, joinPersonName } from "@/lib/personName";
 import {
   buildAuftragInsertPayload,
@@ -374,72 +375,60 @@ export function AuftragModal({
         
         setOfferItems(itemsData || []);
         
-        // Fetch lead data
+        // The accepted offer owns the address snapshot. The live lead is optional
+        // and supplies only addresses that were never captured on the offer.
+        let leadData: AuftragLead | null = null;
         if (offerData.lead_id) {
-          const { data: leadData, error: leadError } = await supabase
+          const leadResult = await supabase
             .from("leads")
             .select("*")
             .eq("id", offerData.lead_id)
-            .single();
-          
-          if (!leadError && leadData) {
-            setLead(leadData);
-            
-            // Build addresses from lead
-            const fromAddress = buildAddress(
-              leadData.from_street,
-              leadData.from_house_number,
-              leadData.from_plz,
-              leadData.from_city,
-              leadData.from_floor,
-              leadData.from_has_lift
-            );
-            
-            const toAddress = buildAddress(
-              leadData.to_street,
-              leadData.to_house_number,
-              leadData.to_plz,
-              leadData.to_city,
-              leadData.to_floor,
-              leadData.to_has_lift
-            );
-            
-            // Build service details based on service type
-            const serviceDetails = buildServiceDetails(leadData);
-            
-            // Pre-populate form with all data
-            setFormData({
-              title: offerData.title,
-              customer_first_name: offerData.customer_first_name ?? "",
-              customer_last_name: offerData.customer_last_name ?? "",
-              customer_email: offerData.customer_email,
-              customer_phone: offerData.customer_phone || "",
-              from_address: fromAddress,
-              to_address: toAddress,
-              scheduled_date: offerData.service_date ? new Date(offerData.service_date) : new Date(),
-              scheduled_time: "",
-              estimated_duration_minutes: leadData.estimated_duration_minutes || 120,
-              description: offerData.description || leadData.description || "",
-              special_instructions: "",
-              internal_notes: "",
-              team_leader_id: "",
-              assigned_team_members: [],
-              reminder_days_before: 1,
-              status: "geplant",
-              // Pricing from offer
-              service_type: leadData.service_type,
-              pricing_type: "fixed", // Default to fixed, can be changed to hourly
-              hourly_rate: 0,
-              subtotal: offerData.subtotal || 0,
-              vat_rate: offerData.vat_rate || 8.1,
-              vat_amount: offerData.vat_amount || 0,
-              total: offerData.total || 0,
-              items: itemsData || [],
-              extra_services: [],
-              service_details: serviceDetails,
-            });
-          }
+            .maybeSingle();
+          if (leadResult.error) throw leadResult.error;
+          leadData = leadResult.data;
         }
+        setLead(leadData);
+        const addressSource = { ...offerData, leads: leadData };
+        const from = getOfferAddressSnapshot(addressSource, 'from');
+        const to = getOfferAddressSnapshot(addressSource, 'to');
+        const fromAddress = buildAddress(from.street, from.house_number, from.plz, from.city, from.floor, from.has_lift);
+        const toAddress = buildAddress(to.street, to.house_number, to.plz, to.city, to.floor, to.has_lift);
+
+        // Populate offer-owned fields even after the source lead has been deleted.
+        setFormData({
+          title: offerData.title,
+          customer_first_name: offerData.customer_first_name ?? "",
+          customer_last_name: offerData.customer_last_name ?? "",
+          customer_email: offerData.customer_email,
+          customer_phone: offerData.customer_phone || "",
+          from_address: fromAddress,
+          to_address: toAddress,
+          scheduled_date: offerData.service_date ? new Date(offerData.service_date) : new Date(),
+          scheduled_time: "",
+          estimated_duration_minutes: leadData?.estimated_duration_minutes || 120,
+          description: offerData.description || leadData?.description || "",
+          special_instructions: "",
+          internal_notes: "",
+          team_leader_id: "",
+          assigned_team_members: [],
+          reminder_days_before: 1,
+          status: "geplant",
+          // Pricing from offer
+          service_type: leadData?.service_type ?? "",
+          pricing_type: "fixed", // Default to fixed, can be changed to hourly
+          hourly_rate: 0,
+          subtotal: offerData.subtotal || 0,
+          vat_rate: offerData.vat_rate ?? 8.1,
+          vat_amount: offerData.vat_amount || 0,
+          total: offerData.total || 0,
+          items: itemsData || [],
+          extra_services: [],
+          service_details: leadData ? buildServiceDetails({
+            ...leadData,
+            from_floor: from.floor, from_has_lift: from.has_lift,
+            to_floor: to.floor, to_has_lift: to.has_lift,
+          }) : {},
+        });
       } catch (error) {
         console.error("Error fetching offer data:", error);
         toast({
@@ -488,7 +477,7 @@ export function AuftragModal({
         pricing_type: auftrag.pricing_type || "fixed",
         hourly_rate: auftrag.hourly_rate || 0,
         subtotal: auftrag.subtotal || 0,
-        vat_rate: auftrag.vat_rate || 8.1,
+        vat_rate: auftrag.vat_rate ?? 8.1,
         vat_amount: auftrag.vat_amount || 0,
         total: auftrag.total || 0,
         items: auftrag.items || [],

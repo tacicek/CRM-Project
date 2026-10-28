@@ -1,0 +1,286 @@
+[
+  {
+    "check": "draft actual total and discount",
+    "passed": true
+  },
+  {
+    "check": "signed actual total and discount",
+    "passed": true
+  },
+  {
+    "check": "sent actual total and discount",
+    "passed": true
+  },
+  {
+    "check": "paid actual total and discount",
+    "passed": true
+  },
+  {
+    "check": "worksheet explicitly blank",
+    "passed": true
+  },
+  {
+    "check": "Unicode name exact",
+    "passed": true
+  },
+  {
+    "check": "Destination arrow preserved",
+    "passed": true
+  },
+  {
+    "check": "Included label without original rate",
+    "passed": true
+  },
+  {
+    "check": "long every page identified and numbered",
+    "passed": true
+  },
+  {
+    "check": "long continued table headers",
+    "passed": true
+  },
+  {
+    "check": "long-fields every page identified and numbered",
+    "passed": true
+  },
+  {
+    "check": "long-fields continued table headers",
+    "passed": true
+  },
+  {
+    "check": "row 1 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 2 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 3 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 4 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 5 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 6 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 7 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 8 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 9 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 10 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 11 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 12 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 13 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 14 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 15 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 16 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 17 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 18 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 19 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 20 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 21 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 22 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 23 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 24 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 25 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 26 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 27 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 28 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 29 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 30 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 31 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 32 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 33 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 34 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 35 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 36 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 37 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 38 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 39 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 40 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 41 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 42 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 43 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 44 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 45 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 46 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 47 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 48 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 49 description and price together",
+    "passed": true
+  },
+  {
+    "check": "row 50 description and price together",
+    "passed": true
+  },
+  {
+    "check": "invoice partial exact balance",
+    "passed": true
+  },
+  {
+    "check": "invoice credits use actual invoice balance",
+    "passed": true
+  },
+  {
+    "check": "receipt date independent of timezone",
+    "passed": true
+  },
+  {
+    "check": "paid text inside page",
+    "passed": true
+  },
+  {
+    "check": "turkish text inside page",
+    "passed": true
+  },
+  {
+    "check": "long text inside page",
+    "passed": true
+  },
+  {
+    "check": "long-fields text inside page",
+    "passed": true
+  },
+  {
+    "check": "fr text inside page",
+    "passed": true
+  },
+  {
+    "check": "en text inside page",
+    "passed": true
+  }
+]

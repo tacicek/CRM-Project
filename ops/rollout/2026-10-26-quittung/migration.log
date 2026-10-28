@@ -1,0 +1,111 @@
+20261025180327_quittung_document_lifecycle.sql: OK
+All 14 Edge release dependencies verified
+BEGIN
+CREATE SCHEMA
+REVOKE
+GRANT
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:<stdin>:25: NOTICE:  constraint "quittungen_payment_status_check" of relation "quittungen" does not exist, skipping
+ALTER TABLE
+DO
+ALTER TABLE
+ALTER TABLE
+CREATE INDEX
+COMMENT
+COMMENT
+CREATE TABLE
+ALTER TABLE
+REVOKE
+psql:<stdin>:33: NOTICE:  constraint "quittungen_rechnung_fk" of relation "quittungen" does not exist, skipping
+INSERT 0 1
+CREATE FUNCTION
+REVOKE
+CREATE TABLE
+ALTER TABLE
+DROP POLICY
+psql:<stdin>:86: NOTICE:  policy "quittung_payment_links_read" for relation "public.quittung_payment_links" does not exist, skipping
+CREATE POLICY
+REVOKE
+GRANT
+INSERT 0 3
+DROP FUNCTION
+DROP FUNCTION
+psql:<stdin>:96: NOTICE:  function public.quittung_payment_state(public.quittungen) does not exist, skipping
+psql:<stdin>:97: NOTICE:  function quittung_private.payment_state(public.quittungen) does not exist, skipping
+CREATE FUNCTION
+REVOKE
+GRANT
+DROP FUNCTION
+CREATE FUNCTION
+REVOKE
+GRANT
+psql:<stdin>:137: NOTICE:  function public.quittung_company_snapshot(uuid) does not exist, skipping
+CREATE FUNCTION
+REVOKE
+GRANT
+DROP TRIGGER
+CREATE FUNCTION
+CREATE FUNCTION
+REVOKE
+psql:<stdin>:DROP TRIGGER
+CREATE TRIGGER
+CREATE FUNCTION
+324: NOTICE:  trigger "zz_quittung_lifecycle" for relation "public.quittungen" does not exist, skipping
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+DROP TRIGGER
+CREATE TRIGGER
+CREATE FUNCTION
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+psql:<stdin>:342: NOTICE:  trigger "quittung_invoice_customer" for relation "public.quittungen" does not exist, skipping
+psql:<stdin>:345: NOTICE:  trigger "invoice_quittung_customer" for relation "public.rechnungen" does not exist, skipping
+psql:<stdin>:410: NOTICE:  trigger "sync_quittung_invoice_payment" for relation "public.rechnungen" does not exist, skipping
+psql:<stdin>:422: NOTICE:  trigger "sync_quittung_payment_reversal" for relation "public.payments" does not exist, skipping
+psql:<stdin>:435: NOTICE:  trigger "sync_quittung_payment_reference" for relation "public.payments" does not exist, skipping
+DO
+CREATE TABLE
+ALTER TABLE
+DROP POLICY
+CREATE POLICY
+REVOKE
+GRANT
+GRANT
+psql:<stdin>:472: NOTICE:  policy "quittung_documents_read" for relation "public.quittung_documents" does not exist, skipping
+CREATE TABLE
+psql:<stdin>:491: NOTICE:  policy "quittung_dispatches_read" for relation "public.quittung_dispatches" does not exist, skipping
+ALTER TABLE
+DROP POLICY
+CREATE POLICY
+REVOKE
+GRANT
+GRANT
+CREATE FUNCTION
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+GRANT
+DO
+NOTIFY
+COMMIT

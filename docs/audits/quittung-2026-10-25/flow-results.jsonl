@@ -1,0 +1,10 @@
+{"name":"optional excluded using canonical price_type rule","expected":1081,"actual":1405.3,"verdict":"FAIL"}
+{"name":"canonical helper marks optional nonbillable","expected":true,"actual":true,"verdict":"PASS"}
+{"name":"zero VAT Auftrag total preserved","expected":1000,"actual":1081,"verdict":"FAIL"}
+{"name":"customer language propagated","expected":"fr","actual":"MISSING","verdict":"FAIL"}
+{"name":"discounted Auftrag final total preserved","expected":972.9,"actual":1081,"verdict":"FAIL"}
+{"name":"bridge field set","fields":["auftragId","offerId","customerName","customerAddress","customerDestination","customerEmail","customerPhone","items","extraServices"]}
+{"name":"discount editor state table (source predicates)","status":"draft","visible":false,"disabled":false,"usable":false}
+{"name":"discount editor state table (source predicates)","status":"signed","visible":true,"disabled":true,"usable":false}
+{"name":"discount editor state table (source predicates)","status":"sent","visible":true,"disabled":true,"usable":false}
+{"name":"discount editor state table (source predicates)","status":"paid","visible":true,"disabled":true,"usable":false}

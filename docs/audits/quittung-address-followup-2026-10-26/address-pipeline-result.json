@@ -1,0 +1,323 @@
+{
+  "pipelineBehaviorPass": true,
+  "completeAddressScenarios": 6,
+  "totalScenarios": 12,
+  "results": [
+    {
+      "scenario": "manual-complete",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": true,
+      "destinationNumberPresent": true,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": true,
+      "sha256": "334e427fe3d30ec26fdc46bfe31382dba7b86dcba792ba1dd65da9c8120a0141",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": "Kundenstrasse 44D\nc/o Beispiel Verwaltung\n8000 Zürich",
+        "customer_destination": "Zielstrasse 8B, 1007 Lausanne"
+      }
+    },
+    {
+      "scenario": "offer-complete",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": true,
+      "destinationNumberPresent": true,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": true,
+      "sha256": "c79845a944a5c63b163a5319d11143867a2a6e8f080995433984d9efefaa50ee",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": "Startstrasse 12a, 8706 Meilen",
+        "customer_destination": "Zielstrasse 8B, 1007 Lausanne"
+      }
+    },
+    {
+      "scenario": "offer-lead-fallback",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": true,
+      "destinationNumberPresent": true,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": true,
+      "sha256": "b446a9eb83c799b815227ac2b95bf7b0bca5961661b4fefb3b4fd1fd71510dce",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": "Startstrasse 12a, 8706 Meilen",
+        "customer_destination": "Zielstrasse 8B, 1007 Lausanne"
+      }
+    },
+    {
+      "scenario": "order-complete",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": true,
+      "destinationNumberPresent": true,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": true,
+      "sha256": "798998304fe6370ec7e816afaf088091501e6a78183befb45a64a236e0e9be6b",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": "Startstrasse 12a, 8706 Meilen",
+        "customer_destination": "Zielstrasse 8B, 1007 Lausanne"
+      }
+    },
+    {
+      "scenario": "order-missing-number",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": false,
+      "destinationNumberPresent": false,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": false,
+      "sha256": "29b0dcefb1308941609d7f8d23aa450997f0740057d0d926ec27852edb332e1e",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": "Startstrasse, 8706 Meilen",
+        "customer_destination": "Zielstrasse, 1007 Lausanne"
+      }
+    },
+    {
+      "scenario": "offer-partial-frozen",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": false,
+      "destinationNumberPresent": false,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": false,
+      "sha256": "0cc76b3ee2fd1248d9308a38df647f99f59615d95a81d4fa80c66b50b89176a7",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": "Startstrasse, 8706 Meilen",
+        "customer_destination": "Zielstrasse, 1007 Lausanne"
+      }
+    },
+    {
+      "scenario": "issued-historical-company",
+      "issuerNumberPresent": false,
+      "customerOrStartNumberPresent": true,
+      "destinationNumberPresent": true,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": false,
+      "sha256": "a038d101cb83a71da47ee39958a8658d424c9d96d7191d9c032ac11c09d53714",
+      "input": {
+        "issued_at": "2026-10-26T09:00:00Z",
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "customer_address": "Startstrasse 12a, 8706 Meilen",
+        "customer_destination": "Zielstrasse 8B, 1007 Lausanne"
+      }
+    },
+    {
+      "scenario": "issued-historical-customer",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": false,
+      "destinationNumberPresent": false,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": false,
+      "sha256": "90ea7103dede1602eb16873d848fb467069c361088463330f036b3298f420aa8",
+      "input": {
+        "issued_at": "2026-10-26T09:00:00Z",
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "customer_address": "Startstrasse, 8706 Meilen",
+        "customer_destination": "Zielstrasse, 1007 Lausanne"
+      }
+    },
+    {
+      "scenario": "actual-modal-before-frozen-offer-lead-number-removed",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": false,
+      "destinationNumberPresent": false,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": false,
+      "sha256": "e9a08560682b843d138d7e67d468d2bc7bf0aca5224110b21b3048f3b0f6650d",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": "Alte Landstrasse\n8706 Meilen\n0. Stock (ohne Lift)",
+        "customer_destination": "Rue du Lac\n1007 Lausanne\n1. Stock (mit Lift)"
+      }
+    },
+    {
+      "scenario": "actual-modal-before-frozen-offer-lead-missing",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": false,
+      "destinationNumberPresent": false,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": false,
+      "sha256": "b6ff092c2987780f8a4ed1e3d31afcda7bf93c09aba3dfe5d3bd563e4ff1c5ff",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": null,
+        "customer_destination": null
+      }
+    },
+    {
+      "scenario": "actual-modal-after-frozen-offer-lead-number-removed",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": true,
+      "destinationNumberPresent": true,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": true,
+      "sha256": "fd026517b6da572c2320b0feae4ee3104e630f86a3a6537dd3e3eb29bdc2ebbf",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+        "customer_destination": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)"
+      }
+    },
+    {
+      "scenario": "actual-modal-after-frozen-offer-lead-missing",
+      "issuerNumberPresent": true,
+      "customerOrStartNumberPresent": true,
+      "destinationNumberPresent": true,
+      "matchesExpectedPipelineBehavior": true,
+      "completeAddressAssertionsPass": true,
+      "sha256": "ff34bfc5e65f231176beea1bbbef96013cc0f32fc3f1eabcbda1b65f03f11ea8",
+      "input": {
+        "issued_at": null,
+        "liveCompany": {
+          "company_name": "Adresse Testumzüge GmbH",
+          "email": "office@example.invalid",
+          "street": "Firmenstrasse",
+          "house_number": "5C",
+          "plz": "8001",
+          "city": "Zürich",
+          "logo_url": null
+        },
+        "company_snapshot": null,
+        "customer_address": "Alte Landstrasse 12a\n8706 Meilen\n0. Stock (ohne Lift)",
+        "customer_destination": "Rue du Lac 8B\n1007 Lausanne\n1. Stock (mit Lift)"
+      }
+    }
+  ],
+  "archive": {
+    "actions": [
+      {
+        "name": "send-quittung",
+        "action": "lookup"
+      }
+    ],
+    "returnedExistingHash": true,
+    "usedLookupOnly": true,
+    "returnedUrl": "https://archive.example.invalid/historical-customer.pdf",
+    "historicalCustomerNumberPresent": false
+  },
+  "boundary": "Real draft mapper, payload builder, company resolver, logo preparation, PDF component and renderer; archive network adapter is a local synthetic lookup. No live reads/writes."
+}

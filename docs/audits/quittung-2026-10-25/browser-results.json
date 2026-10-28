@@ -1,0 +1,69 @@
+[
+  {
+    "scenario": "first-save-email",
+    "dbNumber": "Q-2026-0042",
+    "emailPDFNumber": "",
+    "emailPDFId": "",
+    "uiPDFNumber": "Q-2026-0042"
+  },
+  {
+    "scenario": "discount-draft",
+    "visibleCount": 0
+  },
+  {
+    "scenario": "discount-signed",
+    "visibleCount": 1,
+    "disabled": true
+  },
+  {
+    "scenario": "signed-save-draft",
+    "writtenStatus": "draft",
+    "mockUiStatusAfter": "draft",
+    "scopeNote": "Mock database accepts the write. Real SQL guard_quittung_status_regression rejects signed/sent/paid -> draft. This proves the invalid UI action only, not a database bypass."
+  },
+  {
+    "scenario": "unlink-offer",
+    "hasOfferId": false,
+    "sentPayload": "omitted"
+  },
+  {
+    "scenario": "blank-form-save",
+    "writes": 1,
+    "name": "",
+    "total": 0
+  },
+  {
+    "scenario": "preview-after-save-failure",
+    "formButtonVisible": true,
+    "errors": [
+      {
+        "title": "Fehler",
+        "description": "fixture-save-rejected",
+        "variant": "destructive"
+      }
+    ]
+  },
+  {
+    "scenario": "customer-confirmed-team-only-drawn",
+    "payloadCustomer": true,
+    "payloadTeam": false,
+    "uiTeam": true,
+    "toast": {
+      "title": "Quittung unterzeichnet!",
+      "description": "Beide Unterschriften gespeichert."
+    }
+  },
+  {
+    "scenario": "signed-change-customer-and-send",
+    "name": "Changed Customer",
+    "status": "signed",
+    "signatureRetained": true
+  },
+  {
+    "scenario": "switch-offer-to-customer-with-missing-contact",
+    "name": "Customer B",
+    "email": "a@example.invalid",
+    "address": "Address A",
+    "offer": "offer-B"
+  }
+]

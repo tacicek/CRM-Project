@@ -1,0 +1,27 @@
+{
+  "observed_date": "2026-10-26",
+  "verification": "Production SELECT only via target and cluster-identity guards; explicit BEGIN READ ONLY / ROLLBACK.",
+  "data_changes_performed": false,
+  "repair_prepared_or_applied": false,
+  "receipt_identified_by_user": false,
+  "aggregate": {
+    "draft_total": 20,
+    "issued_total": 6,
+    "receipt_total": 26,
+    "receipt_order_links": 0,
+    "strict_draft_candidates": 7,
+    "strict_candidate_versions": [
+      2
+    ],
+    "company_profiles_with_number": 2,
+    "draft_identity_mismatch_excluded": 1,
+    "draft_exact_missing_number_pattern": 8,
+    "issued_exact_missing_number_pattern": 2,
+    "excluded_draft_offer_customer_missing": 0,
+    "issued_matching_pattern_with_document": 1,
+    "issued_matching_pattern_with_signature": 2,
+    "excluded_draft_receipt_customer_missing": 0,
+    "issued_company_snapshot_number_key_absent": 6,
+    "issued_matching_pattern_source_too_recent": 1
+  }
+}

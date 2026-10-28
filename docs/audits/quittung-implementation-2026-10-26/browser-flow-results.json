@@ -1,0 +1,63 @@
+[
+  {
+    "scenario": "source-save-canonical-route",
+    "total": 900,
+    "discount": 100,
+    "vat": 0,
+    "language": "fr",
+    "path": "/firma/quittungen/saved-1"
+  },
+  {
+    "scenario": "source-replacement-and-clear",
+    "email": null,
+    "address": null,
+    "offer_id": null,
+    "auftrag_id": null
+  },
+  {
+    "scenario": "global-signatures-and-freeze",
+    "customer": true,
+    "team": true,
+    "status": "signed"
+  },
+  {
+    "scenario": "first-send-canonical-unsigned",
+    "number": "QU-2026-0042",
+    "id": "saved-1",
+    "status": "issued"
+  },
+  {
+    "scenario": "payment-dialog-refresh-preserves-input",
+    "reference": "KEEP-REFERENCE"
+  },
+  {
+    "scenario": "direct-payment",
+    "status": "issued",
+    "payment_status": "paid",
+    "rpcs": [
+      "finalize_quittung",
+      "record_quittung_payment"
+    ]
+  },
+  {
+    "scenario": "linked-invoice-payment-no-duplicate",
+    "invoice": "invoice-a",
+    "payment_status": "paid",
+    "rpcs": [
+      "finalize_quittung",
+      "record_payment"
+    ]
+  },
+  {
+    "scenario": "external-invoice-payment-and-reversal-refresh",
+    "paidAndOpenObserved": true
+  },
+  {
+    "scenario": "failed-save-preview-and-retry",
+    "recovered": true
+  },
+  {
+    "scenario": "compare-and-swap-conflict",
+    "staleWriteRejected": true
+  }
+]
